@@ -39,3 +39,7 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Google Cloud SDK
+/google-cloud-cli-darwin-arm.tar.gz
+/google-cloud-sdk/
