@@ -3,7 +3,7 @@ import './globals.css';
 import { AppProvider } from '@/lib/context';
 
 export const metadata: Metadata = {
-  title: 'Lidl Decision Intelligence | Powered by Looker + Gemini AI',
+  title: 'LiDL DI',
   description: 'AI-powered retail analytics platform — from dashboards to decision engine.',
   icons: { icon: '/favicon.ico' },
 };

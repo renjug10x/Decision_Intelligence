@@ -7,7 +7,7 @@ import {
   Sparkles, Loader2,
 } from 'lucide-react';
 import { useApp } from '@/lib/context';
-import ConfidenceScore from '@/components/ConfidenceScore';
+import ConfidenceScore, { DecisionMemory } from '@/components/ConfidenceScore';
 import { Line, Bar } from 'react-chartjs-2';
 import {
   Chart as ChartJS, CategoryScale, LinearScale, PointElement,
@@ -417,6 +417,7 @@ export default function TodayPriorities() {
                           {ANOMALY_DETAILS[a.id]?.rootCause}
                         </div>
                         <ConfidenceScore score={a.confidence || (a.severity === 'high' ? 92 : 78)} reasons={["Cross-referenced POS data", "Matched historical anomaly pattern"]} />
+                        <DecisionMemory anomalyId={a.id} />
                       </div>
                       
                       <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', gap: 12 }}>

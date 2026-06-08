@@ -27,7 +27,7 @@ const PAGE_TITLES: Record<string, string> = {
   promotions:       'Promotion Planner',
   forecasting:      'Forecasting',
   settings:         'Governance',
-  help:             'Help',
+  help:             'Help & Platform Architecture',
 };
 
 const NOTIFICATIONS_DATA = [

@@ -37,6 +37,7 @@ Demonstrate to Lidl executives how their existing Google Cloud/Looker ecosystem 
 10. **Governance Page & AppSheet Citizen Developer Vision**: Rebrand settings into "Governance" and add the AppSheet vision panel. (Phase 9)
 11. **Simulated Write-Back Actions**: Ensure all CTAs simulate write-backs showing before/after status. (Phase 10)
 12. **Design Polish & Build Verification**: Ensure FinOptX compact style and compile production build. (Phase 11)
+13. **Interactive Architecture Explorer & Decision Journey Storyboard**: Build a native React Miro/Figma-style architecture deck with 9 pages, Decision Journey, and Decision Memory. (Phase 12)
 
 ---
 
@@ -111,10 +112,170 @@ Demonstrate to Lidl executives how their existing Google Cloud/Looker ecosystem 
 * **Goal**: Apply FinOptX style (dark background, dense tables, pill tabs, thin in-page scrollbars) and test production builds.
 * **Files**: [globals.css](file:///Users/renjunair/projects/Decision_Intelligence/app/globals.css).
 
+### Phase 12 (Phase 3): Persona-Driven Architecture Storyboard
+* **Goal**: Build an interactive React slides deck with 10 pages, applying a 4-layer architecture pattern (Persona, Intelligence, Technology/Connectivity, Outcome) to explain how Lidl's personas execute decisions using Looker, Gemini, and AppSheet. Integrates the MCP Connector layer, Decision Journey panel, Decision Memory component, and Fullscreen Presentation Mode.
+* **Files**: [components/ArchitectureExplorer.tsx](file:///Users/renjunair/projects/Decision_Intelligence/components/ArchitectureExplorer.tsx), [components/Sidebar.tsx](file:///Users/renjunair/projects/Decision_Intelligence/components/Sidebar.tsx), [app/page.tsx](file:///Users/renjunair/projects/Decision_Intelligence/app/page.tsx).
+
+#### Phase 12 Acceptance Criteria
+The Architecture Storyboard is complete only when:
+* **Timing Constraints**:
+  * Core demo must complete in 10 minutes.
+  * Extended demo including Architecture Explorer must complete in 20–30 minutes.
+  * Architecture Explorer should support both quick executive walkthrough and deeper technical walkthrough.
+* **Storyboard Content Rules**:
+  * Every page starts with a user persona or business trigger.
+  * Every page ends with a measurable business outcome.
+  * Each diagram follows the 4-layer pattern:
+    1. Persona Layer
+    2. Decision Intelligence Layer
+    3. Technology / Connectivity Layer
+    4. Outcome / Action Layer
+  * Diagrams are interactive, not static images.
+  * Icons are used meaningfully for business users and technical systems.
+  * Fullscreen presentation mode works.
+  * Dot navigation and previous/next navigation work.
+  * User can explain the platform without opening PowerPoint.
+  * Page 0 clearly explains why the platform exists.
+  * MCP Connector Layer is visible in at least the integration and future-state diagrams.
+  * Decision Memory is visible as a learning loop, not just a text block.
+
+#### Icon and Connector Requirements
+Use recognisable enterprise icons for:
+* **Business personas**: Executive, Store Manager, Category Manager, Supply Chain Lead, Citizen Developer, BI/Data Team, Decision Owner.
+* **Retail and operations**: Store, Product/SKU, Promotion, Stock availability, Waste, Labour, Supplier, Delivery truck, Warehouse.
+* **Technology**: Gemini, Vertex AI, BigQuery, Looker, AppSheet, IAM, MCP, API, RAG / knowledge base, Workflow engine, Audit / observability.
+* **Actions**: Ask question, Diagnose, Recommend, Validate, Approve, Create task, Trigger workflow, Escalate, Measure outcome, Learn.
+* *Do not use generic boxes where icons can make the diagram clearer.*
+
+#### Phase 12 Page Inventory
+0. **Why This Exists**: Business motivation, strategic goals, and the gap from *Signal ➔ Action*.
+1. **Executive Overview**: Standard 4-layer platform blueprint overview.
+2. **Store Manager Journey**: "Why is waste increasing today?" Store Manager ➔ Store Intel ➔ Gemini/Looker/BigQuery + MCP ➔ Outcome: Chilled markdown rule adjust (Waste Reduced by 14%).
+3. **Category Manager Journey**: "Why is this promotion underperforming?" Category Manager ➔ Trading Intel ➔ RLS metrics ➔ Outcome: Chilled margin recovery (+4.2%).
+4. **Supply Chain Journey**: "Which supplier delays affect revenue?" Supply Lead ➔ Supply Intel ➔ Supplier SLA/BigQuery ➔ Outcome: FreshDirect delay resolved, backup activated (£24K revenue protected).
+5. **Executive Journey**: "Summarise today's business." Executive ➔ Briefing Centre ➔ Business anomalies ➔ Outcome: National strategic inventory transfers approved.
+6. **AppSheet AI Enablement Blueprint**: Three AppSheet apps (Store, Category, Supply) connecting to DI API with side-by-side Current vs Future state comparisons.
+7. **How A Recommendation Is Generated**: AI Decision Lifecycle details from User Question ➔ validation ➔ Looker semantic query ➔ Gemini reasoning ➔ Confidence Score ➔ Human Validation ➔ workflow trigger.
+8. **Governance & Trust**: IAM, LookML, RLS access scoping, and human-in-the-loop review.
+9. **Future-State Lidl 2028**: "A Day in the Life of Lidl 2028" timeline slide.
+
+#### Page Behaviour Requirements
+Each Architecture Explorer page should include:
+* Title
+* Persona/business question
+* Interactive diagram (conforming to 4-layer layout)
+* Key message
+* Business value callout
+* Technical explanation panel
+* Expandable node details
+* Optional presenter notes (for walkthrough)
+
+#### Final Build Order
+1. Update `PLAN.md` (Completed)
+2. Add `ArchitectureExplorer` route/navigation in `app/page.tsx` and `components/Sidebar.tsx`
+3. Build base explorer shell in `components/ArchitectureExplorer.tsx`
+4. Add navigation/presentation controls
+5. Build reusable diagram node components
+6. Build icon system
+7. Build Page 0 and Executive Overview
+8. Build persona journey pages
+9. Build AppSheet and Recommendation Generation pages
+10. Build Governance and Future-State pages
+11. Add Decision Journey and Decision Memory components
+12. Apply FinOptX styling
+13. Run build
+14. Provide screenshots and demo script
+
+---
+
+### Phase 13: Architecture Storyboard V2 Redesign
+* **Goal**: Redesign the Architecture Storyboard into an interactive, Miro-style solution blueprint and decision journey storyteller. Integrates the deck directly into the "Help" page via tabs, implements explicit visual wiring (curved connectors, animated pulse paths, glow effects) connecting all layers, establishes high-visibility persona triggers and dominant business outcomes, relocates controls into the diagram canvas frame, and creates a comprehensive enterprise integration blueprint.
+* **Files**: [components/Help.tsx](file:///Users/renjunair/projects/Decision_Intelligence/components/Help.tsx), [components/ArchitectureExplorer.tsx](file:///Users/renjunair/projects/Decision_Intelligence/components/ArchitectureExplorer.tsx), [components/Sidebar.tsx](file:///Users/renjunair/projects/Decision_Intelligence/components/Sidebar.tsx), [app/page.tsx](file:///Users/renjunair/projects/Decision_Intelligence/app/page.tsx).
+
+#### 1. Gap Analysis
+* **What was built**:
+  * Slide deck with 10 slides (Page 0 to 9) using 4 horizontal swimlanes (Persona, Intelligence, Technology, Outcome) representing architectural tiers.
+  * Floating cards showing static stack capabilities with disconnected layouts.
+  * A separate navigation link ("Architecture Storyboard") in the left sidebar.
+  * Global presentation and fullscreen buttons in the page-level topbar.
+  * Side-by-side static text lists for AppSheet Current vs Future states.
+* **Why it does not meet the storytelling objective**:
+  * *Feels like static documentation*: The swimlanes act as a generic capability map instead of a dynamic business-to-technology walkthrough.
+  * *No visual wiring*: Nodes float in lanes without explicit dependency arrows or data flow paths, making it hard to follow the journey.
+  * *Triggers & Outcomes are obscured*: The user persona and final business values are styled like minor technology nodes instead of the clear starting point and destination.
+  * *Navigation bloat*: Exposing the explorer as a primary sidebar item clutters the interface, bypassing the logical "Help" section.
+  * *Mismatched canvas controls*: Global page headers manage diagram functions; native fullscreen expands the entire browser window instead of only the drawing canvas.
+* **What will be redesigned**:
+  * **Visual Journey Flow**: A combination of vertical and horizontal steps wired with multi-directional arrows (like an architectural design, not a single straight step diagram) representing the exact business decision path (e.g. Persona ➔ Trigger Event ➔ Application ➔ Gemini Analysis ➔ Looker Validation ➔ Recommendation Generated ➔ Manager Approval ➔ Workflow Triggered ➔ Outcome).
+  * **Wiring & Pulse Effects**: directional arrows, curved connectors, animated pulse paths, highlighted active routes, and glowing effects when hovered or selected. Hovering/clicking a node (like Gemini) illuminates the active path from `User ➔ Gemini ➔ Looker ➔ Outcome`.
+  * **Dominant Triggers & Outcomes**: Large, stylized persona cards at the top (name, role, location, business question) and visually dominant KPI panels at the bottom of each journey slide representing the "destination" (e.g. "Waste Reduced / £18.6K saved").
+  * **First-Class Help Tabs**: Integrated tabs on the Help Page:
+    1. *Architecture Storyboard* (the V2 presentation deck).
+    2. *Decision Lifecycle* (flowchart lifecycle showing query validation - *renamed from Decision Journey*).
+    3. *Resolution Pattern Library* (Decision Memory V2) representing an interactive database showing incident details (Trigger, Action Taken, Outcome, Confidence, Stores Impacted) and active `[Apply Similar Resolution]` buttons.
+  * **Interactive Enterprise Blueprint**: Slide 2 becomes a detailed enterprise blueprint (centerpiece of the entire section) showing interconnected Business, Application, Decision, AI, Governance, Data, and Action layers.
+  * **Before vs After Decision Making Slide**: A new slide illustrating the comparison:
+    * *Current State*: Store ➔ Spreadsheet ➔ Email ➔ Analyst ➔ Report ➔ Manager ➔ Decision.
+    * *Future State*: Store ➔ Decision Intelligence ➔ Recommendation ➔ Approval ➔ Action.
+  * **"Why Gemini Cannot Hallucinate" Slide**: An explicit new page tracing the flow: `User Question ➔ IAM Check ➔ Looker Semantic Layer ➔ Approved Metrics ➔ Gemini Reasoning ➔ Recommendation`.
+  * **Canvas-only Fullscreen**: Full-screen button expands only the diagram canvas container to a large modal view, keeping the sidebar and presenter notes panel visible.
+  * **AppSheet Transformation Blueprint**: Flow diagrams comparing Current State (App ➔ Manual report) vs Future State (App ➔ API ➔ Gemini ➔ Looker ➔ BQ ➔ Action).
+* **What components will be reused**:
+  * Slide copy definitions (SLIDES meta array, presenter notes, values).
+  * Node detail handlers.
+* **What components will be removed**:
+  * Horizontal 4-layer swimlane structures.
+  * Sidebar main navigation item for `architecture-explorer`.
+  * Browser-level native fullscreen overrides.
+  * Side-by-side card lists for AppSheet.
+
+#### 2. Architecture Storyboard Success Test
+A new stakeholder must be able to answer these 8 questions in under 5 minutes without verbal explanation:
+1. What problem does the platform solve?
+2. How does a Store Manager use it?
+3. How does a Category Manager use it?
+4. How does AppSheet integrate?
+5. How are recommendations generated?
+6. How is governance enforced?
+7. How are actions executed?
+8. How does the platform learn over time?
+
+If any answer requires the presenter to verbally explain missing context, the page has failed.
+
+#### 3. Executive Readability Test (Core Validation Check)
+Ask a person unfamiliar with the project to view the **Enterprise Blueprint**, **AppSheet Transformation**, and **Why Gemini Cannot Hallucinate** slides.
+They must be able to explain:
+1. What problem the platform solves.
+2. How recommendations are generated.
+3. Why AI is trusted.
+4. How AppSheet integrates.
+without assistance. If they cannot explain these in under 5 minutes, the diagram must be redesigned.
+
+#### 4. Final Redesign Build Order
+1. Update `PLAN.md` (Completed)
+2. Remove separate left-sidebar entry from `components/Sidebar.tsx` and default router case in `app/page.tsx`
+3. Refactor `components/Help.tsx` to host tabs for:
+   * **Architecture Storyboard** (V2 presentation deck)
+   * **Decision Lifecycle** (flowchart lifecycle)
+   * **Resolution Pattern Library** (Decision Memory V2)
+4. Rebuild `components/ArchitectureExplorer.tsx` to support the Visual Journey Blueprint:
+   * Stepped layout with multi-directional SVG arrow connectors, curved wires, and active route illumination.
+   * Large, styled persona starting cards.
+   * Visually dominant KPI outcome panels at the bottom.
+   * Node clicks detailing Looker semantic models, BigQuery tables, MCP APIs, or Gemini models.
+   * Relocated toolbar inside the canvas frame.
+   * Local canvas fullscreen overlay.
+5. Implement V2 AppSheet Transformation diagrams showing current vs future wired flows.
+6. Implement centerpiece Unified Enterprise System Integration blueprint page.
+7. Implement "Why Gemini Cannot Hallucinate" slide.
+8. Implement "Before vs After Decision Making" slide.
+9. Integrate presenter notes panel and switch controls.
+10. Run build verification.
+
 ---
 
 ## 5. Acceptance Criteria
-* **Execution Time**: Entire demo flow completes under 20 minutes.
+* **Demo Timing**: Core demo completes under 10 minutes. Extended demo including Architecture Explorer completes in 20-30 minutes. Architecture Explorer supports both quick executive walkthrough and deeper technical walkthrough.
 * **Aesthetics**: Premium near-black UI (`#080B12`), compact info density, outlined icons.
 * **Persona Switching**: Navigation completely updates based on persona, enforcing RLS.
 * **Write-Back Simulation**: Clicking actions show status transitions.
@@ -145,3 +306,29 @@ Demonstrate to Lidl executives how their existing Google Cloud/Looker ecosystem 
 * **API Key Safe Handling**: Read Gemini key from sessionStorage context, never commit to files.
 * **Mock Mode Integrity**: Keep local JSON query engine functioning in keyless mode.
 * **Non-destructive upgrades**: Modify existing files conservatively, adding new features as separate components.
+
+---
+
+## 9. Phase 14: Stable Dockerized Monolith Deployment (AWS EC2)
+* **Goal**: Re-architect the deployment to run the entire Next.js application as a production-build container behind an Nginx reverse proxy with automated Let's Encrypt SSL certificates inside Docker Compose, deployed to an AWS EC2 instance at `di.glassx.ai`.
+* **Services**:
+  1. `nextjs-app`: Runs the monolithic Next.js application in production mode (`npm run start`), exposed only to the internal Docker network on port `3000`.
+  2. `nginx-proxy`: Serves as the gateway on ports `80` and `443`. Redirects HTTP to HTTPS, sets security headers, preserves client IP headers (`X-Real-IP`, `X-Forwarded-For`), supports WebSockets/streaming, and exposes the app.
+  3. `certbot`: An automated SSL helper that coordinates Let's Encrypt validation and automatically renews the SSL certificates for `di.glassx.ai`.
+* **Host Platform**: AWS EC2 instance running Ubuntu 24.04 LTS (recommended: `t3.medium`, 20–30GB gp3 SSD).
+* **Security Requirements**:
+  - `GEMINI_API_KEY` loaded dynamically from a host-level `.env` file; secrets are never committed.
+  - Ports `80` and `443` open globally. Port `22` (SSH) restricted to trusted IPs.
+  - Internal application port `3000` is blocked from public exposure.
+  - UFW (Uncomplicated Firewall) enabled on the host.
+
+---
+
+## 10. Phase 15: Future Decoupled Microservices Evaluation
+* **Goal**: Only after the monolithic deployment is stable on EC2, evaluate extracting functions into separate services:
+  - `api-service`: Express/NodeJS backend handling business logic and LLM reasoning.
+  - `data-service`: Mock BigQuery storage layer.
+  - `looker-connector-service`: Governed Semantic Layer wrapper.
+  - `gemini-orchestrator-service`: Generative AI handler.
+  - `observability-service`: Logging and audit trail collection.
+

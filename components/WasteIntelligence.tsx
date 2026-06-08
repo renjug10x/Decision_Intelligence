@@ -5,7 +5,7 @@ import {
   Loader2, Sparkles, ShieldAlert, Package, Store
 } from 'lucide-react';
 import { useApp } from '@/lib/context';
-import ConfidenceScore from '@/components/ConfidenceScore';
+import ConfidenceScore, { DecisionMemory } from '@/components/ConfidenceScore';
 
 const fmt = {
   currency: (v: number) => `£${v >= 1000 ? (v / 1000).toFixed(1) + 'K' : v.toFixed(0)}`,
@@ -202,6 +202,7 @@ export default function WasteIntelligence() {
                       </p>
                     </div>
                     <ConfidenceScore score={driver.confidence} reasons={['Cross-referenced POS and supply chain data', 'Validated against 14-day waste baseline']} />
+                    <DecisionMemory anomalyId={driver.id} />
                     <div>
                       <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--success)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
                         AI Recommended Action

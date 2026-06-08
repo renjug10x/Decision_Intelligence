@@ -5,7 +5,7 @@ import {
   Loader2, Sparkles, Store, Truck, BarChart3
 } from 'lucide-react';
 import { useApp } from '@/lib/context';
-import ConfidenceScore from '@/components/ConfidenceScore';
+import ConfidenceScore, { DecisionMemory } from '@/components/ConfidenceScore';
 
 const fmt = {
   currency: (v: number) => `£${v >= 1000 ? (v / 1000).toFixed(1) + 'K' : v.toFixed(0)}`,
@@ -208,6 +208,7 @@ export default function AvailabilityIntelligence() {
                       </div>
                     </div>
                     <ConfidenceScore score={event.confidence} reasons={['Cross-referenced POS, EPOS, and supply chain data', 'Validated against historical OOS patterns']} />
+                    <DecisionMemory anomalyId={event.id} />
                     <div>
                       <div style={{ fontSize: '0.6875rem', fontWeight: 700, color: 'var(--success)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>
                         AI Replenishment Recommendation

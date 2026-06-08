@@ -2,7 +2,7 @@ import {
   LayoutDashboard, MessageSquare, BarChart3, Truck,
   Tag, TrendingUp, LogOut, Activity, ChevronRight,
   Briefcase, Package, Store, Lock, Settings as SettingsIcon,
-  FileText, Trash2, ShoppingCart, HelpCircle
+  FileText, Trash2, ShoppingCart, HelpCircle, Layers
 } from 'lucide-react';
 import { ICON_PROPS, ICON_PROPS_SM, ICON_MUTED, ICON_ACCENT } from '@/lib/icons';
 import { useApp } from '@/lib/context';
@@ -190,6 +190,8 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
           />
           <span>Help</span>
         </button>
+
+
       </nav>
 
       {/* Footer */}
