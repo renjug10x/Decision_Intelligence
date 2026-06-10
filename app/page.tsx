@@ -1,8 +1,10 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { Construction, Calendar, FlaskConical, Bell, Lock, Zap } from 'lucide-react';
 import { useApp } from '@/lib/context';
-import LoginPage from '@/components/LoginPage';
+import { useAuth } from '@/context/AuthContext';
+import { appRoutes, externalLinks } from '@/config/routes';
 import Sidebar from '@/components/Sidebar';
 import TodayPriorities from '@/components/TodayPriorities';
 import StoreCopilot from '@/components/StoreCopilot';
@@ -15,6 +17,7 @@ import BriefingCentre from '@/components/BriefingCentre';
 import WasteIntelligence from '@/components/WasteIntelligence';
 import AvailabilityIntelligence from '@/components/AvailabilityIntelligence';
 import Help from '@/components/Help';
+import { G10XLogo } from '@/components/G10XLogo';
 
 const PAGE_TITLES: Record<string, string> = {
   dashboard:        "Today's Priorities",
@@ -84,13 +87,48 @@ function PlaceholderScreen({ title }: { title: string }) {
 }
 
 export default function App() {
-  const { role, setRole, isAuthenticated, setIsAuthenticated, muteNotificationNoise, demoMode, setDemoMode } = useApp();
+  const router = useRouter();
+  const { user, isLoading: authLoading } = useAuth();
+  const { role, setRole, muteNotificationNoise, demoMode, setDemoMode, platformSetupComplete } = useApp();
   const [currentPage, setCurrentPage] = useState('dashboard');
   const [notifications, setNotifications] = useState<any[]>(NOTIFICATIONS_DATA);
   const [showNotifications, setShowNotifications] = useState(false);
 
-  if (!isAuthenticated) {
-    return <LoginPage onLogin={() => setIsAuthenticated(true)} />;
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace(appRoutes.login);
+    }
+  }, [authLoading, user, router]);
+
+  useEffect(() => {
+    if (authLoading || !user) return;
+    if (!platformSetupComplete) {
+      router.replace(appRoutes.platformSetup);
+    }
+  }, [authLoading, user, platformSetupComplete, router]);
+
+  if (authLoading) {
+    return (
+      <div className="login-bg">
+        <div className="login-card" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+          Loading…
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return null;
+  }
+
+  if (!platformSetupComplete) {
+    return (
+      <div className="login-bg">
+        <div className="login-card" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
+          Loading…
+        </div>
+      </div>
+    );
   }
 
   const renderPage = () => {
@@ -154,6 +192,16 @@ export default function App() {
             <span className="page-title">{PAGE_TITLES[currentPage]}</span>
           </div>
           <div className="topbar-right" style={{ gap: 16 }}>
+
+          <a
+              href={externalLinks.g10x}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="topbar-brand-link"
+              aria-label="G10X — visit g10x.com (opens in new tab)"
+            >
+              <G10XLogo className="topbar-brand-logo" />
+            </a>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 8 }}>
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Demo Role:</span>
               <select

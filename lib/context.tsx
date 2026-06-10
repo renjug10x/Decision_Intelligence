@@ -42,6 +42,10 @@ interface AppContextType {
   // Demo Mode
   demoMode: boolean;
   setDemoMode: (d: boolean) => void;
+
+  /** After JWT login: user must complete platform setup (role + API key) once per session */
+  platformSetupComplete: boolean;
+  setPlatformSetupComplete: (v: boolean) => void;
 }
 
 const AppContext = createContext<AppContextType>({} as AppContextType);
@@ -63,6 +67,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [userAttributeStoreScope, setUserAttributeStoreScope] = useState<string>('All');
   const [userAttributeCategoryScope, setUserAttributeCategoryScope] = useState<string>('All');
   const [demoMode, setDemoMode] = useState<boolean>(false);
+  const [platformSetupComplete, setPlatformSetupCompleteState] = useState<boolean>(false);
 
   // Persist to sessionStorage
   useEffect(() => {
@@ -84,6 +89,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (s.userAttributeStoreScope !== undefined) setUserAttributeStoreScope(s.userAttributeStoreScope);
       if (s.userAttributeCategoryScope !== undefined) setUserAttributeCategoryScope(s.userAttributeCategoryScope);
       if (s.demoMode !== undefined) setDemoMode(s.demoMode);
+      if (s.platformSetupComplete !== undefined) setPlatformSetupCompleteState(s.platformSetupComplete);
     }
   }, []);
 
@@ -106,6 +112,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const handleSetUserAttributeStoreScope = (s: string) => { setUserAttributeStoreScope(s); save({ userAttributeStoreScope: s }); };
   const handleSetUserAttributeCategoryScope = (c: string) => { setUserAttributeCategoryScope(c); save({ userAttributeCategoryScope: c }); };
   const handleSetDemoMode = (d: boolean) => { setDemoMode(d); save({ demoMode: d }); };
+  const handleSetPlatformSetupComplete = (v: boolean) => {
+    setPlatformSetupCompleteState(v);
+    save({ platformSetupComplete: v });
+  };
 
   return (
     <AppContext.Provider value={{
@@ -124,6 +134,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
       userAttributeStoreScope, setUserAttributeStoreScope: handleSetUserAttributeStoreScope,
       userAttributeCategoryScope, setUserAttributeCategoryScope: handleSetUserAttributeCategoryScope,
       demoMode, setDemoMode: handleSetDemoMode,
+      platformSetupComplete, setPlatformSetupComplete: handleSetPlatformSetupComplete,
     }}>
       {children}
     </AppContext.Provider>

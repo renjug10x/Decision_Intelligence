@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { ICON_PROPS, ICON_PROPS_SM, ICON_MUTED, ICON_ACCENT } from '@/lib/icons';
 import { useApp } from '@/lib/context';
+import { useAuth } from '@/context/AuthContext';
 
 const NAV_ITEMS = [
   { id: 'dashboard',      Icon: LayoutDashboard, label: "Today's Priorities", badge: null, execOnly: false, storeManagerLocked: false, categoryManagerLocked: false },
@@ -26,7 +27,8 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
-  const { role, lookerMode, setLookerMode, setIsAuthenticated } = useApp();
+  const { role, lookerMode, setLookerMode, setIsAuthenticated, setPlatformSetupComplete } = useApp();
+  const { logout } = useAuth();
   const roleMeta = ROLE_META[role] || ROLE_META.exec;
 
   return (
@@ -217,7 +219,17 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
         <button
           className="btn btn-ghost btn-sm w-full"
-          onClick={() => { setIsAuthenticated(false); sessionStorage.clear(); }}
+          onClick={() => {
+            void (async () => {
+              try {
+                await logout();
+              } catch {
+                /* local sign-out even if API fails */
+              }
+              setIsAuthenticated(false);
+              setPlatformSetupComplete(false);
+            })();
+          }}
           style={{ justifyContent: 'center', color: 'var(--text-muted)', gap: 6 }}
         >
           <LogOut size={14} strokeWidth={1.75} color="currentColor" />

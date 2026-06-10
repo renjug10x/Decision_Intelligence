@@ -255,6 +255,33 @@ code, pre {
 .topbar-left  { display: flex; align-items: center; gap: 16px; }
 .topbar-right { display: flex; align-items: center; gap: 12px; }
 
+.topbar-brand-link {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  line-height: 0;
+  border-radius: var(--radius-sm);
+  transition: var(--transition);
+  opacity: 0.92;
+}
+
+.topbar-brand-link:hover {
+  opacity: 1;
+}
+
+.topbar-brand-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.topbar-brand-logo {
+  height: 34px;
+  width: auto;
+  max-height: 40px;
+  display: block;
+  flex-shrink: 0;
+}
+
 .page-title {
   font-size: 1rem;
   font-weight: 600;
@@ -770,6 +797,64 @@ code, pre {
   max-width: 440px;
   box-shadow: var(--shadow-lg);
   animation: scaleIn 0.4s ease;
+}
+
+.login-form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.login-passkey-row {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.login-passkey-cell {
+  width: 2.75rem;
+  height: 2.75rem;
+  text-align: center;
+  font-size: 1.125rem;
+  font-weight: 700;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-strong);
+  background: var(--bg-input);
+  color: var(--text-primary);
+  font-family: inherit;
+}
+
+.login-passkey-cell:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+}
+
+.login-error-banner {
+  font-size: 0.8125rem;
+  color: var(--danger);
+  background: var(--danger-light);
+  padding: 9px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  text-align: center;
+}
+
+.login-link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 0.75rem;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 0;
+  font-family: inherit;
+}
+
+.login-link-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .role-grid {
