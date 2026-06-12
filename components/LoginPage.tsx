@@ -51,7 +51,7 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
             <Activity size={26} strokeWidth={1.75} color="white" />
           </div>
           <h2 style={{ fontSize: '1.375rem', marginBottom: 6 }}>Decision Intelligence</h2>
-          <p style={{ fontSize: '0.875rem' }}>Lidl UK · Powered by Looker + Gemini AI</p>
+          <p style={{ fontSize: '0.875rem' }}>LiDL UK · Powered by Looker + Gemini AI</p>
         </div>
 
         {/* Role selection */}

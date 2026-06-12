@@ -1,4 +1,4 @@
-// Lidl Decision Intelligence — Semantic Layer (Looker Simulation)
+// LiDL Decision Intelligence — Semantic Layer (Looker Simulation)
 // This file mirrors what LookML defines in a real Looker instance.
 // When a Looker API token is available, swap queryData() below for real Looker API calls.
 

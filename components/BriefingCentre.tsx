@@ -98,7 +98,7 @@ export default function BriefingCentre() {
   };
 
   const scopeLabel = role === 'exec'
-    ? 'Lidl UK — National View'
+    ? 'LiDL UK — National View'
     : role === 'store_manager'
     ? storeObj?.name || selectedStore
     : `${activeCategory} Category`;

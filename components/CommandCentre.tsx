@@ -248,7 +248,7 @@ export default function CommandCentre() {
   const getHeaderSub = () => {
     if (role === 'store_manager') return `Store performance data · Store ID: ${selectedStore}`;
     if (role === 'category_manager') return `Category level performance across all UK stores`;
-    return 'Lidl UK national business overview';
+    return 'LiDL UK national business overview';
   };
 
   return (

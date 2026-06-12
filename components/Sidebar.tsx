@@ -38,7 +38,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         </div>
         <div>
           <div className="logo-text">Decision Intelligence</div>
-          <div className="logo-sub">Lidl UK · Beta</div>
+          <div className="logo-sub">LiDL UK · Beta</div>
         </div>
       </div>
 
@@ -164,7 +164,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
           );
         })}
 
-        <div className="nav-section-label" style={{ marginTop: 8 }}>Governance</div>
+        <div className="nav-section-label" style={{ marginTop: 8 }}>Settings</div>
         <button
           className={`nav-item ${currentPage === 'settings' ? 'active' : ''}`}
           onClick={() => onNavigate('settings')}

@@ -222,7 +222,7 @@ function mockAskNLQ(question: string, role: string, dataContext: any): NLQRespon
 
   // Default fallback mock response
   return {
-    answer: "Lidl UK revenue is steady at £1.45M for the last 7 days (+0.8% WoW). Produce waste and dairy margin compression remain the key operational variances.",
+    answer: "LiDL UK revenue is steady at £1.45M for the last 7 days (+0.8% WoW). Produce waste and dairy margin compression remain the key operational variances.",
     insight: "Delivery disruptions from FreshDirect UK (Produce) and Greencore (Chilled) are the primary root causes for localized sales dips in northern regions.",
     recommendation: "Schedule an urgent operational performance review with FreshDirect logistics management.",
     chart_type: "bar",
@@ -237,7 +237,7 @@ function mockBriefing(role?: string, storeName?: string, categoryName?: string):
     ? storeName || 'Manchester Piccadilly (S001)'
     : role === 'category_manager'
     ? categoryName || 'Chilled Foods'
-    : 'Lidl UK Executive';
+    : 'LiDL UK Executive';
 
   const defaultInsights = [
     { title: "Revenue Trajectory", detail: "Total revenue holds steady at £1.45M (+0.8% WoW) with strong growth in bakery and frozen lines.", type: "positive" as const },
@@ -321,7 +321,7 @@ export async function askNLQ(params: {
     return mockAskNLQ(params.question, params.role, params.dataContext);
   }
 
-  const prompt = `You are the AI analytics engine for Lidl UK's Decision Intelligence Platform.
+  const prompt = `You are the AI analytics engine for LiDL UK's Decision Intelligence Platform.
 You are powered by a governed Looker semantic layer — you ONLY answer from the data provided below.
 Never fabricate numbers. If data is insufficient, say so clearly.
 
@@ -385,7 +385,7 @@ export async function generateBriefing(params: {
     ? `Focus exclusively on the ${params.categoryName || 'Chilled'} category performance and its subcategories.`
     : 'Provide a national view across all regions, categories, and supply chain disruptions.';
 
-  const prompt = `You are generating a daily business briefing for Lidl UK's ${roleTitle}.
+  const prompt = `You are generating a daily business briefing for LiDL UK's ${roleTitle}.
 Be direct, specific, and use the exact numbers from the data. Write like a sharp, data-driven manager in this role.
 
 Scope constraint: ${scopeNotes}

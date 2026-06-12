@@ -43,3 +43,21 @@ next-env.d.ts
 # Google Cloud SDK
 /google-cloud-cli-darwin-arm.tar.gz
 /google-cloud-sdk/
+
+# Temporary storyboard extraction/debug artifacts
+debug_line_*.json
+raw_line_*.txt
+scratch_*.txt
+scratch_step_*.json
+extracted_step_*.txt
+full_step_*.txt
+step_*_payload.json
+slide_7_*.tsx
+slide_12_*.tsx
+slides_array_*.tsx
+clean.py
+clean_perfect.py
+clean_slides_array.py
+parse_slides_robust.py
+git_diff_arch.txt
+raw_line_*_tc_*.tsx

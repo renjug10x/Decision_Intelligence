@@ -22,7 +22,7 @@ interface PatternItem {
 const INITIAL_PATTERNS: PatternItem[] = [
   {
     id: 'PAT001',
-    trigger: 'Fresh Produce Waste Spike',
+    trigger: 'Produce Waste Optimisation',
     category: 'Produce',
     cause: 'Promotion + Weather',
     action: 'Reduce Reorder Threshold by 8% and accelerate markdown to 24h',
@@ -32,7 +32,7 @@ const INITIAL_PATTERNS: PatternItem[] = [
   },
   {
     id: 'PAT002',
-    trigger: 'Chilled Ready Meal Stockout',
+    trigger: 'Chilled Availability Recovery',
     category: 'Chilled',
     cause: 'High Weekend Demand',
     action: 'Rebalance 40 units from Trafford (S002) to Piccadilly (S001)',
@@ -42,7 +42,7 @@ const INITIAL_PATTERNS: PatternItem[] = [
   },
   {
     id: 'PAT003',
-    trigger: 'Dairy Margin Compression',
+    trigger: 'Dairy Margin Protection',
     category: 'Dairy',
     cause: 'Promo Price Matching',
     action: 'Activate bakery-cheese bundle promotions in 8 stores',
@@ -52,7 +52,7 @@ const INITIAL_PATTERNS: PatternItem[] = [
   },
   {
     id: 'PAT004',
-    trigger: 'Store Staffing Shortage',
+    trigger: 'Labour Deployment Efficiency',
     category: 'Labour',
     cause: 'Local Football Event',
     action: 'Reallocate 2 ambient stockers to checkouts during peak hours',
@@ -98,7 +98,7 @@ export default function Help() {
           {[
             { id: 'storyboard', label: 'Architecture Storyboard', Icon: Layers },
             { id: 'lifecycle', label: 'Decision Lifecycle', Icon: Activity },
-            { id: 'learning', label: 'Resolution Pattern Library', Icon: BookOpen }
+            { id: 'learning', label: 'Organisational Learning Network', Icon: BookOpen }
           ].map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -141,13 +141,72 @@ export default function Help() {
         {activeTab === 'lifecycle' && (
           <div className="card animate-fade" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 20 }}>
             <div>
-              <h3 style={{ fontSize: '1rem', fontWeight: 800 }}>Decision Verification & Query Lifecycle</h3>
+              <h3 style={{ fontSize: '1rem', fontWeight: 800 }}>Trust Through Verification</h3>
               <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-                A transparent, audit-ready data verification path ensuring Looker governance rules are applied at every stage of AI suggestion generation.
+                Every recommendation is validated before action is taken.
               </p>
             </div>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 800, margin: '20px auto 0', width: '100%' }}>
+            {/* Horizontal Phase Stepper */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              padding: '12px 16px',
+              margin: '10px 0',
+              overflowX: 'auto',
+              gap: 8
+            }}>
+              {[
+                { label: 'Signal', color: 'var(--warning)' },
+                { label: 'Context', color: 'var(--text-secondary)' },
+                { label: 'Reasoning', color: '#06B6D4' },
+                { label: 'Confidence', color: '#8B5CF6' },
+                { label: 'Approval', color: 'var(--accent)' },
+                { label: 'Action', color: 'var(--success)' }
+              ].map((phase, idx) => (
+                <React.Fragment key={idx}>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                    padding: '6px 12px',
+                    borderRadius: 'var(--radius-sm)',
+                    border: `1px solid ${phase.color}`,
+                    background: 'rgba(255, 255, 255, 0.01)',
+                    flexShrink: 0
+                  }}>
+                    <span style={{
+                      width: 18,
+                      height: 18,
+                      borderRadius: '50%',
+                      background: phase.color,
+                      color: idx === 1 ? 'var(--bg)' : 'white',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '0.625rem',
+                      fontWeight: 800
+                    }}>
+                      {idx + 1}
+                    </span>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      {phase.label}
+                    </span>
+                  </div>
+                  {idx < 5 && (
+                    <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem', flexShrink: 0 }}>
+                      ➔
+                    </span>
+                  )}
+                </React.Fragment>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxWidth: 800, margin: '10px auto 0', width: '100%' }}>
               {[
                 {
                   step: 1,
@@ -277,14 +336,47 @@ export default function Help() {
           </div>
         )}
 
-        {/* TAB 3: Resolution Pattern Library (Decision Memory V2) */}
+        {/* TAB 3: Organisational Learning Network */}
         {activeTab === 'learning' && (
           <div className="card animate-fade" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
-              <h3 style={{ fontSize: '1rem', fontWeight: 800 }}>Resolution Pattern Library (Closed-Loop Learning)</h3>
+              <h3 style={{ fontSize: '1rem', fontWeight: 800 }}>Organisational Learning Network</h3>
               <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-                Lidl\'s Decision Intelligence platform acts as a learning organizational brain, logging historical incident outcomes and surfacing verified patterns for instant reuse.
+                Every resolved issue makes the next decision smarter.
               </p>
+            </div>
+
+            {/* Pattern Metrics Ribbon */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))',
+              gap: 12,
+              margin: '10px 0',
+              width: '100%'
+            }}>
+              {[
+                { value: '28 Active Patterns', label: 'Governed Solutions', color: 'var(--accent)' },
+                { value: '91% Success Rate', label: 'Average Outcome', color: 'var(--success)' },
+                { value: '£2.4M Est. Value', label: 'Cost Avoided', color: '#06B6D4' },
+                { value: '127 Pattern Reuses', label: 'Audit Log Triggers', color: '#8B5CF6' }
+              ].map((metric, idx) => (
+                <div key={idx} className="card" style={{
+                  padding: '10px 14px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: 4,
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border)',
+                  borderLeft: `3px solid ${metric.color}`
+                }}>
+                  <div style={{ fontSize: '1rem', fontWeight: 800, color: 'var(--text-primary)' }}>
+                    {metric.value}
+                  </div>
+                  <div style={{ fontSize: '0.625rem', color: 'var(--text-secondary)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    {metric.label}
+                  </div>
+                </div>
+              ))}
             </div>
 
             <div style={{ overflowX: 'auto', marginTop: 12 }}>
@@ -309,25 +401,52 @@ export default function Help() {
                     return (
                       <tr key={p.id} style={{ opacity: applied ? 0.6 : 1, transition: 'opacity 0.25s ease' }}>
                         <td>
-                          <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: 'var(--text-primary)' }}>{p.trigger}</div>
-                          <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>ID: {p.id}</div>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                            <span style={{ fontWeight: 700, fontSize: '0.8125rem', color: 'var(--text-primary)' }}>{p.trigger}</span>
+                            <span style={{
+                              fontSize: '0.6rem',
+                              fontFamily: 'monospace',
+                              color: 'var(--text-muted)',
+                              background: 'rgba(255,255,255,0.04)',
+                              border: '1px solid var(--border)',
+                              padding: '1px 4px',
+                              borderRadius: '3px',
+                              fontWeight: 600
+                            }}>
+                              {p.id}
+                            </span>
+                          </div>
                         </td>
                         <td>
                           <span className="badge badge-yellow" style={{ fontSize: '0.6875rem', padding: '2px 6px' }}>{p.category}</span>
                         </td>
                         <td style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{p.cause}</td>
                         <td style={{ fontSize: '0.75rem', color: 'var(--text-primary)', maxWidth: 220 }}>{p.action}</td>
-                        <td style={{ fontSize: 0.75 + 'rem', fontWeight: 600, color: 'var(--success)' }}>{p.result}</td>
+                        <td style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--success)' }}>{p.result}</td>
                         <td style={{ fontSize: '0.75rem', fontWeight: 700, color: p.confidence >= 90 ? 'var(--success)' : 'var(--warning)' }}>
                           {p.confidence}%
                         </td>
                         <td style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{p.storesImpacted} stores</td>
                         <td style={{ textAlign: 'right' }}>
                           <button
-                            className={`btn btn-sm ${applied ? 'btn-secondary' : 'btn-primary'}`}
+                            className={`btn btn-sm ${applied ? '' : 'btn-primary'}`}
                             onClick={() => !applied && handleApplyResolution(p.id)}
                             disabled={applied || isApplying}
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 140, justifyContent: 'center' }}
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: 6,
+                              minWidth: 140,
+                              justifyContent: 'center',
+                              transition: 'all 0.3s ease',
+                              ...(applied ? {
+                                background: 'rgba(16, 185, 129, 0.15)',
+                                border: '1px solid var(--success)',
+                                color: 'var(--success)',
+                                boxShadow: '0 0 10px rgba(16, 185, 129, 0.25)',
+                                cursor: 'default'
+                              } : {})
+                            }}
                           >
                             {isApplying ? (
                               <>
@@ -360,7 +479,7 @@ export default function Help() {
                 className="card animate-fade"
                 style={{
                   background: 'rgba(16, 185, 129, 0.04)',
-                  border: '1px solid var(--border-success)',
+                  border: '1px solid rgba(16, 185, 129, 0.3)',
                   padding: 12,
                   borderRadius: 'var(--radius-md)',
                   display: 'flex',

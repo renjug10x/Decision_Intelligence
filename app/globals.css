@@ -888,3 +888,85 @@ code, pre {
 .nav-item-notification:hover {
   background-color: var(--bg-elevated) !important;
 }
+
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-delay: -1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    background-attachment: scroll !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
+}
+
+/* ── Presentation Framework & Branding (Pass 5) ────────────────────────────── */
+.presentation-footer-divider {
+  width: 100%;
+  height: 0;
+  border-top: 1px dotted rgba(255, 255, 255, 0.10);
+  margin-top: 24px; /* 24px above divider */
+  margin-bottom: 12px; /* 12px below divider */
+}
+
+.presentation-footer-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  min-height: 32px;
+}
+
+.brand-g10x-logo {
+  height: 20px;
+  max-height: 24px;
+  opacity: 0.35;
+  filter: brightness(0) invert(1); /* monochrome style */
+  display: block;
+}
+
+.brand-lidl-logo {
+  height: 28px;
+  max-height: 32px;
+  object-fit: contain;
+  display: block;
+  margin-right: 8px;
+}
+
+.slide-numbering-muted {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  opacity: 0.7;
+  user-select: none;
+  font-weight: 500;
+}
+
+/* ── Premium Executive Finishes (Pass 6) ───────────────────────────────────── */
+@keyframes di-pulse {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(255, 255, 255, 0.02);
+    transform: scale(1.0);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(0, 120, 255, 0.08);
+    transform: scale(1.015); /* max scale: 1.00 -> 1.015 */
+  }
+}
+
+.di-engine-pulse {
+  animation: di-pulse 4.5s infinite ease-in-out;
+}
+
+@keyframes line-flow {
+  to {
+    stroke-dashoffset: -20;
+  }
+}
+
+.flow-line-animated {
+  stroke-dasharray: 4, 6;
+  animation: line-flow 4.5s linear infinite; /* slow, elegant flow */
+}
+
+

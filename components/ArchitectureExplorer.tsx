@@ -295,6 +295,27 @@ export default function ArchitectureExplorer() {
   const [expandedNode, setExpandedNode] = useState<string | null>(null);
   const [hoveredNode, setHoveredNode] = useState<string | null>(null);
   const [narrativeTab, setNarrativeTab] = useState<'business' | 'architecture' | 'technical'>('business');
+  const [transitionLabel, setTransitionLabel] = useState<string | null>(null);
+  const [transitionActive, setTransitionActive] = useState(false);
+
+  useEffect(() => {
+    let label = '';
+    if (activeSlide === 2) label = 'PLATFORM';
+    else if (activeSlide === 7) label = 'SCALE';
+    else if (activeSlide === 10) label = 'TRUST';
+    else if (activeSlide === 11) label = 'FUTURE';
+
+    if (label) {
+      setTransitionLabel(label);
+      setTransitionActive(true);
+      const timer = setTimeout(() => {
+        setTransitionActive(false);
+      }, 1500);
+      return () => clearTimeout(timer);
+    } else {
+      setTransitionActive(false);
+    }
+  }, [activeSlide]);
 
   const slide = SLIDES[activeSlide];
 
@@ -503,7 +524,9 @@ export default function ArchitectureExplorer() {
     borderColor = 'var(--border)',
     bgColor = 'var(--bg-elevated)',
     activeRoute = false,
-    width = 180
+    width = 180,
+    tooltipDir,
+    tooltipAlign
   }: {
     id: string;
     label: string;
@@ -514,9 +537,85 @@ export default function ArchitectureExplorer() {
     bgColor?: string;
     activeRoute?: boolean;
     width?: number | string;
+    tooltipDir?: 'up' | 'down';
+    tooltipAlign?: 'left' | 'right' | 'center';
   }) => {
     const isHovered = hoveredNode === id;
     const isExpanded = expandedNode === id;
+    const cardRef = useRef<HTMLDivElement>(null);
+    const tooltipRef = useRef<HTMLDivElement>(null);
+    const [adjustedDir, setAdjustedDir] = useState<'up' | 'down'>(tooltipDir || 'down');
+    const [adjustedAlign, setAdjustedAlign] = useState<'left' | 'right' | 'center'>(tooltipAlign || 'left');
+
+    useEffect(() => {
+      if (!isExpanded) return;
+
+      const adjustPosition = () => {
+        const cardEl = cardRef.current;
+        if (!cardEl) return;
+        const rect = cardEl.getBoundingClientRect();
+        
+        let tWidth = 270;
+        let tHeight = 150;
+        if (tooltipRef.current) {
+          const tRect = tooltipRef.current.getBoundingClientRect();
+          tWidth = tRect.width;
+          tHeight = tRect.height;
+        }
+
+        const viewportWidth = window.innerWidth;
+        const viewportHeight = window.innerHeight;
+
+        let finalDir = tooltipDir || 'down';
+        let finalAlign = tooltipAlign || 'left';
+
+        // Check if tooltip overflows the bottom of the viewport
+        if (finalDir === 'down') {
+          if (rect.bottom + tHeight + 15 > viewportHeight && rect.top - tHeight - 15 > 0) {
+            finalDir = 'up';
+          }
+        } else if (finalDir === 'up') {
+          if (rect.top - tHeight - 15 < 0 && rect.bottom + tHeight + 15 < viewportHeight) {
+            finalDir = 'down';
+          }
+        }
+
+        // Check horizontal overflows
+        if (finalAlign === 'left') {
+          if (rect.left + tWidth + 15 > viewportWidth && rect.right - tWidth - 15 > 0) {
+            finalAlign = 'right';
+          }
+        } else if (finalAlign === 'right') {
+          if (rect.right - tWidth - 15 < 0 && rect.left + tWidth + 15 < viewportWidth) {
+            finalAlign = 'left';
+          }
+        } else if (finalAlign === 'center') {
+          const leftBound = rect.left + rect.width / 2 - tWidth / 2;
+          const rightBound = rect.left + rect.width / 2 + tWidth / 2;
+          if (leftBound - 15 < 0 && rightBound + 15 <= viewportWidth) {
+            finalAlign = 'left';
+          } else if (rightBound + 15 > viewportWidth && leftBound - 15 >= 0) {
+            finalAlign = 'right';
+          }
+        }
+
+        setAdjustedDir(finalDir);
+        setAdjustedAlign(finalAlign);
+      };
+
+      adjustPosition();
+
+      const rafId = requestAnimationFrame(adjustPosition);
+      window.addEventListener('resize', adjustPosition);
+      window.addEventListener('scroll', adjustPosition);
+
+      return () => {
+        cancelAnimationFrame(rafId);
+        window.removeEventListener('resize', adjustPosition);
+        window.removeEventListener('scroll', adjustPosition);
+      };
+    }, [isExpanded, tooltipDir, tooltipAlign]);
+
     const isRouteActive = activeRoute || (hoveredNode && NODE_DETAILS[hoveredNode] && (
       (hoveredNode === 'store_mgr' && ['store_mgr', 'store_app', 'di_api', 'gemini_ai', 'looker_sl', 'bigquery', 'workflow'].includes(id)) ||
       (hoveredNode === 'category_mgr' && ['category_mgr', 'trading_app', 'di_api', 'gemini_ai', 'looker_sl', 'bigquery', 'workflow'].includes(id)) ||
@@ -529,6 +628,7 @@ export default function ArchitectureExplorer() {
 
     return (
       <div
+        ref={cardRef}
         style={{
           position: 'relative',
           transition: 'all 0.25s ease',
@@ -576,11 +676,11 @@ export default function ArchitectureExplorer() {
             <IconComponent size={15} color={color} strokeWidth={2} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '0.70rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.15 }}>
+            <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'normal', wordBreak: 'normal', overflowWrap: 'normal', lineHeight: 1.15 }}>
               {label}
             </div>
             {subtitle && (
-              <div style={{ fontSize: '0.60rem', color: 'var(--text-secondary)', whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.15, marginTop: 2 }}>
+              <div style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', whiteSpace: 'normal', wordBreak: 'normal', overflowWrap: 'normal', lineHeight: 1.15, marginTop: 2 }}>
                 {subtitle}
               </div>
             )}
@@ -590,11 +690,10 @@ export default function ArchitectureExplorer() {
         {/* Node details expanded tooltip */}
         {isExpanded && NODE_DETAILS[id] && (
           <div
+            ref={tooltipRef}
             className="card"
             style={{
               position: 'absolute',
-              top: '105%',
-              left: 0,
               width: 270,
               zIndex: 100,
               padding: 16,
@@ -604,7 +703,9 @@ export default function ArchitectureExplorer() {
               display: 'flex',
               flexDirection: 'column',
               gap: 8,
-              textAlign: 'left'
+              textAlign: 'left',
+              ...(adjustedDir === 'down' ? { top: '105%' } : { bottom: '105%' }),
+              ...(adjustedAlign === 'left' ? { left: 0, right: 'auto' } : adjustedAlign === 'right' ? { right: 0, left: 'auto' } : { left: '50%', transform: 'translateX(-50%)' })
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -798,9 +899,32 @@ export default function ArchitectureExplorer() {
             right: 16,
             display: 'flex',
             alignItems: 'center',
-            gap: 8,
+            gap: 12,
             zIndex: 10
           }}>
+            {/* LiDL Logo */}
+            <img src="/lidl-logo.png" className="brand-lidl-logo" alt="LiDL Logo" style={{ height: 24, objectFit: 'contain', marginRight: 4 }} />
+
+            {/* Transition Badge */}
+            {transitionLabel && (
+              <span style={{
+                fontSize: '0.625rem',
+                fontWeight: 800,
+                color: 'var(--accent)',
+                border: '1px solid var(--accent)',
+                padding: '2px 6px',
+                borderRadius: '3px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                background: 'rgba(0, 120, 255, 0.05)',
+                opacity: transitionActive ? 0.75 : 0,
+                transition: 'opacity 300ms ease',
+                pointerEvents: 'none'
+              }}>
+                [ {transitionLabel} ]
+              </span>
+            )}
+
             <button
               className={`btn btn-sm ${presentationMode ? 'btn-primary' : 'btn-secondary'}`}
               onClick={() => setPresentationMode(!presentationMode)}
@@ -906,27 +1030,65 @@ export default function ArchitectureExplorer() {
 
             {/* Slide 2: Centerpiece Enterprise Architecture Blueprint */}
             {activeSlide === 2 && (
-              <SlideScaler designWidth={980} designHeight={360}>
+              <SlideScaler designWidth={1090} designHeight={360}>
                 <div style={{
                   position: 'relative',
-                  width: '980px',
+                  width: '1090px',
                   height: '360px',
                   background: 'transparent'
                 }}>
                   {/* Layer Titles */}
                   <div style={{ position: 'absolute', left: 10, top: 10, fontSize: '0.625rem', fontWeight: 800, color: 'var(--accent)', textTransform: 'uppercase' }}>1. Business</div>
-                  <div style={{ position: 'absolute', left: 150, top: 10, fontSize: '0.625rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>2. Apps</div>
-                  <div style={{ position: 'absolute', left: 290, top: 10, fontSize: '0.625rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>3. Decision</div>
-                  <div style={{ position: 'absolute', left: 430, top: 10, fontSize: '0.625rem', fontWeight: 800, color: '#8B5CF6', textTransform: 'uppercase' }}>4. AI Layer</div>
-                  <div style={{ position: 'absolute', left: 570, top: 10, fontSize: '0.625rem', fontWeight: 800, color: '#06B6D4', textTransform: 'uppercase' }}>5. Governance</div>
-                  <div style={{ position: 'absolute', left: 710, top: 10, fontSize: '0.625rem', fontWeight: 800, color: '#10B981', textTransform: 'uppercase' }}>6. Data Layer</div>
-                  <div style={{ position: 'absolute', left: 850, top: 10, fontSize: '0.625rem', fontWeight: 800, color: 'var(--success)', textTransform: 'uppercase' }}>7. Action</div>
+                  <div style={{ position: 'absolute', left: 165, top: 10, fontSize: '0.625rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>2. Apps</div>
+                  <div style={{ position: 'absolute', left: 320, top: 10, fontSize: '0.625rem', fontWeight: 800, color: 'var(--text-muted)', textTransform: 'uppercase' }}>3. Decision</div>
+                  <div style={{ position: 'absolute', left: 475, top: 10, fontSize: '0.625rem', fontWeight: 800, color: '#8B5CF6', textTransform: 'uppercase' }}>4. AI Layer</div>
+                  <div style={{ position: 'absolute', left: 630, top: 10, fontSize: '0.625rem', fontWeight: 800, color: '#06B6D4', textTransform: 'uppercase' }}>5. Governance</div>
+                  <div style={{ position: 'absolute', left: 785, top: 10, fontSize: '0.625rem', fontWeight: 800, color: '#10B981', textTransform: 'uppercase' }}>6. Data Layer</div>
+                  <div style={{ position: 'absolute', left: 940, top: 10, fontSize: '0.625rem', fontWeight: 800, color: 'var(--success)', textTransform: 'uppercase' }}>7. Action</div>
+
+                  {/* Callout Badges */}
+                  <div style={{
+                    position: 'absolute',
+                    left: 320,
+                    top: 120,
+                    fontSize: '0.625rem',
+                    fontWeight: 800,
+                    background: 'rgba(0, 120, 255, 0.1)',
+                    border: '1px solid var(--accent)',
+                    color: 'var(--accent)',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    zIndex: 10,
+                    pointerEvents: 'none'
+                  }}>
+                    Reusable Pattern
+                  </div>
+                  <div style={{
+                    position: 'absolute',
+                    left: 552,
+                    top: 150,
+                    fontSize: '0.625rem',
+                    fontWeight: 800,
+                    background: 'rgba(139, 92, 246, 0.1)',
+                    border: '1px solid #8B5CF6',
+                    color: '#8B5CF6',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    zIndex: 10,
+                    pointerEvents: 'none'
+                  }}>
+                    AI Governed
+                  </div>
 
                   {/* SVG Wires Overlay */}
                   <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}>
                     {/* Store Manager Flow */}
                     <path
-                      d="M 132 67 L 147 67"
+                      d="M 147 67 L 162 67"
                       stroke={isPathActive('store_mgr', 'store_app') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
                       strokeWidth={isPathActive('store_mgr', 'store_app') ? 2 : 1}
                       markerEnd={isPathActive('store_mgr', 'store_app') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
@@ -934,7 +1096,7 @@ export default function ArchitectureExplorer() {
                       fill="none"
                     />
                     <path
-                      d="M 272 67 Q 280 122 287 177"
+                      d="M 302 67 Q 310 122 317 177"
                       stroke={isPathActive('store_app', 'di_api') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
                       strokeWidth={isPathActive('store_app', 'di_api') ? 2 : 1}
                       markerEnd={isPathActive('store_app', 'di_api') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
@@ -944,7 +1106,7 @@ export default function ArchitectureExplorer() {
 
                     {/* Category Manager Flow */}
                     <path
-                      d="M 132 177 L 147 177"
+                      d="M 147 177 L 162 177"
                       stroke={isPathActive('category_mgr', 'trading_app') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
                       strokeWidth={isPathActive('category_mgr', 'trading_app') ? 2 : 1}
                       markerEnd={isPathActive('category_mgr', 'trading_app') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
@@ -952,7 +1114,7 @@ export default function ArchitectureExplorer() {
                       fill="none"
                     />
                     <path
-                      d="M 272 177 L 287 177"
+                      d="M 302 177 L 317 177"
                       stroke={isPathActive('trading_app', 'di_api') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
                       strokeWidth={isPathActive('trading_app', 'di_api') ? 2 : 1}
                       markerEnd={isPathActive('trading_app', 'di_api') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
@@ -962,7 +1124,7 @@ export default function ArchitectureExplorer() {
 
                     {/* Supply Chain Flow */}
                     <path
-                      d="M 132 287 L 147 287"
+                      d="M 147 287 L 162 287"
                       stroke={isPathActive('supply_lead', 'supply_app') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
                       strokeWidth={isPathActive('supply_lead', 'supply_app') ? 2 : 1}
                       markerEnd={isPathActive('supply_lead', 'supply_app') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
@@ -970,7 +1132,7 @@ export default function ArchitectureExplorer() {
                       fill="none"
                     />
                     <path
-                      d="M 272 287 Q 280 232 287 177"
+                      d="M 302 287 Q 310 232 317 177"
                       stroke={isPathActive('supply_app', 'di_api') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
                       strokeWidth={isPathActive('supply_app', 'di_api') ? 2 : 1}
                       markerEnd={isPathActive('supply_app', 'di_api') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
@@ -980,7 +1142,7 @@ export default function ArchitectureExplorer() {
 
                     {/* Shared Decision API to AI Layer */}
                     <path
-                      d="M 412 177 Q 420 150 427 122"
+                      d="M 457 177 Q 465 150 472 122"
                       stroke={isPathActive('di_api', 'gemini_ai') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
                       strokeWidth={isPathActive('di_api', 'gemini_ai') ? 2 : 1}
                       markerEnd={isPathActive('di_api', 'gemini_ai') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
@@ -988,7 +1150,7 @@ export default function ArchitectureExplorer() {
                       fill="none"
                     />
                     <path
-                      d="M 412 177 Q 420 205 427 232"
+                      d="M 457 177 Q 465 205 472 232"
                       stroke={isPathActive('di_api', 'mcp') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
                       strokeWidth={isPathActive('di_api', 'mcp') ? 2 : 1}
                       markerEnd={isPathActive('di_api', 'mcp') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
@@ -998,7 +1160,7 @@ export default function ArchitectureExplorer() {
 
                     {/* AI Layer to Governance / Workflow */}
                     <path
-                      d="M 552 122 Q 560 150 567 177"
+                      d="M 612 122 Q 620 150 627 177"
                       stroke={isPathActive('gemini_ai', 'looker_sl') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
                       strokeWidth={isPathActive('gemini_ai', 'looker_sl') ? 2 : 1}
                       markerEnd={isPathActive('gemini_ai', 'looker_sl') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
@@ -1006,7 +1168,7 @@ export default function ArchitectureExplorer() {
                       fill="none"
                     />
                     <path
-                      d="M 490 151 L 490 202"
+                      d="M 542 151 L 542 202"
                       stroke={isPathActive('gemini_ai', 'mcp') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
                       strokeWidth={isPathActive('gemini_ai', 'mcp') ? 2 : 1}
                       markerEnd={isPathActive('gemini_ai', 'mcp') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
@@ -1014,7 +1176,7 @@ export default function ArchitectureExplorer() {
                       fill="none"
                     />
                     <path
-                      d="M 552 232 Q 700 232 847 177"
+                      d="M 612 232 Q 775 232 937 177"
                       stroke={isPathActive('mcp', 'workflow') ? 'var(--success)' : 'rgba(255,255,255,0.06)'}
                       strokeWidth={isPathActive('mcp', 'workflow') ? 2 : 1}
                       markerEnd={isPathActive('mcp', 'workflow') ? 'url(#arrow-head-green)' : 'url(#arrow-head-inactive)'}
@@ -1024,7 +1186,7 @@ export default function ArchitectureExplorer() {
 
                     {/* Looker to BigQuery */}
                     <path
-                      d="M 692 177 L 707 177"
+                      d="M 767 177 L 782 177"
                       stroke={isPathActive('looker_sl', 'bigquery') ? '#06B6D4' : 'rgba(255,255,255,0.06)'}
                       strokeWidth={isPathActive('looker_sl', 'bigquery') ? 2 : 1}
                       markerEnd={isPathActive('looker_sl', 'bigquery') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
@@ -1034,7 +1196,7 @@ export default function ArchitectureExplorer() {
 
                     {/* BigQuery to Workflow */}
                     <path
-                      d="M 832 177 L 847 177"
+                      d="M 922 177 L 937 177"
                       stroke={isPathActive('bigquery', 'workflow') ? 'var(--success)' : 'rgba(255,255,255,0.06)'}
                       strokeWidth={isPathActive('bigquery', 'workflow') ? 2 : 1}
                       markerEnd={isPathActive('bigquery', 'workflow') ? 'url(#arrow-head-green)' : 'url(#arrow-head-inactive)'}
@@ -1045,52 +1207,52 @@ export default function ArchitectureExplorer() {
 
                   {/* Column 1: Business */}
                   <div style={{ position: 'absolute', left: 10, top: 40 }}>
-                    <NodeCard id="store_mgr" label="Store Manager" subtitle="Piccadilly S001" icon={Store} color="var(--accent)" width={120} />
+                    <NodeCard id="store_mgr" label="Store Manager" subtitle="Piccadilly S001" icon={Store} color="var(--accent)" width={135} />
                   </div>
                   <div style={{ position: 'absolute', left: 10, top: 150 }}>
-                    <NodeCard id="category_mgr" label="Category Manager" subtitle="Chilled Category" icon={Package} color="#8B5CF6" width={120} />
+                    <NodeCard id="category_mgr" label="Category Manager" subtitle="Chilled Category" icon={Package} color="#8B5CF6" width={135} />
                   </div>
                   <div style={{ position: 'absolute', left: 10, top: 260 }}>
-                    <NodeCard id="supply_lead" label="Supply Lead" subtitle="Logistics Director" icon={Truck} color="#10B981" width={120} />
+                    <NodeCard id="supply_lead" label="Supply Lead" subtitle="Logistics Director" icon={Truck} color="#10B981" width={135} />
                   </div>
 
                   {/* Column 2: Apps */}
-                  <div style={{ position: 'absolute', left: 150, top: 40 }}>
-                    <NodeCard id="store_app" label="Store Intel App" subtitle="AppSheet Client" icon={Smartphone} color="var(--accent)" width={120} />
+                  <div style={{ position: 'absolute', left: 165, top: 40 }}>
+                    <NodeCard id="store_app" label="Store Intel App" subtitle="AppSheet Client" icon={Smartphone} color="var(--accent)" width={135} />
                   </div>
-                  <div style={{ position: 'absolute', left: 150, top: 150 }}>
-                    <NodeCard id="trading_app" label="Trading Intel App" subtitle="Next.js Client" icon={BarChart3} color="#8B5CF6" width={120} />
+                  <div style={{ position: 'absolute', left: 165, top: 150 }}>
+                    <NodeCard id="trading_app" label="Trading Intel App" subtitle="Next.js Client" icon={BarChart3} color="#8B5CF6" width={135} />
                   </div>
-                  <div style={{ position: 'absolute', left: 150, top: 260 }}>
-                    <NodeCard id="supply_app" label="Supply Radar App" subtitle="Logistics Client" icon={Globe} color="#10B981" width={120} />
+                  <div style={{ position: 'absolute', left: 165, top: 260 }}>
+                    <NodeCard id="supply_app" label="Supply Radar App" subtitle="Logistics Client" icon={Globe} color="#10B981" width={135} />
                   </div>
 
                   {/* Column 3: Decision */}
-                  <div style={{ position: 'absolute', left: 290, top: 150 }}>
-                    <NodeCard id="di_api" label="Decision API" subtitle="app/api/data" icon={GitBranch} color="white" width={120} />
+                  <div style={{ position: 'absolute', left: 320, top: 150 }}>
+                    <NodeCard id="di_api" label="Decision API" subtitle="app/api/data" icon={GitBranch} color="white" width={135} />
                   </div>
 
                   {/* Column 4: AI Layer */}
-                  <div style={{ position: 'absolute', left: 430, top: 95 }}>
-                    <NodeCard id="gemini_ai" label="Gemini Reasoning" subtitle="gemini-1.5-flash" icon={Sparkles} color="#8B5CF6" width={120} />
+                  <div style={{ position: 'absolute', left: 475, top: 95 }}>
+                    <NodeCard id="gemini_ai" label="Gemini Reasoning" subtitle="gemini-1.5-flash" icon={Sparkles} color="#8B5CF6" width={135} />
                   </div>
-                  <div style={{ position: 'absolute', left: 430, top: 205 }}>
-                    <NodeCard id="mcp" label="MCP Connector" subtitle="Vertex MCP Router" icon={LinkIcon} color="#8B5CF6" width={120} />
+                  <div style={{ position: 'absolute', left: 475, top: 205 }}>
+                    <NodeCard id="mcp" label="MCP Connector" subtitle="Vertex MCP Router" icon={LinkIcon} color="#8B5CF6" width={135} />
                   </div>
 
                   {/* Column 5: Governance */}
-                  <div style={{ position: 'absolute', left: 570, top: 150 }}>
-                    <NodeCard id="looker_sl" label="Looker Semantic" subtitle="Governed Metrics" icon={Layers} color="#06B6D4" width={120} />
+                  <div style={{ position: 'absolute', left: 630, top: 150 }}>
+                    <NodeCard id="looker_sl" label="Looker Semantic" subtitle="Governed Metrics" icon={Layers} color="#06B6D4" width={135} />
                   </div>
 
                   {/* Column 6: Data Layer */}
-                  <div style={{ position: 'absolute', left: 710, top: 150 }}>
-                    <NodeCard id="bigquery" label="BigQuery Warehouse" subtitle="Mock Datastores" icon={Database} color="#10B981" width={120} />
+                  <div style={{ position: 'absolute', left: 785, top: 150 }}>
+                    <NodeCard id="bigquery" label="BigQuery Warehouse" subtitle="Mock Datastores" icon={Database} color="#10B981" width={135} />
                   </div>
 
                   {/* Column 7: Action */}
-                  <div style={{ position: 'absolute', left: 850, top: 150 }}>
-                    <NodeCard id="workflow" label="Workflow Engine" subtitle="ERP Write-Back" icon={CheckCircle2} color="var(--success)" width={120} />
+                  <div style={{ position: 'absolute', left: 940, top: 150 }}>
+                    <NodeCard id="workflow" label="Workflow Engine" subtitle="ERP Write-Back" icon={CheckCircle2} color="var(--success)" width={135} />
                   </div>
                 </div>
               </SlideScaler>
@@ -1176,18 +1338,18 @@ export default function ArchitectureExplorer() {
                     <NodeCard id="di_api" label="Decision Intel API" subtitle="API Gateway" icon={GitBranch} color="white" />
                   </div>
                   <div style={{ position: 'absolute', left: 500, top: 20 }}>
-                    <NodeCard id="gemini_ai" label="Gemini Reasoning" subtitle="Root-Cause Analysis" icon={Sparkles} color="#8B5CF6" />
+                    <NodeCard id="gemini_ai" label="Gemini Reasoning" subtitle="Root-Cause Analysis" icon={Sparkles} color="#8B5CF6" tooltipAlign="right" />
                   </div>
 
                   {/* Row 2: Step 4, 5, 6 */}
                   <div style={{ position: 'absolute', left: 500, top: 120 }}>
-                    <NodeCard id="looker_sl" label="Looker Validation" subtitle="Semantic Models" icon={Layers} color="#06B6D4" />
+                    <NodeCard id="looker_sl" label="Looker Validation" subtitle="Semantic Models" icon={Layers} color="#06B6D4" tooltipAlign="right" tooltipDir="up" />
                   </div>
                   <div style={{ position: 'absolute', left: 260, top: 120 }}>
-                    <NodeCard id="bigquery" label="BigQuery Warehouse" subtitle="Data Lookups" icon={Database} color="#10B981" />
+                    <NodeCard id="bigquery" label="BigQuery Warehouse" subtitle="Data Lookups" icon={Database} color="#10B981" tooltipDir="up" />
                   </div>
                   <div style={{ position: 'absolute', left: 20, top: 120 }}>
-                    <NodeCard id="workflow" label="Workflow Approved" subtitle="ERP Price Rule Write" icon={CheckCircle2} color="var(--success)" />
+                    <NodeCard id="workflow" label="Workflow Approved" subtitle="ERP Price Rule Write" icon={CheckCircle2} color="var(--success)" tooltipDir="up" />
                   </div>
 
                   {/* Row 3: Outcome Panel */}
@@ -1328,25 +1490,25 @@ export default function ArchitectureExplorer() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16, textAlign: 'center', width: '100%' }}>
                   <h3 style={{ fontSize: '1.125rem', fontWeight: 800 }}>Governed Security & Validation Gates</h3>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginTop: 10 }}>
-                    <div className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'left' }}>
+                    <div className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'left', height: 'auto', minHeight: '96px', overflow: 'visible' }}>
                       <div style={{ fontWeight: 800, fontSize: '0.75rem', color: 'var(--accent)' }}>LookML Rule Locks</div>
                       <p style={{ fontSize: '0.6875rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
                         Metrics (e.g. gross profit margins, inventory levels) are defined once in LookML code. AI cannot overwrite or modify these equations.
                       </p>
                     </div>
-                    <div className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'left' }}>
+                    <div className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'left', height: 'auto', minHeight: '96px', overflow: 'visible' }}>
                       <div style={{ fontWeight: 800, fontSize: '0.75rem', color: '#8B5CF6' }}>Row-Level Security</div>
                       <p style={{ fontSize: '0.6875rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
                         IAM profiles map user sessions to RLS rules. Store Managers see only their location, Category leads see their category.
                       </p>
                     </div>
-                    <div className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'left' }}>
+                    <div className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'left', height: 'auto', minHeight: '96px', overflow: 'visible' }}>
                       <div style={{ fontWeight: 800, fontSize: '0.75rem', color: '#10B981' }}>Human-in-the-loop</div>
                       <p style={{ fontSize: '0.6875rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
                         AI generates markdown and rebalancing recommendations, but no action is taken without explicit user verification and approval.
                       </p>
                     </div>
-                    <div className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'left' }}>
+                    <div className="card" style={{ padding: 14, display: 'flex', flexDirection: 'column', gap: 6, textAlign: 'left', height: 'auto', minHeight: '96px', overflow: 'visible' }}>
                       <div style={{ fontWeight: 800, fontSize: '0.75rem', color: 'var(--warning)' }}>Audit & Verification Logs</div>
                       <p style={{ fontSize: '0.6875rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.4 }}>
                         Every approved decision is logged back to the database, capturing user identity, time, AI confidence, and resolved metrics.
@@ -1383,10 +1545,80 @@ export default function ArchitectureExplorer() {
 
           </div>
 
+          {/* Executive Story Progress Tracker */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: 12,
+            fontSize: '10px',
+            letterSpacing: '0.12em',
+            color: 'var(--text-muted)',
+            marginBottom: 12,
+            width: '100%',
+            userSelect: 'none'
+          }}>
+            {[
+              { id: 'PROBLEM', label: 'PROBLEM', slides: [0, 1] },
+              { id: 'PLATFORM', label: 'PLATFORM', slides: [2] },
+              { id: 'USE_CASES', label: 'USE CASES', slides: [3, 4, 5, 6] },
+              { id: 'SCALE', label: 'SCALE', slides: [7] },
+              { id: 'TRUST', label: 'TRUST', slides: [8, 9, 10] },
+              { id: 'FUTURE', label: 'FUTURE', slides: [11] }
+            ].map((sec, idx, arr) => {
+              const isActive = sec.slides.includes(activeSlide);
+              const isPast = Math.max(...sec.slides) < activeSlide;
+              
+              let opacity = 0.15;
+              if (isActive) opacity = 0.85;
+              else if (isPast) opacity = 0.45;
+
+              return (
+                <React.Fragment key={sec.id}>
+                  <span style={{
+                    fontWeight: isActive ? 800 : 500,
+                    color: isActive ? 'var(--accent)' : 'var(--text-primary)',
+                    opacity: opacity,
+                    transition: 'all 0.3s ease'
+                  }}>
+                    {sec.label}
+                  </span>
+                  {idx < arr.length - 1 && (
+                    <span style={{ opacity: 0.10, color: 'var(--text-primary)' }}>➔</span>
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </div>
+
           {/* Bottom Deck Controls */}
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: 14 }}>
-            {/* Dots */}
-            <div style={{ display: 'flex', gap: 6 }}>
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center', 
+            borderTop: '1px solid var(--border)', 
+            paddingTop: 14,
+            width: '100%'
+          }}>
+            {/* Left side: Slide numbering / Branding */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: 8, 
+              minWidth: '150px' 
+            }}>
+              <span className="slide-numbering-muted" style={{ opacity: 0.55, fontSize: '0.68rem' }}>
+                Slide {activeSlide + 1} of {SLIDES.length}
+              </span>
+            </div>
+
+            {/* Middle: Dots */}
+            <div style={{ 
+              display: 'flex', 
+              gap: 6,
+              justifyContent: 'center',
+              flex: 1
+            }}>
               {SLIDES.map((_, idx) => (
                 <button
                   key={idx}
@@ -1409,8 +1641,13 @@ export default function ArchitectureExplorer() {
               ))}
             </div>
 
-            {/* Prev/Next buttons */}
-            <div style={{ display: 'flex', gap: 8 }}>
+            {/* Right side: Prev/Next buttons */}
+            <div style={{ 
+              display: 'flex', 
+              gap: 8, 
+              justifyContent: 'flex-end',
+              minWidth: '150px'
+            }}>
               <button
                 className="btn btn-secondary btn-sm"
                 onClick={handlePrev}
