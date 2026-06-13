@@ -30,17 +30,17 @@ const SLIDES: SlideData[] = [
   {
     title: 'Why This Exists',
     trigger: 'Strategic Business Challenge',
-    keyMessage: 'Unifying Looker, Gemini, and AppSheet to eliminate signal-to-action lag in Lidl operations.',
+    keyMessage: 'Unifying Looker, Gemini, and AppSheet to eliminate signal-to-action lag in LiDL operations.',
     businessValue: 'Bridges raw data silos and report latencies, giving decision makers automated, pre-validated actions.',
     technicalDetails: 'Integrates BigQuery analytical capacity and Looker semantic definitions with Gemini reasoning and AppSheet actions.',
-    businessNarrative: 'Every day, operational anomalies occur across Lidl UK—like stockouts, produce waste spikes, or labour gaps. Traditionally, these signals take days to translate into actions due to fragmented reporting. The Decision Intelligence cockpit closes this gap instantly, moving from signal to action in seconds.',
-    architectureNarrative: 'This platform sits as a coordination layer above Lidl\'s existing IT stack. It binds raw data warehouses, semantic definitions, Large Language Models, and mobile applications into a unified, secure execution loop.',
+    businessNarrative: 'Every day, operational anomalies occur across LiDL UK—like stockouts, produce waste spikes, or labour gaps. Traditionally, these signals take days to translate into actions due to fragmented reporting. The Decision Intelligence cockpit closes this gap instantly, moving from signal to action in seconds.',
+    architectureNarrative: 'This platform sits as a coordination layer above LiDL\'s existing IT stack. It binds raw data warehouses, semantic definitions, Large Language Models, and mobile applications into a unified, secure execution loop.',
     technicalNarrative: 'Leverages Next.js server actions, Looker SDK filters, and Gemini API calls to dynamically validate user access, compute KPIs through governed schemas, and trigger webhooks in AppSheet.',
-    presenterNotes: 'Pitch Slide 0 by emphasizing the strategic problem: Lidl is rich in data but slow to act. Introduce the platform as a real-time coordination loop.',
+    presenterNotes: 'Pitch Slide 0 by emphasizing the strategic problem: LiDL is rich in data but slow to act. Introduce the platform as a real-time coordination loop.',
     outcomeMetric: 'Decision Latency',
     outcomeLabel: 'Hours ➔ Seconds',
     persona: 'Strategy Team',
-    personaTitle: 'Lidl UK Strategy',
+    personaTitle: 'LiDL UK Strategy',
     personaIcon: Briefcase
   },
   {
@@ -126,7 +126,7 @@ const SLIDES: SlideData[] = [
   {
     title: 'Executive Journey',
     trigger: 'Weekly operating brief generation',
-    keyMessage: 'Lidl Executives receive AI-curated summaries of national operational anomalies.',
+    keyMessage: 'LiDL Executives receive AI-curated summaries of national operational anomalies.',
     businessValue: 'Replaces manual briefing slide decks with a verified, interactive operations dashboard.',
     technicalDetails: 'Briefing Centre queries national KPIs, active anomalies, and Looker semantic models.',
     businessNarrative: 'The CEO prepares for the weekly operations review. Rather than waiting for analysts to assemble slides, they open the Briefing Centre, read the AI-curated summary, and approve national rebalancing tasks.',
@@ -136,7 +136,23 @@ const SLIDES: SlideData[] = [
     outcomeMetric: 'Reporting Overhead',
     outcomeLabel: 'Zero Manual Decks',
     persona: 'Executive',
-    personaTitle: 'Lidl UK Chief Executive',
+    personaTitle: 'LiDL UK Chief Executive',
+    personaIcon: Briefcase
+  },
+  {
+    title: 'The Business Value Engine',
+    trigger: 'Operating Value Framework',
+    keyMessage: 'Real-time decision validation directly impacts LiDL\'s bottom line across four value pillars.',
+    businessValue: 'Converts tactical operational improvements into measurable corporate financial outcomes.',
+    technicalDetails: 'Maps operational actions to high-level KPIs calculated continuously through the Looker semantic layer.',
+    businessNarrative: 'This slide presents the core business value engine. By organizing decisions into four quadrants—Revenue, Margin, Waste, and Productivity—we ensure that every alert and action is directly tied to business value.',
+    architectureNarrative: 'Illustrates the value structure. Operational actions feed into margin protection, waste reduction, sales recovery, and analyst productivity, while the central loop logs outcomes for continuous learning.',
+    technicalNarrative: 'The central DI engine links operational schemas to high-level analytical dashboards, logging confidence scores and executed values into BigQuery.',
+    presenterNotes: 'Show how DI drives value in four key business areas: Revenue, Margin, Waste, and Productivity. Explain that it is a repeatable value framework, not just a set of features.',
+    outcomeMetric: 'Primary Pillars',
+    outcomeLabel: '4 Value Quadrants',
+    persona: 'Executive',
+    personaTitle: 'Chief Financial Officer',
     personaIcon: Briefcase
   },
   {
@@ -145,11 +161,11 @@ const SLIDES: SlideData[] = [
     keyMessage: 'Upgrading existing AppSheet applications into decision cockpits via the DI API.',
     businessValue: 'Empowers business users to build AI-driven tools without custom IT engineering.',
     technicalDetails: 'Details the transformation path from static data forms to AI-assisted, Looker-governed applications.',
-    businessNarrative: 'Lidl has dozens of AppSheet apps. By connecting them to the Decision Intelligence API, we inject Gemini recommendations and Looker metrics directly into these apps, turning data-entry tools into decision accelerators.',
+    businessNarrative: 'LiDL has dozens of AppSheet apps. By connecting them to the Decision Intelligence API, we inject Gemini recommendations and Looker metrics directly into these apps, turning data-entry tools into decision accelerators.',
     architectureNarrative: 'Walk through the transformation: AppSheet apps (Store, Category, Supply) connect to the Next.js API gateway, which routes requests to Looker schemas and Gemini models.',
     technicalNarrative: 'AppSheet reads and writes to Next.js API endpoints. Form submissions trigger webhooks that execute Looker write-backs, updating store databases.',
     presenterNotes: 'Explain the citizen developer story. Show how AppSheet apps go from basic forms to AI cockpits using the DI API.',
-    outcomeMetric: 'Lidl App Dev Speed',
+    outcomeMetric: 'LiDL App Dev Speed',
     outcomeLabel: '10x Faster Build',
     persona: 'Citizen Developer',
     personaTitle: 'AppSheet Developer',
@@ -193,7 +209,7 @@ const SLIDES: SlideData[] = [
     keyMessage: 'Enforcing strict role-based access, LookML metrics, and human-in-the-loop review.',
     businessValue: 'Ensures absolute compliance. AI proposes actions, but Looker structures data and humans decide.',
     technicalDetails: 'Highlights Row-Level Security (RLS), LookML code ownership, confidence thresholds, and write-back logs.',
-    businessNarrative: 'Lidl\'s governance model relies on three pillars: strict IAM attributes, governed LookML definitions, and a mandatory human approval check for any operational adjustments.',
+    businessNarrative: 'LiDL\'s governance model relies on three pillars: strict IAM attributes, governed LookML definitions, and a mandatory human approval check for any operational adjustments.',
     architectureNarrative: 'Illustrates how the Governance layer wraps the AI and Data layers. RLS profiles restrict database rows, LookML defines schemas, and audit logs record every approval.',
     technicalNarrative: 'Looker User Attributes govern RLS filters. If a Store Manager attempts to modify a category-level rule, Looker blocks the transaction at the API level.',
     presenterNotes: 'Discuss RLS and human-in-the-loop approval. Explain that the user remains the ultimate decision owner.',
@@ -204,19 +220,35 @@ const SLIDES: SlideData[] = [
     personaIcon: Lock
   },
   {
-    title: 'Future-State Lidl 2028',
-    trigger: 'Day in the Life of Lidl 2028',
-    keyMessage: 'The future vision of Lidl operations running on the Decision Intelligence framework.',
+    title: 'Why This Matters to LiDL',
+    trigger: 'Enterprise Rollout Strategy',
+    keyMessage: 'Scaling the governed decision engine across all operating domains without custom IT rebuilds.',
+    businessValue: 'Maximizes ROI by reusing the same security, metrics, and reasoning infrastructure for future use cases.',
+    technicalDetails: 'Illustrates the hub-and-spoke expansion model where new client applications interface with the shared DI API.',
+    businessNarrative: 'LiDL\'s long-term opportunity is scalability. By implementing a central, governed decision layer, we can scale this capability from waste and availability to labour, energy, promotions, and store operations.',
+    architectureNarrative: 'Walk through the hub-and-spoke expansion model. The core Decision Layer serves as the hub, and different operational domains connect as spokes.',
+    technicalNarrative: 'The unified API gateway (/api/data) and Looker semantic layer act as a reusable backend. New domains hook into this backend with minimal front-end app-development.',
+    presenterNotes: 'Explain how this platform acts as an enterprise decision layer. As we build new AppSheet apps or Next.js front-ends, they all consume the same Looker models and Gemini APIs.',
+    outcomeMetric: 'Operational Scope',
+    outcomeLabel: '8 Scaled Domains',
+    persona: 'BI/Data Team',
+    personaTitle: 'Head of IT Architecture',
+    personaIcon: Code2
+  },
+  {
+    title: 'Future-State LiDL 2028',
+    trigger: 'Day in the Life of LiDL 2028',
+    keyMessage: 'The future vision of LiDL operations running on the Decision Intelligence framework.',
     businessValue: 'Optimizes store efficiency, minimizes category waste, and protects national margins.',
     technicalDetails: 'An interactive operational timeline showing how different roles collaborate throughout a day.',
-    businessNarrative: 'By 2028, every level of Lidl UK—from store managers logging waste at 08:00 to category leads reviewing promotions at 09:00 and executives generating briefs at 17:00—will execute decisions through this governed cockpit.',
+    businessNarrative: 'By 2028, every level of LiDL UK—from store managers logging waste at 08:00 to category leads reviewing promotions at 09:00 and executives generating briefs at 17:00—will execute decisions through this governed cockpit.',
     architectureNarrative: 'Illustrates the timeline: 08:00 Store Manager markdown approval ➔ 09:00 Category Lead promotion adjustment ➔ 11:00 Supply Lead rebalancing ➔ 14:00 Citizen Developer AppSheet deploy ➔ 17:00 CEO operating brief approval.',
     technicalNarrative: 'Shows how a shared Next.js API, Looker Semantic layer, and Gemini backend coordinate actions asynchronously across applications all day.',
     presenterNotes: 'Conclude by painting the future picture. Emphasize that all roles use the exact same governed engine.',
     outcomeMetric: 'Est. Annual Savings',
     outcomeLabel: '£12.4M National ROI',
     persona: 'Executive',
-    personaTitle: 'Lidl UK Board',
+    personaTitle: 'LiDL UK Board',
     personaIcon: Briefcase
   }
 ];
@@ -297,13 +329,15 @@ export default function ArchitectureExplorer() {
   const [narrativeTab, setNarrativeTab] = useState<'business' | 'architecture' | 'technical'>('business');
   const [transitionLabel, setTransitionLabel] = useState<string | null>(null);
   const [transitionActive, setTransitionActive] = useState(false);
+  const [hoveredDomain, setHoveredDomain] = useState<string | null>(null);
+  const [hoveredSpoke, setHoveredSpoke] = useState<string | null>(null);
 
   useEffect(() => {
     let label = '';
     if (activeSlide === 2) label = 'PLATFORM';
-    else if (activeSlide === 7) label = 'SCALE';
-    else if (activeSlide === 10) label = 'TRUST';
-    else if (activeSlide === 11) label = 'FUTURE';
+    else if (activeSlide === 8) label = 'SCALE';
+    else if (activeSlide === 11) label = 'TRUST';
+    else if (activeSlide === 13) label = 'FUTURE';
 
     if (label) {
       setTransitionLabel(label);
@@ -384,7 +418,7 @@ export default function ArchitectureExplorer() {
       tech: 'Consumes standard REST JSON schemas from the Decision Intelligence API gateway.'
     },
     exec: {
-      title: 'Lidl Strategy Lead',
+      title: 'LiDL Strategy Lead',
       subtitle: 'Executive Persona',
       biz: 'Reviews national operational health briefings and approves regional inventory balancing budgets.',
       tech: 'Accesses aggregated Looker Dashboards and receives Gemini briefs scoped to all sites.'
@@ -434,7 +468,7 @@ export default function ArchitectureExplorer() {
     bigquery: {
       title: 'BigQuery Data Warehouse',
       subtitle: 'Enterprise Data Warehouse',
-      biz: 'Lidl UK data storage. Houses transaction tables, inventory balances, delivery schedules, and historical records.',
+      biz: 'LiDL UK data storage. Houses transaction tables, inventory balances, delivery schedules, and historical records.',
       tech: 'Mocked locally in `data/*.json` files representing BigQuery schemas.'
     },
     workflow: {
@@ -1381,8 +1415,300 @@ export default function ArchitectureExplorer() {
               </SlideScaler>
             )}
 
-            {/* Slide 7: AppSheet AI Enablement Blueprint */}
+{/* Slide 7: The Business Value Engine (Executive Command Wheel) */}
             {activeSlide === 7 && (
+              <SlideScaler designWidth={850} designHeight={360}>
+                <div style={{ position: 'relative', width: '850px', height: '360px', background: 'transparent' }}>
+                  
+                  {/* SVG connecting lines from Outer Domains to Center Engine */}
+                  <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}>
+                    {/* North (Revenue) -> Center */}
+                    <line
+                      x1="425"
+                      y1="75"
+                      x2="425"
+                      y2="90"
+                      stroke={hoveredDomain === 'revenue' ? 'var(--accent)' : 'rgba(255,255,255,0.08)'}
+                      strokeWidth={hoveredDomain === 'revenue' ? 2.5 : 1}
+                      markerEnd={hoveredDomain === 'revenue' ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
+                      className={hoveredDomain === 'revenue' ? 'pulse-line' : ''}
+                      style={{ transition: 'stroke 0.25s, stroke-width 0.25s' }}
+                    />
+                    {/* East (Margin) -> Center */}
+                    <line
+                      x1="592.5"
+                      y1="150"
+                      x2="535"
+                      y2="150"
+                      stroke={hoveredDomain === 'margin' ? '#8B5CF6' : 'rgba(255,255,255,0.08)'}
+                      strokeWidth={hoveredDomain === 'margin' ? 2.5 : 1}
+                      markerEnd={hoveredDomain === 'margin' ? 'url(#arrow-head-purple)' : 'url(#arrow-head-inactive)'}
+                      className={hoveredDomain === 'margin' ? 'pulse-line' : ''}
+                      style={{ transition: 'stroke 0.25s, stroke-width 0.25s' }}
+                    />
+                    {/* South (Productivity) -> Center */}
+                    <line
+                      x1="425"
+                      y1="225"
+                      x2="425"
+                      y2="210"
+                      stroke={hoveredDomain === 'productivity' ? 'var(--success)' : 'rgba(255,255,255,0.08)'}
+                      strokeWidth={hoveredDomain === 'productivity' ? 2.5 : 1}
+                      markerEnd={hoveredDomain === 'productivity' ? 'url(#arrow-head-green)' : 'url(#arrow-head-inactive)'}
+                      className={hoveredDomain === 'productivity' ? 'pulse-line' : ''}
+                      style={{ transition: 'stroke 0.25s, stroke-width 0.25s' }}
+                    />
+                    {/* West (Waste) -> Center */}
+                    <line
+                      x1="257.5"
+                      y1="150"
+                      x2="315"
+                      y2="150"
+                      stroke={hoveredDomain === 'waste' ? 'var(--warning)' : 'rgba(255,255,255,0.08)'}
+                      strokeWidth={hoveredDomain === 'waste' ? 2.5 : 1}
+                      markerEnd={hoveredDomain === 'waste' ? 'url(#arrow-head-yellow)' : 'url(#arrow-head-inactive)'}
+                      className={hoveredDomain === 'waste' ? 'pulse-line' : ''}
+                      style={{ transition: 'stroke 0.25s, stroke-width 0.25s' }}
+                    />
+                  </svg>
+
+                  {/* Responsive Grid layout for Command Wheel */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 220px 1fr',
+                    gridTemplateRows: '80px 140px 80px',
+                    width: '100%',
+                    height: '300px',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    position: 'relative'
+                  }}>
+                    {/* Row 1: North (Revenue) */}
+                    <div style={{ gridColumn: '2', gridRow: '1', display: 'flex', justifyContent: 'center' }}>
+                      <div
+                        className="card"
+                        tabIndex={0}
+                        onMouseEnter={() => setHoveredDomain('revenue')}
+                        onMouseLeave={() => setHoveredDomain(null)}
+                        onFocus={() => setHoveredDomain('revenue')}
+                        onBlur={() => setHoveredDomain(null)}
+                        style={{
+                          width: 200,
+                          height: 70,
+                          padding: '8px 10px',
+                          borderTop: '3px solid var(--accent)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          gap: 4,
+                          cursor: 'pointer',
+                          background: hoveredDomain === 'revenue' ? 'rgba(0,120,255,0.02)' : 'var(--bg-elevated)',
+                          borderColor: hoveredDomain === 'revenue' ? 'var(--accent)' : 'var(--border)',
+                          boxShadow: hoveredDomain === 'revenue' ? '0 0 15px rgba(0,120,255,0.25)' : 'none',
+                          transform: hoveredDomain === 'revenue' ? 'translateY(-2px)' : 'none',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <div style={{ color: 'var(--accent)', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Revenue Growth
+                        </div>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.6rem', padding: '2px 6px', background: 'rgba(0,120,255,0.05)', border: '1px solid rgba(0,120,255,0.15)', borderRadius: '3px', color: 'var(--text-secondary)' }}>Availability</span>
+                          <span style={{ fontSize: '0.6rem', padding: '2px 6px', background: 'rgba(0,120,255,0.05)', border: '1px solid rgba(0,120,255,0.15)', borderRadius: '3px', color: 'var(--text-secondary)' }}>Basket Protection</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Row 2, Col 1: West (Waste) */}
+                    <div style={{ gridColumn: '1', gridRow: '2', display: 'flex', justifyContent: 'flex-end', paddingRight: 30 }}>
+                      <div
+                        className="card"
+                        tabIndex={0}
+                        onMouseEnter={() => setHoveredDomain('waste')}
+                        onMouseLeave={() => setHoveredDomain(null)}
+                        onFocus={() => setHoveredDomain('waste')}
+                        onBlur={() => setHoveredDomain(null)}
+                        style={{
+                          width: 200,
+                          height: 70,
+                          padding: '8px 10px',
+                          borderTop: '3px solid var(--warning)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          gap: 4,
+                          cursor: 'pointer',
+                          background: hoveredDomain === 'waste' ? 'rgba(245,158,11,0.02)' : 'var(--bg-elevated)',
+                          borderColor: hoveredDomain === 'waste' ? 'var(--warning)' : 'var(--border)',
+                          boxShadow: hoveredDomain === 'waste' ? '0 0 15px rgba(245,158,11,0.25)' : 'none',
+                          transform: hoveredDomain === 'waste' ? 'translateY(-2px)' : 'none',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <div style={{ color: 'var(--warning)', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Waste Minimisation
+                        </div>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.6rem', padding: '2px 6px', background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: '3px', color: 'var(--text-secondary)' }}>Markdown Intel</span>
+                          <span style={{ fontSize: '0.6rem', padding: '2px 6px', background: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.15)', borderRadius: '3px', color: 'var(--text-secondary)' }}>Replenish Optimise</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Row 2, Col 2: Center Engine */}
+                    <div style={{ gridColumn: '2', gridRow: '2', display: 'flex', justifyContent: 'center' }}>
+                      <div
+                        className="card"
+                        style={{
+                          width: 220,
+                          height: 120,
+                          padding: '16px',
+                          background: 'rgba(255, 255, 255, 0.01)',
+                          border: '1px solid var(--border)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          alignItems: 'center',
+                          textAlign: 'center',
+                          gap: 6,
+                          boxShadow: hoveredDomain 
+                            ? `0 0 25px ${
+                                hoveredDomain === 'revenue' ? 'rgba(0,120,255,0.25)' 
+                                : hoveredDomain === 'margin' ? 'rgba(139,92,246,0.25)'
+                                : hoveredDomain === 'productivity' ? 'rgba(16,185,129,0.25)'
+                                : 'rgba(245,158,11,0.25)'
+                              }` 
+                            : '0 0 20px rgba(255, 255, 255, 0.02)',
+                          borderColor: hoveredDomain
+                            ? hoveredDomain === 'revenue' ? 'var(--accent)'
+                              : hoveredDomain === 'margin' ? '#8B5CF6'
+                              : hoveredDomain === 'productivity' ? 'var(--success)'
+                              : 'var(--warning)'
+                            : 'var(--border)',
+                          transform: hoveredDomain ? 'scale(1.03)' : 'scale(1.0)',
+                          transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                          zIndex: 2
+                        }}
+                      >
+                        <div style={{ fontSize: '0.8125rem', fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                          DI Engine
+                        </div>
+                        <div style={{ fontSize: '0.625rem', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Decision Intelligence
+                        </div>
+                        <div style={{ fontSize: '0.55rem', color: 'var(--text-muted)', lineHeight: 1.3, marginTop: 4 }}>
+                          One engine powering every operational outcome.
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Row 2, Col 3: East (Margin) */}
+                    <div style={{ gridColumn: '3', gridRow: '2', display: 'flex', justifyContent: 'flex-start', paddingLeft: 30 }}>
+                      <div
+                        className="card"
+                        tabIndex={0}
+                        onMouseEnter={() => setHoveredDomain('margin')}
+                        onMouseLeave={() => setHoveredDomain(null)}
+                        onFocus={() => setHoveredDomain('margin')}
+                        onBlur={() => setHoveredDomain(null)}
+                        style={{
+                          width: 200,
+                          height: 70,
+                          padding: '8px 10px',
+                          borderTop: '3px solid #8B5CF6',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          gap: 4,
+                          cursor: 'pointer',
+                          background: hoveredDomain === 'margin' ? 'rgba(139,92,246,0.02)' : 'var(--bg-elevated)',
+                          borderColor: hoveredDomain === 'margin' ? '#8B5CF6' : 'var(--border)',
+                          boxShadow: hoveredDomain === 'margin' ? '0 0 15px rgba(139,92,246,0.25)' : 'none',
+                          transform: hoveredDomain === 'margin' ? 'translateY(-2px)' : 'none',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <div style={{ color: '#8B5CF6', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Margin Protection
+                        </div>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.6rem', padding: '2px 6px', background: 'rgba(139,92,246,0.05)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: '3px', color: 'var(--text-secondary)' }}>Price Optimise</span>
+                          <span style={{ fontSize: '0.6rem', padding: '2px 6px', background: 'rgba(139,92,246,0.05)', border: '1px solid rgba(139,92,246,0.15)', borderRadius: '3px', color: 'var(--text-secondary)' }}>Promo Governance</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Row 3: South (Productivity) */}
+                    <div style={{ gridColumn: '2', gridRow: '3', display: 'flex', justifyContent: 'center' }}>
+                      <div
+                        className="card"
+                        tabIndex={0}
+                        onMouseEnter={() => setHoveredDomain('productivity')}
+                        onMouseLeave={() => setHoveredDomain(null)}
+                        onFocus={() => setHoveredDomain('productivity')}
+                        onBlur={() => setHoveredDomain(null)}
+                        style={{
+                          width: 200,
+                          height: 70,
+                          padding: '8px 10px',
+                          borderTop: '3px solid var(--success)',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          gap: 4,
+                          cursor: 'pointer',
+                          background: hoveredDomain === 'productivity' ? 'rgba(16,185,129,0.02)' : 'var(--bg-elevated)',
+                          borderColor: hoveredDomain === 'productivity' ? 'var(--success)' : 'var(--border)',
+                          boxShadow: hoveredDomain === 'productivity' ? '0 0 15px rgba(16,185,129,0.25)' : 'none',
+                          transform: hoveredDomain === 'productivity' ? 'translateY(-2px)' : 'none',
+                          transition: 'all 0.2s ease'
+                        }}
+                      >
+                        <div style={{ color: 'var(--success)', fontSize: '0.75rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                          Productivity
+                        </div>
+                        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '0.6rem', padding: '2px 6px', background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '3px', color: 'var(--text-secondary)' }}>Decision Auto</span>
+                          <span style={{ fontSize: '0.6rem', padding: '2px 6px', background: 'rgba(16,185,129,0.05)', border: '1px solid rgba(16,185,129,0.15)', borderRadius: '3px', color: 'var(--text-secondary)' }}>Pattern Reuse</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Outcome Ribbon at the bottom */}
+                  <div style={{
+                    position: 'absolute',
+                    bottom: 0,
+                    left: 20,
+                    right: 20,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 20,
+                    padding: '8px 0',
+                    background: 'rgba(255, 255, 255, 0.02)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '0.70rem',
+                    color: 'var(--text-secondary)',
+                    letterSpacing: '0.05em',
+                    fontWeight: 600
+                  }}>
+                    <span style={{ color: 'var(--accent)', fontWeight: 800 }}>Revenue Protected</span>
+                    <span style={{ color: 'var(--border-strong)' }}>|</span>
+                    <span style={{ color: '#8B5CF6', fontWeight: 800 }}>Margin Defended</span>
+                    <span style={{ color: 'var(--border-strong)' }}>|</span>
+                    <span style={{ color: 'var(--warning)', fontWeight: 800 }}>Waste Reduced</span>
+                    <span style={{ color: 'var(--border-strong)' }}>|</span>
+                    <span style={{ color: 'var(--success)', fontWeight: 800 }}>Analyst Hours Saved</span>
+                  </div>
+
+                </div>
+              </SlideScaler>
+            )}
+
+            {/* Slide 8: AppSheet AI Enablement Blueprint */}
+            {activeSlide === 8 && (
               <SlideScaler designWidth={850} designHeight={380}>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32, width: '100%' }}>
                   {/* Current state */}
@@ -1426,8 +1752,8 @@ export default function ArchitectureExplorer() {
               </SlideScaler>
             )}
 
-            {/* Slide 8: How A Recommendation Is Generated */}
-            {activeSlide === 8 && (
+            {/* Slide 9: How A Recommendation Is Generated */}
+            {activeSlide === 9 && (
               <SlideScaler designWidth={720} designHeight={360}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8, width: '100%' }}>
                   {[
@@ -1452,8 +1778,8 @@ export default function ArchitectureExplorer() {
               </SlideScaler>
             )}
 
-            {/* Slide 9: Why Gemini Cannot Hallucinate Here */}
-            {activeSlide === 9 && (
+            {/* Slide 10: Why Gemini Cannot Hallucinate Here */}
+            {activeSlide === 10 && (
               <SlideScaler designWidth={800} designHeight={360}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 24, alignItems: 'center', textAlign: 'center', width: '100%' }}>
                   <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#06B6D4' }}>Governed Semantic Boundaries</h3>
@@ -1484,8 +1810,8 @@ export default function ArchitectureExplorer() {
               </SlideScaler>
             )}
 
-            {/* Slide 10: Governance & Trust */}
-            {activeSlide === 10 && (
+            {/* Slide 11: Governance & Trust */}
+            {activeSlide === 11 && (
               <SlideScaler designWidth={760} designHeight={360}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 16, textAlign: 'center', width: '100%' }}>
                   <h3 style={{ fontSize: '1.125rem', fontWeight: 800 }}>Governed Security & Validation Gates</h3>
@@ -1519,15 +1845,209 @@ export default function ArchitectureExplorer() {
               </SlideScaler>
             )}
 
-            {/* Slide 11: Future-State Lidl 2028 */}
-            {activeSlide === 11 && (
+{/* Slide 12: Why This Matters to LiDL (New Pass 3) */}
+            {activeSlide === 12 && (
+              <SlideScaler designWidth={850} designHeight={360}>
+                <div style={{ position: 'relative', width: '850px', height: '360px', background: 'transparent' }}>
+                  {/* SVG connecting lines */}
+                  <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}>
+                    {/* Left Column Spokes -> Hub */}
+                    {[
+                      { key: 'waste', y: 57.5, marker: 'url(#arrow-head-yellow)', color: 'var(--warning)' },
+                      { key: 'availability', y: 137.5, marker: 'url(#arrow-head-active)', color: '#06B6D4' },
+                      { key: 'margin', y: 217.5, marker: 'url(#arrow-head-purple)', color: '#8B5CF6' },
+                      { key: 'labour', y: 297.5, marker: 'url(#arrow-head-green)', color: 'var(--success)' }
+                    ].map((spoke, idx) => {
+                      const active = hoveredSpoke === spoke.key;
+                      return (
+                        <line
+                          key={`left-${idx}`}
+                          x1="260"
+                          y1={spoke.y}
+                          x2="335"
+                          y2="180"
+                          stroke={active ? spoke.color : 'rgba(255,255,255,0.06)'}
+                          strokeWidth={active ? 2.5 : 1}
+                          strokeDasharray={active ? '6,4' : '3,3'}
+                          markerEnd={active ? spoke.marker : 'url(#arrow-head-inactive)'}
+                          className={active ? 'pulse-line' : ''}
+                          style={{ transition: 'stroke 0.25s, stroke-width 0.25s' }}
+                        />
+                      );
+                    })}
+
+                    {/* Right Column Spokes -> Hub */}
+                    {[
+                      { key: 'energy', y: 57.5, marker: 'url(#arrow-head-yellow)', color: '#F59E0B' },
+                      { key: 'promotions', y: 137.5, marker: 'url(#arrow-head-active)', color: '#3B82F6' },
+                      { key: 'store_ops', y: 217.5, marker: 'url(#arrow-head-purple)', color: '#6366F1' },
+                      { key: 'supply_chain', y: 297.5, marker: 'url(#arrow-head-green)', color: '#10B981' }
+                    ].map((spoke, idx) => {
+                      const active = hoveredSpoke === spoke.key;
+                      return (
+                        <line
+                          key={`right-${idx}`}
+                          x1="590"
+                          y1={spoke.y}
+                          x2="515"
+                          y2="180"
+                          stroke={active ? spoke.color : 'rgba(255,255,255,0.06)'}
+                          strokeWidth={active ? 2.5 : 1}
+                          strokeDasharray={active ? '6,4' : '3,3'}
+                          markerEnd={active ? spoke.marker : 'url(#arrow-head-inactive)'}
+                          className={active ? 'pulse-line' : ''}
+                          style={{ transition: 'stroke 0.25s, stroke-width 0.25s' }}
+                        />
+                      );
+                    })}
+                  </svg>
+
+                  {/* Centre Core Hub */}
+                  <div className="card" style={{
+                    position: 'absolute',
+                    left: 335,
+                    top: 140,
+                    width: 180,
+                    height: 80,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    textAlign: 'center',
+                    border: '1px solid var(--border)',
+                    background: 'rgba(59, 130, 246, 0.03)',
+                    boxShadow: hoveredSpoke
+                      ? `0 0 25px ${
+                          hoveredSpoke === 'waste' || hoveredSpoke === 'energy' ? 'rgba(245,158,11,0.25)'
+                          : hoveredSpoke === 'availability' || hoveredSpoke === 'promotions' ? 'rgba(0,120,255,0.25)'
+                          : hoveredSpoke === 'margin' || hoveredSpoke === 'store_ops' ? 'rgba(139,92,246,0.25)'
+                          : 'rgba(16,185,129,0.25)'
+                        }`
+                      : '0 0 25px rgba(59, 130, 246, 0.15)',
+                    borderColor: hoveredSpoke
+                      ? hoveredSpoke === 'waste' ? 'var(--warning)'
+                        : hoveredSpoke === 'availability' ? '#06B6D4'
+                        : hoveredSpoke === 'margin' ? '#8B5CF6'
+                        : hoveredSpoke === 'labour' ? 'var(--success)'
+                        : hoveredSpoke === 'energy' ? '#F59E0B'
+                        : hoveredSpoke === 'promotions' ? '#3B82F6'
+                        : hoveredSpoke === 'store_ops' ? '#6366F1'
+                        : '#10B981'
+                      : 'var(--accent)',
+                    transform: hoveredSpoke ? 'scale(1.04)' : 'scale(1.0)',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    zIndex: 10
+                  }}>
+                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Decision Layer
+                    </div>
+                    <div style={{ fontSize: '0.625rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                      Reusable Core Engine
+                    </div>
+                  </div>
+
+                  {/* Left Column Spokes */}
+                  {[
+                    { key: 'waste', label: 'Waste', desc: 'Produce markdown optimisation', color: 'var(--warning)', left: 80, top: 25 },
+                    { key: 'availability', label: 'Availability', desc: 'Proactive stockout prevention', color: '#06B6D4', left: 80, top: 105 },
+                    { key: 'margin', label: 'Margin', desc: 'Campaign leakage defense', color: '#8B5CF6', left: 80, top: 185 },
+                    { key: 'labour', label: 'Labour', desc: 'Store tasking & shift allocations', color: 'var(--success)', left: 80, top: 265 }
+                  ].map((spoke, idx) => {
+                    const isHovered = hoveredSpoke === spoke.key;
+                    return (
+                      <div
+                        key={idx}
+                        className="card"
+                        tabIndex={0}
+                        onMouseEnter={() => setHoveredSpoke(spoke.key)}
+                        onMouseLeave={() => setHoveredSpoke(null)}
+                        onFocus={() => setHoveredSpoke(spoke.key)}
+                        onBlur={() => setHoveredSpoke(null)}
+                        style={{
+                          position: 'absolute',
+                          left: spoke.left,
+                          top: spoke.top,
+                          width: 180,
+                          height: 65,
+                          padding: '10px 12px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          borderLeft: `3px solid ${spoke.color}`,
+                          textAlign: 'left',
+                          background: isHovered ? 'rgba(255,255,255,0.01)' : 'var(--bg-elevated)',
+                          borderColor: isHovered ? spoke.color : 'var(--border)',
+                          boxShadow: isHovered ? `0 0 12px ${spoke.color}25` : 'none',
+                          transform: isHovered ? 'translateX(2px)' : 'none',
+                          transition: 'all 0.2s ease',
+                          cursor: 'pointer',
+                          outline: 'none',
+                          zIndex: 2
+                        }}
+                      >
+                        <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>{spoke.label}</div>
+                        <div style={{ fontSize: '0.625rem', color: 'var(--text-secondary)', lineHeight: 1.2, marginTop: 2 }}>{spoke.desc}</div>
+                      </div>
+                    );
+                  })}
+
+                  {/* Right Column Spokes */}
+                  {[
+                    { key: 'energy', label: 'Energy', desc: 'Cold-chain IoT temperature rules', color: '#F59E0B', left: 590, top: 25 },
+                    { key: 'promotions', label: 'Promotions', desc: 'Dynamic regional campaign balancing', color: '#3B82F6', left: 590, top: 105 },
+                    { key: 'store_ops', label: 'Store Operations', desc: 'Self-service citizen developer apps', color: '#6366F1', left: 590, top: 185 },
+                    { key: 'supply_chain', label: 'Supply Chain', desc: 'DC capacity & route adjustment', color: '#10B981', left: 590, top: 265 }
+                  ].map((spoke, idx) => {
+                    const isHovered = hoveredSpoke === spoke.key;
+                    return (
+                      <div
+                        key={idx}
+                        className="card"
+                        tabIndex={0}
+                        onMouseEnter={() => setHoveredSpoke(spoke.key)}
+                        onMouseLeave={() => setHoveredSpoke(null)}
+                        onFocus={() => setHoveredSpoke(spoke.key)}
+                        onBlur={() => setHoveredSpoke(null)}
+                        style={{
+                          position: 'absolute',
+                          left: spoke.left,
+                          top: spoke.top,
+                          width: 180,
+                          height: 65,
+                          padding: '10px 12px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          justifyContent: 'center',
+                          borderLeft: `3px solid ${spoke.color}`,
+                          textAlign: 'left',
+                          background: isHovered ? 'rgba(255,255,255,0.01)' : 'var(--bg-elevated)',
+                          borderColor: isHovered ? spoke.color : 'var(--border)',
+                          boxShadow: isHovered ? `0 0 12px ${spoke.color}25` : 'none',
+                          transform: isHovered ? 'translateX(-2px)' : 'none',
+                          transition: 'all 0.2s ease',
+                          cursor: 'pointer',
+                          outline: 'none',
+                          zIndex: 2
+                        }}
+                      >
+                        <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>{spoke.label}</div>
+                        <div style={{ fontSize: '0.625rem', color: 'var(--text-secondary)', lineHeight: 1.2, marginTop: 2 }}>{spoke.desc}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </SlideScaler>
+            )}
+
+            {/* Slide 13: Future-State LiDL 2028 */}
+            {activeSlide === 13 && (
               <SlideScaler designWidth={720} designHeight={360}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, position: 'relative', paddingLeft: 20, borderLeft: '2px solid var(--border)', width: '100%', textAlign: 'left' }}>
                   {[
                     { time: '08:00', role: 'Store Manager', desc: 'Piccadilly lead Alex reviews fresh produce waste alerts and triggers early markdown rules.', icon: Store, color: 'var(--accent)' },
                     { time: '09:00', role: 'Category Manager', desc: 'Chilled buyer monitors campaign margins and adjusts ready meal promotion levels.', icon: Package, color: '#8B5CF6' },
                     { time: '11:00', role: 'Supply Chain Lead', desc: 'National team detects logistics delays and triggers backup vendor stock rebalancing.', icon: Truck, color: '#10B981' },
-                    { time: '17:00', role: 'Lidl Executive', desc: 'CEO reviews automatically compiled national weekly briefs and confidence matrices.', icon: Briefcase, color: 'white' }
+                    { time: '17:00', role: 'LiDL Executive', desc: 'CEO reviews automatically compiled national weekly briefs and confidence matrices.', icon: Briefcase, color: 'white' }
                   ].map((t, idx) => (
                     <div key={idx} style={{ position: 'relative', display: 'flex', gap: 12, alignItems: 'center', padding: '4px 0' }}>
                       <div style={{ position: 'absolute', left: -26, top: '50%', transform: 'translateY(-50%)', width: 10, height: 10, borderRadius: '50%', background: 'var(--accent)', border: '2px solid #0d1321' }} />
@@ -1562,9 +2082,9 @@ export default function ArchitectureExplorer() {
               { id: 'PROBLEM', label: 'PROBLEM', slides: [0, 1] },
               { id: 'PLATFORM', label: 'PLATFORM', slides: [2] },
               { id: 'USE_CASES', label: 'USE CASES', slides: [3, 4, 5, 6] },
-              { id: 'SCALE', label: 'SCALE', slides: [7] },
-              { id: 'TRUST', label: 'TRUST', slides: [8, 9, 10] },
-              { id: 'FUTURE', label: 'FUTURE', slides: [11] }
+              { id: 'SCALE', label: 'SCALE', slides: [7, 8] },
+              { id: 'TRUST', label: 'TRUST', slides: [9, 10, 11] },
+              { id: 'FUTURE', label: 'FUTURE', slides: [12, 13] }
             ].map((sec, idx, arr) => {
               const isActive = sec.slides.includes(activeSlide);
               const isPast = Math.max(...sec.slides) < activeSlide;
