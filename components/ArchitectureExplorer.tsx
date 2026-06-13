@@ -61,11 +61,11 @@ const SLIDES: SlideData[] = [
   },
   {
     title: 'Enterprise Blueprint',
-    trigger: 'Unified platform map connecting people, data, AI and action.',
-    keyMessage: 'The centerpiece enterprise architecture mapping roles to data and workflow layers.',
+    trigger: 'One reusable decision architecture serving every operational domain.',
+    keyMessage: 'One Decision Engine powers many business outcomes across store, trading, and supply workflows.',
     businessValue: 'A single, secure platform powering store, category, and logistics decision cockpits.',
-    technicalDetails: 'Illustrates the 7-layer architecture stack connected via governed APIs and the Model Context Protocol (MCP).',
-    businessNarrative: 'This is the complete operational blueprint. It traces how executives, store managers, category leads, and citizen developers share a single decision platform, all governed by the same Looker models.',
+    technicalDetails: 'Illustrates the reusable architecture stack connected via governed APIs, Gemini reasoning, the MCP Capability Layer, enterprise data, and action workflows.',
+    businessNarrative: 'This is the complete operational blueprint. It traces how executives, store managers, category leads, and supply teams share a single decision platform, all governed by the same reusable architecture.',
     architectureNarrative: 'Walk through the 7 layers: Business Personas, Applications, Decision Intelligence, AI Layer, Governance Layer, Data Layer, and Action Layer.',
     technicalNarrative: 'Hovering over nodes highlights the exact path of execution. For example, hovering over a Persona reveals their active path through the API, Gemini models, LookML metrics, and BigQuery tables.',
     presenterNotes: 'Spend time here. Hover over different cards to show how paths light up and explain the 7 layers of governance.',
@@ -474,20 +474,20 @@ export default function ArchitectureExplorer() {
     store_mgr: {
       title: 'Store Manager',
       subtitle: 'Piccadilly Store',
-      biz: 'Sees store risks early and can act before availability, waste, or staffing issues reach customers.',
-      tech: 'Receives only the Piccadilly operating view, with recommendations scoped to local decisions.'
+      biz: 'Store operations powered by the shared decision platform.',
+      tech: 'Receives local recommendations through the same governed architecture.'
     },
     category_mgr: {
       title: 'Category Manager',
       subtitle: 'Chilled Trading',
-      biz: 'Protects margin and promotion performance while trading conditions change during the day.',
-      tech: 'Receives a category-specific view so decisions stay focused on the right commercial levers.'
+      biz: 'Trading decisions using the same governed architecture.',
+      tech: 'Receives category intelligence through the reusable decision pattern.'
     },
     supply_lead: {
       title: 'Supply Chain Lead',
       subtitle: 'National Logistics',
-      biz: 'Acts on supplier delays and route pressure before they become store-level availability problems.',
-      tech: 'Receives a national supply view that connects delivery risk to replenishment action.'
+      biz: 'Supply chain optimisation using the same reusable platform.',
+      tech: 'Receives national supply intelligence through the shared capability stack.'
     },
     citizen_dev: {
       title: 'Citizen Developer',
@@ -528,14 +528,14 @@ export default function ArchitectureExplorer() {
     di_api: {
       title: 'Decision Intelligence Layer',
       subtitle: 'Shared Decision Engine',
-      biz: 'The reusable coordination layer that turns signals into governed recommendations.',
-      tech: 'Orchestrates identity, metrics, reasoning, and action through one controlled path.'
+      biz: 'Common decision orchestration layer.',
+      tech: 'Coordinates identity, metrics, reasoning, and action through one controlled path.'
     },
     gemini_ai: {
       title: 'Gemini Reasoning',
       subtitle: 'Recommendation Intelligence',
-      biz: 'Evaluates the situation and proposes the next best action using governed business context.',
-      tech: 'Reasons only over approved context and controlled prompts.'
+      biz: 'AI reasoning and recommendation engine.',
+      tech: 'Evaluates governed business context and proposes the next best action.'
     },
     looker_sl: {
       title: 'Looker Semantic Layer',
@@ -546,20 +546,20 @@ export default function ArchitectureExplorer() {
     bigquery: {
       title: 'BigQuery Warehouse',
       subtitle: 'Enterprise Data Foundation',
-      biz: 'Stores the operational signals that reveal risk, opportunity, and performance movement.',
-      tech: 'Provides governed data signals to the semantic layer.'
+      biz: 'Trusted enterprise data foundation.',
+      tech: 'Stores the operational signals that reveal risk, opportunity, and performance movement.'
     },
     workflow: {
       title: 'Workflow Engine',
       subtitle: 'Approved Action',
-      biz: 'Moves approved recommendations into operational execution where value is captured.',
-      tech: 'Connects decisions to the systems that carry out the action.'
+      biz: 'Business action and execution layer.',
+      tech: 'Moves approved recommendations into operational execution where value is captured.'
     },
     mcp: {
-      title: 'Connector Layer',
-      subtitle: 'Enterprise Context',
-      biz: 'Connects additional enterprise context when a decision needs supplier, logistics, or system detail.',
-      tech: 'Bridges governed reasoning with approved enterprise services.'
+      title: 'MCP Capability Layer',
+      subtitle: 'Reusable Capabilities',
+      biz: 'Secure access to enterprise tools and external capabilities.',
+      tech: 'Makes the same external actions available to every governed workflow.'
     }
   };
 
@@ -728,15 +728,38 @@ export default function ArchitectureExplorer() {
       };
     }, [isExpanded, tooltipDir, tooltipAlign]);
 
+    const isSharedCapabilityNode = id === 'mcp' && hoveredNode && [
+      'store_mgr',
+      'store_app',
+      'category_mgr',
+      'trading_app',
+      'supply_lead',
+      'supply_app',
+      'di_api',
+      'gemini_ai'
+    ].includes(hoveredNode);
+
+    const iconRgb =
+      color.startsWith('var(--accent)') ? '0,120,255' :
+      color.startsWith('var(--exec-amber)') ? '251,191,36' :
+      color === '#8B5CF6' ? '139,92,246' :
+      color === '#10B981' ? '16,185,129' :
+      color === '#06B6D4' ? '6,182,212' :
+      color === '#F59E0B' ? '245,158,11' :
+      '74,90,122';
+
     const isRouteActive = activeRoute || (hoveredNode && NODE_DETAILS[hoveredNode] && (
       (hoveredNode === 'store_mgr' && ['store_mgr', 'store_app', 'di_api', 'gemini_ai', 'looker_sl', 'bigquery', 'workflow'].includes(id)) ||
       (hoveredNode === 'category_mgr' && ['category_mgr', 'trading_app', 'di_api', 'gemini_ai', 'looker_sl', 'bigquery', 'workflow'].includes(id)) ||
-      (hoveredNode === 'supply_lead' && ['supply_lead', 'supply_app', 'di_api', 'gemini_ai', 'mcp', 'bigquery', 'workflow'].includes(id)) ||
+      (hoveredNode === 'supply_lead' && ['supply_lead', 'supply_app', 'di_api', 'gemini_ai', 'looker_sl', 'bigquery', 'workflow'].includes(id)) ||
       (hoveredNode === 'citizen_dev' && ['citizen_dev', 'appsheet', 'di_api', 'gemini_ai', 'looker_sl', 'bigquery', 'workflow'].includes(id)) ||
       (hoveredNode === 'di_api' && ['di_api', 'gemini_ai', 'looker_sl', 'workflow'].includes(id)) ||
-      (hoveredNode === 'gemini_ai' && ['di_api', 'gemini_ai', 'looker_sl', 'mcp'].includes(id)) ||
-      (hoveredNode === 'looker_sl' && ['di_api', 'looker_sl', 'bigquery'].includes(id))
+      (hoveredNode === 'gemini_ai' && ['di_api', 'gemini_ai', 'looker_sl'].includes(id)) ||
+      (hoveredNode === 'looker_sl' && ['di_api', 'looker_sl', 'bigquery'].includes(id)) ||
+      (hoveredNode === 'mcp' && ['di_api', 'gemini_ai', 'mcp', 'workflow'].includes(id))
     ));
+    const isNodeActive = Boolean(isRouteActive || isSharedCapabilityNode);
+    const shouldRemainVisible = isNodeActive || id === 'mcp';
 
     return (
       <div
@@ -746,8 +769,8 @@ export default function ArchitectureExplorer() {
           position: 'relative',
           transition: 'all 0.25s ease',
           zIndex: isHovered || isExpanded ? 50 : 2,
-          opacity: hoveredNode && !isRouteActive ? 0.16 : 1,
-          filter: hoveredNode && !isRouteActive ? 'saturate(0.55)' : 'none'
+          opacity: hoveredNode && !shouldRemainVisible ? 0.16 : 1,
+          filter: hoveredNode && !shouldRemainVisible ? 'saturate(0.55)' : 'none'
         }}
         onMouseEnter={() => setHoveredNode(id)}
         onMouseLeave={() => setHoveredNode(null)}
@@ -755,21 +778,21 @@ export default function ArchitectureExplorer() {
           e.stopPropagation();
           setExpandedNode(isExpanded ? null : id);
         }}
-      >
+        >
         <div
-          className={`card ${isRouteActive ? 'glowing-node architecture-node-active' : ''}`}
+          className={`card ${isRouteActive ? 'glowing-node architecture-node-active' : ''} ${isSharedCapabilityNode ? 'shared-capability-node' : ''}`}
           title={`${label}${subtitle ? ` - ${subtitle}` : ''}`}
           style={{
             background: bgColor,
-            border: `1px solid ${isRouteActive || isExpanded ? 'var(--accent)' : borderColor}`,
+            border: `1px solid ${isSharedCapabilityNode ? 'var(--exec-amber)' : isRouteActive || isExpanded ? 'var(--accent)' : borderColor}`,
             padding: '10px 13px',
             borderRadius: 'var(--radius-md)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             gap: 11,
-            boxShadow: isRouteActive ? '0 0 24px rgba(0, 120, 255, 0.42), inset 0 0 18px rgba(0, 120, 255, 0.08)' : 'none',
-            transform: isHovered ? 'translateY(-2px)' : isRouteActive ? 'translateY(-1px)' : 'none',
+            boxShadow: isSharedCapabilityNode ? '0 0 18px rgba(251, 191, 36, 0.24), inset 0 0 14px rgba(251, 191, 36, 0.06)' : isRouteActive ? '0 0 24px rgba(0, 120, 255, 0.42), inset 0 0 18px rgba(0, 120, 255, 0.08)' : 'none',
+            transform: isHovered ? 'translateY(-2px)' : isNodeActive ? 'translateY(-1px)' : 'none',
             width: width,
             transition: 'all 0.2s ease'
           }}
@@ -779,8 +802,8 @@ export default function ArchitectureExplorer() {
               width: 32,
               height: 32,
               borderRadius: 8,
-              background: `rgba(${color.startsWith('var(--accent)') ? '0,120,255' : color === '#8B5CF6' ? '139,92,246' : color === '#10B981' ? '16,185,129' : color === '#06B6D4' ? '6,182,212' : '74,90,122'}, 0.08)`,
-              border: `1px solid rgba(${color.startsWith('var(--accent)') ? '0,120,255' : color === '#8B5CF6' ? '139,92,246' : color === '#10B981' ? '16,185,129' : color === '#06B6D4' ? '6,182,212' : '74,90,122'}, 0.2)`,
+              background: `rgba(${iconRgb}, 0.08)`,
+              border: `1px solid rgba(${iconRgb}, 0.2)`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -855,6 +878,29 @@ export default function ArchitectureExplorer() {
     return false;
   };
 
+  const isSharedCapabilityPath = (from: string, to: string) => {
+    if (!hoveredNode) return false;
+
+    const platformConsumers = [
+      'store_mgr',
+      'store_app',
+      'category_mgr',
+      'trading_app',
+      'supply_lead',
+      'supply_app',
+      'di_api',
+      'gemini_ai'
+    ];
+
+    if (!platformConsumers.includes(hoveredNode)) return false;
+
+    return (
+      (from === 'di_api' && to === 'mcp') ||
+      (from === 'gemini_ai' && to === 'mcp') ||
+      (from === 'mcp' && to === 'workflow')
+    );
+  };
+
   const isPathActive = (from: string, to: string) => {
     if (!hoveredNode) return false;
     
@@ -883,8 +929,9 @@ export default function ArchitectureExplorer() {
       if (from === 'supply_lead' && to === 'supply_app') return true;
       if (from === 'supply_app' && to === 'di_api') return true;
       if (from === 'di_api' && to === 'gemini_ai') return true;
-      if (from === 'gemini_ai' && to === 'mcp') return true;
-      if (from === 'mcp' && to === 'workflow') return true;
+      if (from === 'gemini_ai' && to === 'looker_sl') return true;
+      if (from === 'looker_sl' && to === 'bigquery') return true;
+      if (from === 'bigquery' && to === 'workflow') return true;
     }
 
     // Highlight paths when specific backend nodes are hovered
@@ -912,6 +959,7 @@ export default function ArchitectureExplorer() {
       if (from === 'mcp' && to === 'workflow') return true;
     }
     if (hoveredNode === 'mcp') {
+      if (from === 'di_api' && to === 'mcp') return true;
       if (from === 'gemini_ai' && to === 'mcp') return true;
       if (from === 'mcp' && to === 'workflow') return true;
     }
@@ -957,6 +1005,21 @@ export default function ArchitectureExplorer() {
         }
         .glowing-node {
           animation: pulse-glow 2s infinite ease-in-out;
+        }
+        @keyframes shared-capability-glow {
+          0%, 100% {
+            box-shadow: 0 0 7px rgba(251, 191, 36, 0.16);
+          }
+          50% {
+            box-shadow: 0 0 18px rgba(251, 191, 36, 0.34), inset 0 0 14px rgba(251, 191, 36, 0.06);
+          }
+        }
+        .shared-capability-node {
+          animation: shared-capability-glow 2.4s infinite ease-in-out;
+        }
+        .blueprint-shared-flow {
+          filter: drop-shadow(0 0 5px rgba(251, 191, 36, 0.22));
+          opacity: 0.86;
         }
       `}} />
 
@@ -1175,6 +1238,10 @@ export default function ArchitectureExplorer() {
                   <div style={{ position: 'absolute', left: 785, top: 10, fontSize: '0.625rem', fontWeight: 800, color: '#10B981', textTransform: 'uppercase' }}>6. Data Layer</div>
                   <div style={{ position: 'absolute', left: 940, top: 10, fontSize: '0.625rem', fontWeight: 800, color: 'var(--success)', textTransform: 'uppercase' }}>7. Action</div>
 
+                  <div className="blueprint-platform-callout">
+                    Build Once. Reuse Everywhere.
+                  </div>
+
                   {/* SVG Wires Overlay */}
                   <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}>
                     {/* Store Manager Flow */}
@@ -1242,10 +1309,10 @@ export default function ArchitectureExplorer() {
                     />
                     <path
                       d="M 457 177 Q 465 205 472 232"
-                      stroke={isPathActive('di_api', 'mcp') ? 'var(--accent)' : 'rgba(255,255,255,0.035)'}
-                      strokeWidth={isPathActive('di_api', 'mcp') ? 3 : 0.75}
-                      markerEnd={isPathActive('di_api', 'mcp') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
-                      className={isPathActive('di_api', 'mcp') ? 'pulse-line' : ''}
+                      stroke={isPathActive('di_api', 'mcp') ? 'var(--accent)' : isSharedCapabilityPath('di_api', 'mcp') ? 'var(--exec-amber)' : 'rgba(255,255,255,0.035)'}
+                      strokeWidth={isPathActive('di_api', 'mcp') ? 3 : isSharedCapabilityPath('di_api', 'mcp') ? 2 : 0.75}
+                      markerEnd={isPathActive('di_api', 'mcp') ? 'url(#arrow-head-active)' : isSharedCapabilityPath('di_api', 'mcp') ? 'url(#arrow-head-yellow)' : 'url(#arrow-head-inactive)'}
+                      className={isPathActive('di_api', 'mcp') || isSharedCapabilityPath('di_api', 'mcp') ? `pulse-line ${isSharedCapabilityPath('di_api', 'mcp') && !isPathActive('di_api', 'mcp') ? 'blueprint-shared-flow' : ''}` : ''}
                       fill="none"
                     />
 
@@ -1260,18 +1327,18 @@ export default function ArchitectureExplorer() {
                     />
                     <path
                       d="M 542 151 L 542 202"
-                      stroke={isPathActive('gemini_ai', 'mcp') ? 'var(--accent)' : 'rgba(255,255,255,0.035)'}
-                      strokeWidth={isPathActive('gemini_ai', 'mcp') ? 3 : 0.75}
-                      markerEnd={isPathActive('gemini_ai', 'mcp') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
-                      className={isPathActive('gemini_ai', 'mcp') ? 'pulse-line' : ''}
+                      stroke={isPathActive('gemini_ai', 'mcp') ? 'var(--accent)' : isSharedCapabilityPath('gemini_ai', 'mcp') ? 'var(--exec-amber)' : 'rgba(255,255,255,0.035)'}
+                      strokeWidth={isPathActive('gemini_ai', 'mcp') ? 3 : isSharedCapabilityPath('gemini_ai', 'mcp') ? 2 : 0.75}
+                      markerEnd={isPathActive('gemini_ai', 'mcp') ? 'url(#arrow-head-active)' : isSharedCapabilityPath('gemini_ai', 'mcp') ? 'url(#arrow-head-yellow)' : 'url(#arrow-head-inactive)'}
+                      className={isPathActive('gemini_ai', 'mcp') || isSharedCapabilityPath('gemini_ai', 'mcp') ? `pulse-line ${isSharedCapabilityPath('gemini_ai', 'mcp') && !isPathActive('gemini_ai', 'mcp') ? 'blueprint-shared-flow' : ''}` : ''}
                       fill="none"
                     />
                     <path
                       d="M 612 232 Q 775 232 937 177"
-                      stroke={isPathActive('mcp', 'workflow') ? 'var(--success)' : 'rgba(255,255,255,0.035)'}
-                      strokeWidth={isPathActive('mcp', 'workflow') ? 3 : 0.75}
-                      markerEnd={isPathActive('mcp', 'workflow') ? 'url(#arrow-head-green)' : 'url(#arrow-head-inactive)'}
-                      className={isPathActive('mcp', 'workflow') ? 'pulse-line' : ''}
+                      stroke={isPathActive('mcp', 'workflow') ? 'var(--success)' : isSharedCapabilityPath('mcp', 'workflow') ? 'var(--exec-amber)' : 'rgba(255,255,255,0.035)'}
+                      strokeWidth={isPathActive('mcp', 'workflow') ? 3 : isSharedCapabilityPath('mcp', 'workflow') ? 2 : 0.75}
+                      markerEnd={isPathActive('mcp', 'workflow') ? 'url(#arrow-head-green)' : isSharedCapabilityPath('mcp', 'workflow') ? 'url(#arrow-head-yellow)' : 'url(#arrow-head-inactive)'}
+                      className={isPathActive('mcp', 'workflow') || isSharedCapabilityPath('mcp', 'workflow') ? `pulse-line ${isSharedCapabilityPath('mcp', 'workflow') && !isPathActive('mcp', 'workflow') ? 'blueprint-shared-flow' : ''}` : ''}
                       fill="none"
                     />
 
@@ -1328,7 +1395,7 @@ export default function ArchitectureExplorer() {
                     <NodeCard id="gemini_ai" label="Gemini Reasoning" subtitle="gemini-1.5-flash" icon={Sparkles} color="#8B5CF6" width={150} />
                   </div>
                   <div style={{ position: 'absolute', left: 475, top: 205 }}>
-                    <NodeCard id="mcp" label="MCP Connector" subtitle="Vertex MCP Router" icon={LinkIcon} color="#8B5CF6" width={135} />
+                    <NodeCard id="mcp" label="MCP Capability Layer" subtitle="Reusable Capabilities" icon={LinkIcon} color="var(--exec-amber)" width={150} />
                   </div>
 
                   {/* Column 5: Governance */}

@@ -927,6 +927,27 @@ code, pre {
   letter-spacing: 0;
 }
 
+.blueprint-platform-callout {
+  position: absolute;
+  left: 338px;
+  top: 44px;
+  z-index: 3;
+  width: 390px;
+  padding: 7px 14px;
+  border: 1px solid rgba(251, 191, 36, 0.28);
+  border-radius: 6px;
+  background: linear-gradient(90deg, rgba(249, 115, 22, 0.08), rgba(251, 191, 36, 0.04));
+  color: var(--exec-amber);
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 1;
+  text-align: center;
+  text-transform: uppercase;
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.18);
+  pointer-events: none;
+}
+
 .storyboard-slide-header {
   position: relative;
   flex: 0 0 auto;
