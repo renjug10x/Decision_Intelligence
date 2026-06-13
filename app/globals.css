@@ -1088,6 +1088,282 @@ code, pre {
   white-space: nowrap;
 }
 
+.architecture-node-active {
+  position: relative;
+}
+
+.architecture-node-active::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  border: 1px solid rgba(0, 120, 255, 0.22);
+  pointer-events: none;
+}
+
+.scale-signal-line {
+  filter: drop-shadow(0 0 5px rgba(0, 120, 255, 0.28));
+}
+
+.appsheet-transformation-spine {
+  align-self: stretch;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  color: rgba(240, 244, 255, 0.72);
+}
+
+.appsheet-spine-step,
+.appsheet-spine-core {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  background: rgba(255, 255, 255, 0.025);
+  font-size: 0.66rem;
+  line-height: 1.2;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.appsheet-spine-step.muted {
+  color: rgba(240, 244, 255, 0.48);
+}
+
+.appsheet-spine-core {
+  min-height: 70px;
+  flex-direction: column;
+  gap: 7px;
+  color: var(--accent);
+  border-color: rgba(0, 120, 255, 0.36);
+  background: rgba(0, 120, 255, 0.055);
+  box-shadow: 0 0 22px rgba(0, 120, 255, 0.14);
+}
+
+.appsheet-exec-callout {
+  width: 100%;
+  padding: 10px 8px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 213, 0, 0.20);
+  background: rgba(255, 213, 0, 0.045);
+  text-align: center;
+  font-size: 0.68rem;
+  line-height: 1.25;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.appsheet-exec-callout strong {
+  display: block;
+  color: rgba(255, 213, 0, 0.78);
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin: 2px 0;
+}
+
+.finale-story-mode {
+  position: relative;
+  width: 980px;
+  height: 360px;
+  padding: 28px 30px 24px;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background:
+    radial-gradient(circle at 50% 34%, rgba(0, 120, 255, 0.10), transparent 38%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.006));
+}
+
+.finale-ambient-line {
+  position: absolute;
+  left: 82px;
+  right: 82px;
+  top: 82px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.16), transparent);
+}
+
+.finale-scenes {
+  position: relative;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  z-index: 2;
+}
+
+.finale-scene {
+  min-width: 0;
+  height: 92px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.025);
+  opacity: 0.42;
+  transform: scale(0.98);
+  transition: opacity 600ms ease, transform 600ms ease, border-color 600ms ease, box-shadow 600ms ease, background 600ms ease;
+}
+
+.finale-scene.active {
+  opacity: 1;
+  transform: scale(1.02);
+  border-color: rgba(0, 120, 255, 0.54);
+  background: rgba(0, 120, 255, 0.07);
+  box-shadow: 0 0 28px rgba(0, 120, 255, 0.22);
+}
+
+.finale-scene.complete {
+  opacity: 0.62;
+  border-color: rgba(16, 185, 129, 0.24);
+}
+
+.finale-scene.finale-dimmed {
+  opacity: 0.30;
+  transform: scale(0.96);
+}
+
+.finale-scene-time {
+  font-size: 0.68rem;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: rgba(255, 213, 0, 0.82);
+}
+
+.finale-scene-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.finale-scene-title {
+  font-size: 0.66rem;
+  line-height: 1.15;
+  font-weight: 800;
+  color: rgba(240, 244, 255, 0.86);
+  text-align: center;
+}
+
+.finale-narrative,
+.finale-impact-panel {
+  position: absolute;
+  left: 110px;
+  right: 110px;
+  bottom: 44px;
+  z-index: 3;
+  text-align: center;
+  animation: finale-fade-up 650ms ease both;
+}
+
+.finale-narrative span {
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--accent);
+}
+
+.finale-narrative h3 {
+  margin: 8px 0 10px;
+  font-size: 1.65rem;
+  line-height: 1.05;
+  font-weight: 800;
+  letter-spacing: 0;
+  color: var(--text-primary);
+}
+
+.finale-narrative p {
+  margin: 0;
+  font-size: 0.96rem;
+  line-height: 1.45;
+  font-weight: 600;
+  color: rgba(240, 244, 255, 0.76);
+}
+
+.finale-impact-panel {
+  left: 72px;
+  right: 72px;
+  bottom: 36px;
+}
+
+.finale-impact-panel h3 {
+  margin: 0;
+  font-size: 1.75rem;
+  line-height: 1.08;
+  font-weight: 800;
+  letter-spacing: 0;
+  color: var(--text-primary);
+}
+
+.finale-impact-panel p {
+  margin: 10px 0 18px;
+  font-size: 0.98rem;
+  line-height: 1.35;
+  font-weight: 600;
+  color: rgba(240, 244, 255, 0.72);
+}
+
+.finale-impact-chain {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+
+.finale-impact-chain span {
+  font-size: 0.70rem;
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(240, 244, 255, 0.86);
+}
+
+.finale-impact-chain i {
+  width: 38px;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(0, 120, 255, 0.10), rgba(0, 120, 255, 0.72), rgba(16, 185, 129, 0.20));
+  animation: finale-chain-flow 1.8s ease-in-out infinite;
+}
+
+@keyframes finale-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes finale-chain-flow {
+  0%, 100% {
+    opacity: 0.45;
+    transform: scaleX(0.92);
+  }
+  50% {
+    opacity: 1;
+    transform: scaleX(1.08);
+  }
+}
+
 /* ── Premium Executive Finishes (Pass 6) ───────────────────────────────────── */
 @keyframes di-pulse {
   0%, 100% {

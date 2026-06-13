@@ -60,8 +60,8 @@ const SLIDES: SlideData[] = [
     personaIcon: Users
   },
   {
-    title: 'Interactive Enterprise Blueprint',
-    trigger: 'Unified Platform Map',
+    title: 'Enterprise Blueprint',
+    trigger: 'Unified platform map connecting people, data, AI and action.',
     keyMessage: 'The centerpiece enterprise architecture mapping roles to data and workflow layers.',
     businessValue: 'A single, secure platform powering store, category, and logistics decision cockpits.',
     technicalDetails: 'Illustrates the 7-layer architecture stack connected via governed APIs and the Model Context Protocol (MCP).',
@@ -236,20 +236,64 @@ const SLIDES: SlideData[] = [
     personaIcon: Code2
   },
   {
-    title: 'Future-State LiDL 2028',
-    trigger: 'Day in the Life of LiDL 2028',
-    keyMessage: 'The future vision of LiDL operations running on the Decision Intelligence framework.',
+    title: 'Day in the Life with Decision Intelligence',
+    trigger: 'How thousands of daily decisions become coordinated outcomes.',
+    keyMessage: 'A normal operating day becomes a coordinated flow of human judgment, governed intelligence, and timely action.',
     businessValue: 'Optimizes store efficiency, minimizes category waste, and protects national margins.',
-    technicalDetails: 'An interactive operational timeline showing how different roles collaborate throughout a day.',
-    businessNarrative: 'By 2028, every level of LiDL UK—from store managers logging waste at 08:00 to category leads reviewing promotions at 09:00 and executives generating briefs at 17:00—will execute decisions through this governed cockpit.',
-    architectureNarrative: 'Illustrates the timeline: 08:00 Store Manager markdown approval ➔ 09:00 Category Lead promotion adjustment ➔ 11:00 Supply Lead rebalancing ➔ 14:00 Citizen Developer AppSheet deploy ➔ 17:00 CEO operating brief approval.',
-    technicalNarrative: 'Shows how a shared Next.js API, Looker Semantic layer, and Gemini backend coordinate actions asynchronously across applications all day.',
-    presenterNotes: 'Conclude by painting the future picture. Emphasize that all roles use the exact same governed engine.',
+    technicalDetails: 'A cinematic operating-day storyboard showing continuous coordination across stores, supply, trading, operations, and leadership.',
+    businessNarrative: 'Across one normal day at LiDL, Decision Intelligence continuously identifies risks, recommends governed actions, and keeps people focused on the highest-value decisions rather than report interpretation.',
+    architectureNarrative: 'Shows the living operating model: store readiness, supply intelligence, dynamic trading, operational optimisation, and executive command all flowing through the same governed decision layer.',
+    technicalNarrative: 'A shared Next.js API, Looker semantic layer, Gemini reasoning, and workflow integrations coordinate signals and approved actions asynchronously throughout the operating day.',
+    presenterNotes: 'Conclude by showing Decision Intelligence as everyday operating muscle: the same governed engine helps teams sense, decide, and act throughout the day.',
     outcomeMetric: 'Est. Annual Savings',
     outcomeLabel: '£12.4M National ROI',
     persona: 'Executive',
     personaTitle: 'LiDL UK Board',
     personaIcon: Briefcase
+  }
+];
+
+const SCALE_DOMAIN_SEQUENCE = [
+  'waste',
+  'availability',
+  'margin',
+  'labour',
+  'energy',
+  'promotions',
+  'store_ops',
+  'supply_chain'
+];
+
+const FINALE_SCENES = [
+  {
+    time: '06:00',
+    title: 'Store Readiness',
+    narrative: 'Risks identified before stores open.',
+    icon: Store
+  },
+  {
+    time: '09:00',
+    title: 'Supply Intelligence',
+    narrative: 'Supply disruption detected and alternatives recommended.',
+    icon: Truck
+  },
+  {
+    time: '12:00',
+    title: 'Trading Intelligence',
+    narrative: 'Demand changes trigger dynamic pricing and replenishment decisions.',
+    icon: BarChart3
+  },
+  {
+    time: '15:00',
+    title: 'Operational Optimisation',
+    narrative: 'Labour and operational effort automatically rebalanced.',
+    icon: Users
+  },
+  {
+    time: '18:00',
+    title: 'Executive Command',
+    narrative: 'Leadership receives outcomes, not reports.',
+    icon: Briefcase
   }
 ];
 
@@ -331,13 +375,15 @@ export default function ArchitectureExplorer() {
   const [transitionActive, setTransitionActive] = useState(false);
   const [hoveredDomain, setHoveredDomain] = useState<string | null>(null);
   const [hoveredSpoke, setHoveredSpoke] = useState<string | null>(null);
+  const [autoSpokeIndex, setAutoSpokeIndex] = useState(0);
+  const [finaleStep, setFinaleStep] = useState(0);
 
   useEffect(() => {
     let label = '';
     if (activeSlide === 2) label = 'PLATFORM';
     else if (activeSlide === 8) label = 'SCALE';
     else if (activeSlide === 11) label = 'TRUST';
-    else if (activeSlide === 13) label = 'FUTURE';
+    else if (activeSlide === 13) label = 'IMPACT';
 
     if (label) {
       setTransitionLabel(label);
@@ -352,6 +398,8 @@ export default function ArchitectureExplorer() {
   }, [activeSlide]);
 
   const slide = SLIDES[activeSlide];
+  const activeSpokeKey = hoveredSpoke || SCALE_DOMAIN_SEQUENCE[autoSpokeIndex];
+  const currentFinaleScene = FINALE_SCENES[Math.min(finaleStep, FINALE_SCENES.length - 1)];
 
   // Keyboard navigation
   useEffect(() => {
@@ -381,6 +429,36 @@ export default function ArchitectureExplorer() {
     };
   }, [presentationMode]);
 
+  useEffect(() => {
+    if (activeSlide !== 12) return;
+
+    const interval = window.setInterval(() => {
+      setAutoSpokeIndex((prev) => (prev + 1) % SCALE_DOMAIN_SEQUENCE.length);
+    }, 2200);
+
+    return () => window.clearInterval(interval);
+  }, [activeSlide]);
+
+  useEffect(() => {
+    if (activeSlide !== 13) {
+      setFinaleStep(0);
+      return;
+    }
+
+    setFinaleStep(0);
+    const interval = window.setInterval(() => {
+      setFinaleStep((prev) => {
+        if (prev >= FINALE_SCENES.length) {
+          window.clearInterval(interval);
+          return prev;
+        }
+        return prev + 1;
+      });
+    }, 1550);
+
+    return () => window.clearInterval(interval);
+  }, [activeSlide]);
+
   const handleNext = () => {
     setActiveSlide((prev) => (prev === SLIDES.length - 1 ? 0 : prev + 1));
     setExpandedNode(null);
@@ -394,94 +472,94 @@ export default function ArchitectureExplorer() {
   // Reusable node detail data on click
   const NODE_DETAILS: Record<string, { title: string; subtitle: string; biz: string; tech: string }> = {
     store_mgr: {
-      title: 'Store Manager (Piccadilly S001)',
-      subtitle: 'Operational Persona',
-      biz: 'Piccadilly Store Lead Alex handles real-time store disruptions: produce spoilage, ready meal stockouts, or staff scheduling shifts.',
-      tech: 'Governed by Looker User Attribute override: StoreID = "S001". Enforces store-level metrics and data access.'
+      title: 'Store Manager',
+      subtitle: 'Piccadilly Store',
+      biz: 'Sees store risks early and can act before availability, waste, or staffing issues reach customers.',
+      tech: 'Receives only the Piccadilly operating view, with recommendations scoped to local decisions.'
     },
     category_mgr: {
-      title: 'Category Manager (Chilled Lead)',
-      subtitle: 'Trading Persona',
-      biz: 'Monitors category margin performance, promotion execution, and cannibalization metrics. Adjusts live promotion rates.',
-      tech: 'Enforces Category = "Chilled" RLS via LookML. Restricted from accessing supply chain logs or other category lines.'
+      title: 'Category Manager',
+      subtitle: 'Chilled Trading',
+      biz: 'Protects margin and promotion performance while trading conditions change during the day.',
+      tech: 'Receives a category-specific view so decisions stay focused on the right commercial levers.'
     },
     supply_lead: {
-      title: 'Supply Chain Lead (Logistics Director)',
-      subtitle: 'Supply Chain Persona',
-      biz: 'Resolves distribution delays, manages warehouse SLAs, and coordinates backup suppliers when SLA violations threaten store stock.',
-      tech: 'Monitors supplier SLA metrics and inventory levels across regional DCs via BigQuery distribution tables.'
+      title: 'Supply Chain Lead',
+      subtitle: 'National Logistics',
+      biz: 'Acts on supplier delays and route pressure before they become store-level availability problems.',
+      tech: 'Receives a national supply view that connects delivery risk to replenishment action.'
     },
     citizen_dev: {
-      title: 'Citizen Developer (Business User)',
-      subtitle: 'AppSheet Creator',
-      biz: 'Builds operational dashboards and pricing forms using AppSheet to configure daily store workflows.',
-      tech: 'Consumes standard REST JSON schemas from the Decision Intelligence API gateway.'
+      title: 'Citizen Developer',
+      subtitle: 'Business App Builder',
+      biz: 'Turns local operating ideas into useful decision workflows without waiting for a full engineering cycle.',
+      tech: 'Builds on the shared decision layer so new tools inherit the same governance pattern.'
     },
     exec: {
-      title: 'LiDL Strategy Lead',
-      subtitle: 'Executive Persona',
-      biz: 'Reviews national operational health briefings and approves regional inventory balancing budgets.',
-      tech: 'Accesses aggregated Looker Dashboards and receives Gemini briefs scoped to all sites.'
+      title: 'Executive Leader',
+      subtitle: 'National Operating View',
+      biz: 'Reviews outcomes, exceptions, and decisions that matter across the operating estate.',
+      tech: 'Sees aggregated intelligence without breaking the governed decision model.'
     },
     store_app: {
-      title: 'Store Intelligence Application',
-      subtitle: 'AppSheet Front-End',
-      biz: 'Mobile-first tool for store workers. Translates anomaly alerts into clear markdown suggestions.',
-      tech: 'Pushes approval webhooks to `/api/data` containing store rebalance parameters.'
+      title: 'Store Intelligence App',
+      subtitle: 'Store Decision Cockpit',
+      biz: 'Turns store signals into clear recommended actions for managers and colleagues.',
+      tech: 'Connects approved decisions back into the shared operating workflow.'
     },
     trading_app: {
-      title: 'Trading Intelligence Application',
-      subtitle: 'Next.js Trading Cockpit',
-      biz: 'Used by category trading teams to monitor margins and model promotional simulations.',
-      tech: 'Sends Looker SDK queries to compile real-time campaign performance logs.'
+      title: 'Trading Intelligence App',
+      subtitle: 'Commercial Cockpit',
+      biz: 'Helps category teams protect margin, promotion performance, and availability.',
+      tech: 'Uses governed commercial metrics before recommendations are made.'
     },
     supply_app: {
-      title: 'Supply Radar Application',
-      subtitle: 'Next.js Supply Screen',
-      biz: 'National supply dashboard visualizing cargo truck delays and supplier SLA margins.',
-      tech: 'Queries BQ delivery schedules and calculates real-time ETA latency scores.'
+      title: 'Supply Radar App',
+      subtitle: 'Supply Decision Cockpit',
+      biz: 'Highlights supply risk and proposes alternatives before the store feels disruption.',
+      tech: 'Connects supplier signals, inventory pressure, and approved recovery action.'
     },
     appsheet: {
       title: 'AppSheet Platform',
-      subtitle: 'Google Workspace App Builder',
-      biz: 'Empowers local leads to build custom interfaces that interface directly with the DI gateway API.',
-      tech: 'Triggers write-back requests using Looker semantic endpoints for inventory state changes.'
+      subtitle: 'Business App Studio',
+      biz: 'Lets business teams create lightweight tools that plug into the enterprise decision engine.',
+      tech: 'Uses standard governed services rather than one-off local logic.'
     },
     di_api: {
-      title: 'Decision Intelligence API',
-      subtitle: 'Next.js API Routes Gateway',
-      biz: 'Core communication gateway. Authenticates requests, compiles user parameters, and orchestrates Looker & Gemini.',
-      tech: 'API Gateway located in `/app/api/data`. Validates JSON requests and queries Looker Semantic models.'
+      title: 'Decision Intelligence Layer',
+      subtitle: 'Shared Decision Engine',
+      biz: 'The reusable coordination layer that turns signals into governed recommendations.',
+      tech: 'Orchestrates identity, metrics, reasoning, and action through one controlled path.'
     },
     gemini_ai: {
-      title: 'Gemini Reasoning Engine',
-      subtitle: 'gemini-1.5-flash LLM',
-      biz: 'Consumes pre-aggregated governed data and external factors (weather, events) to propose optimal adjustments.',
-      tech: 'AI logic in `lib/gemini.ts`. Calls models with strict prompts to prevent hallucination.'
+      title: 'Gemini Reasoning',
+      subtitle: 'Recommendation Intelligence',
+      biz: 'Evaluates the situation and proposes the next best action using governed business context.',
+      tech: 'Reasons only over approved context and controlled prompts.'
     },
     looker_sl: {
       title: 'Looker Semantic Layer',
-      subtitle: 'Governed Semantic Metrics',
-      biz: 'The single source of metric truth. Forces Gemini to reason over verified definitions rather than direct raw SQL.',
-      tech: 'Looker Semantic Layer in `lib/semantic-layer.ts`. Translates query filters into strict LookML dimensions.'
+      subtitle: 'Governed Metrics',
+      biz: 'Keeps every recommendation anchored to trusted definitions and consistent KPIs.',
+      tech: 'Provides the approved metric boundary for AI-assisted decisions.'
     },
     bigquery: {
-      title: 'BigQuery Data Warehouse',
-      subtitle: 'Enterprise Data Warehouse',
-      biz: 'LiDL UK data storage. Houses transaction tables, inventory balances, delivery schedules, and historical records.',
-      tech: 'Mocked locally in `data/*.json` files representing BigQuery schemas.'
+      title: 'BigQuery Warehouse',
+      subtitle: 'Enterprise Data Foundation',
+      biz: 'Stores the operational signals that reveal risk, opportunity, and performance movement.',
+      tech: 'Provides governed data signals to the semantic layer.'
     },
     workflow: {
-      title: 'Workflow Action Engine',
-      subtitle: 'AppSheet / ERP Write-Back API',
-      biz: 'Executes the approved decision (adjusting prices, rerouting trucks, reallocating shifts) in transactional systems.',
-      tech: 'Pushes HTTP POST write-back queries updating regional registers and scheduling systems.'
+      title: 'Workflow Engine',
+      subtitle: 'Approved Action',
+      biz: 'Moves approved recommendations into operational execution where value is captured.',
+      tech: 'Connects decisions to the systems that carry out the action.'
     },
     mcp: {
-      title: 'Model Context Protocol (MCP) Layer',
-      subtitle: 'AI Schema Bridging',
-      biz: 'Connects the Gemini reasoning engine directly with external systems like SAP, Ariba, and Looker definitions.',
-      tech: 'Vertex AI / MCP protocol. Bridges LLM reasoning loops with live database actions.'
+      title: 'Connector Layer',
+      subtitle: 'Enterprise Context',
+      biz: 'Connects additional enterprise context when a decision needs supplier, logistics, or system detail.',
+      tech: 'Bridges governed reasoning with approved enterprise services.'
     }
   };
 
@@ -662,12 +740,14 @@ export default function ArchitectureExplorer() {
 
     return (
       <div
+        className="architecture-node-shell"
         ref={cardRef}
         style={{
           position: 'relative',
           transition: 'all 0.25s ease',
           zIndex: isHovered || isExpanded ? 50 : 2,
-          opacity: hoveredNode && !isRouteActive ? 0.35 : 1
+          opacity: hoveredNode && !isRouteActive ? 0.16 : 1,
+          filter: hoveredNode && !isRouteActive ? 'saturate(0.55)' : 'none'
         }}
         onMouseEnter={() => setHoveredNode(id)}
         onMouseLeave={() => setHoveredNode(null)}
@@ -677,7 +757,7 @@ export default function ArchitectureExplorer() {
         }}
       >
         <div
-          className={`card ${isRouteActive ? 'glowing-node' : ''}`}
+          className={`card ${isRouteActive ? 'glowing-node architecture-node-active' : ''}`}
           title={`${label}${subtitle ? ` - ${subtitle}` : ''}`}
           style={{
             background: bgColor,
@@ -688,8 +768,8 @@ export default function ArchitectureExplorer() {
             display: 'flex',
             alignItems: 'center',
             gap: 12,
-            boxShadow: isRouteActive ? '0 0 15px rgba(0, 120, 255, 0.25)' : 'none',
-            transform: isHovered ? 'translateY(-2px)' : 'none',
+            boxShadow: isRouteActive ? '0 0 24px rgba(0, 120, 255, 0.42), inset 0 0 18px rgba(0, 120, 255, 0.08)' : 'none',
+            transform: isHovered ? 'translateY(-2px)' : isRouteActive ? 'translateY(-1px)' : 'none',
             width: width,
             transition: 'all 0.2s ease'
           }}
@@ -744,16 +824,19 @@ export default function ArchitectureExplorer() {
             onClick={(e) => e.stopPropagation()}
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border)', paddingBottom: 6 }}>
-              <div style={{ fontWeight: 800, fontSize: '0.78rem', color: 'var(--accent)' }}>{NODE_DETAILS[id].title}</div>
+              <div>
+                <div style={{ fontWeight: 800, fontSize: '0.82rem', color: 'var(--text-primary)' }}>{NODE_DETAILS[id].title}</div>
+                <div style={{ fontSize: '0.66rem', color: 'var(--accent)', fontWeight: 700, marginTop: 2 }}>{NODE_DETAILS[id].subtitle}</div>
+              </div>
               <button onClick={() => setExpandedNode(null)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex' }}>
                 <X size={14} />
               </button>
             </div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-primary)', lineHeight: 1.4 }}>
-              <strong>Business:</strong> {NODE_DETAILS[id].biz}
+              <strong>Business impact:</strong> {NODE_DETAILS[id].biz}
             </div>
             <div style={{ fontSize: '0.72rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-              <strong>Technical:</strong> <code style={{ color: '#0078FF', background: 'var(--bg-elevated)', padding: '1px 3px', borderRadius: 2 }}>{NODE_DETAILS[id].tech}</code>
+              <strong>Platform role:</strong> {NODE_DETAILS[id].tech}
             </div>
           </div>
         )}
@@ -890,6 +973,12 @@ export default function ArchitectureExplorer() {
           </marker>
           <marker id="arrow-head-green" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
             <path d="M 0 2 L 10 5 L 0 8 z" fill="var(--success)" />
+          </marker>
+          <marker id="arrow-head-yellow" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 2 L 10 5 L 0 8 z" fill="var(--warning)" />
+          </marker>
+          <marker id="arrow-head-purple" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+            <path d="M 0 2 L 10 5 L 0 8 z" fill="#8B5CF6" />
           </marker>
         </defs>
       </svg>
@@ -1085,59 +1174,21 @@ export default function ArchitectureExplorer() {
                   <div style={{ position: 'absolute', left: 785, top: 10, fontSize: '0.625rem', fontWeight: 800, color: '#10B981', textTransform: 'uppercase' }}>6. Data Layer</div>
                   <div style={{ position: 'absolute', left: 940, top: 10, fontSize: '0.625rem', fontWeight: 800, color: 'var(--success)', textTransform: 'uppercase' }}>7. Action</div>
 
-                  {/* Callout Badges */}
-                  <div style={{
-                    position: 'absolute',
-                    left: 320,
-                    top: 120,
-                    fontSize: '0.625rem',
-                    fontWeight: 800,
-                    background: 'rgba(0, 120, 255, 0.1)',
-                    border: '1px solid var(--accent)',
-                    color: 'var(--accent)',
-                    padding: '2px 6px',
-                    borderRadius: '4px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    zIndex: 10,
-                    pointerEvents: 'none'
-                  }}>
-                    Reusable Pattern
-                  </div>
-                  <div style={{
-                    position: 'absolute',
-                    left: 552,
-                    top: 150,
-                    fontSize: '0.625rem',
-                    fontWeight: 800,
-                    background: 'rgba(139, 92, 246, 0.1)',
-                    border: '1px solid #8B5CF6',
-                    color: '#8B5CF6',
-                    padding: '2px 6px',
-                    borderRadius: '4px',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    zIndex: 10,
-                    pointerEvents: 'none'
-                  }}>
-                    AI Governed
-                  </div>
-
                   {/* SVG Wires Overlay */}
                   <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 1 }}>
                     {/* Store Manager Flow */}
                     <path
                       d="M 147 67 L 162 67"
-                      stroke={isPathActive('store_mgr', 'store_app') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
-                      strokeWidth={isPathActive('store_mgr', 'store_app') ? 2 : 1}
+                      stroke={isPathActive('store_mgr', 'store_app') ? 'var(--accent)' : 'rgba(255,255,255,0.035)'}
+                      strokeWidth={isPathActive('store_mgr', 'store_app') ? 3 : 0.75}
                       markerEnd={isPathActive('store_mgr', 'store_app') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
                       className={isPathActive('store_mgr', 'store_app') ? 'pulse-line' : ''}
                       fill="none"
                     />
                     <path
                       d="M 302 67 Q 310 122 317 177"
-                      stroke={isPathActive('store_app', 'di_api') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
-                      strokeWidth={isPathActive('store_app', 'di_api') ? 2 : 1}
+                      stroke={isPathActive('store_app', 'di_api') ? 'var(--accent)' : 'rgba(255,255,255,0.035)'}
+                      strokeWidth={isPathActive('store_app', 'di_api') ? 3 : 0.75}
                       markerEnd={isPathActive('store_app', 'di_api') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
                       className={isPathActive('store_app', 'di_api') ? 'pulse-line' : ''}
                       fill="none"
@@ -1146,16 +1197,16 @@ export default function ArchitectureExplorer() {
                     {/* Category Manager Flow */}
                     <path
                       d="M 147 177 L 162 177"
-                      stroke={isPathActive('category_mgr', 'trading_app') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
-                      strokeWidth={isPathActive('category_mgr', 'trading_app') ? 2 : 1}
+                      stroke={isPathActive('category_mgr', 'trading_app') ? 'var(--accent)' : 'rgba(255,255,255,0.035)'}
+                      strokeWidth={isPathActive('category_mgr', 'trading_app') ? 3 : 0.75}
                       markerEnd={isPathActive('category_mgr', 'trading_app') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
                       className={isPathActive('category_mgr', 'trading_app') ? 'pulse-line' : ''}
                       fill="none"
                     />
                     <path
                       d="M 302 177 L 317 177"
-                      stroke={isPathActive('trading_app', 'di_api') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
-                      strokeWidth={isPathActive('trading_app', 'di_api') ? 2 : 1}
+                      stroke={isPathActive('trading_app', 'di_api') ? 'var(--accent)' : 'rgba(255,255,255,0.035)'}
+                      strokeWidth={isPathActive('trading_app', 'di_api') ? 3 : 0.75}
                       markerEnd={isPathActive('trading_app', 'di_api') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
                       className={isPathActive('trading_app', 'di_api') ? 'pulse-line' : ''}
                       fill="none"
@@ -1164,16 +1215,16 @@ export default function ArchitectureExplorer() {
                     {/* Supply Chain Flow */}
                     <path
                       d="M 147 287 L 162 287"
-                      stroke={isPathActive('supply_lead', 'supply_app') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
-                      strokeWidth={isPathActive('supply_lead', 'supply_app') ? 2 : 1}
+                      stroke={isPathActive('supply_lead', 'supply_app') ? 'var(--accent)' : 'rgba(255,255,255,0.035)'}
+                      strokeWidth={isPathActive('supply_lead', 'supply_app') ? 3 : 0.75}
                       markerEnd={isPathActive('supply_lead', 'supply_app') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
                       className={isPathActive('supply_lead', 'supply_app') ? 'pulse-line' : ''}
                       fill="none"
                     />
                     <path
                       d="M 302 287 Q 310 232 317 177"
-                      stroke={isPathActive('supply_app', 'di_api') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
-                      strokeWidth={isPathActive('supply_app', 'di_api') ? 2 : 1}
+                      stroke={isPathActive('supply_app', 'di_api') ? 'var(--accent)' : 'rgba(255,255,255,0.035)'}
+                      strokeWidth={isPathActive('supply_app', 'di_api') ? 3 : 0.75}
                       markerEnd={isPathActive('supply_app', 'di_api') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
                       className={isPathActive('supply_app', 'di_api') ? 'pulse-line' : ''}
                       fill="none"
@@ -1182,16 +1233,16 @@ export default function ArchitectureExplorer() {
                     {/* Shared Decision API to AI Layer */}
                     <path
                       d="M 457 177 Q 465 150 472 122"
-                      stroke={isPathActive('di_api', 'gemini_ai') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
-                      strokeWidth={isPathActive('di_api', 'gemini_ai') ? 2 : 1}
+                      stroke={isPathActive('di_api', 'gemini_ai') ? 'var(--accent)' : 'rgba(255,255,255,0.035)'}
+                      strokeWidth={isPathActive('di_api', 'gemini_ai') ? 3 : 0.75}
                       markerEnd={isPathActive('di_api', 'gemini_ai') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
                       className={isPathActive('di_api', 'gemini_ai') ? 'pulse-line' : ''}
                       fill="none"
                     />
                     <path
                       d="M 457 177 Q 465 205 472 232"
-                      stroke={isPathActive('di_api', 'mcp') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
-                      strokeWidth={isPathActive('di_api', 'mcp') ? 2 : 1}
+                      stroke={isPathActive('di_api', 'mcp') ? 'var(--accent)' : 'rgba(255,255,255,0.035)'}
+                      strokeWidth={isPathActive('di_api', 'mcp') ? 3 : 0.75}
                       markerEnd={isPathActive('di_api', 'mcp') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
                       className={isPathActive('di_api', 'mcp') ? 'pulse-line' : ''}
                       fill="none"
@@ -1200,24 +1251,24 @@ export default function ArchitectureExplorer() {
                     {/* AI Layer to Governance / Workflow */}
                     <path
                       d="M 612 122 Q 620 150 627 177"
-                      stroke={isPathActive('gemini_ai', 'looker_sl') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
-                      strokeWidth={isPathActive('gemini_ai', 'looker_sl') ? 2 : 1}
+                      stroke={isPathActive('gemini_ai', 'looker_sl') ? 'var(--accent)' : 'rgba(255,255,255,0.035)'}
+                      strokeWidth={isPathActive('gemini_ai', 'looker_sl') ? 3 : 0.75}
                       markerEnd={isPathActive('gemini_ai', 'looker_sl') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
                       className={isPathActive('gemini_ai', 'looker_sl') ? 'pulse-line' : ''}
                       fill="none"
                     />
                     <path
                       d="M 542 151 L 542 202"
-                      stroke={isPathActive('gemini_ai', 'mcp') ? 'var(--accent)' : 'rgba(255,255,255,0.06)'}
-                      strokeWidth={isPathActive('gemini_ai', 'mcp') ? 2 : 1}
+                      stroke={isPathActive('gemini_ai', 'mcp') ? 'var(--accent)' : 'rgba(255,255,255,0.035)'}
+                      strokeWidth={isPathActive('gemini_ai', 'mcp') ? 3 : 0.75}
                       markerEnd={isPathActive('gemini_ai', 'mcp') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
                       className={isPathActive('gemini_ai', 'mcp') ? 'pulse-line' : ''}
                       fill="none"
                     />
                     <path
                       d="M 612 232 Q 775 232 937 177"
-                      stroke={isPathActive('mcp', 'workflow') ? 'var(--success)' : 'rgba(255,255,255,0.06)'}
-                      strokeWidth={isPathActive('mcp', 'workflow') ? 2 : 1}
+                      stroke={isPathActive('mcp', 'workflow') ? 'var(--success)' : 'rgba(255,255,255,0.035)'}
+                      strokeWidth={isPathActive('mcp', 'workflow') ? 3 : 0.75}
                       markerEnd={isPathActive('mcp', 'workflow') ? 'url(#arrow-head-green)' : 'url(#arrow-head-inactive)'}
                       className={isPathActive('mcp', 'workflow') ? 'pulse-line' : ''}
                       fill="none"
@@ -1226,8 +1277,8 @@ export default function ArchitectureExplorer() {
                     {/* Looker to BigQuery */}
                     <path
                       d="M 767 177 L 782 177"
-                      stroke={isPathActive('looker_sl', 'bigquery') ? '#06B6D4' : 'rgba(255,255,255,0.06)'}
-                      strokeWidth={isPathActive('looker_sl', 'bigquery') ? 2 : 1}
+                      stroke={isPathActive('looker_sl', 'bigquery') ? '#06B6D4' : 'rgba(255,255,255,0.035)'}
+                      strokeWidth={isPathActive('looker_sl', 'bigquery') ? 3 : 0.75}
                       markerEnd={isPathActive('looker_sl', 'bigquery') ? 'url(#arrow-head-active)' : 'url(#arrow-head-inactive)'}
                       className={isPathActive('looker_sl', 'bigquery') ? 'pulse-line' : ''}
                       fill="none"
@@ -1236,8 +1287,8 @@ export default function ArchitectureExplorer() {
                     {/* BigQuery to Workflow */}
                     <path
                       d="M 922 177 L 937 177"
-                      stroke={isPathActive('bigquery', 'workflow') ? 'var(--success)' : 'rgba(255,255,255,0.06)'}
-                      strokeWidth={isPathActive('bigquery', 'workflow') ? 2 : 1}
+                      stroke={isPathActive('bigquery', 'workflow') ? 'var(--success)' : 'rgba(255,255,255,0.035)'}
+                      strokeWidth={isPathActive('bigquery', 'workflow') ? 3 : 0.75}
                       markerEnd={isPathActive('bigquery', 'workflow') ? 'url(#arrow-head-green)' : 'url(#arrow-head-inactive)'}
                       className={isPathActive('bigquery', 'workflow') ? 'pulse-line' : ''}
                       fill="none"
@@ -1273,7 +1324,7 @@ export default function ArchitectureExplorer() {
 
                   {/* Column 4: AI Layer */}
                   <div style={{ position: 'absolute', left: 475, top: 95 }}>
-                    <NodeCard id="gemini_ai" label="Gemini Reasoning" subtitle="gemini-1.5-flash" icon={Sparkles} color="#8B5CF6" width={135} />
+                    <NodeCard id="gemini_ai" label="Gemini Reasoning" subtitle="gemini-1.5-flash" icon={Sparkles} color="#8B5CF6" width={150} />
                   </div>
                   <div style={{ position: 'absolute', left: 475, top: 205 }}>
                     <NodeCard id="mcp" label="MCP Connector" subtitle="Vertex MCP Router" icon={LinkIcon} color="#8B5CF6" width={135} />
@@ -1286,12 +1337,12 @@ export default function ArchitectureExplorer() {
 
                   {/* Column 6: Data Layer */}
                   <div style={{ position: 'absolute', left: 785, top: 150 }}>
-                    <NodeCard id="bigquery" label="BigQuery Warehouse" subtitle="Mock Datastores" icon={Database} color="#10B981" width={135} />
+                    <NodeCard id="bigquery" label="BigQuery Warehouse" subtitle="Mock Datastores" icon={Database} color="#10B981" width={150} />
                   </div>
 
                   {/* Column 7: Action */}
                   <div style={{ position: 'absolute', left: 940, top: 150 }}>
-                    <NodeCard id="workflow" label="Workflow Engine" subtitle="ERP Write-Back" icon={CheckCircle2} color="var(--success)" width={135} />
+                    <NodeCard id="workflow" label="Workflow Engine" subtitle="ERP Write-Back" icon={CheckCircle2} color="var(--success)" width={150} />
                   </div>
                 </div>
               </SlideScaler>
@@ -1714,8 +1765,8 @@ export default function ArchitectureExplorer() {
 
             {/* Slide 8: AppSheet AI Enablement Blueprint */}
             {activeSlide === 8 && (
-              <SlideScaler designWidth={850} designHeight={380}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 32, width: '100%' }}>
+              <SlideScaler designWidth={940} designHeight={380}>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 170px 1fr', gap: 20, width: '100%', alignItems: 'stretch' }}>
                   {/* Current state */}
                   <div className="card" style={{ border: '1px dashed var(--border-danger)', background: 'rgba(239, 68, 68, 0.01)', padding: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
                     <h4 style={{ color: 'var(--danger)', fontSize: '0.8125rem', fontWeight: 800 }}>AppSheet Current (Static Data Entry)</h4>
@@ -1725,6 +1776,23 @@ export default function ArchitectureExplorer() {
                       <div className="card" style={{ width: 200, padding: 8, fontSize: '0.72rem', textAlign: 'center' }}>Flat Database Write</div>
                       <LucideArrowDown size={14} color="var(--danger)" strokeWidth={2} />
                       <div className="card" style={{ width: 200, padding: 8, fontSize: '0.72rem', textAlign: 'center', background: 'rgba(239, 68, 68, 0.05)' }}>Delayed lookup manual reports</div>
+                    </div>
+                  </div>
+
+                  {/* Transformation spine */}
+                  <div className="appsheet-transformation-spine">
+                    <div className="appsheet-spine-step muted">Current State</div>
+                    <LucideArrowDown size={16} strokeWidth={2} />
+                    <div className="appsheet-spine-core">
+                      <Sparkles size={18} strokeWidth={2} />
+                      <span>Decision Intelligence Layer</span>
+                    </div>
+                    <LucideArrowDown size={16} strokeWidth={2} />
+                    <div className="appsheet-spine-step">Governed Automation</div>
+                    <div className="appsheet-exec-callout">
+                      <span>From Data Entry</span>
+                      <strong>to</strong>
+                      <span>Decision Execution</span>
                     </div>
                   </div>
 
@@ -1863,7 +1931,7 @@ export default function ArchitectureExplorer() {
                       { key: 'margin', y: 217.5, marker: 'url(#arrow-head-purple)', color: '#8B5CF6' },
                       { key: 'labour', y: 297.5, marker: 'url(#arrow-head-green)', color: 'var(--success)' }
                     ].map((spoke, idx) => {
-                      const active = hoveredSpoke === spoke.key;
+                      const active = activeSpokeKey === spoke.key;
                       return (
                         <line
                           key={`left-${idx}`}
@@ -1872,10 +1940,10 @@ export default function ArchitectureExplorer() {
                           x2="335"
                           y2="180"
                           stroke={active ? spoke.color : 'rgba(255,255,255,0.06)'}
-                          strokeWidth={active ? 2.5 : 1}
+                          strokeWidth={active ? 3 : 1}
                           strokeDasharray={active ? '6,4' : '3,3'}
                           markerEnd={active ? spoke.marker : 'url(#arrow-head-inactive)'}
-                          className={active ? 'pulse-line' : ''}
+                          className={active ? 'pulse-line scale-signal-line' : ''}
                           style={{ transition: 'stroke 0.25s, stroke-width 0.25s' }}
                         />
                       );
@@ -1888,7 +1956,7 @@ export default function ArchitectureExplorer() {
                       { key: 'store_ops', y: 217.5, marker: 'url(#arrow-head-purple)', color: '#6366F1' },
                       { key: 'supply_chain', y: 297.5, marker: 'url(#arrow-head-green)', color: '#10B981' }
                     ].map((spoke, idx) => {
-                      const active = hoveredSpoke === spoke.key;
+                      const active = activeSpokeKey === spoke.key;
                       return (
                         <line
                           key={`right-${idx}`}
@@ -1897,10 +1965,10 @@ export default function ArchitectureExplorer() {
                           x2="515"
                           y2="180"
                           stroke={active ? spoke.color : 'rgba(255,255,255,0.06)'}
-                          strokeWidth={active ? 2.5 : 1}
+                          strokeWidth={active ? 3 : 1}
                           strokeDasharray={active ? '6,4' : '3,3'}
                           markerEnd={active ? spoke.marker : 'url(#arrow-head-inactive)'}
-                          className={active ? 'pulse-line' : ''}
+                          className={active ? 'pulse-line scale-signal-line' : ''}
                           style={{ transition: 'stroke 0.25s, stroke-width 0.25s' }}
                         />
                       );
@@ -1913,7 +1981,7 @@ export default function ArchitectureExplorer() {
                     left: 335,
                     top: 140,
                     width: 180,
-                    height: 80,
+                    height: 92,
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'center',
@@ -1921,33 +1989,36 @@ export default function ArchitectureExplorer() {
                     textAlign: 'center',
                     border: '1px solid var(--border)',
                     background: 'rgba(59, 130, 246, 0.03)',
-                    boxShadow: hoveredSpoke
+                    boxShadow: activeSpokeKey
                       ? `0 0 25px ${
-                          hoveredSpoke === 'waste' || hoveredSpoke === 'energy' ? 'rgba(245,158,11,0.25)'
-                          : hoveredSpoke === 'availability' || hoveredSpoke === 'promotions' ? 'rgba(0,120,255,0.25)'
-                          : hoveredSpoke === 'margin' || hoveredSpoke === 'store_ops' ? 'rgba(139,92,246,0.25)'
+                          activeSpokeKey === 'waste' || activeSpokeKey === 'energy' ? 'rgba(245,158,11,0.32)'
+                          : activeSpokeKey === 'availability' || activeSpokeKey === 'promotions' ? 'rgba(0,120,255,0.32)'
+                          : activeSpokeKey === 'margin' || activeSpokeKey === 'store_ops' ? 'rgba(139,92,246,0.32)'
                           : 'rgba(16,185,129,0.25)'
                         }`
                       : '0 0 25px rgba(59, 130, 246, 0.15)',
-                    borderColor: hoveredSpoke
-                      ? hoveredSpoke === 'waste' ? 'var(--warning)'
-                        : hoveredSpoke === 'availability' ? '#06B6D4'
-                        : hoveredSpoke === 'margin' ? '#8B5CF6'
-                        : hoveredSpoke === 'labour' ? 'var(--success)'
-                        : hoveredSpoke === 'energy' ? '#F59E0B'
-                        : hoveredSpoke === 'promotions' ? '#3B82F6'
-                        : hoveredSpoke === 'store_ops' ? '#6366F1'
+                    borderColor: activeSpokeKey
+                      ? activeSpokeKey === 'waste' ? 'var(--warning)'
+                        : activeSpokeKey === 'availability' ? '#06B6D4'
+                        : activeSpokeKey === 'margin' ? '#8B5CF6'
+                        : activeSpokeKey === 'labour' ? 'var(--success)'
+                        : activeSpokeKey === 'energy' ? '#F59E0B'
+                        : activeSpokeKey === 'promotions' ? '#3B82F6'
+                        : activeSpokeKey === 'store_ops' ? '#6366F1'
                         : '#10B981'
                       : 'var(--accent)',
-                    transform: hoveredSpoke ? 'scale(1.04)' : 'scale(1.0)',
+                    transform: activeSpokeKey ? 'scale(1.04)' : 'scale(1.0)',
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     zIndex: 10
                   }}>
                     <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                      Decision Layer
+                      One Decision Engine
                     </div>
                     <div style={{ fontSize: '0.625rem', color: 'var(--text-secondary)', marginTop: 2 }}>
-                      Reusable Core Engine
+                      Many Business Outcomes
+                    </div>
+                    <div style={{ fontSize: '0.56rem', color: 'var(--accent)', marginTop: 6, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                      Build once. Reuse everywhere.
                     </div>
                   </div>
 
@@ -1958,7 +2029,7 @@ export default function ArchitectureExplorer() {
                     { key: 'margin', label: 'Margin', desc: 'Campaign leakage defense', color: '#8B5CF6', left: 80, top: 185 },
                     { key: 'labour', label: 'Labour', desc: 'Store tasking & shift allocations', color: 'var(--success)', left: 80, top: 265 }
                   ].map((spoke, idx) => {
-                    const isHovered = hoveredSpoke === spoke.key;
+                    const isActive = activeSpokeKey === spoke.key;
                     return (
                       <div
                         key={idx}
@@ -1980,10 +2051,11 @@ export default function ArchitectureExplorer() {
                           justifyContent: 'center',
                           borderLeft: `3px solid ${spoke.color}`,
                           textAlign: 'left',
-                          background: isHovered ? 'rgba(255,255,255,0.01)' : 'var(--bg-elevated)',
-                          borderColor: isHovered ? spoke.color : 'var(--border)',
-                          boxShadow: isHovered ? `0 0 12px ${spoke.color}25` : 'none',
-                          transform: isHovered ? 'translateX(2px)' : 'none',
+                          background: isActive ? 'rgba(255,255,255,0.025)' : 'var(--bg-elevated)',
+                          borderColor: isActive ? spoke.color : 'var(--border)',
+                          boxShadow: isActive ? `0 0 16px ${spoke.color}44` : 'none',
+                          transform: isActive ? 'translateX(3px)' : 'none',
+                          opacity: isActive ? 1 : 0.54,
                           transition: 'all 0.2s ease',
                           cursor: 'pointer',
                           outline: 'none',
@@ -2003,7 +2075,7 @@ export default function ArchitectureExplorer() {
                     { key: 'store_ops', label: 'Store Operations', desc: 'Self-service citizen developer apps', color: '#6366F1', left: 590, top: 185 },
                     { key: 'supply_chain', label: 'Supply Chain', desc: 'DC capacity & route adjustment', color: '#10B981', left: 590, top: 265 }
                   ].map((spoke, idx) => {
-                    const isHovered = hoveredSpoke === spoke.key;
+                    const isActive = activeSpokeKey === spoke.key;
                     return (
                       <div
                         key={idx}
@@ -2025,10 +2097,11 @@ export default function ArchitectureExplorer() {
                           justifyContent: 'center',
                           borderLeft: `3px solid ${spoke.color}`,
                           textAlign: 'left',
-                          background: isHovered ? 'rgba(255,255,255,0.01)' : 'var(--bg-elevated)',
-                          borderColor: isHovered ? spoke.color : 'var(--border)',
-                          boxShadow: isHovered ? `0 0 12px ${spoke.color}25` : 'none',
-                          transform: isHovered ? 'translateX(-2px)' : 'none',
+                          background: isActive ? 'rgba(255,255,255,0.025)' : 'var(--bg-elevated)',
+                          borderColor: isActive ? spoke.color : 'var(--border)',
+                          boxShadow: isActive ? `0 0 16px ${spoke.color}44` : 'none',
+                          transform: isActive ? 'translateX(-3px)' : 'none',
+                          opacity: isActive ? 1 : 0.54,
                           transition: 'all 0.2s ease',
                           cursor: 'pointer',
                           outline: 'none',
@@ -2044,26 +2117,52 @@ export default function ArchitectureExplorer() {
               </SlideScaler>
             )}
 
-            {/* Slide 13: Future-State LiDL 2028 */}
+            {/* Slide 13: Day in the Life with Decision Intelligence */}
             {activeSlide === 13 && (
-              <SlideScaler designWidth={720} designHeight={360}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, position: 'relative', paddingLeft: 20, borderLeft: '2px solid var(--border)', width: '100%', textAlign: 'left' }}>
-                  {[
-                    { time: '08:00', role: 'Store Manager', desc: 'Piccadilly lead Alex reviews fresh produce waste alerts and triggers early markdown rules.', icon: Store, color: 'var(--accent)' },
-                    { time: '09:00', role: 'Category Manager', desc: 'Chilled buyer monitors campaign margins and adjusts ready meal promotion levels.', icon: Package, color: '#8B5CF6' },
-                    { time: '11:00', role: 'Supply Chain Lead', desc: 'National team detects logistics delays and triggers backup vendor stock rebalancing.', icon: Truck, color: '#10B981' },
-                    { time: '17:00', role: 'LiDL Executive', desc: 'CEO reviews automatically compiled national weekly briefs and confidence matrices.', icon: Briefcase, color: 'white' }
-                  ].map((t, idx) => (
-                    <div key={idx} style={{ position: 'relative', display: 'flex', gap: 12, alignItems: 'center', padding: '4px 0' }}>
-                      <div style={{ position: 'absolute', left: -26, top: '50%', transform: 'translateY(-50%)', width: 10, height: 10, borderRadius: '50%', background: 'var(--accent)', border: '2px solid #0d1321' }} />
-                      <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--accent)', width: 45, flexShrink: 0 }}>{t.time}</div>
-                      <t.icon size={13} color={t.color} style={{ flexShrink: 0 }} />
-                      <div className="card" style={{ flex: 1, padding: '4px 10px', background: 'var(--bg-elevated)', display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <span style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>{t.role}</span>
-                        <span style={{ fontSize: '0.6875rem', color: 'var(--text-secondary)' }}>{t.desc}</span>
+              <SlideScaler designWidth={980} designHeight={360}>
+                <div className="finale-story-mode">
+                  <div className="finale-ambient-line" aria-hidden="true" />
+                  <div className="finale-scenes">
+                    {FINALE_SCENES.map((scene, idx) => {
+                      const SceneIcon = scene.icon;
+                      const active = finaleStep === idx;
+                      const complete = finaleStep > idx;
+                      const finaleVisible = finaleStep >= FINALE_SCENES.length;
+                      return (
+                        <div
+                          className={`finale-scene ${active ? 'active' : ''} ${complete ? 'complete' : ''} ${finaleVisible ? 'finale-dimmed' : ''}`}
+                          key={scene.time}
+                        >
+                          <span className="finale-scene-time">{scene.time}</span>
+                          <span className="finale-scene-icon">
+                            <SceneIcon size={15} strokeWidth={2} />
+                          </span>
+                          <span className="finale-scene-title">{scene.title}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {finaleStep < FINALE_SCENES.length ? (
+                    <div className="finale-narrative" key={currentFinaleScene.title}>
+                      <span>{currentFinaleScene.time}</span>
+                      <h3>{currentFinaleScene.title}</h3>
+                      <p>{currentFinaleScene.narrative}</p>
+                    </div>
+                  ) : (
+                    <div className="finale-impact-panel">
+                      <h3>Decision Intelligence is not another dashboard.</h3>
+                      <p>It is an operational system for making better decisions.</p>
+                      <div className="finale-impact-chain">
+                        {['People', 'Data', 'AI', 'Governance', 'Action'].map((item, idx) => (
+                          <React.Fragment key={item}>
+                            <span>{item}</span>
+                            {idx < 4 && <i aria-hidden="true" />}
+                          </React.Fragment>
+                        ))}
                       </div>
                     </div>
-                  ))}
+                  )}
                 </div>
               </SlideScaler>
             )}
