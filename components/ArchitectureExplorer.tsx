@@ -908,11 +908,10 @@ export default function ArchitectureExplorer() {
         <div
           className="card"
           style={{
-            padding: '24px',
+            padding: '28px 28px 20px',
             display: 'flex',
             flexDirection: 'column',
-            justifyContent: 'space-between',
-            gap: 24,
+            gap: 18,
             background: '#0d1321',
             border: '1px solid var(--border)',
             position: canvasFullscreen ? 'fixed' : 'relative',
@@ -921,8 +920,8 @@ export default function ArchitectureExplorer() {
             bottom: canvasFullscreen ? 16 : 'auto',
             left: canvasFullscreen ? 16 : 'auto',
             zIndex: canvasFullscreen ? 1000 : 1,
-            height: canvasFullscreen ? 'calc(100vh - 32px)' : 'calc(100vh - 240px)',
-            minHeight: canvasFullscreen ? 'none' : '550px',
+            height: canvasFullscreen ? 'calc(100vh - 32px)' : 'calc(100vh - 180px)',
+            minHeight: canvasFullscreen ? 'none' : '660px',
             overflowY: 'auto'
           }}
         >
@@ -977,18 +976,24 @@ export default function ArchitectureExplorer() {
             </button>
           </div>
 
+          {/* Premium Storyboard Header */}
+          <header className="storyboard-slide-header">
+            <div className="storyboard-header-rule" aria-hidden="true" />
+            <div className="storyboard-header-copy">
+              <span className="storyboard-slide-kicker">
+                LiDL Decision Intelligence POC
+              </span>
+              <h2 className="storyboard-slide-title">
+                {slide.title}
+              </h2>
+              <p className="storyboard-slide-subtitle">
+                {slide.trigger}
+              </p>
+            </div>
+          </header>
+
           {/* Slide Diagram Render Area (Guaranteed Centering Wrapper) */}
-          <div style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            minHeight: 380,
-            width: '100%',
-            height: '100%',
-            position: 'relative'
-          }}>
+          <div className="storyboard-slide-stage">
             
             {/* Page 0: Why This Exists */}
             {activeSlide === 0 && (
@@ -2065,109 +2070,38 @@ export default function ArchitectureExplorer() {
 
           </div>
 
-          {/* Executive Story Progress Tracker */}
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 12,
-            fontSize: '10px',
-            letterSpacing: '0.12em',
-            color: 'var(--text-muted)',
-            marginBottom: 12,
-            width: '100%',
-            userSelect: 'none'
-          }}>
-            {[
-              { id: 'PROBLEM', label: 'PROBLEM', slides: [0, 1] },
-              { id: 'PLATFORM', label: 'PLATFORM', slides: [2] },
-              { id: 'USE_CASES', label: 'USE CASES', slides: [3, 4, 5, 6] },
-              { id: 'SCALE', label: 'SCALE', slides: [7, 8] },
-              { id: 'TRUST', label: 'TRUST', slides: [9, 10, 11] },
-              { id: 'FUTURE', label: 'FUTURE', slides: [12, 13] }
-            ].map((sec, idx, arr) => {
-              const isActive = sec.slides.includes(activeSlide);
-              const isPast = Math.max(...sec.slides) < activeSlide;
-              
-              let opacity = 0.15;
-              if (isActive) opacity = 0.85;
-              else if (isPast) opacity = 0.45;
-
-              return (
-                <React.Fragment key={sec.id}>
-                  <span style={{
-                    fontWeight: isActive ? 800 : 500,
-                    color: isActive ? 'var(--accent)' : 'var(--text-primary)',
-                    opacity: opacity,
-                    transition: 'all 0.3s ease'
-                  }}>
-                    {sec.label}
-                  </span>
-                  {idx < arr.length - 1 && (
-                    <span style={{ opacity: 0.10, color: 'var(--text-primary)' }}>➔</span>
-                  )}
-                </React.Fragment>
-              );
-            })}
-          </div>
-
           {/* Bottom Deck Controls */}
-          <div style={{ 
-            display: 'flex', 
-            justifyContent: 'space-between', 
-            alignItems: 'center', 
-            borderTop: '1px solid var(--border)', 
-            paddingTop: 14,
-            width: '100%'
-          }}>
-            {/* Left side: Slide numbering / Branding */}
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center', 
-              gap: 8, 
-              minWidth: '150px' 
-            }}>
-              <span className="slide-numbering-muted" style={{ opacity: 0.55, fontSize: '0.68rem' }}>
-                Slide {activeSlide + 1} of {SLIDES.length}
-              </span>
+          <footer className="storyboard-footer">
+            {/* Left side: G10X branding */}
+            <div className="storyboard-footer-brand">
+              <img src="/g10x-logo.png" className="brand-g10x-logo" alt="G10X Logo" />
+              <div className="storyboard-footer-brand-copy">
+                <span>Decision Intelligence</span>
+                <span>Executive Storyboard</span>
+              </div>
             </div>
 
             {/* Middle: Dots */}
-            <div style={{ 
-              display: 'flex', 
-              gap: 6,
-              justifyContent: 'center',
-              flex: 1
-            }}>
+            <div className="storyboard-footer-dots" aria-label="Slide progress">
               {SLIDES.map((_, idx) => (
                 <button
                   key={idx}
+                  className={`storyboard-progress-dot ${idx === activeSlide ? 'active' : ''}`}
                   onClick={() => {
                     setActiveSlide(idx);
                     setExpandedNode(null);
                   }}
-                  style={{
-                    width: 7,
-                    height: 7,
-                    borderRadius: '50%',
-                    background: idx === activeSlide ? 'var(--accent)' : 'var(--border)',
-                    border: 'none',
-                    cursor: 'pointer',
-                    padding: 0,
-                    transition: 'background 0.2s ease'
-                  }}
                   title={`Slide ${idx + 1}`}
+                  aria-label={`Go to slide ${idx + 1}`}
                 />
               ))}
             </div>
 
-            {/* Right side: Prev/Next buttons */}
-            <div style={{ 
-              display: 'flex', 
-              gap: 8, 
-              justifyContent: 'flex-end',
-              minWidth: '150px'
-            }}>
+            {/* Right side: Slide number and Prev/Next buttons */}
+            <div className="storyboard-footer-nav">
+              <span className="slide-numbering-muted">
+                Slide {activeSlide + 1} of {SLIDES.length}
+              </span>
               <button
                 className="btn btn-secondary btn-sm"
                 onClick={handlePrev}
@@ -2183,7 +2117,7 @@ export default function ArchitectureExplorer() {
                 Next <ChevronRight size={13} />
               </button>
             </div>
-          </div>
+          </footer>
 
         </div>
 
