@@ -762,12 +762,12 @@ export default function ArchitectureExplorer() {
           style={{
             background: bgColor,
             border: `1px solid ${isRouteActive || isExpanded ? 'var(--accent)' : borderColor}`,
-            padding: '10px 14px',
+            padding: '10px 13px',
             borderRadius: 'var(--radius-md)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
-            gap: 12,
+            gap: 11,
             boxShadow: isRouteActive ? '0 0 24px rgba(0, 120, 255, 0.42), inset 0 0 18px rgba(0, 120, 255, 0.08)' : 'none',
             transform: isHovered ? 'translateY(-2px)' : isRouteActive ? 'translateY(-1px)' : 'none',
             width: width,
@@ -790,11 +790,11 @@ export default function ArchitectureExplorer() {
             <IconComponent size={15} color={color} strokeWidth={2} />
           </div>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ fontSize: '0.72rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'normal', wordBreak: 'normal', overflowWrap: 'normal', lineHeight: 1.15 }}>
+            <div style={{ fontSize: '0.68rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'normal', wordBreak: 'normal', overflowWrap: 'normal', lineHeight: 1.22 }}>
               {label}
             </div>
             {subtitle && (
-              <div style={{ fontSize: '0.62rem', color: 'var(--text-secondary)', whiteSpace: 'normal', wordBreak: 'normal', overflowWrap: 'normal', lineHeight: 1.15, marginTop: 2 }}>
+              <div style={{ fontSize: '0.59rem', color: 'var(--text-secondary)', whiteSpace: 'normal', wordBreak: 'normal', overflowWrap: 'normal', lineHeight: 1.22, marginTop: 3 }}>
                 {subtitle}
               </div>
             )}
@@ -921,6 +921,7 @@ export default function ArchitectureExplorer() {
 
   return (
     <div
+      className="architecture-storyboard"
       style={{
         background: '#080B12',
         display: 'flex',
@@ -1981,14 +1982,15 @@ export default function ArchitectureExplorer() {
                     left: 335,
                     top: 140,
                     width: 180,
-                    height: 92,
+                    height: 96,
+                    padding: '12px 14px',
                     display: 'flex',
                     flexDirection: 'column',
                     justifyContent: 'center',
                     alignItems: 'center',
                     textAlign: 'center',
                     border: '1px solid var(--border)',
-                    background: 'rgba(59, 130, 246, 0.03)',
+                    background: 'rgba(251, 191, 36, 0.025)',
                     boxShadow: activeSpokeKey
                       ? `0 0 25px ${
                           activeSpokeKey === 'waste' || activeSpokeKey === 'energy' ? 'rgba(245,158,11,0.32)'
@@ -1998,11 +2000,11 @@ export default function ArchitectureExplorer() {
                         }`
                       : '0 0 25px rgba(59, 130, 246, 0.15)',
                     borderColor: activeSpokeKey
-                      ? activeSpokeKey === 'waste' ? 'var(--warning)'
+                      ? activeSpokeKey === 'waste' ? 'var(--exec-amber)'
                         : activeSpokeKey === 'availability' ? '#06B6D4'
                         : activeSpokeKey === 'margin' ? '#8B5CF6'
                         : activeSpokeKey === 'labour' ? 'var(--success)'
-                        : activeSpokeKey === 'energy' ? '#F59E0B'
+                        : activeSpokeKey === 'energy' ? 'var(--exec-orange)'
                         : activeSpokeKey === 'promotions' ? '#3B82F6'
                         : activeSpokeKey === 'store_ops' ? '#6366F1'
                         : '#10B981'
@@ -2011,20 +2013,20 @@ export default function ArchitectureExplorer() {
                     transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
                     zIndex: 10
                   }}>
-                    <div style={{ fontSize: '0.85rem', fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    <div style={{ fontSize: '0.76rem', lineHeight: 1.14, fontWeight: 800, color: 'var(--text-primary)', textTransform: 'uppercase', letterSpacing: '0.045em' }}>
                       One Decision Engine
                     </div>
-                    <div style={{ fontSize: '0.625rem', color: 'var(--text-secondary)', marginTop: 2 }}>
+                    <div style={{ fontSize: '0.57rem', lineHeight: 1.22, color: 'var(--text-secondary)', marginTop: 4 }}>
                       Many Business Outcomes
                     </div>
-                    <div style={{ fontSize: '0.56rem', color: 'var(--accent)', marginTop: 6, fontWeight: 800, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                    <div style={{ fontSize: '0.51rem', lineHeight: 1.18, color: 'var(--exec-amber)', marginTop: 7, fontWeight: 800, letterSpacing: '0.055em', textTransform: 'uppercase' }}>
                       Build once. Reuse everywhere.
                     </div>
                   </div>
 
                   {/* Left Column Spokes */}
                   {[
-                    { key: 'waste', label: 'Waste', desc: 'Produce markdown optimisation', color: 'var(--warning)', left: 80, top: 25 },
+                    { key: 'waste', label: 'Waste', desc: 'Produce markdown optimisation', color: 'var(--exec-amber)', left: 80, top: 25 },
                     { key: 'availability', label: 'Availability', desc: 'Proactive stockout prevention', color: '#06B6D4', left: 80, top: 105 },
                     { key: 'margin', label: 'Margin', desc: 'Campaign leakage defense', color: '#8B5CF6', left: 80, top: 185 },
                     { key: 'labour', label: 'Labour', desc: 'Store tasking & shift allocations', color: 'var(--success)', left: 80, top: 265 }
@@ -2044,8 +2046,8 @@ export default function ArchitectureExplorer() {
                           left: spoke.left,
                           top: spoke.top,
                           width: 180,
-                          height: 65,
-                          padding: '10px 12px',
+                          height: 68,
+                          padding: '11px 13px',
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent: 'center',
@@ -2062,15 +2064,15 @@ export default function ArchitectureExplorer() {
                           zIndex: 2
                         }}
                       >
-                        <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>{spoke.label}</div>
-                        <div style={{ fontSize: '0.625rem', color: 'var(--text-secondary)', lineHeight: 1.2, marginTop: 2 }}>{spoke.desc}</div>
+                        <div style={{ fontSize: '0.67rem', lineHeight: 1.18, fontWeight: 800, color: 'var(--text-primary)' }}>{spoke.label}</div>
+                        <div style={{ fontSize: '0.55rem', color: 'var(--text-secondary)', lineHeight: 1.32, marginTop: 4 }}>{spoke.desc}</div>
                       </div>
                     );
                   })}
 
                   {/* Right Column Spokes */}
                   {[
-                    { key: 'energy', label: 'Energy', desc: 'Cold-chain IoT temperature rules', color: '#F59E0B', left: 590, top: 25 },
+                    { key: 'energy', label: 'Energy', desc: 'Cold-chain IoT temperature rules', color: 'var(--exec-orange)', left: 590, top: 25 },
                     { key: 'promotions', label: 'Promotions', desc: 'Dynamic regional campaign balancing', color: '#3B82F6', left: 590, top: 105 },
                     { key: 'store_ops', label: 'Store Operations', desc: 'Self-service citizen developer apps', color: '#6366F1', left: 590, top: 185 },
                     { key: 'supply_chain', label: 'Supply Chain', desc: 'DC capacity & route adjustment', color: '#10B981', left: 590, top: 265 }
@@ -2090,8 +2092,8 @@ export default function ArchitectureExplorer() {
                           left: spoke.left,
                           top: spoke.top,
                           width: 180,
-                          height: 65,
-                          padding: '10px 12px',
+                          height: 68,
+                          padding: '11px 13px',
                           display: 'flex',
                           flexDirection: 'column',
                           justifyContent: 'center',
@@ -2108,8 +2110,8 @@ export default function ArchitectureExplorer() {
                           zIndex: 2
                         }}
                       >
-                        <div style={{ fontSize: '0.75rem', fontWeight: 800, color: 'var(--text-primary)' }}>{spoke.label}</div>
-                        <div style={{ fontSize: '0.625rem', color: 'var(--text-secondary)', lineHeight: 1.2, marginTop: 2 }}>{spoke.desc}</div>
+                        <div style={{ fontSize: '0.67rem', lineHeight: 1.18, fontWeight: 800, color: 'var(--text-primary)' }}>{spoke.label}</div>
+                        <div style={{ fontSize: '0.55rem', color: 'var(--text-secondary)', lineHeight: 1.32, marginTop: 4 }}>{spoke.desc}</div>
                       </div>
                     );
                   })}

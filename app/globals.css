@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&family=Manrope:wght@400;500;600;700;800&display=swap');
 
 /* ── Design Tokens ──────────────────────────────────────────────────────────── */
 :root {
@@ -30,6 +30,9 @@
   --accent:           #0078FF;
   --accent-light:     rgba(0,120,255,0.12);
   --accent-glow:      rgba(0,120,255,0.25);
+  --exec-orange:      #F97316;
+  --exec-amber:       #FBBF24;
+  --exec-red:         #F04438;
   --yellow:           #FFD500;
   --yellow-light:     rgba(255,213,0,0.12);
 
@@ -902,6 +905,28 @@ code, pre {
 }
 
 /* ── Presentation Framework & Branding (Pass 5) ────────────────────────────── */
+.architecture-storyboard {
+  font-family: 'Manrope', 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-feature-settings: 'kern' 1;
+  text-rendering: geometricPrecision;
+}
+
+.architecture-storyboard .card,
+.architecture-storyboard button,
+.architecture-storyboard p,
+.architecture-storyboard h1,
+.architecture-storyboard h2,
+.architecture-storyboard h3,
+.architecture-storyboard h4,
+.architecture-storyboard span,
+.architecture-storyboard div {
+  font-family: inherit;
+}
+
+.architecture-storyboard .card {
+  letter-spacing: 0;
+}
+
 .storyboard-slide-header {
   position: relative;
   flex: 0 0 auto;
@@ -914,9 +939,9 @@ code, pre {
   width: 44px;
   height: 3px;
   margin-bottom: 14px;
-  background: linear-gradient(90deg, var(--lidl-yellow) 0%, var(--lidl-red) 52%, var(--accent) 100%);
+  background: linear-gradient(90deg, var(--exec-amber) 0%, var(--exec-orange) 44%, var(--lidl-red) 100%);
   border-radius: 999px;
-  opacity: 0.85;
+  opacity: 0.82;
 }
 
 .storyboard-header-copy {
@@ -932,11 +957,11 @@ code, pre {
   font-weight: 800;
   letter-spacing: 0.12em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--exec-amber);
 }
 
 .storyboard-slide-title {
-  font-size: 1.45rem;
+  font-size: 1.42rem;
   line-height: 1.15;
   font-weight: 800;
   letter-spacing: 0;
@@ -946,8 +971,8 @@ code, pre {
 
 .storyboard-slide-subtitle {
   margin: 0;
-  font-size: 0.84rem;
-  line-height: 1.35;
+  font-size: 0.82rem;
+  line-height: 1.38;
   font-weight: 600;
   color: var(--text-secondary);
 }
@@ -1006,8 +1031,8 @@ code, pre {
 }
 
 .storyboard-footer-brand-copy span:first-child {
-  font-size: 0.66rem;
-  line-height: 1.1;
+  font-size: 0.64rem;
+  line-height: 1.14;
   font-weight: 800;
   letter-spacing: 0.04em;
   text-transform: uppercase;
@@ -1016,8 +1041,8 @@ code, pre {
 }
 
 .storyboard-footer-brand-copy span:last-child {
-  font-size: 0.62rem;
-  line-height: 1.1;
+  font-size: 0.60rem;
+  line-height: 1.14;
   font-weight: 600;
   color: var(--text-muted);
 }
@@ -1048,8 +1073,8 @@ code, pre {
 }
 
 .storyboard-progress-dot.active {
-  background: var(--accent);
-  box-shadow: 0 0 10px rgba(0, 120, 255, 0.45);
+  background: var(--exec-amber);
+  box-shadow: 0 0 10px rgba(251, 191, 36, 0.34);
   transform: scale(1.15);
 }
 
@@ -1080,7 +1105,7 @@ code, pre {
 }
 
 .slide-numbering-muted {
-  font-size: 0.72rem;
+  font-size: 0.70rem;
   color: var(--text-muted);
   opacity: 0.7;
   user-select: none;
@@ -1102,7 +1127,7 @@ code, pre {
 }
 
 .scale-signal-line {
-  filter: drop-shadow(0 0 5px rgba(0, 120, 255, 0.28));
+  filter: drop-shadow(0 0 5px rgba(251, 191, 36, 0.22));
 }
 
 .appsheet-transformation-spine {
@@ -1142,10 +1167,10 @@ code, pre {
   min-height: 70px;
   flex-direction: column;
   gap: 7px;
-  color: var(--accent);
-  border-color: rgba(0, 120, 255, 0.36);
-  background: rgba(0, 120, 255, 0.055);
-  box-shadow: 0 0 22px rgba(0, 120, 255, 0.14);
+  color: var(--exec-amber);
+  border-color: rgba(251, 191, 36, 0.30);
+  background: rgba(251, 191, 36, 0.045);
+  box-shadow: 0 0 22px rgba(251, 191, 36, 0.10);
 }
 
 .appsheet-exec-callout {
@@ -1178,7 +1203,7 @@ code, pre {
   overflow: hidden;
   border-radius: var(--radius-md);
   background:
-    radial-gradient(circle at 50% 34%, rgba(0, 120, 255, 0.10), transparent 38%),
+    radial-gradient(circle at 50% 34%, rgba(251, 191, 36, 0.075), transparent 38%),
     linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.006));
 }
 
@@ -1218,9 +1243,9 @@ code, pre {
 .finale-scene.active {
   opacity: 1;
   transform: scale(1.02);
-  border-color: rgba(0, 120, 255, 0.54);
-  background: rgba(0, 120, 255, 0.07);
-  box-shadow: 0 0 28px rgba(0, 120, 255, 0.22);
+  border-color: rgba(251, 191, 36, 0.46);
+  background: rgba(251, 191, 36, 0.055);
+  box-shadow: 0 0 28px rgba(251, 191, 36, 0.16);
 }
 
 .finale-scene.complete {
@@ -1276,7 +1301,7 @@ code, pre {
   font-size: 0.78rem;
   font-weight: 800;
   letter-spacing: 0.12em;
-  color: var(--accent);
+  color: var(--exec-amber);
 }
 
 .finale-narrative h3 {
@@ -1338,7 +1363,7 @@ code, pre {
 .finale-impact-chain i {
   width: 38px;
   height: 1px;
-  background: linear-gradient(90deg, rgba(0, 120, 255, 0.10), rgba(0, 120, 255, 0.72), rgba(16, 185, 129, 0.20));
+  background: linear-gradient(90deg, rgba(251, 191, 36, 0.10), rgba(249, 115, 22, 0.70), rgba(0, 120, 255, 0.18));
   animation: finale-chain-flow 1.8s ease-in-out infinite;
 }
 
