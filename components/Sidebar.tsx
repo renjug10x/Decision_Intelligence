@@ -9,7 +9,7 @@ import { useApp } from '@/lib/context';
 
 const NAV_ITEMS = [
   { id: 'dashboard',      Icon: LayoutDashboard, label: "Today's Priorities", badge: null, execOnly: false, storeManagerLocked: false, categoryManagerLocked: false },
-  { id: 'store-copilot',  Icon: MessageSquare,   label: 'Store Ops Copilot',  badge: null, execOnly: false, storeManagerLocked: false, categoryManagerLocked: false },
+  { id: 'store-copilot',  Icon: MessageSquare,   label: 'Store Ops Command',  badge: null, execOnly: false, storeManagerLocked: false, categoryManagerLocked: false },
   { id: 'category',       Icon: BarChart3,       label: 'Category Intel',     badge: null, execOnly: false, storeManagerLocked: true,  categoryManagerLocked: false },
   { id: 'supply-chain',   Icon: Truck,           label: 'Supply Chain Radar', badge: '2',  execOnly: false, storeManagerLocked: true,  categoryManagerLocked: true  },
 ];

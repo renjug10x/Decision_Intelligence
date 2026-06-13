@@ -19,7 +19,7 @@ import Help from '@/components/Help';
 const PAGE_TITLES: Record<string, string> = {
   dashboard:        "Today's Priorities",
   briefing:         'Executive Briefing',
-  'store-copilot':  'Store Ops Copilot',
+  'store-copilot':  'Store Operations Command',
   category:         'Category Intelligence',
   'supply-chain':   'Supply Chain Radar',
   waste:            'Waste Intelligence',

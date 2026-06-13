@@ -141,6 +141,7 @@ export async function getCategoryPerformance(storeId?: string, category?: string
   const sales = await getSales();
   const last7 = new Set(getLast7Days());
   const prev7 = new Set(getPrev7Days());
+  const productMap = Object.fromEntries(products.map((p: any) => [p.sku_id, p]));
 
   const aggregate = (dateSet: Set<string>) => {
     const map: Record<string, { revenue: number; units: number; margin: number[]; waste: number }> = {};
@@ -150,7 +151,7 @@ export async function getCategoryPerformance(storeId?: string, category?: string
       (!category || s.category === category)
     ).forEach(s => {
       // If category is set, we group by subcategory, otherwise by category
-      const key = category ? s.subcategory : s.category;
+      const key = category ? (productMap[s.sku_id]?.subcategory || category) : s.category;
       if (!map[key]) map[key] = { revenue: 0, units: 0, margin: [], waste: 0 };
       map[key].revenue += s.revenue;
       map[key].units   += s.units_sold;

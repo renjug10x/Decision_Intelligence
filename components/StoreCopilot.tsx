@@ -125,8 +125,8 @@ export default function StoreCopilot() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2>Store Ops Copilot</h2>
-          <p style={{ marginTop: 4 }}>Ask any question about your store — get AI-powered answers</p>
+          <h2>Store Operations Command</h2>
+          <p style={{ marginTop: 4 }}>Ask questions, explore signals, and execute store-level decisions with AI-guided intelligence.</p>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4 }}>
           <select
