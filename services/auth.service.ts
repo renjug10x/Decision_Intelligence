@@ -9,6 +9,7 @@ import {
   type ValidateTokenResponse,
   type CompleteRegistrationData,
   type ResetCurrentPasswordData,
+  type ResetPasswordData,
 } from '@/types/auth';
 import { env } from '@/config/environment';
 import { apiRoutes } from '@/config/routes';
@@ -65,12 +66,7 @@ export const createAuthService = (apiService: AxiosInstance): AuthServiceInterfa
     await apiService.post(apiRoutes.auth.forgotPassword, { email });
   };
 
-  const resetPasswordWithToken = async (data: {
-    token: string;
-    email: string;
-    new_password: string;
-    confirm_password: string;
-  }): Promise<AuthResponse> => {
+  const resetPasswordWithToken = async (data: ResetPasswordData): Promise<AuthResponse> => {
     const response = await apiService.post(apiRoutes.auth.resetPassword, data);
     const responseData = (response.data?.data ?? response.data) as AuthResponse;
     if (responseData?.access_token) {
@@ -100,7 +96,13 @@ export const createAuthService = (apiService: AxiosInstance): AuthServiceInterfa
   };
 
   const completeRegistration = async (data: CompleteRegistrationData): Promise<AuthResponse> => {
-    const response = await apiService.post(apiRoutes.auth.completeRegistration, data);
+    const payload = {
+      token: data.token,
+      temp_password: data.temp_password,
+      password: data.password,
+      confirm_password: data.confirm_password,
+    };
+    const response = await apiService.post(apiRoutes.auth.completeRegistration, payload);
     const responseData = (response.data?.data ?? response.data) as AuthResponse;
     if (responseData?.access_token) {
       setToken(responseData.access_token);

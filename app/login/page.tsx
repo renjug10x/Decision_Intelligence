@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, startTransition, useMemo } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { Activity, ArrowLeft, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
@@ -252,21 +253,24 @@ export default function LoginRoutePage() {
     <div className="login-bg">
       <div className="login-card">
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 14,
-              background: 'var(--gradient-brand)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px',
-              boxShadow: '0 0 28px rgba(0,120,255,0.25)',
-            }}
-          >
-            <Activity size={26} strokeWidth={1.75} color="white" />
-          </div>
+          <Link href={appRoutes.home} aria-label="Go to home" style={{ display: 'inline-block' }}>
+            <div
+              style={{
+                width: 56,
+                height: 56,
+                borderRadius: 14,
+                background: 'var(--gradient-brand)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px',
+                boxShadow: '0 0 28px rgba(0,120,255,0.25)',
+                cursor: 'pointer',
+              }}
+            >
+              <Activity size={26} strokeWidth={1.75} color="white" />
+            </div>
+          </Link>
         </div>
 
         {showForgotPassword ? (

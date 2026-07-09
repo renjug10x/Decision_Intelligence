@@ -79,10 +79,9 @@ export interface User {
 
 export interface CompleteRegistrationData {
   token: string;
-  temporary_password: string;
-  new_password: string;
+  temp_password: string;
+  password: string;
   confirm_password: string;
-  [key: string]: unknown;
 }
 
 export interface ResetCurrentPasswordData {
@@ -90,6 +89,13 @@ export interface ResetCurrentPasswordData {
   new_password: string;
   confirm_password: string;
   [key: string]: unknown;
+}
+
+export interface ResetPasswordData {
+  token: string;
+  email: string;
+  new_password: string;
+  confirm_password: string;
 }
 
 export interface AuthContextType {
@@ -115,12 +121,7 @@ export interface AuthServiceInterface {
   setToken: (token: string) => void;
   clearToken: () => void;
   forgotPassword: (email: string) => Promise<void>;
-  resetPasswordWithToken: (data: {
-    token: string;
-    email: string;
-    new_password: string;
-    confirm_password: string;
-  }) => Promise<AuthResponse>;
+  resetPasswordWithToken: (data: ResetPasswordData) => Promise<AuthResponse>;
   resetCurrentPassword: (data: ResetCurrentPasswordData) => Promise<AuthResponse>;
   refreshToken: (refreshToken: string) => Promise<AuthResponse>;
   completeRegistration: (data: CompleteRegistrationData) => Promise<AuthResponse>;

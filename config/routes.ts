@@ -2,6 +2,8 @@
 export const appRoutes = {
   home: '/',
   login: '/login',
+  resetPassword: '/reset-password',
+  completeRegistration: '/complete-registration',
   /** Post-auth: role + Gemini key before main shell */
   platformSetup: '/platform-setup',
 } as const;

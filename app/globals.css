@@ -832,6 +832,7 @@ code, pre {
 }
 
 .login-error-banner {
+  margin-top: 0.5rem;
   font-size: 0.8125rem;
   color: var(--danger);
   background: var(--danger-light);
@@ -855,6 +856,29 @@ code, pre {
 .login-link-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.login-password-reqs {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.login-password-reqs li {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.login-password-reqs li::before {
+  content: '•';
+  color: var(--text-muted);
+  font-weight: 700;
 }
 
 .role-grid {
