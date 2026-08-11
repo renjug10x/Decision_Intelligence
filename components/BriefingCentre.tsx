@@ -185,6 +185,18 @@ export default function BriefingCentre() {
       .catch(() => {});
   }, []);
 
+  const resetApprovals = async () => {
+    try {
+      const res = await fetch('/api/decisions/reset', { method: 'POST' });
+      const data = await res.json();
+      setDecisions(data.decisions ?? []);
+      setApprovalOutcomes({});
+      setDecisionError({});
+      setDecisionLoading(null);
+      setSearchStep(null);
+    } catch { /* ignore */ }
+  };
+
   const handleDecision = async (id: string, action: 'approved' | 'deferred') => {
     setDecisionLoading(id);
     setSearchStep(null);
@@ -418,7 +430,18 @@ export default function BriefingCentre() {
               <Clock size={18} color="var(--warning)" />
               <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Decisions Awaiting Approval</h3>
             </div>
-            <span className="badge badge-warning">{decisions.filter(d => d.status === 'pending').length} Pending</span>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="badge badge-warning">{decisions.filter(d => d.status === 'pending').length} Pending</span>
+              {decisions.some(d => d.status !== 'pending') && (
+                <button
+                  className="btn btn-ghost btn-sm"
+                  onClick={resetApprovals}
+                  style={{ height: 28, fontSize: '0.6875rem' }}
+                >
+                  Reset approvals
+                </button>
+              )}
+            </div>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
             {decisions.map(d => {
