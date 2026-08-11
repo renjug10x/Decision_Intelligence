@@ -87,6 +87,55 @@ const INSIGHT_COLOR: Record<string, string> = {
   neutral: '#06B6D4',
 };
 
+function CompactSearchTrace({
+  trace,
+  matchedContractId,
+}: {
+  trace: SearchTraceItem[];
+  matchedContractId?: string;
+}) {
+  const excluded = trace.filter(t => t.result === 'excluded');
+  const trigger = trace.find(t => t.result === 'trigger');
+  const activated = trace.find(t => t.result === 'activated');
+  const matched = trace.find(t => t.result === 'matched');
+  const excludedLabel = excluded.map(t => t.supplier_name.split(' ')[0]).join(', ');
+
+  return (
+    <div style={{
+      background: 'var(--bg-elevated)',
+      border: '1px solid var(--border)',
+      borderRadius: 'var(--radius-sm)',
+      padding: '10px 12px',
+      fontSize: '0.75rem',
+    }}>
+      <div style={{ fontWeight: 700, marginBottom: 6, color: 'var(--text-primary)' }}>
+        Library: {trace.length} scanned · {excluded.length} excluded
+        {matchedContractId ? ` · Matched ${matchedContractId}` : ''}
+      </div>
+      {excluded.length > 0 && (
+        <div style={{ color: 'var(--text-muted)', marginBottom: 4 }}>
+          ✗ {excludedLabel} — wrong category
+        </div>
+      )}
+      {trigger && (
+        <div style={{ color: 'var(--text-secondary)', marginBottom: 4 }}>
+          ⚠ {trigger.supplier_name.split(' ')[0]} — {trigger.reason}
+        </div>
+      )}
+      {matched && matched.result === 'matched' && !activated && (
+        <div style={{ color: 'var(--accent)', marginBottom: 4 }}>
+          ✓ {matched.contract_id} — {matched.reason}
+        </div>
+      )}
+      {activated && (
+        <div style={{ color: 'var(--success)', fontWeight: 600 }}>
+          ✓ {activated.contract_id} — {activated.reason}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function BriefingCentre() {
   const { role, apiKey, selectedStore } = useApp();
   const [activeCategory, setActiveCategory] = useState('Chilled');
@@ -454,57 +503,27 @@ export default function BriefingCentre() {
                     </div>
                   )}
                   {(state === 'approved' || errorMsg) && outcome?.search_trace && outcome.search_trace.length > 0 && (
-                    <div style={{
-                      background: 'var(--bg-elevated)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-sm)',
-                      padding: '10px 12px',
-                      fontSize: '0.75rem',
-                    }}>
-                      <div style={{ fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>
-                        Contract Library Search ({outcome.library_searched_count} agreements scanned)
-                      </div>
-                      {outcome.search_trace.map((t, i) => (
-                        <div key={i} style={{
-                          display: 'flex', gap: 8, marginBottom: 6, alignItems: 'flex-start',
-                          color: t.result === 'excluded' ? 'var(--text-muted)' : 'var(--text-secondary)',
-                        }}>
-                          <span style={{
-                            fontSize: '0.625rem', fontWeight: 700, padding: '2px 6px', borderRadius: 4,
-                            background: t.result === 'excluded' ? 'var(--bg-elevated)' : t.result === 'activated' ? 'var(--success-light)' : 'rgba(6,182,212,0.1)',
-                            color: t.result === 'excluded' ? 'var(--text-muted)' : t.result === 'activated' ? 'var(--success)' : 'var(--accent)',
-                            flexShrink: 0,
-                          }}>
-                            {t.result === 'excluded' ? '✗' : t.result === 'trigger' ? '⚠' : t.result === 'activated' ? '✓ ACT' : '✓'}
-                          </span>
-                          <div>
-                            <span style={{ fontWeight: 600 }}>{t.contract_id}</span> — {t.supplier_name}
-                            <div style={{ fontSize: '0.6875rem', marginTop: 2 }}>{t.reason}</div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
+                    <CompactSearchTrace
+                      trace={outcome.search_trace}
+                      matchedContractId={outcome.contract_match?.activated_contract_id}
+                    />
                   )}
                   {state === 'approved' && outcome?.contract_match && (
                     <div style={{
                       background: 'linear-gradient(135deg, rgba(234,88,12,0.12) 0%, rgba(245,158,11,0.06) 100%)',
                       border: '2px solid #ea580c',
                       borderRadius: 'var(--radius-sm)',
-                      padding: '12px 14px',
+                      padding: '10px 12px',
                       fontSize: '0.8125rem',
-                      lineHeight: 1.55,
                       boxShadow: '0 0 0 3px rgba(234, 88, 12, 0.12)',
                     }}>
-                      <div style={{ fontWeight: 800, color: '#ea580c', marginBottom: 6, fontSize: '0.75rem', letterSpacing: '0.04em' }}>
-                        MATCHED CLAUSE {outcome.contract_match.matched_clause_ref}
+                      <div style={{ fontWeight: 800, color: '#ea580c', fontSize: '0.75rem', letterSpacing: '0.04em' }}>
+                        CLAUSE {outcome.contract_match.matched_clause_ref} — {outcome.contract_match.matched_clause_title}
                       </div>
-                      <div style={{ fontWeight: 700, color: 'var(--text-primary)', marginBottom: 6 }}>
-                        {outcome.contract_match.matched_clause_title}
+                      <div style={{ color: 'var(--text-secondary)', marginTop: 4, fontSize: '0.75rem' }}>
+                        {outcome.contract_match.volume_pct}% {outcome.contract_match.region} volume → {outcome.contract_match.backup_supplier_name} ({outcome.contract_match.activated_contract_id})
                       </div>
-                      <div style={{ color: 'var(--text-secondary)', fontStyle: 'italic', borderLeft: '3px solid #ea580c', paddingLeft: 10 }}>
-                        {outcome.contract_match.matched_clause_excerpt}
-                      </div>
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
                         <button
                           className="btn btn-ghost btn-sm"
                           style={{ gap: 4, height: 28, fontSize: '0.6875rem' }}
@@ -517,7 +536,7 @@ export default function BriefingCentre() {
                           )}
                         >
                           <FileText size={11} />
-                          View Primary Contract
+                          Primary Contract
                         </button>
                         {outcome.contract_match.activated_contract_id !== outcome.contract_match.primary_contract_id && (
                           <button
@@ -528,11 +547,11 @@ export default function BriefingCentre() {
                               outcome.contract_match!.activated_document_pdf,
                               outcome.contract_match!.activated_clause_anchor,
                               outcome.contract_match!.activated_contract_id,
-                              'Activated Backup Contract'
+                              'Activated Contract'
                             )}
                           >
                             <FileText size={11} />
-                            View Activated Contract
+                            Activated Contract
                           </button>
                         )}
                       </div>
@@ -540,36 +559,36 @@ export default function BriefingCentre() {
                   )}
                   {state === 'approved' && outcome?.narrative && (
                     <div style={{
-                      background: 'rgba(99,102,241,0.06)',
-                      border: '1px solid rgba(99,102,241,0.15)',
-                      borderRadius: 'var(--radius-sm)',
-                      padding: '10px 12px',
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 8,
                       fontSize: '0.8125rem',
-                      lineHeight: 1.55,
+                      lineHeight: 1.5,
                       color: 'var(--text-secondary)',
+                      padding: '8px 10px',
+                      background: 'rgba(99,102,241,0.05)',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid rgba(99,102,241,0.12)',
                     }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 6 }}>
-                        <Sparkles size={12} color="var(--accent)" />
-                        <span style={{ fontWeight: 700, fontSize: '0.75rem', color: 'var(--text-primary)' }}>
-                          AI Contract Analysis {outcome.used_gemini ? '(Gemini)' : '(cached)'}
+                      <Sparkles size={13} color="var(--accent)" style={{ flexShrink: 0, marginTop: 2 }} />
+                      <div>
+                        <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.75rem' }}>
+                          AI {outcome.used_gemini ? '(Gemini)' : ''} · {outcome.confidence}%
                         </span>
-                        <span className="badge badge-accent" style={{ fontSize: '0.625rem' }}>
-                          {outcome.confidence}% confidence
-                        </span>
+                        <span style={{ marginLeft: 6 }}>{outcome.narrative}</span>
                       </div>
-                      {outcome.narrative}
                     </div>
                   )}
                   {state === 'approved' && outcome?.activation_message && (
                     <div style={{
                       display: 'flex',
-                      alignItems: 'flex-start',
+                      alignItems: 'center',
                       gap: 8,
                       fontSize: '0.8125rem',
                       color: 'var(--success)',
                       fontWeight: 600,
                     }}>
-                      <CheckCircle2 size={14} style={{ flexShrink: 0, marginTop: 2 }} />
+                      <CheckCircle2 size={14} style={{ flexShrink: 0 }} />
                       <span>{outcome.activation_message}</span>
                     </div>
                   )}

@@ -24,22 +24,22 @@ export interface NarrativeResult {
 
 function buildFallbackNarrative(input: NarrativeInput): NarrativeResult {
   const m = input.match;
-  const excluded = input.searchTrace.filter(t => t.result === 'excluded').length;
-  const searched = input.searchTrace.length;
 
-  const narrative = `Searched ${searched} supplier agreements in the contract library. ${excluded} excluded (category/region mismatch). `
-    + `Primary agreement ${m.primary_contract_id} (${m.primary_supplier_name}) confirms SLA breach: ${m.breach_delay_rate_pct}% delay rate exceeds ${m.breach_threshold_pct}% threshold. `
-    + `Clause ${m.matched_clause_ref} authorizes activation of ${m.backup_supplier_name} at ${m.volume_pct}% of ${m.region} produce volume across ${m.affected_store_count} stores. `
-    + `Backup framework ${m.activated_contract_id} matched and activated.`;
-
-  let activation_message: string;
   if (input.actionType === 'enforce_penalty') {
-    activation_message = `Penalty clause ${m.matched_clause_ref} enforced on ${m.primary_supplier_name}. Recovery invoice issued. ${input.decisionImpact}.`;
-  } else {
-    activation_message = `Backup contract ${m.activated_contract_id} activated via Clause ${m.matched_clause_ref}. ${m.volume_pct}% of ${m.region} produce volume rerouted from ${m.primary_supplier_name} to ${m.backup_supplier_name}. ${input.decisionImpact}.`;
+    return {
+      narrative: `${m.primary_supplier_name} breach at ${m.breach_delay_rate_pct}% triggers Clause ${m.matched_clause_ref}.`,
+      activation_message: `Penalty enforced — ${input.decisionImpact}.`,
+      confidence: 92,
+      used_gemini: false,
+    };
   }
 
-  return { narrative, activation_message, confidence: 92, used_gemini: false };
+  return {
+    narrative: `${m.primary_supplier_name} breach at ${m.breach_delay_rate_pct}% triggers Clause ${m.matched_clause_ref}.`,
+    activation_message: `Activated ${m.activated_contract_id} — ${m.volume_pct}% volume to ${m.backup_supplier_name}. ${input.decisionImpact}.`,
+    confidence: 92,
+    used_gemini: false,
+  };
 }
 
 export async function generateApprovalNarrative(input: NarrativeInput): Promise<NarrativeResult> {
@@ -50,39 +50,25 @@ export async function generateApprovalNarrative(input: NarrativeInput): Promise<
   try {
     const clauseText = input.clauseChunks
       .map(c => `[${c.contract_id} Clause ${c.clause_ref}]: ${c.text}`)
-      .join('\n\n');
-
-    const traceText = input.searchTrace
-      .map(t => `${t.contract_id} (${t.supplier_name}): ${t.result} — ${t.reason}`)
       .join('\n');
 
     const prompt = sanitize(`
-You are a Lidl UK supply chain decision intelligence assistant. An executive approved this decision.
+Executive approved: ${input.decisionTitle}
+Impact: ${input.decisionImpact}
+Breach: ${input.match.breach_delay_rate_pct}% delay vs ${input.match.breach_threshold_pct}% threshold · ${input.match.region} · ${input.match.affected_store_count} stores
+Matched: ${input.match.activated_contract_id} via Clause ${input.match.matched_clause_ref} at ${input.match.volume_pct}%
 
-DECISION: ${input.decisionTitle}
-DETAIL: ${input.decisionDetail}
-IMPACT: ${input.decisionImpact}
-
-LIVE BREACH DATA:
-- Delay rate: ${input.match.breach_delay_rate_pct}%
-- Breach threshold: ${input.match.breach_threshold_pct}%
-- Region: ${input.match.region}
-- Stores affected: ${input.match.affected_store_count}
-
-CONTRACT SEARCH TRACE:
-${traceText}
-
-MATCHED CLAUSE TEXT (from pre-extracted contract documents — quote these exactly, do not invent terms):
+Clause text (quote numbers exactly):
 ${clauseText}
 
-Write two paragraphs as JSON only (no markdown):
+Return JSON only:
 {
-  "narrative": "2-3 sentences explaining WHY this contract matched, referencing exact clause numbers and thresholds from the text above",
-  "activation_message": "1-2 sentences confirming what was activated, with exact volume % and supplier names from the clauses",
-  "confidence": 85-98 integer based on how clearly clauses support the action
+  "narrative": "ONE sentence, max 20 words. Why this contract matched — clause ref and breach % only.",
+  "activation_message": "ONE short line: activated contract ID, volume %, supplier. End with impact: ${input.decisionImpact}",
+  "confidence": 85-98
 }
 
-Rules: Quote clause refs. Use exact numbers from clauses (35%, 30%, etc). Do not invent contract terms. Do not use the phrase "pre-approved" — say "backup supplier" or "matched backup contract".
+No "pre-approved". Be concise. No repetition between narrative and activation_message.
 `);
 
     const text = await generateGeminiContent(input.apiKey, prompt);

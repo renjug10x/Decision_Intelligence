@@ -177,7 +177,7 @@ export async function searchContractLibrary(criteria: MatchCriteria): Promise<Li
         supplier_name: contract.supplier_name,
         title: contract.title,
         result: 'excluded',
-        reason: `Category mismatch: contract covers ${contract.category}, required ${criteria.category}`,
+        reason: `Wrong category (${contract.category})`,
       });
       continue;
     }
@@ -253,21 +253,9 @@ export async function searchContractLibrary(criteria: MatchCriteria): Promise<Li
     title: primaryContract.title,
     result: breachConfirmed ? 'trigger' : 'excluded',
     reason: breachConfirmed
-      ? `SLA breach confirmed: ${breach.delay_rate_pct}% delay rate exceeds ${threshold}% threshold (Clause ${primaryClause.clause_ref})`
-      : `Delay rate ${breach.delay_rate_pct}% does not exceed ${threshold}% breach threshold`,
+      ? `${breach.delay_rate_pct}% delay exceeds ${threshold}% (Clause ${primaryClause.clause_ref})`
+      : `Delay ${breach.delay_rate_pct}% below ${threshold}% threshold`,
   });
-
-  if (backupContract) {
-    trace.push({
-      contract_id: backupContract.contract_id,
-      supplier_name: backupContract.supplier_name,
-      title: backupContract.title,
-      result: breachConfirmed ? 'matched' : 'excluded',
-      reason: breachConfirmed
-        ? `Backup supplier matched for ${criteria.category} in ${criteria.region} region`
-        : 'Backup not required — primary SLA not breached',
-    });
-  }
 
   if (!breachConfirmed || !backupContract) {
     return { search_trace: trace, match: null, clause_chunks: [] };
@@ -286,7 +274,7 @@ export async function searchContractLibrary(criteria: MatchCriteria): Promise<Li
     supplier_name: backupContract.supplier_name,
     title: backupContract.title,
     result: 'activated',
-    reason: `Backup contract activated at ${primaryClause.volume_pct ?? primaryContract.backup_activation.volume_pct}% volume`,
+    reason: `Activated at ${primaryClause.volume_pct ?? primaryContract.backup_activation.volume_pct}% volume`,
   });
 
   const match: ContractMatchResult = {
@@ -364,7 +352,7 @@ export async function searchPenaltyMatch(failingSupplierId: string, category: st
     supplier_name: primary.supplier_name,
     title: primary.title,
     result: 'matched',
-    reason: `Penalty clause ${penaltyClause.clause_ref} triggered — SLA breach at ${breach.delay_rate_pct}%`,
+    reason: `Clause ${penaltyClause.clause_ref} — ${breach.delay_rate_pct}% delay`,
   });
 
   clauseChunks.push({ contract_id: primary.contract_id, clause_ref: penaltyClause.clause_ref, text: penaltyClause.text });
