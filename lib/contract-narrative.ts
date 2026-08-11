@@ -71,7 +71,7 @@ Return JSON only:
 No "pre-approved". Be concise. No repetition between narrative and activation_message.
 `);
 
-    const text = await generateGeminiContent(input.apiKey, prompt);
+    const text = await generateGeminiContent(prompt, input.apiKey);
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (!jsonMatch) return fallback;
 
