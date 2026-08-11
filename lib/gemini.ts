@@ -24,7 +24,7 @@ function resolveApiKey(apiKey?: string): string {
 }
 
 /** Call Gemini with automatic model fallback when Google retires model names */
-export async function generateGeminiContent(apiKey?: string, prompt: string): Promise<string> {
+export async function generateGeminiContent(prompt: string, apiKey?: string): Promise<string> {
   const key = resolveApiKey(apiKey);
   const client = new GoogleGenerativeAI(key);
   let lastError: unknown;
@@ -382,7 +382,7 @@ Respond ONLY with a valid JSON object (no markdown, no code blocks) with this ex
 }`;
 
   try {
-    const text = await generateGeminiContent(key, sanitize(prompt));
+    const text = await generateGeminiContent(sanitize(prompt), key);
     const clean = text.replace(/^```json?\s*/i, '').replace(/```\s*$/, '').trim();
     return JSON.parse(clean) as NLQResponse;
   } catch (err) {
@@ -453,7 +453,7 @@ Respond ONLY with valid JSON (no markdown) with this exact structure:
 Provide exactly: 4 insights, 2-3 risks, 2 opportunities.`;
 
   try {
-    const text = await generateGeminiContent(key, sanitize(prompt));
+    const text = await generateGeminiContent(sanitize(prompt), key);
     const clean  = text.replace(/^```json?\s*/i, '').replace(/```\s*$/, '').trim();
     return JSON.parse(clean) as BriefingResponse;
   } catch (err) {
