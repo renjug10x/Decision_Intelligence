@@ -135,6 +135,13 @@ const contractStates = new Map<string, LibraryContract>(
   library.map(c => [c.contract_id, structuredClone(c)])
 );
 
+/** Reset in-memory contract activation state (demo reset). */
+export function resetContractStates(): void {
+  for (const c of library) {
+    contractStates.set(c.contract_id, structuredClone(c));
+  }
+}
+
 export function getLibraryContracts(): LibraryContract[] {
   return library.map(c => contractStates.get(c.contract_id)!);
 }

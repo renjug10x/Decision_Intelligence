@@ -5,6 +5,7 @@ import {
   searchContractLibrary,
   searchPenaltyMatch,
   activateBackupContract,
+  resetContractStates,
   type SearchTraceItem,
   type ContractMatchResult,
 } from '@/lib/contract-library';
@@ -55,6 +56,15 @@ export function getDecisions(): Decision[] {
     ...d,
     status: decisionStates.get(d.id) ?? d.status,
   }));
+}
+
+/** Reset all decisions and contract activations to JSON defaults (demo reset). */
+export function resetDecisions(): Decision[] {
+  for (const d of decisionsData as Decision[]) {
+    decisionStates.set(d.id, d.status as DecisionStatus);
+  }
+  resetContractStates();
+  return getDecisions();
 }
 
 export function deferDecision(decisionId: string): Decision | null {
