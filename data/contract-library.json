@@ -1,0 +1,138 @@
+[
+  {
+    "contract_id": "CTR-FD-2024-001",
+    "title": "Fresh Produce Supply Agreement — Southern Region",
+    "document_ref": "LIDL-UK/SUP/2024/FD-001",
+    "role": "primary",
+    "supplier_id": "SUP009",
+    "supplier_name": "FreshDirect UK",
+    "backup_supplier_id": "SUP010",
+    "backup_supplier_name": "Total Produce",
+    "category": "Produce",
+    "region": "Southern",
+    "region_store_ids": ["S021", "S022", "S023", "S024", "S025", "S026", "S027", "S028"],
+    "status": "active",
+    "effective_from": "2024-04-01",
+    "effective_to": "2027-03-31",
+    "annual_value_gbp": 4200000,
+    "document_html": "/documents/contracts/CTR-FD-2024-001.html",
+    "document_pdf": "/documents/contracts/CTR-FD-2024-001.pdf",
+    "sla": {
+      "on_time_delivery_pct": 95,
+      "max_delay_days": 2,
+      "measurement_window_days": 14,
+      "breach_threshold_pct": 30
+    },
+    "backup_activation": {
+      "status": "standby",
+      "activated_at": null,
+      "activated_by": null,
+      "volume_pct": 35,
+      "weekly_exposure_mitigated_gbp": 23400
+    },
+    "linked_anomaly_id": "A002",
+    "linked_decision_id": "D001"
+  },
+  {
+    "contract_id": "CTR-TP-2023-008",
+    "title": "Total Produce Framework — Backup Supply Agreement",
+    "document_ref": "LIDL-UK/SUP/2023/TP-008",
+    "role": "backup",
+    "supplier_id": "SUP010",
+    "supplier_name": "Total Produce",
+    "backup_supplier_id": null,
+    "backup_supplier_name": null,
+    "category": "Produce",
+    "region": "Southern",
+    "region_store_ids": ["S021", "S022", "S023", "S024", "S025", "S026", "S027", "S028"],
+    "status": "active",
+    "effective_from": "2023-09-01",
+    "effective_to": "2026-08-31",
+    "annual_value_gbp": 1800000,
+    "document_html": "/documents/contracts/CTR-TP-2023-008.html",
+    "document_pdf": "/documents/contracts/CTR-TP-2023-008.pdf",
+    "sla": {
+      "on_time_delivery_pct": 92,
+      "max_delay_days": 2,
+      "measurement_window_days": 14,
+      "breach_threshold_pct": 30
+    },
+    "backup_activation": {
+      "status": "standby",
+      "activated_at": null,
+      "activated_by": null,
+      "volume_pct": 35,
+      "weekly_exposure_mitigated_gbp": 23400
+    },
+    "linked_anomaly_id": "A002",
+    "linked_decision_id": "D001"
+  },
+  {
+    "contract_id": "CTR-GC-2023-012",
+    "title": "Greencore Ready Meals — Chilled Supply Agreement",
+    "document_ref": "LIDL-UK/SUP/2023/GC-012",
+    "role": "primary",
+    "supplier_id": "SUP007",
+    "supplier_name": "Greencore Ready Meals",
+    "backup_supplier_id": null,
+    "backup_supplier_name": null,
+    "category": "Chilled",
+    "region": "National",
+    "region_store_ids": [],
+    "status": "active",
+    "effective_from": "2023-01-01",
+    "effective_to": "2026-12-31",
+    "annual_value_gbp": 5600000,
+    "document_html": "/documents/contracts/CTR-GC-2023-012.html",
+    "document_pdf": "/documents/contracts/CTR-GC-2023-012.pdf",
+    "sla": {
+      "on_time_delivery_pct": 94,
+      "max_delay_days": 2,
+      "measurement_window_days": 14,
+      "breach_threshold_pct": 30
+    },
+    "backup_activation": {
+      "status": "standby",
+      "activated_at": null,
+      "activated_by": null,
+      "volume_pct": 0,
+      "weekly_exposure_mitigated_gbp": 0
+    },
+    "linked_anomaly_id": null,
+    "linked_decision_id": null
+  },
+  {
+    "contract_id": "CTR-DF-2024-003",
+    "title": "DairyFirst UK — National Dairy Supply Agreement",
+    "document_ref": "LIDL-UK/SUP/2024/DF-003",
+    "role": "primary",
+    "supplier_id": "SUP001",
+    "supplier_name": "DairyFirst UK",
+    "backup_supplier_id": null,
+    "backup_supplier_name": null,
+    "category": "Dairy",
+    "region": "National",
+    "region_store_ids": [],
+    "status": "active",
+    "effective_from": "2024-01-01",
+    "effective_to": "2027-12-31",
+    "annual_value_gbp": 8900000,
+    "document_html": "/documents/contracts/CTR-DF-2024-003.html",
+    "document_pdf": "/documents/contracts/CTR-DF-2024-003.pdf",
+    "sla": {
+      "on_time_delivery_pct": 96,
+      "max_delay_days": 1,
+      "measurement_window_days": 14,
+      "breach_threshold_pct": 25
+    },
+    "backup_activation": {
+      "status": "standby",
+      "activated_at": null,
+      "activated_by": null,
+      "volume_pct": 0,
+      "weekly_exposure_mitigated_gbp": 0
+    },
+    "linked_anomaly_id": null,
+    "linked_decision_id": null
+  }
+]

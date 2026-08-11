@@ -1,0 +1,51 @@
+[
+  {
+    "contract_id": "CTR-FD-2024-001",
+    "title": "Fresh Produce Supply Agreement — Southern Region",
+    "document_ref": "LIDL-UK/SUP/2024/FD-001",
+    "primary_supplier_id": "SUP009",
+    "primary_supplier_name": "FreshDirect UK",
+    "backup_supplier_id": "SUP010",
+    "backup_supplier_name": "Total Produce",
+    "category": "Produce",
+    "region": "Southern",
+    "region_store_ids": ["S021", "S022", "S023", "S024", "S025", "S026", "S027", "S028"],
+    "status": "active",
+    "effective_from": "2024-04-01",
+    "effective_to": "2027-03-31",
+    "annual_value_gbp": 4200000,
+    "sla": {
+      "on_time_delivery_pct": 95,
+      "max_delay_days": 2,
+      "measurement_window_days": 14,
+      "breach_threshold_pct": 30
+    },
+    "clauses": [
+      {
+        "clause_ref": "7.3",
+        "type": "backup_activation",
+        "title": "Contingency Supply — Backup Vendor Activation",
+        "excerpt": "Where the Primary Supplier's on-time delivery rate falls below 95% or delay events exceed 30% of deliveries within any rolling 14-day period, the Buyer may activate the pre-approved Backup Supplier (Total Produce) for up to 35% of contracted Southern region produce volume, for a maximum period of 90 days, subject to Executive Supply Chain approval.",
+        "volume_pct": 35,
+        "max_duration_days": 90,
+        "requires_exec_approval": true
+      },
+      {
+        "clause_ref": "14.2",
+        "type": "penalty",
+        "title": "Service Level Penalty — Logistics Delay",
+        "excerpt": "For each delivery cycle where on-time performance falls below the agreed SLA, the Supplier shall pay a fixed penalty of £4,200 per affected cycle, recoverable within 30 days of invoice.",
+        "penalty_per_cycle_gbp": 4200
+      }
+    ],
+    "backup_activation": {
+      "status": "standby",
+      "activated_at": null,
+      "activated_by": null,
+      "volume_pct": 35,
+      "weekly_exposure_mitigated_gbp": 23400
+    },
+    "linked_anomaly_id": "A002",
+    "linked_decision_id": "D001"
+  }
+]

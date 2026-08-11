@@ -3,7 +3,8 @@ import { useEffect, useState, useCallback } from 'react';
 import {
   Sparkles, Loader2, ShieldAlert, Lightbulb,
   CheckCircle2, AlertTriangle, Info, Clock,
-  ThumbsUp, ThumbsDown, BarChart3, TrendingUp, TrendingDown
+  ThumbsUp, ThumbsDown, BarChart3, TrendingUp, TrendingDown,
+  FileText, X, ExternalLink
 } from 'lucide-react';
 import { useApp } from '@/lib/context';
 import ConfidenceScore from '@/components/ConfidenceScore';
@@ -15,33 +16,65 @@ const STORES = [
 
 const CATEGORIES = ['Chilled', 'Dairy', 'Produce', 'Bakery'];
 
-// Simulated "decisions awaiting approval" — in production these would come from the API
-const PENDING_DECISIONS = [
-  {
-    id: 'D001',
-    title: 'Reroute Produce Supply to Total Produce',
-    detail: 'FreshDirect UK SLA breach (42% delay rate). Activate backup contract with Total Produce for 35% of Southern produce volume.',
-    impact: '£23.4K weekly exposure mitigated',
-    risk: 'medium',
-    department: 'Supply Chain',
-  },
-  {
-    id: 'D002',
-    title: 'Enforce Supplier Penalty Clause — FreshDirect UK',
-    detail: 'Contract clause 14.2 triggered. Penalty of £4,200 for this delivery cycle.',
-    impact: '£4.2K cost recovery',
-    risk: 'low',
-    department: 'Procurement',
-  },
-  {
-    id: 'D003',
-    title: 'Deploy North West Dairy Cross-Promotion',
-    detail: 'Milk + bakery bundle across 5 NW stores to recover margin compressed by competitor price-matching.',
-    impact: 'Est. +1.8% margin recovery',
-    risk: 'low',
-    department: 'Category',
-  },
-];
+interface DecisionItem {
+  id: string;
+  title: string;
+  detail: string;
+  impact: string;
+  risk: string;
+  department: string;
+  status: 'pending' | 'approved' | 'deferred';
+}
+
+interface SearchTraceItem {
+  contract_id: string;
+  supplier_name: string;
+  title: string;
+  result: 'excluded' | 'trigger' | 'matched' | 'activated';
+  reason: string;
+}
+
+interface ContractMatchResult {
+  primary_contract_id: string;
+  activated_contract_id: string;
+  primary_supplier_name: string;
+  backup_supplier_name: string;
+  matched_clause_ref: string;
+  matched_clause_title: string;
+  matched_clause_excerpt: string;
+  matched_clause_anchor: string;
+  activated_clause_ref: string;
+  activated_clause_anchor: string;
+  volume_pct: number;
+  region: string;
+  affected_store_count: number;
+  document_ref: string;
+  primary_document_html: string;
+  primary_document_pdf: string;
+  activated_document_html: string;
+  activated_document_pdf: string;
+  breach_delay_rate_pct: number;
+  breach_threshold_pct: number;
+  weekly_exposure_gbp: number;
+}
+
+interface ApprovalOutcome {
+  search_trace: SearchTraceItem[];
+  library_searched_count: number;
+  contract_match: ContractMatchResult | null;
+  narrative: string;
+  activation_message: string;
+  confidence: number;
+  used_gemini: boolean;
+}
+
+interface DocumentViewer {
+  htmlUrl: string;
+  pdfUrl: string;
+  title: string;
+  label: string;
+  view: 'pdf' | 'clause';
+}
 
 const INSIGHT_ICON: Record<string, any> = {
   positive: CheckCircle2,
@@ -54,15 +87,67 @@ const INSIGHT_COLOR: Record<string, string> = {
   neutral: '#06B6D4',
 };
 
+function CompactSearchTrace({
+  trace,
+  matchedContractId,
+}: {
+  trace: SearchTraceItem[];
+  matchedContractId?: string;
+}) {
+  const excluded = trace.filter(t => t.result === 'excluded');
+  const trigger = trace.find(t => t.result === 'trigger');
+  const activated = trace.find(t => t.result === 'activated');
+  const matched = trace.find(t => t.result === 'matched');
+  const excludedLabel = excluded.map(t => t.supplier_name.split(' ')[0]).join(', ');
+
+  return (
+    <div style={{
+      background: 'var(--bg-elevated)',
+      border: '1px solid var(--border)',
+      borderRadius: 'var(--radius-sm)',
+      padding: '10px 12px',
+      fontSize: '0.75rem',
+    }}>
+      <div style={{ fontWeight: 700, marginBottom: 6, color: 'var(--text-primary)' }}>
+        Library: {trace.length} scanned · {excluded.length} excluded
+        {matchedContractId ? ` · Matched ${matchedContractId}` : ''}
+      </div>
+      {excluded.length > 0 && (
+        <div style={{ color: 'var(--text-muted)', marginBottom: 4 }}>
+          ✗ {excludedLabel} — wrong category
+        </div>
+      )}
+      {trigger && (
+        <div style={{ color: 'var(--text-secondary)', marginBottom: 4 }}>
+          ⚠ {trigger.supplier_name.split(' ')[0]} — {trigger.reason}
+        </div>
+      )}
+      {matched && matched.result === 'matched' && !activated && (
+        <div style={{ color: 'var(--accent)', marginBottom: 4 }}>
+          ✓ {matched.contract_id} — {matched.reason}
+        </div>
+      )}
+      {activated && (
+        <div style={{ color: 'var(--success)', fontWeight: 600 }}>
+          ✓ {activated.contract_id} — {activated.reason}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function BriefingCentre() {
   const { role, apiKey, selectedStore } = useApp();
   const [activeCategory, setActiveCategory] = useState('Chilled');
   const [briefing, setBriefing] = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [generated, setGenerated] = useState(false);
-  const [decisionStates, setDecisionStates] = useState<Record<string, 'pending' | 'approved' | 'deferred'>>({
-    D001: 'pending', D002: 'pending', D003: 'pending',
-  });
+  const [decisions, setDecisions] = useState<DecisionItem[]>([]);
+  const [approvalOutcomes, setApprovalOutcomes] = useState<Record<string, ApprovalOutcome>>({});
+  const [decisionLoading, setDecisionLoading] = useState<string | null>(null);
+  const [searchStep, setSearchStep] = useState<string | null>(null);
+  const [decisionError, setDecisionError] = useState<Record<string, string>>({});
+  const [documentViewer, setDocumentViewer] = useState<DocumentViewer | null>(null);
   const [overallConfidence] = useState(87);
 
   const storeObj = STORES.find(s => s.id === selectedStore);
@@ -93,8 +178,106 @@ export default function BriefingCentre() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const handleDecision = (id: string, action: 'approved' | 'deferred') => {
-    setDecisionStates(prev => ({ ...prev, [id]: action }));
+  useEffect(() => {
+    fetch('/api/decisions')
+      .then(r => r.json())
+      .then(data => setDecisions(data.decisions ?? []))
+      .catch(() => {});
+  }, []);
+
+  const handleDecision = async (id: string, action: 'approved' | 'deferred') => {
+    setDecisionLoading(id);
+    setSearchStep(null);
+    setDecisionError(prev => ({ ...prev, [id]: '' }));
+
+    if (action === 'deferred') {
+      try {
+        const res = await fetch(`/api/decisions/${id}/approve`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'defer' }),
+        });
+        if (res.ok) {
+          setDecisions(prev => prev.map(d => d.id === id ? { ...d, status: 'deferred' } : d));
+        }
+      } catch { /* keep pending */ }
+      setDecisionLoading(null);
+      return;
+    }
+
+    // Demo search animation while API runs (local filter is instant; narrative uses Gemini)
+    setSearchStep('Searching supplier contract library...');
+    const steps = [
+      'Scanning 4 supplier agreements...',
+      'Matching clauses against live SLA breach data...',
+      'Validating backup activation terms...',
+      'Generating activation narrative...',
+    ];
+    let stepIdx = 0;
+    const stepTimer = setInterval(() => {
+      stepIdx = Math.min(stepIdx + 1, steps.length - 1);
+      setSearchStep(steps[stepIdx]);
+    }, 700);
+
+    try {
+      const res = await fetch(`/api/decisions/${id}/approve`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'approve', apiKey }),
+      });
+      clearInterval(stepTimer);
+      const data = await res.json();
+      if (!res.ok) {
+        setDecisionError(prev => ({
+          ...prev,
+          [id]: data.error ?? 'Approval failed. Please try again.',
+        }));
+        if (data.search_trace?.length) {
+          setApprovalOutcomes(prev => ({
+            ...prev,
+            [id]: {
+              search_trace: data.search_trace,
+              library_searched_count: data.library_searched_count ?? 0,
+              contract_match: null,
+              narrative: '',
+              activation_message: '',
+              confidence: 0,
+              used_gemini: false,
+            },
+          }));
+        }
+        return;
+      }
+
+      setApprovalOutcomes(prev => ({
+        ...prev,
+        [id]: {
+          search_trace: data.search_trace ?? [],
+          library_searched_count: data.library_searched_count ?? 0,
+          contract_match: data.contract_match,
+          narrative: data.narrative ?? '',
+          activation_message: data.activation_message ?? '',
+          confidence: data.confidence ?? 90,
+          used_gemini: data.used_gemini ?? false,
+        },
+      }));
+      setDecisions(prev =>
+        prev.map(d => d.id === id ? { ...d, status: 'approved' } : d)
+      );
+    } catch { /* keep pending on failure */ }
+    clearInterval(stepTimer);
+    setSearchStep(null);
+    setDecisionLoading(null);
+  };
+
+  const openDocument = (htmlPath: string, pdfPath: string, anchor: string, title: string, label: string) => {
+    setDocumentViewer({
+      htmlUrl: `${htmlPath}#${anchor}`,
+      pdfUrl: pdfPath,
+      title,
+      label,
+      view: 'pdf',
+    });
   };
 
   const scopeLabel = role === 'exec'
@@ -235,11 +418,14 @@ export default function BriefingCentre() {
               <Clock size={18} color="var(--warning)" />
               <h3 style={{ fontSize: '1rem', fontWeight: 700 }}>Decisions Awaiting Approval</h3>
             </div>
-            <span className="badge badge-warning">{Object.values(decisionStates).filter(s => s === 'pending').length} Pending</span>
+            <span className="badge badge-warning">{decisions.filter(d => d.status === 'pending').length} Pending</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {PENDING_DECISIONS.map(d => {
-              const state = decisionStates[d.id];
+            {decisions.map(d => {
+              const state = d.status;
+              const outcome = approvalOutcomes[d.id];
+              const isLoading = decisionLoading === d.id;
+              const errorMsg = decisionError[d.id];
               return (
                 <div
                   key={d.id}
@@ -274,14 +460,16 @@ export default function BriefingCentre() {
                         <button
                           className="btn btn-primary btn-sm"
                           onClick={() => handleDecision(d.id, 'approved')}
+                          disabled={isLoading}
                           style={{ gap: 6, height: 32 }}
                         >
-                          <ThumbsUp size={12} />
+                          {isLoading ? <Loader2 size={12} className="animate-spin" /> : <ThumbsUp size={12} />}
                           Approve
                         </button>
                         <button
                           className="btn btn-ghost btn-sm"
                           onClick={() => handleDecision(d.id, 'deferred')}
+                          disabled={isLoading}
                           style={{ gap: 6, height: 32 }}
                         >
                           <ThumbsDown size={12} />
@@ -294,6 +482,116 @@ export default function BriefingCentre() {
                       </span>
                     )}
                   </div>
+                  {isLoading && searchStep && (
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      fontSize: '0.75rem', color: 'var(--accent)', padding: '8px 0',
+                    }}>
+                      <Loader2 size={12} className="animate-spin" />
+                      {searchStep}
+                    </div>
+                  )}
+                  {errorMsg && state === 'pending' && (
+                    <div style={{
+                      display: 'flex', alignItems: 'flex-start', gap: 8,
+                      fontSize: '0.75rem', color: 'var(--danger)',
+                      padding: '8px 12px', background: 'var(--danger-light)',
+                      borderRadius: 'var(--radius-sm)', border: '1px solid rgba(239,68,68,0.2)',
+                    }}>
+                      <AlertTriangle size={14} style={{ flexShrink: 0, marginTop: 1 }} />
+                      <span>{errorMsg}</span>
+                    </div>
+                  )}
+                  {(state === 'approved' || errorMsg) && outcome?.search_trace && outcome.search_trace.length > 0 && (
+                    <CompactSearchTrace
+                      trace={outcome.search_trace}
+                      matchedContractId={outcome.contract_match?.activated_contract_id}
+                    />
+                  )}
+                  {state === 'approved' && outcome?.contract_match && (
+                    <div style={{
+                      background: 'linear-gradient(135deg, rgba(234,88,12,0.12) 0%, rgba(245,158,11,0.06) 100%)',
+                      border: '2px solid #ea580c',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '10px 12px',
+                      fontSize: '0.8125rem',
+                      boxShadow: '0 0 0 3px rgba(234, 88, 12, 0.12)',
+                    }}>
+                      <div style={{ fontWeight: 800, color: '#ea580c', fontSize: '0.75rem', letterSpacing: '0.04em' }}>
+                        CLAUSE {outcome.contract_match.matched_clause_ref} — {outcome.contract_match.matched_clause_title}
+                      </div>
+                      <div style={{ color: 'var(--text-secondary)', marginTop: 4, fontSize: '0.75rem' }}>
+                        {outcome.contract_match.volume_pct}% {outcome.contract_match.region} volume → {outcome.contract_match.backup_supplier_name} ({outcome.contract_match.activated_contract_id})
+                      </div>
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginTop: 8 }}>
+                        <button
+                          className="btn btn-ghost btn-sm"
+                          style={{ gap: 4, height: 28, fontSize: '0.6875rem' }}
+                          onClick={() => openDocument(
+                            outcome.contract_match!.primary_document_html,
+                            outcome.contract_match!.primary_document_pdf,
+                            outcome.contract_match!.matched_clause_anchor,
+                            outcome.contract_match!.primary_contract_id,
+                            'Primary Agreement'
+                          )}
+                        >
+                          <FileText size={11} />
+                          Primary Contract
+                        </button>
+                        {outcome.contract_match.activated_contract_id !== outcome.contract_match.primary_contract_id && (
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            style={{ gap: 4, height: 28, fontSize: '0.6875rem' }}
+                            onClick={() => openDocument(
+                              outcome.contract_match!.activated_document_html,
+                              outcome.contract_match!.activated_document_pdf,
+                              outcome.contract_match!.activated_clause_anchor,
+                              outcome.contract_match!.activated_contract_id,
+                              'Activated Contract'
+                            )}
+                          >
+                            <FileText size={11} />
+                            Activated Contract
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {state === 'approved' && outcome?.narrative && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'flex-start',
+                      gap: 8,
+                      fontSize: '0.8125rem',
+                      lineHeight: 1.5,
+                      color: 'var(--text-secondary)',
+                      padding: '8px 10px',
+                      background: 'rgba(99,102,241,0.05)',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid rgba(99,102,241,0.12)',
+                    }}>
+                      <Sparkles size={13} color="var(--accent)" style={{ flexShrink: 0, marginTop: 2 }} />
+                      <div>
+                        <span style={{ fontWeight: 700, color: 'var(--text-primary)', fontSize: '0.75rem' }}>
+                          AI {outcome.used_gemini ? '(Gemini)' : ''} · {outcome.confidence}%
+                        </span>
+                        <span style={{ marginLeft: 6 }}>{outcome.narrative}</span>
+                      </div>
+                    </div>
+                  )}
+                  {state === 'approved' && outcome?.activation_message && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontSize: '0.8125rem',
+                      color: 'var(--success)',
+                      fontWeight: 600,
+                    }}>
+                      <CheckCircle2 size={14} style={{ flexShrink: 0 }} />
+                      <span>{outcome.activation_message}</span>
+                    </div>
+                  )}
                 </div>
               );
             })}
@@ -333,6 +631,65 @@ export default function BriefingCentre() {
           Confidence scores are calculated from data completeness, signal strength, and historical validation accuracy. Scores below 70% require human review before action.
         </p>
       </div>
+
+      {/* Contract Document Viewer Modal */}
+      {documentViewer && (
+        <div style={{
+          position: 'fixed', inset: 0, zIndex: 1000,
+          background: 'rgba(0,0,0,0.7)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          padding: 24,
+        }} onClick={() => setDocumentViewer(null)}>
+          <div style={{
+            background: 'var(--bg-card)', borderRadius: 12, width: '100%', maxWidth: 800,
+            maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+            border: '1px solid var(--border)',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              padding: '12px 16px', borderBottom: '1px solid var(--border)',
+            }}>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: '0.875rem' }}>{documentViewer.label}</div>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{documentViewer.title}</div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <button
+                  className={`btn btn-sm ${documentViewer.view === 'pdf' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ height: 28, fontSize: '0.6875rem' }}
+                  onClick={() => setDocumentViewer(v => v ? { ...v, view: 'pdf' } : v)}
+                >
+                  PDF Document
+                </button>
+                <button
+                  className={`btn btn-sm ${documentViewer.view === 'clause' ? 'btn-primary' : 'btn-ghost'}`}
+                  style={{ height: 28, fontSize: '0.6875rem' }}
+                  onClick={() => setDocumentViewer(v => v ? { ...v, view: 'clause' } : v)}
+                >
+                  Clause Highlight
+                </button>
+                <a
+                  href={documentViewer.pdfUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-ghost btn-sm"
+                  style={{ gap: 4, height: 28 }}
+                >
+                  <ExternalLink size={12} />
+                  Download
+                </a>
+                <button className="btn btn-ghost btn-sm" onClick={() => setDocumentViewer(null)} style={{ height: 28 }}>
+                  <X size={14} />
+                </button>
+              </div>
+            </div>
+            <iframe
+              src={documentViewer.view === 'pdf' ? documentViewer.pdfUrl : documentViewer.htmlUrl}
+              title={documentViewer.title}
+              style={{ flex: 1, minHeight: 520, border: 'none', background: '#fff' }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

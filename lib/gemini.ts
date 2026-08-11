@@ -6,22 +6,59 @@ import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 let _client: GoogleGenerativeAI | null = null;
 let _model: GenerativeModel | null = null;
 
-function getClient(apiKey?: string): GenerativeModel {
-  let key = apiKey || process.env.GEMINI_API_KEY || '';
+// Google retires old model aliases frequently — try in order (free tier)
+const GEMINI_MODELS = [
+  'gemini-2.5-flash',
+  'gemini-2.5-flash-lite',
+  'gemini-flash-latest',
+] as const;
+
+function sanitizeApiKey(key: string): string {
+  return key.trim().replace(/[\u2013\u2014]/g, '--').replace(/[^\x20-\x7E]/g, '');
+}
+
+function resolveApiKey(apiKey?: string): string {
+  const key = apiKey || process.env.GEMINI_API_KEY || '';
   if (!key) throw new Error('GEMINI_API_KEY not set. Add it to .env.local or pass via request.');
-  
-  // Sanitize API key to handle macOS smart-dash auto-corrections (converting -- to en/em dash) and strip non-ASCII
-  key = key.trim().replace(/[\u2013\u2014]/g, '--').replace(/[^\x20-\x7E]/g, '');
-  
+  return sanitizeApiKey(key);
+}
+
+/** Call Gemini with automatic model fallback when Google retires model names */
+export async function generateGeminiContent(apiKey?: string, prompt: string): Promise<string> {
+  const key = resolveApiKey(apiKey);
+  const client = new GoogleGenerativeAI(key);
+  let lastError: unknown;
+
+  for (const modelName of GEMINI_MODELS) {
+    try {
+      const model = client.getGenerativeModel({ model: modelName });
+      const result = await model.generateContent(prompt);
+      return result.response.text().trim();
+    } catch (err) {
+      lastError = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('404') || msg.includes('not found') || msg.includes('no longer available')) {
+        console.warn(`Gemini model ${modelName} unavailable, trying next...`);
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastError;
+}
+
+export function getClient(apiKey?: string): GenerativeModel {
+  const key = resolveApiKey(apiKey);
+
   if (!_client || apiKey) {
     _client = new GoogleGenerativeAI(key);
-    _model  = _client.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    _model  = _client.getGenerativeModel({ model: GEMINI_MODELS[0] });
   }
   return _model!;
 }
 
 // Sanitize strings to ASCII-safe Latin-1 to prevent ByteString encoding errors
-function sanitize(text: string): string {
+export function sanitize(text: string): string {
   return text
     .replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'") // curly single quotes → straight
     .replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"') // curly double quotes → straight
@@ -345,9 +382,7 @@ Respond ONLY with a valid JSON object (no markdown, no code blocks) with this ex
 }`;
 
   try {
-    const model = getClient(key);
-    const result = await model.generateContent(sanitize(prompt));
-    const text   = result.response.text().trim();
+    const text = await generateGeminiContent(key, sanitize(prompt));
     const clean = text.replace(/^```json?\s*/i, '').replace(/```\s*$/, '').trim();
     return JSON.parse(clean) as NLQResponse;
   } catch (err) {
@@ -418,9 +453,7 @@ Respond ONLY with valid JSON (no markdown) with this exact structure:
 Provide exactly: 4 insights, 2-3 risks, 2 opportunities.`;
 
   try {
-    const model = getClient(key);
-    const result = await model.generateContent(sanitize(prompt));
-    const text   = result.response.text().trim();
+    const text = await generateGeminiContent(key, sanitize(prompt));
     const clean  = text.replace(/^```json?\s*/i, '').replace(/```\s*$/, '').trim();
     return JSON.parse(clean) as BriefingResponse;
   } catch (err) {

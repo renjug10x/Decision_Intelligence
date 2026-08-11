@@ -1,0 +1,87 @@
+{
+  "CTR-FD-2024-001": {
+    "contract_id": "CTR-FD-2024-001",
+    "supplier_name": "FreshDirect UK",
+    "clauses": [
+      {
+        "clause_ref": "5.1",
+        "type": "sla",
+        "title": "Service Level Agreement — On-Time Delivery",
+        "text": "The Supplier shall achieve an on-time delivery rate of not less than 95% across all scheduled deliveries within the Southern Region, measured over any rolling 14-day period. A delivery is considered delayed if arrival occurs more than 2 calendar days after the agreed delivery date.",
+        "anchor": "clause-5-1",
+        "page": 5
+      },
+      {
+        "clause_ref": "7.3",
+        "type": "backup_activation",
+        "title": "Contingency Supply — Backup Vendor Activation",
+        "text": "Where the Primary Supplier's on-time delivery rate falls below 95% or delay events exceed 30% of deliveries within any rolling 14-day period in the Southern Region, the Buyer may activate the Backup Supplier (Total Produce, CTR-TP-2023-008) for up to 35% of contracted Southern region produce volume, for a maximum period of 90 days, subject to Executive Supply Chain approval.",
+        "anchor": "clause-7-3",
+        "page": 8,
+        "volume_pct": 35,
+        "backup_contract_id": "CTR-TP-2023-008",
+        "backup_supplier_name": "Total Produce"
+      },
+      {
+        "clause_ref": "14.2",
+        "type": "penalty",
+        "title": "Service Level Penalty — Logistics Delay",
+        "text": "For each delivery cycle where on-time performance falls below the agreed SLA in Clause 5.1, the Supplier shall pay a fixed penalty of GBP 4,200 per affected cycle, recoverable within 30 days of invoice.",
+        "anchor": "clause-14-2",
+        "page": 12,
+        "penalty_per_cycle_gbp": 4200
+      }
+    ]
+  },
+  "CTR-TP-2023-008": {
+    "contract_id": "CTR-TP-2023-008",
+    "supplier_name": "Total Produce",
+    "clauses": [
+      {
+        "clause_ref": "3.1",
+        "type": "scope",
+        "title": "Backup Supply Scope — Southern Produce",
+        "text": "Total Produce agrees to serve as backup supplier for fresh produce categories across the Southern Region (8 stores: Bristol, Exeter, Plymouth, Brighton, Southampton, Portsmouth, Oxford). Maximum backup volume allocation: 35% of regional produce requirements when activated under a primary supplier contingency clause.",
+        "anchor": "clause-3-1",
+        "page": 3,
+        "volume_pct": 35
+      },
+      {
+        "clause_ref": "4.2",
+        "type": "activation",
+        "title": "Activation Procedure",
+        "text": "Backup supply is activated upon written notice from Lidl UK following trigger of a contingency clause in the primary supplier agreement. Upon activation, Total Produce shall commence fulfilment within 48 hours for the agreed volume percentage and region.",
+        "anchor": "clause-4-2",
+        "page": 4
+      }
+    ]
+  },
+  "CTR-GC-2023-012": {
+    "contract_id": "CTR-GC-2023-012",
+    "supplier_name": "Greencore Ready Meals",
+    "clauses": [
+      {
+        "clause_ref": "2.1",
+        "type": "scope",
+        "title": "Product Scope — Chilled Ready Meals",
+        "text": "This agreement covers chilled ready meals, prepared salads, and convenience food categories only. Fresh produce, fruit, and vegetables are expressly excluded from the scope of this contract.",
+        "anchor": "clause-2-1",
+        "page": 2
+      }
+    ]
+  },
+  "CTR-DF-2024-003": {
+    "contract_id": "CTR-DF-2024-003",
+    "supplier_name": "DairyFirst UK",
+    "clauses": [
+      {
+        "clause_ref": "2.1",
+        "type": "scope",
+        "title": "Product Scope — Dairy",
+        "text": "This agreement covers milk, cheese, yoghurt, and dairy-based products nationally. Fresh produce and fruit categories are expressly excluded.",
+        "anchor": "clause-2-1",
+        "page": 2
+      }
+    ]
+  }
+}

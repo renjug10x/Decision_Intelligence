@@ -1,0 +1,50 @@
+[
+  {
+    "id": "D001",
+    "title": "Reroute Produce Supply to Total Produce",
+    "detail": "FreshDirect UK SLA breach (42% delay rate). Activate backup contract with Total Produce for 35% of Southern produce volume.",
+    "impact": "£23.4K weekly exposure mitigated",
+    "risk": "medium",
+    "department": "Supply Chain",
+    "contract_id": "CTR-FD-2024-001",
+    "action_type": "activate_backup",
+    "anomaly_id": "A002",
+    "status": "pending",
+    "match_criteria": {
+      "category": "Produce",
+      "region": "Southern",
+      "failing_supplier_id": "SUP009",
+      "backup_supplier_id": "SUP010"
+    }
+  },
+  {
+    "id": "D002",
+    "title": "Enforce Supplier Penalty Clause — FreshDirect UK",
+    "detail": "Contract clause 14.2 triggered. Penalty of £4,200 for this delivery cycle.",
+    "impact": "£4.2K cost recovery",
+    "risk": "low",
+    "department": "Procurement",
+    "contract_id": "CTR-FD-2024-001",
+    "action_type": "enforce_penalty",
+    "anomaly_id": "A002",
+    "status": "pending",
+    "match_criteria": {
+      "category": "Produce",
+      "region": "Southern",
+      "failing_supplier_id": "SUP009",
+      "backup_supplier_id": "SUP010"
+    }
+  },
+  {
+    "id": "D003",
+    "title": "Deploy North West Dairy Cross-Promotion",
+    "detail": "Milk + bakery bundle across 5 NW stores to recover margin compressed by competitor price-matching.",
+    "impact": "Est. +1.8% margin recovery",
+    "risk": "low",
+    "department": "Category",
+    "contract_id": null,
+    "action_type": "deploy_promotion",
+    "anomaly_id": null,
+    "status": "pending"
+  }
+]
