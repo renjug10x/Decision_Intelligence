@@ -283,7 +283,7 @@ export default function Help() {
             <div>
               <h3 style={{ fontSize: '1rem', fontWeight: 800 }}>Resolution Pattern Library (Closed-Loop Learning)</h3>
               <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-                Lidl\'s Decision Intelligence platform acts as a learning organizational brain, logging historical incident outcomes and surfacing verified patterns for instant reuse.
+                CogniX Enterprise Innovation Lab platform acts as a learning organizational brain, logging historical incident outcomes and surfacing verified patterns for instant reuse.
               </p>
             </div>
 

@@ -16,6 +16,18 @@ import { env } from '@/config/environment';
 import { appRoutes } from '@/config/routes';
 import { normalizeRole } from '@/utils/roleUtils';
 
+export const COGNIX_DEMO_USER: User = {
+  userId: 'DEMO-EXEC-01',
+  username: 'Demo User',
+  firstName: 'Demo',
+  lastName: 'User',
+  role: UserRole.ADMIN,
+  email: 'demo.user@g10x.com',
+  organization_id: 'G10X',
+  tenant_id: 'G10X',
+  isLoggedIn: true,
+};
+
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 function recordToUser(raw: Record<string, unknown>, roleOverride?: UserRole | string): User {
@@ -88,6 +100,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, router, clearLocalAuth]);
 
   const logout = useCallback(async () => {
+    if (env.IS_DEMO_MODE) {
+      setUser(COGNIX_DEMO_USER);
+      router.push(appRoutes.home);
+      return;
+    }
     try {
       if (typeof window !== 'undefined') {
         const logoutEvent = { timestamp: Date.now(), type: 'logout' as const };
@@ -107,6 +124,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     const initializeAuth = async () => {
       setIsLoading(true);
+      if (env.IS_DEMO_MODE) {
+        setUser(COGNIX_DEMO_USER);
+        setIsLoading(false);
+        return;
+      }
       try {
         const storedToken = authService.getStoredToken();
         const storedUserData =

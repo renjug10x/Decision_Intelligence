@@ -21,4 +21,6 @@ export const env = {
   JWT_STORAGE_KEY: `${prefix}_jwt`,
   USER_STORAGE_KEY: `${prefix}_user`,
   LOGOUT_EVENT_KEY: `${prefix}_logout_event`,
+  /** Development & Demonstration Controlled Auth Bypass Flag */
+  IS_DEMO_MODE: typeof process !== 'undefined' && process.env.NEXT_PUBLIC_COGNIX_DEMO_MODE === 'true',
 } as const;

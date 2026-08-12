@@ -1,24 +1,17 @@
+'use client';
 import {
-  LayoutDashboard, MessageSquare, BarChart3, Truck,
-  Tag, TrendingUp, LogOut, Activity, ChevronRight,
-  Briefcase, Package, Store, Lock, Settings as SettingsIcon,
-  FileText, Trash2, ShoppingCart, HelpCircle, Layers
+  Compass, HelpCircle, Layers, GitBranch, Database,
+  Tag, TrendingUp, Package, Box, Settings as SettingsIcon, HelpCircle as HelpIcon,
+  LogOut, Briefcase, Store
 } from 'lucide-react';
-import { ICON_PROPS, ICON_PROPS_SM, ICON_MUTED, ICON_ACCENT } from '@/lib/icons';
 import { useApp } from '@/lib/context';
 import { useAuth } from '@/context/AuthContext';
-
-const NAV_ITEMS = [
-  { id: 'dashboard',      Icon: LayoutDashboard, label: "Today's Priorities", badge: null, execOnly: false, storeManagerLocked: false, categoryManagerLocked: false },
-  { id: 'store-copilot',  Icon: MessageSquare,   label: 'Store Ops Copilot',  badge: null, execOnly: false, storeManagerLocked: false, categoryManagerLocked: false },
-  { id: 'category',       Icon: BarChart3,       label: 'Category Intel',     badge: null, execOnly: false, storeManagerLocked: true,  categoryManagerLocked: false },
-  { id: 'supply-chain',   Icon: Truck,           label: 'Supply Chain Radar', badge: '2',  execOnly: false, storeManagerLocked: true,  categoryManagerLocked: true  },
-];
+import { CognixWordmark } from '@/components/CognixWordmark';
 
 const ROLE_META: Record<string, { Icon: any; label: string }> = {
-  exec:             { Icon: Briefcase, label: 'Executive'        },
-  category_manager: { Icon: Package,   label: 'Category Manager' },
-  store_manager:    { Icon: Store,     label: 'Store Manager'    },
+  exec:             { Icon: Briefcase, label: 'Innovation Exec'  },
+  category_manager: { Icon: Package,   label: 'Category Lead'    },
+  store_manager:    { Icon: Store,     label: 'Operations Lead'  },
 };
 
 interface SidebarProps {
@@ -27,212 +20,175 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
-  const { role, lookerMode, setLookerMode, setIsAuthenticated, setPlatformSetupComplete } = useApp();
+  const { role, setIsAuthenticated, setPlatformSetupComplete } = useApp();
   const { logout } = useAuth();
   const roleMeta = ROLE_META[role] || ROLE_META.exec;
 
   return (
-    <div className="sidebar">
-      {/* Logo */}
-      <div className="sidebar-logo">
-        <div className="logo-badge">
-          <Activity size={18} strokeWidth={1.75} color="white" />
-        </div>
-        <div>
-          <div className="logo-text">Decision Intelligence</div>
-          <div className="logo-sub">Lidl UK · Beta</div>
-        </div>
+    <div className="sidebar" style={{ background: '#F8FAFC', borderRight: '1px solid var(--border)' }}>
+      {/* Brand Header */}
+      <div className="sidebar-logo" style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)' }}>
+        <CognixWordmark showDescriptor={true} size="md" />
       </div>
 
-      {/* Role indicator */}
-      <div style={{ padding: '10px 20px', borderBottom: '1px solid var(--border)' }}>
+      {/* Role Indicator */}
+      <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
         <div style={{
-          background: 'var(--accent-light)',
-          border: '1px solid var(--border-accent)',
-          borderRadius: 'var(--radius-md)',
-          padding: '8px 12px',
-          fontSize: '0.8125rem',
-          fontWeight: 600,
-          color: 'var(--accent)',
+          background: '#FFFFFF',
+          border: '1px solid var(--border)',
+          borderRadius: 'var(--radius-sm)',
+          padding: '6px 10px',
+          fontSize: '0.75rem',
+          fontWeight: 500,
+          color: 'var(--text-secondary)',
           display: 'flex',
           alignItems: 'center',
-          gap: 8,
+          gap: 6,
         }}>
-          <roleMeta.Icon size={14} strokeWidth={1.75} color="currentColor" />
+          <roleMeta.Icon size={13} strokeWidth={1.75} color="var(--g10x-orange)" />
           {roleMeta.label}
         </div>
       </div>
 
-      {/* Navigation */}
-      <nav className="sidebar-nav">
-        <div className="nav-section-label">Analytics</div>
-        {NAV_ITEMS.map(({ id, Icon, label, badge, storeManagerLocked, categoryManagerLocked }) => {
-          const active = currentPage === id;
-          const locked = (role === 'category_manager' && categoryManagerLocked) ||
-                         (role === 'store_manager' && storeManagerLocked);
-          return (
-            <button
-              key={id}
-              className={`nav-item ${active ? 'active' : ''}`}
-              onClick={() => {
-                if (locked) {
-                  alert(`Access Restricted: Under Looker access policies, the '${label}' module is restricted for the ${role === 'store_manager' ? 'Store Manager' : 'Category Manager'} role.`);
-                } else {
-                  onNavigate(id);
-                }
-              }}
-              style={{ opacity: locked ? 0.45 : 1, cursor: locked ? 'not-allowed' : 'pointer' }}
-            >
-              {locked ? (
-                <Lock {...ICON_PROPS_SM} color="#6B7A8D" style={{ flexShrink: 0 }} />
-              ) : (
-                <Icon {...ICON_PROPS_SM} color={active ? '#0078FF' : '#6B7A8D'} style={{ flexShrink: 0 }} />
-              )}
-              <span>{label}</span>
-              {locked ? (
-                <span className="badge badge-danger" style={{ fontSize: '0.625rem', padding: '1px 4px', textTransform: 'uppercase', scale: '0.9', marginLeft: 'auto' }}>Locked</span>
-              ) : badge ? (
-                <span className="nav-badge">{badge}</span>
-              ) : null}
-            </button>
-          );
-        })}
+      {/* Navigation Groups */}
+      <nav className="sidebar-nav" style={{ padding: '14px 10px' }}>
+        
+        {/* Explore Section */}
+        <div className="nav-section-label" style={{ color: 'var(--text-muted)', fontSize: '0.625rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0 8px 6px' }}>
+          Explore
+        </div>
 
-        {/* Intelligence modules — context-specific */}
-        <div className="nav-section-label" style={{ marginTop: 8 }}>Intelligence</div>
-        {[
-          { id: 'waste',        Icon: Trash2,       label: 'Waste Intelligence',     execLocked: false, storeManagerLocked: false, categoryManagerLocked: false },
-          { id: 'availability', Icon: ShoppingCart, label: 'Availability Intel',     execLocked: false, storeManagerLocked: false, categoryManagerLocked: false },
-          { id: 'briefing',     Icon: FileText,     label: 'Executive Briefing',     execLocked: false, storeManagerLocked: true,  categoryManagerLocked: true  },
-        ].map(({ id, Icon, label, storeManagerLocked, categoryManagerLocked }) => {
-          const active = currentPage === id;
-          const locked = (role === 'category_manager' && categoryManagerLocked) ||
-                         (role === 'store_manager' && storeManagerLocked);
-          return (
-            <button
-              key={id}
-              className={`nav-item ${active ? 'active' : ''}`}
-              onClick={() => {
-                if (locked) {
-                  alert(`Access Restricted: '${label}' is restricted for the ${role === 'store_manager' ? 'Store Manager' : 'Category Manager'} role.`);
-                } else {
-                  onNavigate(id);
-                }
-              }}
-              style={{ opacity: locked ? 0.45 : 1, cursor: locked ? 'not-allowed' : 'pointer' }}
-            >
-              {locked ? (
-                <Lock {...ICON_PROPS_SM} color="#6B7A8D" style={{ flexShrink: 0 }} />
-              ) : (
-                <Icon {...ICON_PROPS_SM} color={active ? '#0078FF' : '#6B7A8D'} style={{ flexShrink: 0 }} />
-              )}
-              <span>{label}</span>
-              {locked && (
-                <span className="badge badge-danger" style={{ fontSize: '0.625rem', padding: '1px 4px', textTransform: 'uppercase', scale: '0.9', marginLeft: 'auto' }}>Locked</span>
-              )}
-            </button>
-          );
-        })}
-
-        <div className="nav-section-label" style={{ marginTop: 8 }}>Planning</div>
-        {[
-          { id: 'promotions', Icon: Tag,        label: 'Promotion Planner', locked: role === 'store_manager' },
-          { id: 'forecasting', Icon: TrendingUp, label: 'Forecasting',       locked: role === 'store_manager' },
-        ].map(({ id, Icon, label, locked }) => {
-          const active = currentPage === id;
-          return (
-            <button
-              key={id}
-              className={`nav-item ${active ? 'active' : ''}`}
-              onClick={() => {
-                if (locked) {
-                  alert(`Access Restricted: '${label}' module is restricted to Executive and Category Manager roles.`);
-                } else {
-                  onNavigate(id);
-                }
-              }}
-              style={{ opacity: locked ? 0.45 : 1, cursor: locked ? 'not-allowed' : 'pointer' }}
-            >
-              {locked ? (
-                <Lock {...ICON_PROPS_SM} color="#6B7A8D" style={{ flexShrink: 0 }} />
-              ) : (
-                <Icon {...ICON_PROPS_SM} color={active ? '#0078FF' : '#6B7A8D'} style={{ flexShrink: 0 }} />
-              )}
-              <span>{label}</span>
-              {locked && (
-                <span className="badge badge-danger" style={{ fontSize: '0.625rem', padding: '1px 4px', textTransform: 'uppercase', scale: '0.9', marginLeft: 'auto' }}>Locked</span>
-              )}
-            </button>
-          );
-        })}
-
-        <div className="nav-section-label" style={{ marginTop: 8 }}>Governance</div>
         <button
-          className={`nav-item ${currentPage === 'settings' ? 'active' : ''}`}
-          onClick={() => onNavigate('settings')}
-          style={{ cursor: 'pointer' }}
+          className={`nav-item ${currentPage === 'portfolio' ? 'active' : ''}`}
+          onClick={() => onNavigate('portfolio')}
+          style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
         >
-          <SettingsIcon
-            {...ICON_PROPS_SM}
-            color={currentPage === 'settings' ? '#0078FF' : '#6B7A8D'}
-            style={{ flexShrink: 0 }}
-          />
-          <span>Governance</span>
+          <Compass size={14} color={currentPage === 'portfolio' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
+          <span>Portfolio</span>
         </button>
 
         <button
-          className={`nav-item ${currentPage === 'help' ? 'active' : ''}`}
-          onClick={() => onNavigate('help')}
-          style={{ cursor: 'pointer', marginTop: 4 }}
+          className={`nav-item ${currentPage === 'curiosity' ? 'active' : ''}`}
+          onClick={() => onNavigate('curiosity')}
+          style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
         >
-          <HelpCircle
-            {...ICON_PROPS_SM}
-            color={currentPage === 'help' ? '#0078FF' : '#6B7A8D'}
-            style={{ flexShrink: 0 }}
-          />
-          <span>Help</span>
+          <HelpCircle size={14} color={currentPage === 'curiosity' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
+          <span>Questions</span>
         </button>
 
+        {/* Experiments Section */}
+        <div className="nav-section-label" style={{ color: 'var(--text-muted)', fontSize: '0.625rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '14px 8px 6px' }}>
+          Experiments
+        </div>
+
+        <button
+          className={`nav-item ${currentPage === 'commitment-intelligence' ? 'active' : ''}`}
+          onClick={() => onNavigate('commitment-intelligence')}
+          style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
+        >
+          <Layers size={14} color={currentPage === 'commitment-intelligence' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
+          <span>Commitment</span>
+        </button>
+
+        <button
+          className={`nav-item ${currentPage === 'decision-ripple' ? 'active' : ''}`}
+          onClick={() => onNavigate('decision-ripple')}
+          style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
+        >
+          <GitBranch size={14} color={currentPage === 'decision-ripple' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
+          <span>Decision Ripple</span>
+        </button>
+
+        <button
+          className={`nav-item ${currentPage === 'enterprise-memory' ? 'active' : ''}`}
+          onClick={() => onNavigate('enterprise-memory')}
+          style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
+        >
+          <Database size={14} color={currentPage === 'enterprise-memory' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
+          <span>Enterprise Memory</span>
+        </button>
+
+        <button
+          className={`nav-item ${currentPage === 'opportunity-intelligence' ? 'active' : ''}`}
+          onClick={() => onNavigate('opportunity-intelligence')}
+          style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
+        >
+          <TrendingUp size={14} color={currentPage === 'opportunity-intelligence' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
+          <span>Opportunity</span>
+        </button>
+
+        {/* Solutions Section */}
+        <div className="nav-section-label" style={{ color: 'var(--text-muted)', fontSize: '0.625rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '14px 8px 6px' }}>
+          Solutions
+        </div>
+
+        <button
+          className={`nav-item ${currentPage === 'solution-promo' ? 'active' : ''}`}
+          onClick={() => onNavigate('solution-promo')}
+          style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
+        >
+          <Tag size={14} color={currentPage === 'solution-promo' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
+          <span>Promotion</span>
+        </button>
+
+        <button
+          className={`nav-item ${currentPage === 'solution-demand' ? 'active' : ''}`}
+          onClick={() => onNavigate('solution-demand')}
+          style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
+        >
+          <TrendingUp size={14} color={currentPage === 'solution-demand' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
+          <span>Demand & Forecast</span>
+        </button>
+
+        <button
+          className={`nav-item ${currentPage === 'solution-inventory' ? 'active' : ''}`}
+          onClick={() => onNavigate('solution-inventory')}
+          style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
+        >
+          <Box size={14} color={currentPage === 'solution-inventory' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
+          <span>Inventory</span>
+        </button>
+
+        <button
+          className={`nav-item ${currentPage === 'solution-category' ? 'active' : ''}`}
+          onClick={() => onNavigate('solution-category')}
+          style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
+        >
+          <Package size={14} color={currentPage === 'solution-category' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
+          <span>Category</span>
+        </button>
 
       </nav>
 
-      {/* Footer */}
-      <div className="sidebar-footer">
-        {/* Looker toggle */}
-        <div
-          className="looker-badge"
-          onClick={() => setLookerMode(lookerMode === 'mock' ? 'live' : 'mock')}
-          title={lookerMode === 'mock' ? 'Switch to Looker live mode' : 'Connected to Looker'}
-          style={{ marginBottom: 8 }}
-        >
-          <div className={`looker-dot ${lookerMode === 'live' ? 'connected' : 'mock'}`} />
-          <div style={{ flex: 1 }}>
-            <div style={{ color: 'var(--text-primary)', fontSize: '0.75rem', fontWeight: 600 }}>
-              {lookerMode === 'live' ? 'Looker Connected' : 'Mock Data Mode'}
-            </div>
-            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
-              {lookerMode === 'live' ? 'Semantic Layer Active' : 'Click to toggle'}
-            </div>
-          </div>
-          <ChevronRight {...ICON_PROPS_SM} color="#4A5A7A" />
+      {/* Footer: De-emphasized Admin & Sign Out */}
+      <div className="sidebar-footer" style={{ padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
+        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+          <button
+            onClick={() => onNavigate('settings')}
+            style={{ flex: 1, padding: '5px 8px', fontSize: '0.75rem', borderRadius: 4, background: '#FFFFFF', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+          >
+            <SettingsIcon size={12} /> Governance
+          </button>
+          <button
+            onClick={() => onNavigate('help')}
+            style={{ flex: 1, padding: '5px 8px', fontSize: '0.75rem', borderRadius: 4, background: '#FFFFFF', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+          >
+            <HelpIcon size={12} /> About
+          </button>
         </div>
 
         <button
           className="btn btn-ghost btn-sm w-full"
           onClick={() => {
             void (async () => {
-              try {
-                await logout();
-              } catch {
-                /* local sign-out even if API fails */
-              }
+              try { await logout(); } catch {}
               setIsAuthenticated(false);
               setPlatformSetupComplete(false);
             })();
           }}
-          style={{ justifyContent: 'center', color: 'var(--text-muted)', gap: 6 }}
+          style={{ justifyContent: 'center', color: 'var(--text-muted)', gap: 6, fontSize: '0.75rem', padding: '4px' }}
         >
-          <LogOut size={14} strokeWidth={1.75} color="currentColor" />
+          <LogOut size={13} strokeWidth={1.75} color="currentColor" />
           Sign out
         </button>
       </div>

@@ -3,8 +3,8 @@ import './globals.css';
 import { Providers } from '@/components/Providers';
 
 export const metadata: Metadata = {
-  title: 'LiDL DI',
-  description: 'AI-powered retail analytics platform — from dashboards to decision engine.',
+  title: 'CogniX — G10X Enterprise Innovation Lab',
+  description: 'Prototyping, validating, and accelerating emerging enterprise intelligence concepts.',
   icons: { icon: '/favicon.ico' },
 };
 

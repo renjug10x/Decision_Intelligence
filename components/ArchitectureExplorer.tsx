@@ -30,17 +30,17 @@ const SLIDES: SlideData[] = [
   {
     title: 'Why This Exists',
     trigger: 'Strategic Business Challenge',
-    keyMessage: 'Unifying Looker, Gemini, and AppSheet to eliminate signal-to-action lag in Lidl operations.',
+    keyMessage: 'Unifying Looker, Gemini, and AppSheet to eliminate signal-to-action lag in enterprise operations.',
     businessValue: 'Bridges raw data silos and report latencies, giving decision makers automated, pre-validated actions.',
     technicalDetails: 'Integrates BigQuery analytical capacity and Looker semantic definitions with Gemini reasoning and AppSheet actions.',
-    businessNarrative: 'Every day, operational anomalies occur across Lidl UK—like stockouts, produce waste spikes, or labour gaps. Traditionally, these signals take days to translate into actions due to fragmented reporting. The Decision Intelligence cockpit closes this gap instantly, moving from signal to action in seconds.',
-    architectureNarrative: 'This platform sits as a coordination layer above Lidl\'s existing IT stack. It binds raw data warehouses, semantic definitions, Large Language Models, and mobile applications into a unified, secure execution loop.',
+    businessNarrative: 'Every day, operational anomalies occur across enterprise operations—like stockouts, produce waste spikes, or labour gaps. Traditionally, these signals take days to translate into actions due to fragmented reporting. The CogniX decision cockpit closes this gap instantly, moving from signal to action in seconds.',
+    architectureNarrative: 'This platform sits as a coordination layer above the enterprise\'s existing IT stack. It binds raw data warehouses, semantic definitions, Large Language Models, and mobile applications into a unified, secure execution loop.',
     technicalNarrative: 'Leverages Next.js server actions, Looker SDK filters, and Gemini API calls to dynamically validate user access, compute KPIs through governed schemas, and trigger webhooks in AppSheet.',
-    presenterNotes: 'Pitch Slide 0 by emphasizing the strategic problem: Lidl is rich in data but slow to act. Introduce the platform as a real-time coordination loop.',
+    presenterNotes: 'Pitch Slide 0 by emphasizing the strategic problem: Enterprise is rich in data but slow to act. Introduce the platform as a real-time coordination loop.',
     outcomeMetric: 'Decision Latency',
     outcomeLabel: 'Hours ➔ Seconds',
     persona: 'Strategy Team',
-    personaTitle: 'Lidl UK Strategy',
+    personaTitle: 'Enterprise Strategy',
     personaIcon: Briefcase
   },
   {
@@ -126,7 +126,7 @@ const SLIDES: SlideData[] = [
   {
     title: 'Executive Journey',
     trigger: 'Weekly operating brief generation',
-    keyMessage: 'Lidl Executives receive AI-curated summaries of national operational anomalies.',
+    keyMessage: 'Enterprise Executives receive AI-curated summaries of national operational anomalies.',
     businessValue: 'Replaces manual briefing slide decks with a verified, interactive operations dashboard.',
     technicalDetails: 'Briefing Centre queries national KPIs, active anomalies, and Looker semantic models.',
     businessNarrative: 'The CEO prepares for the weekly operations review. Rather than waiting for analysts to assemble slides, they open the Briefing Centre, read the AI-curated summary, and approve national rebalancing tasks.',
@@ -136,7 +136,7 @@ const SLIDES: SlideData[] = [
     outcomeMetric: 'Reporting Overhead',
     outcomeLabel: 'Zero Manual Decks',
     persona: 'Executive',
-    personaTitle: 'Lidl UK Chief Executive',
+    personaTitle: 'Enterprise Chief Executive',
     personaIcon: Briefcase
   },
   {
@@ -145,11 +145,11 @@ const SLIDES: SlideData[] = [
     keyMessage: 'Upgrading existing AppSheet applications into decision cockpits via the DI API.',
     businessValue: 'Empowers business users to build AI-driven tools without custom IT engineering.',
     technicalDetails: 'Details the transformation path from static data forms to AI-assisted, Looker-governed applications.',
-    businessNarrative: 'Lidl has dozens of AppSheet apps. By connecting them to the Decision Intelligence API, we inject Gemini recommendations and Looker metrics directly into these apps, turning data-entry tools into decision accelerators.',
+    businessNarrative: 'Enterprises have dozens of operational apps. By connecting them to the CogniX Decision API, we inject Gemini recommendations and Looker metrics directly into these apps, turning data-entry tools into decision accelerators.',
     architectureNarrative: 'Walk through the transformation: AppSheet apps (Store, Category, Supply) connect to the Next.js API gateway, which routes requests to Looker schemas and Gemini models.',
     technicalNarrative: 'AppSheet reads and writes to Next.js API endpoints. Form submissions trigger webhooks that execute Looker write-backs, updating store databases.',
     presenterNotes: 'Explain the citizen developer story. Show how AppSheet apps go from basic forms to AI cockpits using the DI API.',
-    outcomeMetric: 'Lidl App Dev Speed',
+    outcomeMetric: 'App Dev Speed',
     outcomeLabel: '10x Faster Build',
     persona: 'Citizen Developer',
     personaTitle: 'AppSheet Developer',
@@ -193,7 +193,7 @@ const SLIDES: SlideData[] = [
     keyMessage: 'Enforcing strict role-based access, LookML metrics, and human-in-the-loop review.',
     businessValue: 'Ensures absolute compliance. AI proposes actions, but Looker structures data and humans decide.',
     technicalDetails: 'Highlights Row-Level Security (RLS), LookML code ownership, confidence thresholds, and write-back logs.',
-    businessNarrative: 'Lidl\'s governance model relies on three pillars: strict IAM attributes, governed LookML definitions, and a mandatory human approval check for any operational adjustments.',
+    businessNarrative: 'Enterprise governance model relies on three pillars: strict IAM attributes, governed LookML definitions, and a mandatory human approval check for any operational adjustments.',
     architectureNarrative: 'Illustrates how the Governance layer wraps the AI and Data layers. RLS profiles restrict database rows, LookML defines schemas, and audit logs record every approval.',
     technicalNarrative: 'Looker User Attributes govern RLS filters. If a Store Manager attempts to modify a category-level rule, Looker blocks the transaction at the API level.',
     presenterNotes: 'Discuss RLS and human-in-the-loop approval. Explain that the user remains the ultimate decision owner.',
@@ -204,19 +204,19 @@ const SLIDES: SlideData[] = [
     personaIcon: Lock
   },
   {
-    title: 'Future-State Lidl 2028',
-    trigger: 'Day in the Life of Lidl 2028',
-    keyMessage: 'The future vision of Lidl operations running on the Decision Intelligence framework.',
+    title: 'Future-State Enterprise 2028',
+    trigger: 'Day in the Life of Enterprise 2028',
+    keyMessage: 'The future vision of enterprise operations running on the CogniX Decision framework.',
     businessValue: 'Optimizes store efficiency, minimizes category waste, and protects national margins.',
     technicalDetails: 'An interactive operational timeline showing how different roles collaborate throughout a day.',
-    businessNarrative: 'By 2028, every level of Lidl UK—from store managers logging waste at 08:00 to category leads reviewing promotions at 09:00 and executives generating briefs at 17:00—will execute decisions through this governed cockpit.',
+    businessNarrative: 'By 2028, every level of enterprise operations—from store managers logging waste at 08:00 to category leads reviewing promotions at 09:00 and executives generating briefs at 17:00—will execute decisions through this governed cockpit.',
     architectureNarrative: 'Illustrates the timeline: 08:00 Store Manager markdown approval ➔ 09:00 Category Lead promotion adjustment ➔ 11:00 Supply Lead rebalancing ➔ 14:00 Citizen Developer AppSheet deploy ➔ 17:00 CEO operating brief approval.',
     technicalNarrative: 'Shows how a shared Next.js API, Looker Semantic layer, and Gemini backend coordinate actions asynchronously across applications all day.',
     presenterNotes: 'Conclude by painting the future picture. Emphasize that all roles use the exact same governed engine.',
     outcomeMetric: 'Est. Annual Savings',
     outcomeLabel: '£12.4M National ROI',
     persona: 'Executive',
-    personaTitle: 'Lidl UK Board',
+    personaTitle: 'Enterprise Board',
     personaIcon: Briefcase
   }
 ];
@@ -363,7 +363,7 @@ export default function ArchitectureExplorer() {
       tech: 'Consumes standard REST JSON schemas from the Decision Intelligence API gateway.'
     },
     exec: {
-      title: 'Lidl Strategy Lead',
+      title: 'Enterprise Strategy Lead',
       subtitle: 'Executive Persona',
       biz: 'Reviews national operational health briefings and approves regional inventory balancing budgets.',
       tech: 'Accesses aggregated Looker Dashboards and receives Gemini briefs scoped to all sites.'
@@ -413,7 +413,7 @@ export default function ArchitectureExplorer() {
     bigquery: {
       title: 'BigQuery Data Warehouse',
       subtitle: 'Enterprise Data Warehouse',
-      biz: 'Lidl UK data storage. Houses transaction tables, inventory balances, delivery schedules, and historical records.',
+      biz: 'Enterprise data storage. Houses transaction tables, inventory balances, delivery schedules, and historical records.',
       tech: 'Mocked locally in `data/*.json` files representing BigQuery schemas.'
     },
     workflow: {
@@ -1357,7 +1357,7 @@ export default function ArchitectureExplorer() {
               </SlideScaler>
             )}
 
-            {/* Slide 11: Future-State Lidl 2028 */}
+            {/* Slide 11: Future-State Enterprise 2028 */}
             {activeSlide === 11 && (
               <SlideScaler designWidth={720} designHeight={360}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6, position: 'relative', paddingLeft: 20, borderLeft: '2px solid var(--border)', width: '100%', textAlign: 'left' }}>
@@ -1365,7 +1365,7 @@ export default function ArchitectureExplorer() {
                     { time: '08:00', role: 'Store Manager', desc: 'Piccadilly lead Alex reviews fresh produce waste alerts and triggers early markdown rules.', icon: Store, color: 'var(--accent)' },
                     { time: '09:00', role: 'Category Manager', desc: 'Chilled buyer monitors campaign margins and adjusts ready meal promotion levels.', icon: Package, color: '#8B5CF6' },
                     { time: '11:00', role: 'Supply Chain Lead', desc: 'National team detects logistics delays and triggers backup vendor stock rebalancing.', icon: Truck, color: '#10B981' },
-                    { time: '17:00', role: 'Lidl Executive', desc: 'CEO reviews automatically compiled national weekly briefs and confidence matrices.', icon: Briefcase, color: 'white' }
+                    { time: '17:00', role: 'Enterprise Executive', desc: 'CEO reviews automatically compiled national weekly briefs and confidence matrices.', icon: Briefcase, color: 'white' }
                   ].map((t, idx) => (
                     <div key={idx} style={{ position: 'relative', display: 'flex', gap: 12, alignItems: 'center', padding: '4px 0' }}>
                       <div style={{ position: 'absolute', left: -26, top: '50%', transform: 'translateY(-50%)', width: 10, height: 10, borderRadius: '50%', background: 'var(--accent)', border: '2px solid #0d1321' }} />

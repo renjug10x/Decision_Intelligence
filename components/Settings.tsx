@@ -209,7 +209,7 @@ export default function Settings() {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10, background: 'rgba(255,255,255,0.02)', padding: 12, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
                   <div>
                     <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Looker Instance Host URL</label>
-                    <input type="text" readOnly value="https://lidl.cloud.looker.com" className="select" style={{ width: '100%', height: 32, marginTop: 4, fontSize: '0.75rem', cursor: 'not-allowed', color: 'var(--text-muted)' }} />
+                    <input type="text" readOnly value="https://enterprise.cloud.looker.com" className="select" style={{ width: '100%', height: 32, marginTop: 4, fontSize: '0.75rem', cursor: 'not-allowed', color: 'var(--text-muted)' }} />
                   </div>
                   <div>
                     <label style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>Looker API Client ID</label>

@@ -2,7 +2,7 @@
 import { useState } from 'react';
 import {
   Package, AlertCircle, TrendingDown, CheckCircle2,
-  Loader2, Sparkles, Store, Truck, BarChart3
+  Loader2, Sparkles, Store, Truck, BarChart3, ChevronRight
 } from 'lucide-react';
 import { useApp } from '@/lib/context';
 import ConfidenceScore, { DecisionMemory } from '@/components/ConfidenceScore';
@@ -88,7 +88,11 @@ const ROOT_CAUSE_COLORS: Record<string, string> = {
   demand: 'var(--accent)',
 };
 
-export default function AvailabilityIntelligence() {
+interface AvailabilityIntelligenceProps {
+  onNavigateToExperiment?: (experimentId: string) => void;
+}
+
+export default function AvailabilityIntelligence({ onNavigateToExperiment }: AvailabilityIntelligenceProps = {}) {
   const { role } = useApp();
   const [resolvedEvents, setResolvedEvents] = useState<Record<string, boolean>>({});
   const [resolvingId, setResolvingId] = useState<string | null>(null);
@@ -107,25 +111,83 @@ export default function AvailabilityIntelligence() {
   };
 
   const scopeEvents = role === 'store_manager'
-    ? STOCKOUT_EVENTS.filter(e => e.id !== 'AV004') // store managers don't see national bakery events
+    ? STOCKOUT_EVENTS.filter(e => e.id !== 'AV004')
     : STOCKOUT_EVENTS;
 
   return (
-    <div className="page-content">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-        <div>
-          <h2>Availability Intelligence</h2>
-          <p style={{ marginTop: 4 }}>
-            {role === 'store_manager'
-              ? 'Store-level stockout events, lost revenue, and replenishment actions'
-              : 'National stockout analysis, lost revenue estimation, and AI replenishment recommendations'}
-            {' '}· 4 Jun 2026
-          </p>
+    <div className="page-content animate-fade" style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 48 }}>
+      {/* Five-Second Proposition Header Banner */}
+      <div style={{
+        background: '#FFFFFF',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-md)',
+        padding: '20px',
+        marginBottom: 24,
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div>
+            <h1 style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              Predictive Inventory Intelligence
+            </h1>
+          </div>
+
+          {onNavigateToExperiment && (
+            <button
+              onClick={() => onNavigateToExperiment('EXP-MEMORY-03')}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--g10x-orange)',
+                color: '#FFFFFF',
+                border: 'none',
+                fontWeight: 500,
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4
+              }}
+            >
+              Check Enterprise Memory <ChevronRight size={13} />
+            </button>
+          )}
         </div>
-        <span className="badge badge-danger" style={{ fontSize: '0.8125rem', padding: '6px 12px' }}>
-          {fmt.currency(totalLostRevenue)} estimated lost revenue
-        </span>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: 12,
+          background: 'var(--bg-base)',
+          padding: '14px 18px',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border)'
+        }}>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Availability Risk SKUs
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--danger)' }}>
+              17 Products Exposed
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Revenue Exposure
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--warning)' }}>
+              £420K Over Next 7 Days
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Primary Buffer Driver
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              Supplier SLA Delay +42%
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* KPI Strip */}

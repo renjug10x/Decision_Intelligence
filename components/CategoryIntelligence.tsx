@@ -1,6 +1,6 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { Sparkles, Loader2, CheckCircle2, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Lock, XCircle } from 'lucide-react';
+import { Sparkles, Loader2, CheckCircle2, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Lock, XCircle, ChevronRight } from 'lucide-react';
 import { useApp } from '@/lib/context';
 
 const CATEGORIES = ['All','Chilled','Dairy','Produce','Bakery','Frozen','Ambient','BWS','Non-food'];
@@ -42,7 +42,11 @@ const ROOT_CAUSES: Record<string, string> = {
   'Non-food': 'Planned range reduction; clearance activity ongoing',
 };
 
-export default function CategoryIntelligence() {
+interface CategoryIntelligenceProps {
+  onNavigateToExperiment?: (experimentId: string) => void;
+}
+
+export default function CategoryIntelligence({ onNavigateToExperiment }: CategoryIntelligenceProps = {}) {
   const { role, apiKey, selectedStore } = useApp();
   const [activeCategory, setActiveCategory] = useState(role === 'category_manager' ? 'Chilled' : 'All');
   const [data, setData]         = useState<any>(null);
@@ -116,31 +120,79 @@ export default function CategoryIntelligence() {
   const storeObj = STORES.find(s => s.id === selectedStore);
 
   return (
-    <div className="page-content">
+    <div className="page-content animate-fade" style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 48 }}>
+      {/* Five-Second Proposition Header Banner */}
+      <div style={{
+        background: '#FFFFFF',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-md)',
+        padding: '20px',
+        marginBottom: 24,
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div>
+            <h1 style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              Category Intelligence
+            </h1>
+          </div>
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2>Category Intelligence</h2>
-          <p style={{ marginTop: 4 }}>
-            {role === 'store_manager'
-              ? `Underperforming SKUs in store ${storeObj?.name || selectedStore} — last 7 days`
-              : 'Underperforming SKUs across UK stores — last 7 days vs prior week'
-            }
-          </p>
+          {onNavigateToExperiment && (
+            <button
+              onClick={() => onNavigateToExperiment('EXP-OPPORTUNITY-04')}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--g10x-orange)',
+                color: '#FFFFFF',
+                border: 'none',
+                fontWeight: 500,
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4
+              }}
+            >
+              Launch Opportunity Intelligence <ChevronRight size={13} />
+            </button>
+          )}
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={getAiInsight}
-          disabled={aiLoading || !skus.length}
-          style={{ gap: 8 }}
-        >
-          {aiLoading
-            ? <Loader2 size={16} strokeWidth={1.75} color="white" style={{ animation: 'spin 0.8s linear infinite' }} />
-            : <Sparkles size={16} strokeWidth={1.75} color="white" />
-          }
-          {aiLoading ? 'Analysing…' : 'AI Root Cause'}
-        </button>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: 12,
+          background: 'var(--bg-base)',
+          padding: '14px 18px',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border)'
+        }}>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Dairy Margin Lift
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--success)' }}>
+              +3.2% Expansion
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Premium SKU Shrinkage
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--warning)' }}>
+              +1.8% Loss Variance
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Assortment Velocity
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--g10x-blue)' }}>
+              8 Top-Performing SKUs
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Role Restriction Banner for Category Managers */}
@@ -153,7 +205,7 @@ export default function CategoryIntelligence() {
               <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.5 }}>
                 Access Denied to category <strong>{deniedCategory}</strong>. Your Looker user profile is governed by the <code>restricted_to: own_category</code> policy, scoping your access exclusively to <strong>Chilled</strong>.
               </p>
-              <button className="btn btn-ghost btn-sm" style={{ marginTop: 10, padding: '4px 8px', fontSize: '0.75rem', height: 28 }} onClick={() => alert('Access request submitted to Lidl BI Admin team. Request ID: REQ-99201')}>
+              <button className="btn btn-ghost btn-sm" style={{ marginTop: 10, padding: '4px 8px', fontSize: '0.75rem', height: 28 }} onClick={() => alert('Access request submitted to Enterprise BI Admin team. Request ID: REQ-99201')}>
                 Request Category Access Extension
               </button>
             </div>

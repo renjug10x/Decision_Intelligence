@@ -35,7 +35,11 @@ interface ForecastResult {
   };
 }
 
-export default function Forecasting() {
+interface ForecastingProps {
+  onNavigateToExperiment?: (experimentId: string) => void;
+}
+
+export default function Forecasting({ onNavigateToExperiment }: ForecastingProps = {}) {
   const { role, apiKey, selectedStore, setSelectedStore } = useApp();
 
   // ── Governance Scoping ─────────────────────────────────────────────────────
@@ -278,19 +282,85 @@ export default function Forecasting() {
   const chartObj = getChartData();
 
   return (
-    <div className="page-content">
+    <div className="page-content animate-fade" style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 48 }}>
 
-      {/* Header Row */}
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-        <div>
-          <h2>Proactive Demand Forecasting</h2>
-          <p style={{ marginTop: 4 }}>
-            {role === 'exec' 
-              ? 'Governed predictive model evaluation & risk simulations' 
-              : `Looker Scoped Horizon: ${role === 'store_manager' ? `Store - ${storeName}` : `Category - ${focusCategory}`} (RLS Scoped)`}
-          </p>
+      {/* Five-Second Proposition Header Banner */}
+      <div style={{
+        background: '#FFFFFF',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-md)',
+        padding: '20px',
+        marginBottom: 24,
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div>
+            <h1 style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              Demand & Forecast Intelligence
+            </h1>
+          </div>
+
+          {onNavigateToExperiment && (
+            <button
+              onClick={() => onNavigateToExperiment('EXP-RIPPLE-02')}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--g10x-orange)',
+                color: '#FFFFFF',
+                border: 'none',
+                fontWeight: 500,
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
+              }}
+            >
+              Explore Decision Ripple <ChevronRight size={14} />
+            </button>
+          )}
         </div>
-        
+
+        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
+          Demand & Forecast Intelligence
+        </h2>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: 12,
+          background: 'var(--bg-base)',
+          padding: '14px 18px',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border)'
+        }}>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Forecast Confidence
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--success)' }}>
+              91% Model Accuracy
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Fresh Demand Trajectory
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--g10x-blue)' }}>
+              +13% Accelerating
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Multi-Horizon Window
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              14 to 90 Days
+            </div>
+          </div>
+        </div>
+
         {/* Scoped RLS Controls */}
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           {role === 'category_manager' && (

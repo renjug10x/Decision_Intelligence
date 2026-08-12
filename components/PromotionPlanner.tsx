@@ -43,7 +43,11 @@ interface Promotion {
   uplift_pct: number;
 }
 
-export default function PromotionPlanner() {
+interface PromotionPlannerProps {
+  onNavigateToExperiment?: (experimentId: string) => void;
+}
+
+export default function PromotionPlanner({ onNavigateToExperiment }: PromotionPlannerProps = {}) {
   const { role, apiKey, selectedStore } = useApp();
 
   // ── Governance & Row-Level Filtering Scopes ───────────────────────────────
@@ -287,23 +291,79 @@ export default function PromotionPlanner() {
   const isLocked = role !== 'exec';
 
   return (
-    <div className="page-content">
+    <div className="page-content animate-fade" style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 48 }}>
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2>Promotion Planner</h2>
-          <p style={{ marginTop: 4 }}>
-            {role === 'exec' 
-              ? 'Campaign modeling sandbox & lookback analytics panel' 
-              : `Looker Scoped Portfolio: ${role === 'store_manager' ? `Region - ${storeRegion}` : `Category - ${focusCategory}`} (Read-only)`}
-          </p>
+      {/* Five-Second Proposition Header Banner */}
+      <div style={{
+        background: '#FFFFFF',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-md)',
+        padding: '20px',
+        marginBottom: 24,
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div>
+            <h1 style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              Promotion Intelligence
+            </h1>
+          </div>
+
+          {onNavigateToExperiment && (
+            <button
+              onClick={() => onNavigateToExperiment('EXP-COMMITMENT-01')}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--g10x-orange)',
+                color: '#FFFFFF',
+                border: 'none',
+                fontWeight: 500,
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4
+              }}
+            >
+              Test Commitment Chain <ChevronRight size={13} />
+            </button>
+          )}
         </div>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-          <span className="badge badge-accent" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <TrendingUp size={11} strokeWidth={2} color="currentColor" />
-            Elasticity Active
-          </span>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: 12,
+          background: 'var(--bg-base)',
+          padding: '14px 18px',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border)'
+        }}>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Commercial Opportunity
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--g10x-blue)' }}>
+              £1.2M Revenue Target
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Demand Projections
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--success)' }}>
+              +22% Volume Lift
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Supplier Headroom
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--warning)' }}>
+              +10% Max Capacity
+            </div>
+          </div>
         </div>
       </div>
 

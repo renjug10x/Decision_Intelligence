@@ -1,6 +1,6 @@
 {
-  "name": "lidl-decision-poc",
-  "version": "0.1.0",
+  "name": "cognix-enterprise-innovation-lab",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
