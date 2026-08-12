@@ -58,6 +58,29 @@ COGNIX LAB SHELL
 ---
 
 ## 3. Configuration & Registry Services
+- `config/experiments.ts`: Metadata for all 4 flagship experiments (`EXP-COMMITMENT-01`, `EXP-RIPPLE-02`, `EXP-MEMORY-03`, `EXP-OPPORTUNITY-04`).
+- `config/solutions.ts`: Metadata for all 4 demonstration solutions (`SOL-PROMO-01`, `SOL-DEMAND-02`, `SOL-INV-03`, `SOL-CAT-04`).
+- `config/patterns.ts`: Enterprise Learning Pattern registry (`PAT-COMMIT-01`, `PAT-RIPPLE-04`, `PAT-FRESH-02`, `PAT-WEATHER-06`).
+- `config/domains.ts`: [NEW] Configuration-driven domain catalogue (Commerce & Consumer, Hospitality, Transport, Tech, Industrial, Financial).
+- `config/personas.ts`: [NEW] Configuration-driven decision lens catalogue (Executive, Commercial & Planning, Data & Intelligence, Operations, Technology).
+
+---
+
+## 4. Domain Context & Decision Lens Model
+
+```text
+CogniX Shell Context
+  ├── Domain Context (config/domains.ts)
+  │    ├── Retail & Grocery [ACTIVE]
+  │    └── Future Domain Packs [COMING SOON]
+  │
+  └── Persona / Decision Lens (config/personas.ts)
+       ├── Innovation Executive (Strategic opportunity & IP lens)
+       ├── Chief Operating Officer (Operational continuity & headroom lens)
+       ├── Category Lead (Category yield & vendor capacity lens)
+       └── Operations Lead (Store availability & execution compliance lens)
+```
+
 - `config/experiments.ts`: Typed experiment registry containing canonical metadata for all lab experiments.
 - `config/industry-packs.ts`: Runtime configuration switching terminology, KPIs, and demo scenarios between Retail, CPG, and Logistics.
 - `lib/gemini.ts`: Generative AI service wrapper delivering evidence-grounded executive summaries.

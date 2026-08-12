@@ -58,3 +58,11 @@ At the conclusion of every executive demonstration, the consultant logs feedback
 2. **Resonance Level:** High / Medium / Low per experiment demonstrated.
 3. **Client-Specific Edge Cases Identified**
 4. **Follow-on Opportunity:** E.g., Scoping a 4-week G10X Discovery Pilot.
+
+---
+
+## 5. Demo Session Exit & Honest Preview Protocol
+
+- **Exit Demo Control:** In demo bypass mode, the sidebar footer provides a dedicated `Exit Demo` button. Clicking `Exit Demo` clears session tokens/local storage state and returns the user to the setup entry screen (`/platform-setup`) cleanly without auth errors or redirect loops.
+- **Honest Future Preview:** Selecting a `Coming Soon` domain or persona displays a clear, elegant teaser notification ("Domain/Persona experience coming soon") rather than switching into an empty state or faking non-existent analytics. Active simulation remains anchored in `Retail & Grocery`.
+

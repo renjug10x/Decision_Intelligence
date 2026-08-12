@@ -44,7 +44,23 @@ Color in CogniX is strictly semantic and functional:
 
 ---
 
-## 2. Refined Typography Scale & Hierarchy
+## 3. Shell Architecture & One-Title UX Rules
+
+### 3.1 One Authoritative Page Title Rule
+- **The body owns page identity:** Every CogniX experience has one primary visible page title rendered inside the page body content.
+- **Header simplification:** The global top bar header does NOT duplicate or repeat the current page name.
+- **Top bar role:** The top bar functions strictly as a quiet **context and control bar** (Domain Context + Persona + Notifications).
+
+### 3.2 Global Shell Controls & Navigation
+- **CogniX Wordmark = Home:** Clicking the CogniX wordmark returns the user to the Innovation Portfolio while preserving active Domain Context and Persona.
+- **Domain Context Selector:** Specifies the active enterprise environment (e.g. `Retail & Grocery` [Active]). Unavailable domains are listed with `(Coming Soon)` and present honest teaser preview feedback without switching to empty/fake states.
+- **Persona / Decision Lens Selector:** Specifies the user's decision perspective (e.g. `Innovation Executive`, `Chief Operating Officer`, `Category Lead`).
+- **Notification Feedback:** Interactive notification controls provide clear "Notifications coming soon" feedback when clicked and avoid displaying fake unread counts.
+- **Exit Demo Control:** In demo mode, the sidebar footer provides an explicit `Exit Demo` action that clears session state and returns to the platform setup entry screen.
+
+---
+
+## 4. Refined Typography Scale & Hierarchy
 
 CogniX enforces a smaller, lighter, spacious typographic scale:
 - **Primary Hero:** `28–32px`, Weight `600`

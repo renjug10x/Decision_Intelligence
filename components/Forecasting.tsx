@@ -342,10 +342,6 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
           )}
         </div>
 
-        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
-          Demand & Forecast Intelligence
-        </h2>
-
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',

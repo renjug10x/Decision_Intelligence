@@ -28,7 +28,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
     <div className="sidebar" style={{ background: '#F8FAFC', borderRight: '1px solid var(--border)' }}>
       {/* Brand Header */}
       <div className="sidebar-logo" style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)' }}>
-        <CognixWordmark showDescriptor={true} size="md" />
+        <CognixWordmark showDescriptor={true} size="md" onClick={() => onNavigate('portfolio')} />
       </div>
 
       {/* Role Indicator */}
@@ -160,17 +160,19 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
       </nav>
 
-      {/* Footer: De-emphasized Admin & Sign Out */}
+      {/* Footer: De-emphasized Admin & Exit Demo */}
       <div className="sidebar-footer" style={{ padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
         <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
           <button
             onClick={() => onNavigate('settings')}
+            title="IP & Governance Settings"
             style={{ flex: 1, padding: '5px 8px', fontSize: '0.75rem', borderRadius: 4, background: '#FFFFFF', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
           >
             <SettingsIcon size={12} /> Governance
           </button>
           <button
             onClick={() => onNavigate('help')}
+            title="About CogniX Studio"
             style={{ flex: 1, padding: '5px 8px', fontSize: '0.75rem', borderRadius: 4, background: '#FFFFFF', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
           >
             <HelpIcon size={12} /> About
@@ -179,17 +181,23 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
         <button
           className="btn btn-ghost btn-sm w-full"
+          title="Exit current CogniX demo session"
           onClick={() => {
             void (async () => {
               try { await logout(); } catch {}
               setIsAuthenticated(false);
               setPlatformSetupComplete(false);
+              if (typeof window !== 'undefined') {
+                localStorage.removeItem('cognix_demo_session');
+                localStorage.removeItem('cognix_setup_complete');
+              }
+              window.location.href = '/platform-setup';
             })();
           }}
           style={{ justifyContent: 'center', color: 'var(--text-muted)', gap: 6, fontSize: '0.75rem', padding: '4px' }}
         >
           <LogOut size={13} strokeWidth={1.75} color="currentColor" />
-          Sign out
+          Exit Demo
         </button>
       </div>
     </div>
