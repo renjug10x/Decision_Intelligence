@@ -192,18 +192,111 @@ The roadmap is structured across 12 sequential phases (Phases 0 through 11). Imp
 
 ---
 
-# PHASE 9 — IP AND INNOVATION GOVERNANCE
+# PHASE 9 — ORGANISATIONAL LEARNING INTELLIGENCE & CAPABILITY REINTEGRATION (COMPLETED)
+- **Status:** Implemented & Validated
+- **Objective:** Elevate the Resolution Pattern Library into pervasive **Organisational Learning Intelligence** powered by **Enterprise Learning Patterns** (`Observe → Learn → Match → Reuse`). Reintegrate **Execution Briefing** and **Contract Verification** capabilities.
+- **Scope:**
+  - `EnterpriseLearningPattern` canonical model & registry (`config/patterns.ts`).
+  - Explicit telemetry distinction: **Situation Similarity**, **Pattern Confidence**, **Intervention Success Rate**.
+  - Pervasive contextual pattern embedding across all solutions and experiments.
+  - Reintegrated `ExecutionBriefing` modal/drawer (`Situation`, `Why Now`, `Action`, `Owner`, `Dependencies`, `Time Horizon`, `Outcome`, `Confidence`, `Pattern`).
+  - Reintegrated `ContractVerification` proof layer (`CTR-FD-2024-001` SLA breach threshold check, `CTR-TP-2023-008` Backup Activation).
+
+---
+
+# PROGRAMME 10 — ADAPTIVE INTELLIGENCE & SCALABLE SERVICE ARCHITECTURE (PLANNED)
+
+- **Status:** Planned & Governance Approved (Not Implemented)
+- **Objective:** Transform CogniX into an API-first, event-aware, multi-tenant adaptive intelligence platform composed of independently evolvable business capabilities.
+- **Strategic Principles:**
+  - *Screens Do Not Own Intelligence. Domain Services Own Intelligence.*
+  - *Every Meaningful Interaction Is Observable.*
+  - *API-First Contracts (`Domain Model → API Contract → Event Schema → Implementation`).*
+  - *Decompose by Business Capability (Domain, Data, Security, Scaling).*
+  - *Shared Enterprise Reality (One Enterprise World + Shared Decision State).*
+  - *Strict Intelligence Separation (Deterministic Rules vs ML/Statistical vs Optimisation vs GenAI).*
+
+### Planned Phases / Workstreams (Phases 10A – 10M)
+
+#### Phase 10A — Service Architecture Foundation
+Establish initial 7 deployables: `cognix-web`, `cognix-core`, `cognix-world`, `cognix-decision`, `cognix-learning`, `cognix-intelligence`, `cognix-governance`. PostgreSQL service schemas, Redis Streams/NATS event transport.
+
+#### Phase 10B — Synthetic Enterprise World
+Temporal scenario engine modeling state across `T-90` to `T+30` for 12 causal scenario families (Promotion Surge, Weather Demand, Supplier Breach, Competitor Matching, Perishable Waste, Category Cannibalisation, DC Overtime, Regional Imbalance, etc.).
+
+#### Phase 10C — Tenant-Specific Enterprise Worlds
+Multi-tenant isolation support ensuring distinct operating environments, risk appetites, waste tolerances, and ranked interventions per tenant context.
+
+#### Phase 10D — Journey Telemetry
+Observable client event stream emitting canonical telemetry events (`SESSION_STARTED`, `SCENARIO_CHANGED`, `PATTERN_MATCHED`, `RECOMMENDATION_ACCEPTED`, `DECISION_EXECUTED`, `OUTCOME_OBSERVED`) with standard headers (`tenant_id`, `user_id`, `session_id`, `correlation_id`).
+
+#### Phase 10E — Shared Decision State
+Cross-solution state orchestrator ensuring decisions in one CogniX experience (e.g. backup supplier activation) propagate state changes across Inventory, Commitment, Decision Ripple, and Opportunity views.
+
+#### Phase 10F — Pattern Matching ML
+Machine learning serving layer performing statistical similarity scoring across situation signatures to retrieve Top-K Enterprise Learning Patterns.
+
+#### Phase 10G — Outcome Prediction
+Predictive ML models calculating probable service-level, margin, waste, and availability consequences for candidate interventions.
+
+#### Phase 10H — Intervention Ranking
+Dynamic utility ranker scoring candidate interventions against tenant objectives, commercial constraints, and historical precedent outcomes.
+
+#### Phase 10I — Intelligence Moments
+Contextual notification engine surfacing un-prompted intelligence when scenario adjustments alter risk/opportunity by $\ge 15\%$ or trigger new pattern matches ($\ge 85\%$).
+
+#### Phase 10J — Adaptive Decision Profile
+Behavioral learning engine modeling user evaluation preferences (margin vs customer availability). Enforces strict guardrail: personalization alters ranking/presentation, never source facts or evidence.
+
+#### Phase 10K — Counterfactual Learning
+Comparative outcome engine evaluating Chosen Decision vs Alternative Interventions vs Do-Nothing baseline.
+
+#### Phase 10L — Learning Quality & Pattern Decay
+Pattern lifecycle engine automatically decaying pattern confidence scores when actual outcomes contradict historical precedents.
+
+#### Phase 10M — Continuous Learning
+Closed-loop operational learning loop (`Observe → Decide → Execute → Measure → Remember → Learn → Reuse`) with human review gates and model versioning.
+
+---
+
+### User Stories Added
+
+- **Adaptive User:** As a CogniX user, I want the platform to respond to meaningful choices I make during an experiment so that the intelligence evolves with my scenario rather than remaining static.
+- **Cross-Solution User:** As a user, I want decisions made in one CogniX experience to influence related solutions so that the platform behaves like one coherent enterprise.
+- **Tenant Owner:** As a tenant owner, I want CogniX learning to reflect my organisation's objectives and historical outcomes while remaining isolated from other tenants.
+- **Innovation Executive:** As an executive, I want CogniX to surface an Intelligence Moment when a meaningful new risk, opportunity or pattern emerges so that I do not need to constantly inspect dashboards.
+- **Decision Maker:** As a decision maker, I want alternative interventions ranked against expected outcomes and constraints so that I can understand trade-offs rather than receiving one opaque recommendation.
+- **Learning Owner:** As an innovation/learning owner, I want CogniX to measure whether learned patterns remain valid over time so that stale organisational assumptions are not treated as permanent truth.
+- **Platform Engineer:** As a platform engineer, I want independently owned APIs, events and service boundaries so that CogniX capabilities can scale and evolve without requiring deployment of the entire application.
+
+---
+
+### Execution Dependency Order Discipline
+$$\text{Architecture/APIs} \rightarrow \text{Enterprise World} \rightarrow \text{Journey Telemetry} \rightarrow \text{Shared Decision State} \rightarrow \text{Memory/Learning APIs} \rightarrow \text{ML Models}$$
+
+---
+
+### Non-Goals for Initial Execution
+- Do **NOT** build dozens of microservices (start with 7 deployables).
+- Do **NOT** require Kubernetes-first architecture (use Docker Compose).
+- Do **NOT** introduce Apache Kafka prematurely (use Redis Streams / NATS).
+- Do **NOT** implement autonomous model retraining without human gates.
+- Do **NOT** create raw cross-tenant data sharing or un-governed LLM decision engines.
+
+---
+
+# PHASE 11 — IP AND INNOVATION GOVERNANCE
 - **Objective:** Integrate IP classification metadata badges and provenance tracking directly into UI and exports.
 - **Scope:** IP badge indicators, exportable experiment blueprint sheets, legal disclaimers.
 
 ---
 
-# PHASE 10 — INDUSTRY DEMONSTRATION PACKS
+# PHASE 12 — INDUSTRY DEMONSTRATION PACKS
 - **Objective:** Provide pre-packaged domain ontologies for Retail (Online Grocery, Omnichannel, Discount Retail) and CPG.
 - **Scope:** `config/industry-packs.ts`, scenario dataset expansion, context switcher UI.
 
 ---
 
-# PHASE 11 — INNOVATION OPERATING MODEL & KNOWLEDGE CAPTURE
+# PHASE 13 — INNOVATION OPERATING MODEL & KNOWLEDGE CAPTURE
 - **Objective:** Capture executive demo feedback, client curiosity reactions, and experiment evolution history.
 - **Scope:** Demo feedback logging form, experiment maturity lifecycle tracker, retirement archive viewer.

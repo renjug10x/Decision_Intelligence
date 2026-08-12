@@ -5,6 +5,8 @@ import {
   Sparkles
 } from 'lucide-react';
 
+import ExecutionBriefing from '@/components/ExecutionBriefing';
+
 interface DecisionRippleProps {
   onNavigateToExperiment?: (experimentId: string) => void;
 }
@@ -13,6 +15,7 @@ export default function DecisionRippleIntelligence({ onNavigateToExperiment }: D
   const [selectedAction, setSelectedAction] = useState<string>('promo_boost');
   const [budgetBoost, setBudgetBoost] = useState<number>(15);
   const [campaignScope, setCampaignScope] = useState<'national' | 'regional' | 'phased'>('national');
+  const [showBriefing, setShowBriefing] = useState<boolean>(false);
 
   const scopeMultiplier = campaignScope === 'national' ? 1.0 : campaignScope === 'regional' ? 0.6 : 0.75;
   const directRevenue = Math.round(480000 * (1 + (budgetBoost * 0.012) * scopeMultiplier));
@@ -55,6 +58,80 @@ export default function DecisionRippleIntelligence({ onNavigateToExperiment }: D
           </button>
         )}
       </div>
+
+      {/* Enterprise Learning Pattern Card */}
+      <div style={{
+        background: '#FFFFFF',
+        border: '1px solid var(--border)',
+        borderLeft: '4px solid var(--g10x-orange)',
+        borderRadius: 'var(--radius-md)',
+        padding: '16px 20px',
+        marginBottom: 24,
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', background: 'rgba(255,107,0,0.08)', padding: '2px 8px', borderRadius: 4 }}>
+              Enterprise Learning Pattern Recognized
+            </span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              Distribution Center Overtime Propagation (PAT-RIPPLE-04)
+            </span>
+          </div>
+
+          <button
+            onClick={() => setShowBriefing(true)}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-sm)',
+              background: '#FFFFFF',
+              border: '1px solid var(--border)',
+              color: 'var(--g10x-orange)',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4
+            }}
+          >
+            Generate Execution Briefing <ChevronRight size={13} />
+          </button>
+        </div>
+
+        <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 10 }}>
+          Unplanned promotional volume surges exceeding 25% daily DC throughput trigger 2nd-order warehouse overtime costs and 3rd-order store delivery delays.
+        </p>
+
+        <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          <span>Situation Similarity: <strong style={{ color: 'var(--text-primary)' }}>88%</strong></span>
+          <span>Pattern Confidence: <strong style={{ color: 'var(--text-primary)' }}>81%</strong></span>
+          <span>Intervention Success Rate: <strong style={{ color: 'var(--success)' }}>82% (8 occurrences)</strong></span>
+        </div>
+      </div>
+
+      <ExecutionBriefing
+        isOpen={showBriefing}
+        onClose={() => setShowBriefing(false)}
+        briefing={{
+          title: 'Decision Ripple Execution Briefing — Promotional Logistics',
+          situation: 'National 15% promotional boost generates a +28% daily volume surge at Trafford DC without pre-arranged labor flex.',
+          whyNow: 'Unmitigated order release will force 18 hours of weekend warehouse overtime and delay Monday morning store replenishment.',
+          recommendedAction: 'Stagger store delivery schedule across a 72-hour window prior to promotional launch.',
+          owner: 'Head of Logistics & Operations',
+          dependencies: ['Trafford DC Shift Roster Adjustment', 'Store Manager Staggered Order Release'],
+          timeHorizon: 'Next 72 Hours',
+          expectedOutcome: 'Eliminates £4,200 warehouse overtime penalty and guarantees 08:00 store availability.',
+          confidence: 81,
+          patternId: 'PAT-RIPPLE-04',
+          contractStatus: 'VERIFIED',
+          evidence: [
+            '1st Order: Promotional volume surge +28%',
+            '2nd Order: Trafford DC weekend overtime +18 hours',
+            '3rd Order: Monday morning store delivery delay 1.8 hours (Historical 8 occurrences evaluated)'
+          ]
+        }}
+      />
 
       {/* Decision Selector & Sliders */}
       <div style={{

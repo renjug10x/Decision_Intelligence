@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Sparkles, Loader2, CheckCircle2, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Lock, XCircle, ChevronRight } from 'lucide-react';
 import { useApp } from '@/lib/context';
+import ExecutionBriefing from '@/components/ExecutionBriefing';
 
 const CATEGORIES = ['All','Chilled','Dairy','Produce','Bakery','Frozen','Ambient','BWS','Non-food'];
 
@@ -58,6 +59,7 @@ export default function CategoryIntelligence({ onNavigateToExperiment }: Categor
   // Access Denied simulation state
   const [showAccessDenied, setShowAccessDenied] = useState(false);
   const [deniedCategory, setDeniedCategory] = useState('');
+  const [showBriefing, setShowBriefing] = useState(false);
 
   const isTabLocked = (cat: string) => {
     return role === 'category_manager' && cat !== 'Chilled';
@@ -194,6 +196,80 @@ export default function CategoryIntelligence({ onNavigateToExperiment }: Categor
           </div>
         </div>
       </div>
+
+      {/* Enterprise Learning Pattern Card */}
+      <div style={{
+        background: '#FFFFFF',
+        border: '1px solid var(--border)',
+        borderLeft: '4px solid var(--g10x-orange)',
+        borderRadius: 'var(--radius-md)',
+        padding: '16px 20px',
+        marginBottom: 24,
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', background: 'rgba(255,107,0,0.08)', padding: '2px 8px', borderRadius: 4 }}>
+              Enterprise Learning Pattern Recognized
+            </span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              Promotion-Driven Category Cannibalisation (PAT-BEH-05)
+            </span>
+          </div>
+
+          <button
+            onClick={() => setShowBriefing(true)}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-sm)',
+              background: '#FFFFFF',
+              border: '1px solid var(--border)',
+              color: 'var(--g10x-orange)',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4
+            }}
+          >
+            Generate Execution Briefing <ChevronRight size={13} />
+          </button>
+        </div>
+
+        <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 10 }}>
+          Standalone premium brand promotions without standard line price adjustment cause -24% volume drop in standard lines, eroding total category profit.
+        </p>
+
+        <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          <span>Situation Similarity: <strong style={{ color: 'var(--text-primary)' }}>87%</strong></span>
+          <span>Pattern Confidence: <strong style={{ color: 'var(--text-primary)' }}>83%</strong></span>
+          <span>Intervention Success Rate: <strong style={{ color: 'var(--success)' }}>80% (5 occurrences)</strong></span>
+        </div>
+      </div>
+
+      <ExecutionBriefing
+        isOpen={showBriefing}
+        onClose={() => setShowBriefing(false)}
+        briefing={{
+          title: 'Category Assortment Execution Briefing — Dairy Lines',
+          situation: 'Premium Organic Milk 25% discount promotion is cannibalising Standard Whole Milk volume (-24%), eroding total net category profit by -3.8%.',
+          whyNow: 'Current promotional pricing model reduces category contribution margin by £6.1K weekly.',
+          recommendedAction: 'Restructure standalone premium discount into a category multi-buy bundle pairing Premium & Standard lines.',
+          owner: 'Category Merchandising Manager',
+          dependencies: ['Commercial Pricing Strategy Approval', 'EPOS Promotion Mapping Update'],
+          timeHorizon: 'Next 5 Days',
+          expectedOutcome: 'Prevents £6,100 cannibalisation loss and increases category profit contribution by +4.2%.',
+          confidence: 83,
+          patternId: 'PAT-BEH-05',
+          contractStatus: 'VERIFIED',
+          evidence: [
+            'Standard line sales volume down -24% during premium promo week',
+            'Cross-elasticity coefficient measured at 0.72 (Threshold: 0.65)',
+            '5 historical occurrences evaluated; bundle optimization protected baseline volume in 4 cases'
+          ]
+        }}
+      />
 
       {/* Role Restriction Banner for Category Managers */}
       {showAccessDenied && (

@@ -1,9 +1,11 @@
 'use client';
 import { useState } from 'react';
+import ExecutionBriefing from '@/components/ExecutionBriefing';
 import { 
   Search, 
   ChevronRight,
-  ArrowRight
+  ArrowRight,
+  BookOpen
 } from 'lucide-react';
 
 export interface EnterpriseMemoryCase {
@@ -72,6 +74,7 @@ export default function EnterpriseMemory({
 }: EnterpriseMemoryProps = {}) {
   const [selectedCase, setSelectedCase] = useState<EnterpriseMemoryCase>(ENTERPRISE_MEMORY_CASES[0]);
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [showBriefing, setShowBriefing] = useState<boolean>(false);
 
   const filteredCases = ENTERPRISE_MEMORY_CASES.filter(c => 
     c.situation.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -210,17 +213,17 @@ export default function EnterpriseMemory({
 
             <div>
               <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>
-                Lessons Learned
+                Lessons Learned & Pattern Generalisation
               </div>
-              <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', lineHeight: 1.4, background: 'var(--curiosity-light)', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-accent)' }}>
+              <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', lineHeight: 1.4, background: 'var(--curiosity-light)', padding: '10px 12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-accent)', marginBottom: 12 }}>
                 {selectedCase.lessonsLearned}
               </div>
             </div>
           </div>
 
-          {onNavigateToSolution && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
             <button
-              onClick={() => onNavigateToSolution('SOL-PROMO-01')}
+              onClick={() => setShowBriefing(true)}
               style={{
                 width: '100%',
                 padding: '8px 12px',
@@ -228,7 +231,7 @@ export default function EnterpriseMemory({
                 background: 'var(--g10x-orange)',
                 color: '#FFFFFF',
                 border: 'none',
-                fontWeight: 500,
+                fontWeight: 600,
                 fontSize: '0.75rem',
                 cursor: 'pointer',
                 display: 'flex',
@@ -237,12 +240,34 @@ export default function EnterpriseMemory({
                 gap: 6
               }}
             >
-              Apply Precedent to Promotion <ArrowRight size={13} />
+              Generate Execution Briefing <ArrowRight size={13} />
             </button>
-          )}
+          </div>
         </div>
-
       </div>
+
+      <ExecutionBriefing
+        isOpen={showBriefing}
+        onClose={() => setShowBriefing(false)}
+        briefing={{
+          title: `Precedent Execution Briefing — ${selectedCase.memoryId}`,
+          situation: selectedCase.situation,
+          whyNow: 'Precedent historical match provides empirical justification for immediate intervention.',
+          recommendedAction: selectedCase.interventionExecuted,
+          owner: 'Enterprise Supply Chain & Operations',
+          dependencies: ['DC Gate Logistics Release', 'Supplier Backup SLA Confirmation'],
+          timeHorizon: 'Next 24 Hours',
+          expectedOutcome: selectedCase.actualOutcome,
+          confidence: selectedCase.confidenceScore,
+          patternId: 'PAT-COMM-01',
+          contractStatus: 'VERIFIED',
+          evidence: [
+            `Precedent Memory ID: ${selectedCase.memoryId}`,
+            `Historical Result: ${selectedCase.businessResult}`,
+            `Source Classification: ${selectedCase.provenance.source}`
+          ]
+        }}
+      />
     </div>
   );
 }

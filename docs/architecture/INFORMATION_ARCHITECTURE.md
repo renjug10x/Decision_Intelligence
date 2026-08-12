@@ -61,3 +61,11 @@ COGNIX LAB SHELL
 - `config/experiments.ts`: Typed experiment registry containing canonical metadata for all lab experiments.
 - `config/industry-packs.ts`: Runtime configuration switching terminology, KPIs, and demo scenarios between Retail, CPG, and Logistics.
 - `lib/gemini.ts`: Generative AI service wrapper delivering evidence-grounded executive summaries.
+
+---
+
+## 4. Service Architecture IA Decoupling Principles (Planned Future State)
+
+- **Frontend Continuity:** UI navigation remains strictly organized around **Innovation Experiments** and **Demonstration Solutions** so executive user journeys remain intuitive and uncluttered.
+- **Service Invisibility:** The underlying 7-deployable service topology (`cognix-web`, `cognix-core`, `cognix-world`, `cognix-decision`, `cognix-learning`, `cognix-intelligence`, `cognix-governance`) operates entirely behind backend API and event boundaries.
+- **Presentation Decoupling:** Frontend views consume structured `/api/v1/...` REST endpoints and publish client events without directly embedding domain simulation logic. Technical service boundaries remain 100% invisible to end users.

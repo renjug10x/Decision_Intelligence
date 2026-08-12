@@ -87,3 +87,38 @@ It transitions the codebase from a single-brand retail POC into a layered, modul
 - **IAM Role Simulation:** Executive, Category Lead, Store Lead role switcher demonstrating governed access to metrics.
 - **IP Metadata Tracking:** Every experiment view displays IP status badge (`G10X Proprietary`, `Open Innovation`).
 - **Telemetry & Logging:** Client interaction telemetry logged to facilitate post-demo learning capture.
+
+---
+
+## 5. Target Adaptive Service Architecture (Planned Future State)
+
+CogniX is transitioning to an **API-first, event-aware, multi-tenant adaptive platform**. Deep technical specs are defined in [`ADAPTIVE_INTELLIGENCE_SERVICE_ARCHITECTURE.md`](file:///Users/renjunair/projects/Decision_Intelligence/docs/architecture/ADAPTIVE_INTELLIGENCE_SERVICE_ARCHITECTURE.md).
+
+### 5.1 Initial 7-Deployable Container Topology
+1. `cognix-web` — Next.js presentation application.
+2. `cognix-core` — API Gateway / BFF & Portfolio Metadata.
+3. `cognix-world` — Synthetic Enterprise World Engine (`T-90` to `T+30`).
+4. `cognix-decision` — Shared Decision State Orchestrator.
+5. `cognix-learning` — Enterprise Memory & Learning Pattern Service.
+6. `cognix-intelligence` — ML Model Serving & Gemini Reasoning Service.
+7. `cognix-governance` — Commercial Contract Verification & Execution Engine.
+
+### 5.2 13 Bounded Logical Domains
+- **API Gateway / BFF Domain:** Ingress, auth tokens, tenant scope, correlation IDs.
+- **Identity & Tenant Domain:** Multi-tenant scoping, roles, Looker RLS permissions.
+- **Portfolio Domain:** Experiment catalog, solution registry, IP metadata.
+- **Enterprise World Domain:** Causal data engine across demand, inventory, supply chain.
+- **Decision State Domain:** Shared cross-solution state manager.
+- **Journey Domain:** Ingestion for client telemetry events (`journey.event.emitted`).
+- **Memory Domain:** Historical precedent cases (`EnterpriseMemoryCase`).
+- **Learning Domain:** Reusable organizational patterns (`EnterpriseLearningPattern`).
+- **Model (ML) Domain:** Pattern similarity, outcome prediction, intervention ranking.
+- **Intelligence Domain:** Intelligence Moments & Gemini narrative synthesis.
+- **Contracts Domain:** Commercial SLA checks (`CTR-FD-2024-001`) & backup activation.
+- **Execution Domain:** Execution Briefing dispatch & AppSheet/ERP webhooks.
+- **Connector Domain:** Data normalisation for BigQuery, Looker SDK, ERP, CRM.
+
+### 5.3 Storage & Isolation Architecture
+- **PostgreSQL Schemas:** Isolated schemas (`identity.*`, `world.*`, `decision.*`, `memory.*`, `learning.*`, `contracts.*`). No direct cross-schema queries.
+- **Redis:** Session caching, ephemeral Decision State, and initial event transport.
+- **Multi-Tenant Learning Scopes:** Strict separation between Tenant-Private Learning, Cross-Tenant Generalised Learning (G10X IP), and Global Synthetic Learning. No cross-tenant data leakage.

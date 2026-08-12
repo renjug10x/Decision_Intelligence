@@ -1,9 +1,12 @@
 'use client';
 import { useState } from 'react';
+import ExecutionBriefing from '@/components/ExecutionBriefing';
+import ContractVerification from '@/components/ContractVerification';
 import { 
   ArrowRight, 
   Zap,
-  ChevronRight
+  ChevronRight,
+  ShieldCheck
 } from 'lucide-react';
 
 interface ChainStage {
@@ -26,6 +29,8 @@ export default function CommitmentIntelligence({ onNavigateToExperiment }: Commi
   const [supplierCap, setSupplierCap] = useState<number>(10);
   const [enableSlaFlex, setEnableSlaFlex] = useState<boolean>(false);
   const [discovered, setDiscovered] = useState<boolean>(false);
+  const [showBriefing, setShowBriefing] = useState<boolean>(false);
+  const [showContractVerification, setShowContractVerification] = useState<boolean>(true);
 
   const demandUnits = Math.round(10000 * (1 + promoLift / 100));
   const supplierCapacity = Math.round(10000 * (1 + supplierCap / 100));
@@ -135,6 +140,89 @@ export default function CommitmentIntelligence({ onNavigateToExperiment }: Commi
           </button>
         )}
       </div>
+
+      {/* Enterprise Learning Pattern Recognized */}
+      <div style={{
+        background: '#FFFFFF',
+        border: '1px solid var(--border)',
+        borderLeft: '4px solid var(--g10x-orange)',
+        borderRadius: 'var(--radius-md)',
+        padding: '16px 20px',
+        marginBottom: 20,
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', background: 'rgba(255,107,0,0.08)', padding: '2px 8px', borderRadius: 4 }}>
+              Enterprise Learning Pattern Recognized
+            </span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              Supplier Lead-Time Breach Cascade (PAT-COMM-01)
+            </span>
+          </div>
+
+          <button
+            onClick={() => setShowBriefing(true)}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-sm)',
+              background: '#FFFFFF',
+              border: '1px solid var(--border)',
+              color: 'var(--g10x-orange)',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4
+            }}
+          >
+            Generate Execution Briefing <ChevronRight size={13} />
+          </button>
+        </div>
+
+        <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
+          Demand acceleration exceeding primary supplier capacity by &gt;8% results in customer promise failure in 73% of untreated historical cases.
+        </p>
+
+        <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          <span>Situation Similarity: <strong style={{ color: 'var(--text-primary)' }}>94%</strong></span>
+          <span>Pattern Confidence: <strong style={{ color: 'var(--text-primary)' }}>89%</strong></span>
+          <span>Intervention Success Rate: <strong style={{ color: 'var(--success)' }}>73% (11 occurrences)</strong></span>
+        </div>
+      </div>
+
+      {/* Embedded Proof Layer: Contract SLA Verification & Auto-Activation */}
+      {showContractVerification && (
+        <ContractVerification
+          supplierId="SUP001"
+          category="Produce"
+          region="Southern Region"
+        />
+      )}
+
+      <ExecutionBriefing
+        isOpen={showBriefing}
+        onClose={() => setShowBriefing(false)}
+        briefing={{
+          title: 'Commitment Chain Execution Briefing — Produce Category',
+          situation: 'Marketing campaign demand (+22%) exceeds FreshDirect UK delivery capability (+10%), creating a 12% supply-chain commitment deficit.',
+          whyNow: 'FreshDirect UK 14-day delay rate is currently 42%, breaching 30% contract SLA threshold.',
+          recommendedAction: 'Execute Backup Contract Clause 7.3 (CTR-TP-2023-008) to reroute 35% Southern region produce volume to Total Produce Ltd.',
+          owner: 'Executive Supply Chain Lead',
+          dependencies: ['Total Produce Logistics Allocation', 'Trafford DC Gate 4 Transfer Window'],
+          timeHorizon: 'Immediate (Next 18 Hours)',
+          expectedOutcome: 'Mitigates £14,200 weekly lost sales exposure and restores availability to 98.4%.',
+          confidence: 89,
+          patternId: 'PAT-COMM-01',
+          contractStatus: 'VERIFIED',
+          evidence: [
+            'FreshDirect UK 14-day delivery delay rate: 42% (Threshold: 30%)',
+            'Pre-approved backup supplier Total Produce Ltd contract CTR-TP-2023-008 verified',
+            '11 historical occurrences evaluated; backup activation restored 100% stock in past events'
+          ]
+        }}
+      />
 
       {/* Numerical Data Contradiction Grid */}
       <div style={{

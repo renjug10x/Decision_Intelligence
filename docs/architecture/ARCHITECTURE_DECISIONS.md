@@ -111,3 +111,91 @@
 - **Context:** CogniX required a refined, lightweight enterprise visual identity aligned with G10X brand values without heavy decorative waveforms or dark command-center top bars.
 - **Decision:** Establish typography wordmark `CogniX` (`C` in G10X Orange `#FF6B00`, `ogni` in near-black charcoal `#0F172A`, `X` in G10X Red `#E11D48`), G10X semantic color system (Curiosity/Opportunity → Orange, Risk/Gap → Red), reduced typography scale, and light neutral navigation surface.
 - **Consequences:** Provides a quiet, architectural executive visual identity where data and curiosity take precedence over UI chrome.
+
+---
+
+### ADR-012: Organisational Learning Intelligence & Capability Reintegration
+- **Status:** Accepted
+- **Context:** Enterprise decisions require systematic learning from previous interventions while leveraging historical contract verification and execution planning without creating bloated top-level navigation items.
+- **Decision:** Establish `EnterpriseLearningPattern` model and registry (`Observe → Learn → Match → Reuse`), embedding pervasive pattern cards across all solutions and experiments. Reintegrate `ExecutionBriefing` and `ContractVerification` as embedded contextual proof and execution sub-capabilities.
+- **Consequences:** Completes the closed-loop learning cycle: `Signals → Precedent (Memory) → Pattern Match → Contract Verification → Execution Briefing → Action → Outcome → New Pattern`.
+
+---
+
+### ADR-013: API-First Architecture & Service-Oriented Evolution
+- **Status:** Proposed & Approved
+- **Context:** Business logic, decision state, and simulation logic are currently coupled inside Next.js presentation components, preventing multi-service scaling.
+- **Decision:** Adopt an API-first progression (`Domain Model → API Contract → Event Schema → Implementation`). All future capabilities must expose versioned REST APIs (`/api/v1/...`) and OpenAPI specifications before implementation begins.
+- **Consequences:** Decouples UI presentation from backend intelligence, enabling independent service scaling and API-driven enterprise integrations.
+
+---
+
+### ADR-014: Initial Seven-Deployable Containerized Topology
+- **Status:** Proposed & Approved
+- **Context:** Transitioning to microservices risks over-decomposition and operational complexity if dozens of tiny services are created prematurely.
+- **Decision:** Decompose CogniX into an initial topology of seven deployables: `cognix-web`, `cognix-core`, `cognix-world`, `cognix-decision`, `cognix-learning`, `cognix-intelligence`, and `cognix-governance`.
+- **Consequences:** Maintains manageable operational complexity via Docker Compose locally, while establishing clean domain boundaries for future physical microservice splits.
+
+---
+
+### ADR-015: Observable Event Telemetry Stream (`journey.event.emitted`)
+- **Status:** Proposed & Approved
+- **Context:** Adaptive learning and personalisation require an empirical log of user interactions and decision scenario shifts.
+- **Decision:** Mandate that every meaningful user interaction (`SESSION_STARTED`, `SCENARIO_CHANGED`, `PATTERN_MATCHED`, `RECOMMENDATION_ACCEPTED`, `DECISION_EXECUTED`, `OUTCOME_OBSERVED`) emit a structured JSON telemetry event carrying standard header metadata (`tenant_id`, `user_id`, `session_id`, `correlation_id`).
+- **Consequences:** Unlocks real-time journey observability, Intelligence Moment triggers, and ML feature ingestion.
+
+---
+
+### ADR-016: Shared Temporal Enterprise World Engine (`T-90` to `T+30`)
+- **Status:** Proposed & Approved
+- **Context:** CogniX solutions currently operate against isolated mock datasets rather than a unified temporal enterprise reality.
+- **Decision:** Establish `cognix-world` as a shared synthetic simulation engine modeling temporal supply chain, demand, and inventory telemetry across `T-90` (historical baseline) to `T+30` (projected trajectory) for 12 causal scenario families.
+- **Consequences:** Provides a single, causally coherent enterprise reality across all CogniX experiments and demonstration solutions.
+
+---
+
+### ADR-017: Shared Cross-Solution Decision State Orchestration
+- **Status:** Proposed & Approved
+- **Context:** Interventions selected in one demonstration solution (e.g. backup supplier activation in Promotion Intelligence) do not currently propagate to affect other solutions.
+- **Decision:** Build `cognix-decision` as a centralized Decision State orchestrator. State changes in one experience publish events that immediately update cross-cutting enterprise decision parameters.
+- **Consequences:** Enables CogniX to behave like one unified, responsive enterprise system across all decision views.
+
+---
+
+### ADR-018: Machine Learning & Generative AI Layer Separation
+- **Status:** Proposed & Approved
+- **Context:** Generative AI (Gemini) must not be relied upon for deterministic calculations or quantitative decision rules due to hallucination risks.
+- **Decision:** Enforce strict separation into 4 layers: Deterministic (rules, SLA thresholds, financial math), ML/Statistical (similarity scoring, outcome prediction, intervention ranking), Optimisation (trade-off solvers under constraints), and GenAI (synthesis, narrative storytelling, and curiosity generation).
+- **Consequences:** Guarantees factual, audit-ready decision scoring while leveraging Gemini for executive storytelling.
+
+---
+
+### ADR-019: Service-Owned Schema Isolation & PostgreSQL Strategy
+- **Status:** Proposed & Approved
+- **Context:** Direct cross-service database access creates brittle coupling and breaks microservice boundaries.
+- **Decision:** Provision a managed PostgreSQL instance with isolated per-service schemas (`identity.*`, `world.*`, `decision.*`, `memory.*`, `learning.*`, `contracts.*`). Services own their schemas exclusively and may only communicate via REST APIs or Event Streams.
+- **Consequences:** Ensures database-level decoupling and prepares CogniX for future physical database partitioning without immediate operational overhead.
+
+---
+
+### ADR-020: Multi-Tenant Data & Learning Isolation Scopes
+- **Status:** Proposed & Approved
+- **Context:** Enterprise clients require strict data confidentiality to prevent proprietary operational data or learning patterns from leaking across tenant boundaries.
+- **Decision:** Enforce three distinct learning scopes: Tenant-Private Learning (100% isolated by `tenant_id`), Cross-Tenant Generalised Learning (anonymised G10X IP), and Global Synthetic Learning (out-of-the-box demo baseline).
+- **Consequences:** Guarantees zero tenant data leakage while preserving G10X's ability to build reusable enterprise learning patterns.
+
+---
+
+### ADR-021: Counterfactual Learning & Pattern Confidence Decay
+- **Status:** Proposed & Approved
+- **Context:** Static learning pattern confidence scores risk presenting obsolete operational assumptions as permanent truth.
+- **Decision:** Implement counterfactual outcome tracking (`Predicted` vs `Actual`) and automatic pattern confidence decay. If actual outcomes contradict a pattern across 3+ consecutive occurrences, the pattern confidence score is automatically downgraded.
+- **Consequences:** Maintains organizational learning integrity by ensuring CogniX patterns adapt dynamically to changing enterprise environments.
+
+---
+
+### ADR-022: Eight-Stage Strangler Migration Strategy
+- **Status:** Proposed & Approved
+- **Context:** Rewriting CogniX from scratch risks breaking working executive demonstration capabilities.
+- **Decision:** Adopt an 8-stage strangler migration strategy (`Stage 1: API Contracts` $\rightarrow$ `Stage 8: Thinned Presentation Application`), progressively extracting backend services while keeping the Next.js presentation UI fully operational at every stage.
+- **Consequences:** Guarantees 100% demo continuity and zero downtime throughout the multi-service transformation.

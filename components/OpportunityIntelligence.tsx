@@ -1,9 +1,11 @@
 'use client';
 import { useState } from 'react';
+import ExecutionBriefing from '@/components/ExecutionBriefing';
 import { 
   CheckCircle2, 
   ChevronRight,
-  Zap
+  Zap,
+  ArrowRight
 } from 'lucide-react';
 
 export interface OpportunityItem {
@@ -68,18 +70,16 @@ interface OpportunityIntelligenceProps {
   onNavigateToExperiment?: (experimentId: string) => void;
 }
 
-export default function OpportunityIntelligence({
-  onNavigateToSolution,
-  onNavigateToExperiment
-}: OpportunityIntelligenceProps = {}) {
+export default function OpportunityIntelligence({ onNavigateToSolution }: OpportunityIntelligenceProps = {}) {
   const [selectedOpportunity, setSelectedOpportunity] = useState<OpportunityItem>(OPPORTUNITY_ITEMS[0]);
   const [actionExecuted, setActionExecuted] = useState<boolean>(false);
+  const [showBriefing, setShowBriefing] = useState<boolean>(false);
 
   return (
     <div className="page-content animate-fade" style={{ maxWidth: 1140, margin: '0 auto', paddingBottom: 48 }}>
       
       {/* Header Banner */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
         <div>
           <h1 style={{ fontSize: '1.5rem', fontWeight: 600, color: 'var(--text-primary)' }}>
             Opportunity Intelligence
@@ -87,6 +87,57 @@ export default function OpportunityIntelligence({
           <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
             Discover value-creation opportunities by combining demand acceleration, inventory headroom, and supplier capacity signals.
           </p>
+        </div>
+      </div>
+
+      {/* Enterprise Learning Pattern Card */}
+      <div style={{
+        background: '#FFFFFF',
+        border: '1px solid var(--border)',
+        borderLeft: '4px solid var(--g10x-orange)',
+        borderRadius: 'var(--radius-md)',
+        padding: '16px 20px',
+        marginBottom: 20,
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', background: 'rgba(255,107,0,0.08)', padding: '2px 8px', borderRadius: 4 }}>
+              Evidence-Led Opportunity Pattern Detected
+            </span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              Regional Demand Surge & Supplier Headroom (PAT-OPP-02)
+            </span>
+          </div>
+
+          <button
+            onClick={() => setShowBriefing(true)}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-sm)',
+              background: '#FFFFFF',
+              border: '1px solid var(--border)',
+              color: 'var(--g10x-orange)',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4
+            }}
+          >
+            Generate Execution Briefing <ChevronRight size={13} />
+          </button>
+        </div>
+
+        <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 10 }}>
+          Demand acceleration (+18%) + Muller Dairy capacity headroom (+25%) + Trafford DC excess inventory. Average historical margin uplift: +6.8%.
+        </p>
+
+        <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          <span>Situation Similarity: <strong style={{ color: 'var(--text-primary)' }}>89%</strong></span>
+          <span>Pattern Confidence: <strong style={{ color: 'var(--text-primary)' }}>84%</strong></span>
+          <span>Intervention Success Rate: <strong style={{ color: 'var(--success)' }}>86% (7 occurrences)</strong></span>
         </div>
       </div>
 
@@ -243,6 +294,25 @@ export default function OpportunityIntelligence({
         </div>
 
       </div>
+
+      <ExecutionBriefing
+        isOpen={showBriefing}
+        onClose={() => setShowBriefing(false)}
+        briefing={{
+          title: `Opportunity Execution Briefing — ${selectedOpportunity.title}`,
+          situation: selectedOpportunity.rationale,
+          whyNow: 'Multi-signal fusion confirms supplier headroom and excess DC stock available now.',
+          recommendedAction: selectedOpportunity.recommendedAction,
+          owner: 'Commercial Merchandising Lead',
+          dependencies: ['Muller Dairy Headroom Confirmation', 'EPOS Price Override Schedule'],
+          timeHorizon: 'Next 7 Days',
+          expectedOutcome: `Captures estimated ${selectedOpportunity.estimatedValue} gross margin lift.`,
+          confidence: selectedOpportunity.confidenceScore,
+          patternId: 'PAT-OPP-02',
+          contractStatus: 'VERIFIED',
+          evidence: selectedOpportunity.signalsCombined.concat(selectedOpportunity.constraintsChecked)
+        }}
+      />
     </div>
   );
 }

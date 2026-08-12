@@ -1,11 +1,13 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Package, AlertCircle, TrendingDown, CheckCircle2,
   Loader2, Sparkles, Store, Truck, BarChart3, ChevronRight
 } from 'lucide-react';
 import { useApp } from '@/lib/context';
+import ExecutionBriefing from '@/components/ExecutionBriefing';
 import ConfidenceScore, { DecisionMemory } from '@/components/ConfidenceScore';
+import { fetchWorldScenario } from '@/lib/world-client';
 
 const fmt = {
   currency: (v: number) => `£${v >= 1000 ? (v / 1000).toFixed(1) + 'K' : v.toFixed(0)}`,
@@ -98,6 +100,24 @@ export default function AvailabilityIntelligence({ onNavigateToExperiment }: Ava
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [expandedEvent, setExpandedEvent] = useState<string | null>('AV001');
 
+  // ── Enterprise World Scenario Binding ──────────────────────────────────────
+  const [worldScenario, setWorldScenario] = useState<any>(null);
+  const [worldError, setWorldError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchWorldScenario('supplier_breach')
+      .then((scenarios) => {
+        if (scenarios && scenarios.length > 0) {
+          setWorldScenario(scenarios[0]);
+        }
+      })
+      .catch((err) => {
+        console.warn('[AvailabilityIntelligence] Could not fetch Enterprise World scenario:', err.message);
+        setWorldError(err.message);
+      });
+  }, []);
+  const [showBriefing, setShowBriefing] = useState(false);
+
   const totalLostRevenue = STOCKOUT_EVENTS.reduce((a, e) => a + e.lostRevenue, 0);
   const totalEvents = STOCKOUT_EVENTS.reduce((a, e) => a + e.skus, 0);
   const totalStores = AFFECTED_STORES.length;
@@ -189,6 +209,80 @@ export default function AvailabilityIntelligence({ onNavigateToExperiment }: Ava
           </div>
         </div>
       </div>
+
+      {/* Enterprise Learning Pattern Card */}
+      <div style={{
+        background: '#FFFFFF',
+        border: '1px solid var(--border)',
+        borderLeft: '4px solid var(--g10x-orange)',
+        borderRadius: 'var(--radius-md)',
+        padding: '16px 20px',
+        marginBottom: 24,
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', background: 'rgba(255,107,0,0.08)', padding: '2px 8px', borderRadius: 4 }}>
+              Enterprise Learning Pattern Recognized
+            </span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              Emergency DC Rebalancing & Backup SLA Activation (PAT-INT-05)
+            </span>
+          </div>
+
+          <button
+            onClick={() => setShowBriefing(true)}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-sm)',
+              background: '#FFFFFF',
+              border: '1px solid var(--border)',
+              color: 'var(--g10x-orange)',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4
+            }}
+          >
+            Generate Execution Briefing <ChevronRight size={13} />
+          </button>
+        </div>
+
+        <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 10 }}>
+          Activating pre-approved DC transfer from Trafford DC prevented £820K aggregate lost sales across 5 comparable stockout events.
+        </p>
+
+        <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          <span>Situation Similarity: <strong style={{ color: 'var(--text-primary)' }}>92%</strong></span>
+          <span>Pattern Confidence: <strong style={{ color: 'var(--text-primary)' }}>88%</strong></span>
+          <span>Intervention Success Rate: <strong style={{ color: 'var(--success)' }}>78% (9 occurrences)</strong></span>
+        </div>
+      </div>
+
+      <ExecutionBriefing
+        isOpen={showBriefing}
+        onClose={() => setShowBriefing(false)}
+        briefing={{
+          title: 'Inventory Availability Execution Briefing — Chilled SKUs',
+          situation: 'Greencore Ready Meals Friday/Saturday delivery delay rate reaches 45%, leaving 5 Manchester stores exposed to 4.5h OOS window.',
+          whyNow: 'Trafford DC holds emergency reserve stock; failure to dispatch by 17:00 forfeits evening trading revenue.',
+          recommendedAction: 'Execute emergency stock transfer from Trafford DC and extend order lead-time buffer to 48h for weekend deliveries.',
+          owner: 'Regional Supply Chain Operations',
+          dependencies: ['Trafford DC Gate 2 Logistics Dispatch', 'Manchester Regional Freight Courier'],
+          timeHorizon: 'Immediate (Next 4 Hours)',
+          expectedOutcome: 'Restores shelf availability across 5 stores and recovers £12,400 evening sales.',
+          confidence: 88,
+          patternId: 'PAT-INT-05',
+          contractStatus: 'VERIFIED',
+          evidence: [
+            'Greencore delivery failure rate 45% on Friday/Saturday',
+            'Trafford DC stock availability confirmed via WMS API',
+            '9 historical occurrences evaluated; 78% achieved complete stock recovery'
+          ]
+        }}
+      />
 
       {/* KPI Strip */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>

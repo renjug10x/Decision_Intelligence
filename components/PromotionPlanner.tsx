@@ -7,6 +7,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '@/lib/context';
 import { Bar } from 'react-chartjs-2';
+import ExecutionBriefing from '@/components/ExecutionBriefing';
 import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip, Legend } from 'chart.js';
 
 import promotionsData from '@/data/promotions.json';
@@ -54,6 +55,7 @@ export default function PromotionPlanner({ onNavigateToExperiment }: PromotionPl
   // Store Manager region mapping (Manchester S001-S003 is North West)
   const [storeRegion, setStoreRegion] = useState('North West');
   const [focusCategory, setFocusCategory] = useState('Chilled');
+  const [showBriefing, setShowBriefing] = useState(false);
 
   useEffect(() => {
     if (role === 'store_manager') {
@@ -366,6 +368,80 @@ export default function PromotionPlanner({ onNavigateToExperiment }: PromotionPl
           </div>
         </div>
       </div>
+
+      {/* Enterprise Learning Pattern Card */}
+      <div style={{
+        background: '#FFFFFF',
+        border: '1px solid var(--border)',
+        borderLeft: '4px solid var(--g10x-orange)',
+        borderRadius: 'var(--radius-md)',
+        padding: '16px 20px',
+        marginBottom: 24,
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', background: 'rgba(255,107,0,0.08)', padding: '2px 8px', borderRadius: 4 }}>
+              Enterprise Learning Pattern Recognized
+            </span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              Promotional Capacity Mismatch (PAT-RISK-03)
+            </span>
+          </div>
+
+          <button
+            onClick={() => setShowBriefing(true)}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-sm)',
+              background: '#FFFFFF',
+              border: '1px solid var(--border)',
+              color: 'var(--g10x-orange)',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4
+            }}
+          >
+            Generate Execution Briefing <ChevronRight size={13} />
+          </button>
+        </div>
+
+        <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 10 }}>
+          High-discount promotions (&gt;15%) when Greencore lead-time variance exceeds 12% result in emergency freight margin erosion in 4 of 6 past events.
+        </p>
+
+        <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          <span>Situation Similarity: <strong style={{ color: 'var(--text-primary)' }}>91%</strong></span>
+          <span>Pattern Confidence: <strong style={{ color: 'var(--text-primary)' }}>84%</strong></span>
+          <span>Intervention Success Rate: <strong style={{ color: 'var(--success)' }}>67% (6 occurrences)</strong></span>
+        </div>
+      </div>
+
+      <ExecutionBriefing
+        isOpen={showBriefing}
+        onClose={() => setShowBriefing(false)}
+        briefing={{
+          title: 'Promotion Execution Briefing — Chilled Ready Meals',
+          situation: 'Greencore Ready Meals lead-time variance is currently 14.2% (exceeding 12% risk threshold). Trafford DC safety buffer is 3.2 days.',
+          whyNow: 'Proposed 20% promotion launch in 72 hours requires immediate supplier buffer alignment or discount cap adjustment.',
+          recommendedAction: 'Cap promotional discount depth at 12% or require Greencore to pre-deliver a 48h safety buffer to Trafford DC.',
+          owner: 'Category Commercial Lead',
+          dependencies: ['Greencore Logistics Confirmation', 'Trafford DC Order Release Schedule'],
+          timeHorizon: 'Next 48 Hours',
+          expectedOutcome: 'Protects £8,400 net margin and prevents emergency transport penalty charges.',
+          confidence: 84,
+          patternId: 'PAT-RISK-03',
+          contractStatus: 'VERIFIED',
+          evidence: [
+            'Greencore delivery delay variance 14.2% over rolling 14 days',
+            'Trafford DC stock cover 3.2 days (Threshold: 5 days)',
+            '6 historical occurrences evaluated; 4 unmitigated events caused margin erosion'
+          ]
+        }}
+      />
 
       {/* Restrict Notice */}
       {isLocked && (
