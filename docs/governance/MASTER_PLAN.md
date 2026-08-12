@@ -248,6 +248,15 @@ Contextual notification engine surfacing un-prompted intelligence when scenario 
 #### Phase 10J — Adaptive Decision Profile
 Behavioral learning engine modeling user evaluation preferences (margin vs customer availability). Enforces strict guardrail: personalization alters ranking/presentation, never source facts or evidence.
 
+#### Phase 10A — Service Architecture & API-First Foundation [COMPLETED]
+API-first OpenAPI 3.1 contract (`docs/openapi/world-v1.yaml`), seed/scenario extraction, and `cognix-world` Docker microservice.
+
+#### Phase 10B — Journey Telemetry Foundation [COMPLETED]
+Canonical OpenAPI 3.1 contract (`docs/openapi/journey-v1.yaml`), event schema validation, `packages/contracts` event catalogue, non-blocking `lib/journey-client.ts`, REST ingestion/query endpoints (`/api/v1/journey/*`), diagnostic ring-buffer store, and comprehensive UI instrumentation across Shell, Portfolio, Questions, Commitment, Ripple, Memory, Opportunity, and Solutions.
+
+#### Phase 10C — Shared Decision State Foundation [PENDING]
+Shared state engine enabling cross-solution decision propagation.
+
 #### Phase 10K — Counterfactual Learning
 Comparative outcome engine evaluating Chosen Decision vs Alternative Interventions vs Do-Nothing baseline.
 

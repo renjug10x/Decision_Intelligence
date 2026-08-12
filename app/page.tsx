@@ -24,6 +24,7 @@ import { env } from '@/config/environment';
 import { DOMAIN_CATALOGUE, getDomainById, DEFAULT_DOMAIN_ID } from '@/config/domains';
 import { PERSONA_CATALOGUE, getPersonaById } from '@/config/personas';
 import ShellToast, { ToastMessage } from '@/components/ShellToast';
+import { trackJourneyEvent, updateTelemetryContext } from '@/lib/journey-client';
 
 export default function App() {
   const router = useRouter();
@@ -34,6 +35,16 @@ export default function App() {
   const [selectedExperimentId, setSelectedExperimentId] = useState<string>('EXP-COMMITMENT-01');
   const [activeDomainId, setActiveDomainId] = useState<string>(DEFAULT_DOMAIN_ID);
   const [toast, setToast] = useState<ToastMessage | null>(null);
+
+  // Telemetry Session Start
+  useEffect(() => {
+    trackJourneyEvent({
+      event_type: 'SESSION_STARTED',
+      source: 'app_init',
+      page: 'portfolio',
+      metadata: { environment: 'demo_lab' }
+    });
+  }, []);
 
   useEffect(() => {
     if (!authLoading && !user && !env.IS_DEMO_MODE) {
@@ -84,6 +95,20 @@ export default function App() {
 
   const handleDomainChange = (domainId: string) => {
     const domain = getDomainById(domainId);
+    const activeTarget = domain && domain.status === 'coming_soon' ? 'retail_grocery' : domainId;
+    
+    updateTelemetryContext({ domain_id: domainId });
+    trackJourneyEvent({
+      event_type: 'DOMAIN_SELECTED',
+      source: 'topbar_domain_select',
+      page: currentPage,
+      metadata: {
+        requested_domain: domainId,
+        active_domain: activeTarget,
+        availability_status: domain ? domain.status : 'active'
+      }
+    });
+
     if (domain && domain.status === 'coming_soon') {
       setToast({
         id: `domain_${domain.id}_${Date.now()}`,
@@ -102,6 +127,21 @@ export default function App() {
 
   const handlePersonaChange = (personaId: string) => {
     const persona = getPersonaById(personaId);
+    const prevPersona = role;
+
+    updateTelemetryContext({ persona_id: personaId });
+    trackJourneyEvent({
+      event_type: 'PERSONA_SELECTED',
+      source: 'topbar_persona_select',
+      page: currentPage,
+      previous_state: { persona_id: prevPersona },
+      new_state: { persona_id: personaId },
+      metadata: {
+        adaptive_behaviour_enabled: false,
+        persona_status: persona ? persona.status : 'active'
+      }
+    });
+
     setRole(personaId as any);
     if (persona && persona.status === 'coming_soon') {
       setToast({

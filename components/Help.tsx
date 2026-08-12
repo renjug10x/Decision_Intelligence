@@ -8,8 +8,28 @@ import {
 import ArchitectureExplorer from '@/components/ArchitectureExplorer';
 
 export default function Help() {
-  const [activeTab, setActiveTab] = useState<'storyboard' | 'lifecycle'>('storyboard');
+  const [activeTab, setActiveTab] = useState<'storyboard' | 'lifecycle' | 'telemetry'>('storyboard');
   const [hoveredStep, setHoveredStep] = useState<number | null>(null);
+  const [journeyEvents, setJourneyEvents] = useState<any[]>([]);
+  const [loadingTelemetry, setLoadingTelemetry] = useState(false);
+
+  const fetchTelemetry = async () => {
+    setLoadingTelemetry(true);
+    try {
+      const res = await fetch('/api/v1/journey/events?limit=30');
+      const json = await res.json();
+      if (json.data) setJourneyEvents(json.data);
+    } catch (e) {
+      console.warn('Failed to fetch telemetry events', e);
+    }
+    setLoadingTelemetry(false);
+  };
+
+  React.useEffect(() => {
+    if (activeTab === 'telemetry') {
+      fetchTelemetry();
+    }
+  }, [activeTab]);
 
   return (
     <div className="page-content" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -32,7 +52,8 @@ export default function Help() {
         }}>
           {[
             { id: 'storyboard', label: 'Architecture Storyboard', Icon: Layers },
-            { id: 'lifecycle', label: 'Decision Lifecycle', Icon: Activity }
+            { id: 'lifecycle', label: 'Decision Lifecycle', Icon: Activity },
+            { id: 'telemetry', label: 'Journey Telemetry Diagnostics', Icon: Sparkles }
           ].map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -208,6 +229,83 @@ export default function Help() {
                 );
               })}
             </div>
+          </div>
+        )}
+
+        {/* TAB 3: Journey Telemetry Diagnostics */}
+        {activeTab === 'telemetry' && (
+          <div className="animate-fade" style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  WP10-B Journey Telemetry Diagnostic Buffer
+                </h3>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  In-memory diagnostic ring buffer displaying recent canonical journey events captured across CogniX.
+                </p>
+              </div>
+              <button
+                onClick={fetchTelemetry}
+                disabled={loadingTelemetry}
+                style={{
+                  padding: '4px 10px',
+                  borderRadius: 4,
+                  background: '#F8FAFC',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.75rem',
+                  fontWeight: 500,
+                  cursor: 'pointer'
+                }}
+              >
+                {loadingTelemetry ? 'Refreshing...' : 'Refresh Events'}
+              </button>
+            </div>
+
+            {journeyEvents.length === 0 ? (
+              <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+                No telemetry events captured yet. Navigate through CogniX to generate observable decision intent.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 450, overflowY: 'auto' }}>
+                {journeyEvents.map((evt, idx) => (
+                  <div
+                    key={evt.event_id || idx}
+                    style={{
+                      background: '#F8FAFC',
+                      border: '1px solid var(--border)',
+                      borderRadius: 6,
+                      padding: '10px 14px',
+                      fontSize: '0.75rem',
+                      fontFamily: 'monospace'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontWeight: 700, color: 'var(--g10x-orange)' }}>
+                        #{evt.sequence_number || idx + 1} {evt.event_type}
+                      </span>
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        {evt.timestamp ? new Date(evt.timestamp).toLocaleTimeString() : ''}
+                      </span>
+                    </div>
+                    <div style={{ color: 'var(--text-secondary)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                      <span>ID: <strong>{evt.event_id}</strong></span>
+                      <span>Session: <strong>{evt.session_id}</strong></span>
+                      <span>Tenant: <strong>{evt.tenant_id}</strong></span>
+                      <span>Persona: <strong>{evt.persona_id}</strong></span>
+                      <span>Source: <strong>{evt.source}</strong></span>
+                    </div>
+                    {(evt.previous_state || evt.new_state || evt.metadata) && (
+                      <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid #E2E8F0', color: 'var(--text-muted)', fontSize: '0.6875rem' }}>
+                        {evt.previous_state && <div>Prev: {JSON.stringify(evt.previous_state)}</div>}
+                        {evt.new_state && <div>New: {JSON.stringify(evt.new_state)}</div>}
+                        {evt.metadata && <div>Meta: {JSON.stringify(evt.metadata)}</div>}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>

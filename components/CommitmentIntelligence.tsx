@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ExecutionBriefing from '@/components/ExecutionBriefing';
 import ContractVerification from '@/components/ContractVerification';
 import { 
@@ -8,6 +8,7 @@ import {
   ChevronRight,
   ShieldCheck
 } from 'lucide-react';
+import { trackJourneyEvent, debouncedTrackJourneyEvent } from '@/lib/journey-client';
 
 interface ChainStage {
   id: string;
@@ -31,6 +32,76 @@ export default function CommitmentIntelligence({ onNavigateToExperiment }: Commi
   const [discovered, setDiscovered] = useState<boolean>(false);
   const [showBriefing, setShowBriefing] = useState<boolean>(false);
   const [showContractVerification, setShowContractVerification] = useState<boolean>(true);
+
+  useEffect(() => {
+    trackJourneyEvent({
+      event_type: 'EXPERIMENT_OPENED',
+      experiment_id: 'EXP-COMMITMENT-01',
+      source: 'CommitmentIntelligence.tsx',
+      page: 'commitment-intelligence'
+    });
+  }, []);
+
+  const handlePromoLiftChange = (newVal: number) => {
+    const prevVal = promoLift;
+    setPromoLift(newVal);
+    debouncedTrackJourneyEvent('commit_lift', {
+      event_type: 'SCENARIO_CHANGED',
+      experiment_id: 'EXP-COMMITMENT-01',
+      source: 'promo_lift_slider',
+      page: 'commitment-intelligence',
+      previous_state: { promo_lift: prevVal },
+      new_state: { promo_lift: newVal },
+      metadata: { supplier_cap: supplierCap, sla_flex: enableSlaFlex }
+    });
+  };
+
+  const handleSupplierCapChange = (newVal: number) => {
+    const prevVal = supplierCap;
+    setSupplierCap(newVal);
+    debouncedTrackJourneyEvent('commit_cap', {
+      event_type: 'SCENARIO_CHANGED',
+      experiment_id: 'EXP-COMMITMENT-01',
+      source: 'supplier_cap_slider',
+      page: 'commitment-intelligence',
+      previous_state: { supplier_cap: prevVal },
+      new_state: { supplier_cap: newVal },
+      metadata: { promo_lift: promoLift, sla_flex: enableSlaFlex }
+    });
+  };
+
+  const handleToggleSlaFlex = () => {
+    const nextFlex = !enableSlaFlex;
+    setEnableSlaFlex(nextFlex);
+    trackJourneyEvent({
+      event_type: 'INTERVENTION_SELECTED',
+      experiment_id: 'EXP-COMMITMENT-01',
+      source: 'sla_flex_toggle',
+      page: 'commitment-intelligence',
+      new_state: { enable_sla_flex: nextFlex },
+      metadata: { flex_capacity_units: nextFlex ? 1200 : 0 }
+    });
+  };
+
+  const handleOpenBriefing = () => {
+    trackJourneyEvent({
+      event_type: 'EXECUTION_BRIEFING_OPENED',
+      experiment_id: 'EXP-COMMITMENT-01',
+      source: 'generate_briefing_button',
+      page: 'commitment-intelligence'
+    });
+    setShowBriefing(true);
+  };
+
+  const handleExplorePattern = () => {
+    trackJourneyEvent({
+      event_type: 'PATTERN_EXPLORED',
+      experiment_id: 'EXP-COMMITMENT-01',
+      source: 'pattern_card',
+      page: 'commitment-intelligence',
+      metadata: { pattern_id: 'PAT-COMMIT-01' }
+    });
+  };
 
   const demandUnits = Math.round(10000 * (1 + promoLift / 100));
   const supplierCapacity = Math.round(10000 * (1 + supplierCap / 100));
@@ -162,7 +233,7 @@ export default function CommitmentIntelligence({ onNavigateToExperiment }: Commi
           </div>
 
           <button
-            onClick={() => setShowBriefing(true)}
+            onClick={handleOpenBriefing}
             style={{
               padding: '4px 10px',
               borderRadius: 'var(--radius-sm)',
@@ -332,7 +403,7 @@ export default function CommitmentIntelligence({ onNavigateToExperiment }: Commi
                 Intervention: Flex Secondary Supplier SLA Rule #4 (+1,200 units)
               </div>
               <button
-                onClick={() => setEnableSlaFlex(!enableSlaFlex)}
+                onClick={handleToggleSlaFlex}
                 style={{
                   padding: '5px 12px',
                   borderRadius: 'var(--radius-sm)',
@@ -375,22 +446,22 @@ export default function CommitmentIntelligence({ onNavigateToExperiment }: Commi
               min="10"
               max="40"
               value={promoLift}
-              onChange={e => setPromoLift(Number(e.target.value))}
+              onChange={e => handlePromoLiftChange(Number(e.target.value))}
               style={{ width: '100%' }}
             />
           </div>
 
           <div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginBottom: 6 }}>
-              <span style={{ color: 'var(--text-secondary)' }}>Supplier Capacity:</span>
+              <span style={{ color: 'var(--text-secondary)' }}>Supplier Capacity Cap:</span>
               <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>+{supplierCap}%</span>
             </div>
             <input
               type="range"
               min="5"
-              max="30"
+              max="25"
               value={supplierCap}
-              onChange={e => setSupplierCap(Number(e.target.value))}
+              onChange={e => handleSupplierCapChange(Number(e.target.value))}
               style={{ width: '100%' }}
             />
           </div>

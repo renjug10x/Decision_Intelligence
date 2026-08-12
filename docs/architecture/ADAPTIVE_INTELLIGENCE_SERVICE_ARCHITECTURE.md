@@ -88,6 +88,13 @@ As load, security, or domain ownership demands grow, initial deployables decompo
 - `cognix-intelligence` $\longrightarrow$ `model-service` + `reasoning-service`
 - `cognix-governance` $\longrightarrow$ `contract-service` + `execution-service`
 
+### 4.2 WP10-B Journey Telemetry Foundation Architecture [IMPLEMENTED]
+- **Deployment Decision:** Integrated logically within the Next.js BFF proxy gateway (`app/api/v1/journey/`) under Option A, maintaining strict modular domain boundaries without unnecessary microservice container overhead during initial scale.
+- **API Specification:** OpenAPI 3.1 contract (`docs/openapi/journey-v1.yaml`).
+- **Shared Model & Contracts:** `packages/contracts/src/journey-model.ts` exporting canonical event types, schema validation, and privacy enforcement.
+- **Ingestion & Diagnostic Storage:** In-memory ring buffer store (`lib/journey-store.ts`) with session sequence tracking and idempotency boundaries.
+- **Client Tracking:** Non-blocking async client abstraction (`lib/journey-client.ts`) with automatic session/tenant/persona/domain context enrichment and debounced slider telemetry.
+
 ---
 
 ## 4. Logical Domain Architecture (13 Bounded Contexts)

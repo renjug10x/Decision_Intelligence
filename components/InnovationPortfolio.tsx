@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   FlaskConical, 
   HelpCircle, 
@@ -9,6 +9,7 @@ import {
 } from 'lucide-react';
 import { EXPERIMENT_REGISTRY } from '@/config/experiments';
 import { DEMONSTRATION_SOLUTIONS } from '@/config/solutions';
+import { trackJourneyEvent } from '@/lib/journey-client';
 
 interface InnovationPortfolioProps {
   onSelectExperiment: (experimentId: string) => void;
@@ -22,6 +23,43 @@ export default function InnovationPortfolio({
   onNavigateToCuriosity
 }: InnovationPortfolioProps) {
   const [selectedCategory, setSelectedCategory] = useState<'ALL' | 'EXPERIMENTS' | 'SOLUTIONS'>('ALL');
+
+  useEffect(() => {
+    trackJourneyEvent({
+      event_type: 'PORTFOLIO_OPENED',
+      source: 'InnovationPortfolio.tsx',
+      page: 'portfolio'
+    });
+  }, []);
+
+  const handleExperimentClick = (expId: string) => {
+    trackJourneyEvent({
+      event_type: 'EXPERIMENT_OPENED',
+      experiment_id: expId,
+      source: 'portfolio_grid',
+      page: 'portfolio'
+    });
+    onSelectExperiment(expId);
+  };
+
+  const handleSolutionClick = (solId: string) => {
+    trackJourneyEvent({
+      event_type: 'SOLUTION_OPENED',
+      solution_id: solId,
+      source: 'portfolio_grid',
+      page: 'portfolio'
+    });
+    onSelectSolution(solId);
+  };
+
+  const handleCuriosityClick = () => {
+    trackJourneyEvent({
+      event_type: 'QUESTION_EXPLORED',
+      source: 'featured_curiosity_card',
+      page: 'portfolio'
+    });
+    onNavigateToCuriosity();
+  };
 
   return (
     <div className="page-content animate-fade" style={{ paddingBottom: 48, maxWidth: 1140, margin: '0 auto' }}>
@@ -37,7 +75,7 @@ export default function InnovationPortfolio({
 
         {/* Featured Question Card (CogniX Curiosity Signature) */}
         <div 
-          onClick={onNavigateToCuriosity}
+          onClick={handleCuriosityClick}
           style={{
             background: '#FFFFFF',
             border: '1px solid var(--border)',
@@ -129,7 +167,7 @@ export default function InnovationPortfolio({
             {EXPERIMENT_REGISTRY.map(exp => (
               <div
                 key={exp.id}
-                onClick={() => onSelectExperiment(exp.id)}
+                onClick={() => handleExperimentClick(exp.id)}
                 style={{
                   background: '#FFFFFF',
                   border: '1px solid var(--border)',
@@ -189,7 +227,7 @@ export default function InnovationPortfolio({
             {DEMONSTRATION_SOLUTIONS.map(sol => (
               <div
                 key={sol.id}
-                onClick={() => onSelectSolution(sol.id)}
+                onClick={() => handleSolutionClick(sol.id)}
                 style={{
                   background: '#FFFFFF',
                   border: '1px solid var(--border)',

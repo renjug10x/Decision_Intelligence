@@ -12,6 +12,8 @@ import {
   type SearchTraceItem 
 } from '@/lib/contract-library';
 
+import { trackJourneyEvent } from '@/lib/journey-client';
+
 export interface ContractVerificationProps {
   supplierId?: string;
   category?: string;
@@ -38,6 +40,13 @@ export default function ContractVerification({
     let isMounted = true;
     async function runVerification() {
       setLoading(true);
+      trackJourneyEvent({
+        event_type: 'CONTRACT_CHECK_REQUESTED',
+        source: 'ContractVerification.tsx',
+        page: 'commitment-intelligence',
+        metadata: { supplier_id: supplierId, category, region }
+      });
+
       try {
         const breach = await getBreachContext(supplierId);
         const search = await searchContractLibrary({
@@ -53,6 +62,18 @@ export default function ContractVerification({
           setSearchTrace(search.search_trace);
           setLoading(false);
           if (onVerified) onVerified(search.match);
+
+          trackJourneyEvent({
+            event_type: 'CONTRACT_CHECK_COMPLETED',
+            source: 'ContractVerification.tsx',
+            page: 'commitment-intelligence',
+            metadata: {
+              contract_status: search.match ? 'VERIFIED' : 'BLOCKED',
+              backup_contract_id: search.match?.activated_contract_id || search.match?.primary_contract_id,
+              primary_supplier: supplierId,
+              backup_supplier: search.match?.backup_supplier_name
+            }
+          });
         }
       } catch (err) {
         if (isMounted) setLoading(false);

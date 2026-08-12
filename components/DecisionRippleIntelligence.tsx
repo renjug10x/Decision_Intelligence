@@ -1,11 +1,12 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   ChevronRight,
   Sparkles
 } from 'lucide-react';
 
 import ExecutionBriefing from '@/components/ExecutionBriefing';
+import { trackJourneyEvent, debouncedTrackJourneyEvent } from '@/lib/journey-client';
 
 interface DecisionRippleProps {
   onNavigateToExperiment?: (experimentId: string) => void;
@@ -16,6 +17,53 @@ export default function DecisionRippleIntelligence({ onNavigateToExperiment }: D
   const [budgetBoost, setBudgetBoost] = useState<number>(15);
   const [campaignScope, setCampaignScope] = useState<'national' | 'regional' | 'phased'>('national');
   const [showBriefing, setShowBriefing] = useState<boolean>(false);
+
+  useEffect(() => {
+    trackJourneyEvent({
+      event_type: 'EXPERIMENT_OPENED',
+      experiment_id: 'EXP-RIPPLE-02',
+      source: 'DecisionRippleIntelligence.tsx',
+      page: 'decision-ripple'
+    });
+  }, []);
+
+  const handleBudgetBoostChange = (newVal: number) => {
+    const prevVal = budgetBoost;
+    setBudgetBoost(newVal);
+    debouncedTrackJourneyEvent('ripple_boost', {
+      event_type: 'SCENARIO_CHANGED',
+      experiment_id: 'EXP-RIPPLE-02',
+      source: 'budget_boost_slider',
+      page: 'decision-ripple',
+      previous_state: { budget_boost: prevVal },
+      new_state: { budget_boost: newVal },
+      metadata: { scope: campaignScope }
+    });
+  };
+
+  const handleScopeChange = (newScope: 'national' | 'regional' | 'phased') => {
+    const prevScope = campaignScope;
+    setCampaignScope(newScope);
+    trackJourneyEvent({
+      event_type: 'SCENARIO_REHEARSED',
+      experiment_id: 'EXP-RIPPLE-02',
+      source: 'campaign_scope_select',
+      page: 'decision-ripple',
+      previous_state: { campaign_scope: prevScope },
+      new_state: { campaign_scope: newScope },
+      metadata: { budget_boost: budgetBoost }
+    });
+  };
+
+  const handleOpenBriefing = () => {
+    trackJourneyEvent({
+      event_type: 'EXECUTION_BRIEFING_OPENED',
+      experiment_id: 'EXP-RIPPLE-02',
+      source: 'generate_briefing_button',
+      page: 'decision-ripple'
+    });
+    setShowBriefing(true);
+  };
 
   const scopeMultiplier = campaignScope === 'national' ? 1.0 : campaignScope === 'regional' ? 0.6 : 0.75;
   const directRevenue = Math.round(480000 * (1 + (budgetBoost * 0.012) * scopeMultiplier));
@@ -80,7 +128,7 @@ export default function DecisionRippleIntelligence({ onNavigateToExperiment }: D
           </div>
 
           <button
-            onClick={() => setShowBriefing(true)}
+            onClick={handleOpenBriefing}
             style={{
               padding: '4px 10px',
               borderRadius: 'var(--radius-sm)',

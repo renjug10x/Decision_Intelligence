@@ -8,6 +8,8 @@ import { useApp } from '@/lib/context';
 import { useAuth } from '@/context/AuthContext';
 import { CognixWordmark } from '@/components/CognixWordmark';
 
+import { trackJourneyEvent, resetSessionId } from '@/lib/journey-client';
+
 const ROLE_META: Record<string, { Icon: any; label: string }> = {
   exec:             { Icon: Briefcase, label: 'Innovation Exec'  },
   category_manager: { Icon: Package,   label: 'Category Lead'    },
@@ -24,11 +26,16 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   const { logout } = useAuth();
   const roleMeta = ROLE_META[role] || ROLE_META.exec;
 
+  const handleWordmarkClick = () => {
+    trackJourneyEvent({ event_type: 'PORTFOLIO_OPENED', source: 'wordmark_home', page: currentPage });
+    onNavigate('portfolio');
+  };
+
   return (
     <div className="sidebar" style={{ background: '#F8FAFC', borderRight: '1px solid var(--border)' }}>
       {/* Brand Header */}
       <div className="sidebar-logo" style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)' }}>
-        <CognixWordmark showDescriptor={true} size="md" onClick={() => onNavigate('portfolio')} />
+        <CognixWordmark showDescriptor={true} size="md" onClick={handleWordmarkClick} />
       </div>
 
       {/* Role Indicator */}
@@ -184,7 +191,11 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
           title="Exit current CogniX demo session"
           onClick={() => {
             void (async () => {
-              try { await logout(); } catch {}
+              try {
+                trackJourneyEvent({ event_type: 'SESSION_ENDED', source: 'exit_demo', page: currentPage });
+                resetSessionId();
+                await logout();
+              } catch {}
               setIsAuthenticated(false);
               setPlatformSetupComplete(false);
               if (typeof window !== 'undefined') {

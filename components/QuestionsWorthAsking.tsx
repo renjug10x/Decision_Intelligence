@@ -1,11 +1,12 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   HelpCircle, 
   ChevronRight,
   Box,
   FlaskConical
 } from 'lucide-react';
+import { trackJourneyEvent } from '@/lib/journey-client';
 
 interface CuriosityQuestion {
   id: string;
@@ -48,32 +49,32 @@ const CURIOSITY_QUESTIONS: CuriosityQuestion[] = [
     targetSolutionName: 'Demand & Forecast Intelligence',
     summaryNarrative: 'Boosting promo spend by 15% generates a 1st-order sales surge (+18%), but triggers a 2nd-order DC labor bottleneck (+35% overtime) and a 3rd-order margin compression (-2.2%).',
     evidencePoints: [
-      '1st Order: £480K Gross Revenue Lift',
-      '2nd Order: £32K DC Labor Overtime Expense',
-      '3rd Order: -2.2% Net Margin Compression'
+      '1st-Order Lift: +18% Sales Surge',
+      '2nd-Order DC Bottleneck: +35% Overtime',
+      '3rd-Order Margin Impact: -2.2% Margin Compression'
     ]
   },
   {
     id: 'Q003',
-    question: 'Have we encountered this supplier lead-time constraint in past campaigns?',
-    category: 'Enterprise Memory',
-    whyAsking: 'Historical campaign patterns contain verified flex rules. In Q2 2025 (Campaign 18), flexing secondary supplier SLA Rule #4 resolved the exact same 12% gap.',
+    question: 'Why did the exact same promotion fail in Manchester while succeeding in London?',
+    category: 'Institutional Memory',
+    whyAsking: 'Local store managers applied regional markdowns manually without consulting historical precedent from the Q3 promotion campaign.',
     targetExperimentId: 'EXP-MEMORY-03',
     targetExperimentName: 'Enterprise Memory Foundation',
     targetSolutionId: 'SOL-INV-03',
     targetSolutionName: 'Predictive Inventory Intelligence',
-    summaryNarrative: 'During Campaign 18 in Q2 2025, a similar supplier lead-time drift occurred. Activating Secondary Supplier SLA Flex Rule #4 protected store availability while containing waste variance to 4.8%.',
+    summaryNarrative: 'Manchester store ops lacked regional warehouse lead-time visibility during fresh product launches, causing local stockout events.',
     evidencePoints: [
-      'Historical Pattern Match: 91% Similarity to Campaign 18',
-      'Verified Intervention: Supplier Flex Rule #4',
-      'Historical Result: Store Availability Maintained at 98.4%'
+      'Manchester Stockout: Day 2 of Campaign',
+      'London Stockout Rate: 0%',
+      'Root Cause: DC Lead-Time Variance'
     ]
   },
   {
     id: 'Q004',
-    question: 'Where is the enterprise confident for the wrong reason?',
-    category: 'Opportunity Intelligence',
-    whyAsking: 'POS forecasting confidence is high (92%), but un-monitored packaging lead times threaten supplier dispatch commitments.',
+    question: 'Where is uncaptured margin hiding between high forecast accuracy and actual store sales?',
+    category: 'Opportunity Discovery',
+    whyAsking: 'Demand planners report 92% confidence based on accurate point-of-sale data, but fail to account for supplier packaging lead-time constraints.',
     targetExperimentId: 'EXP-OPPORTUNITY-04',
     targetExperimentName: 'Opportunity Intelligence',
     targetSolutionId: 'SOL-CAT-04',
@@ -96,6 +97,19 @@ export default function QuestionsWorthAsking({
   onSelectSolution
 }: QuestionsWorthAskingProps) {
   const [activeQuestion, setActiveQuestion] = useState<CuriosityQuestion>(CURIOSITY_QUESTIONS[0]);
+
+  useEffect(() => {
+    trackJourneyEvent({
+      event_type: 'QUESTION_EXPLORED',
+      source: 'QuestionsWorthAsking.tsx',
+      page: 'curiosity',
+      metadata: { question_id: activeQuestion.id, category: activeQuestion.category }
+    });
+  }, [activeQuestion]);
+
+  const handleSelectQuestion = (q: CuriosityQuestion) => {
+    setActiveQuestion(q);
+  };
 
   return (
     <div className="page-content animate-fade" style={{ paddingBottom: 48, maxWidth: 1140, margin: '0 auto' }}>
@@ -120,7 +134,7 @@ export default function QuestionsWorthAsking({
             return (
               <div
                 key={q.id}
-                onClick={() => setActiveQuestion(q)}
+                onClick={() => handleSelectQuestion(q)}
                 style={{
                   background: '#FFFFFF',
                   border: isSelected ? '1px solid var(--g10x-orange)' : '1px solid var(--border)',

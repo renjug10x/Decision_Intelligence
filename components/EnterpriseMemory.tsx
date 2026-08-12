@@ -1,5 +1,5 @@
 'use client';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import ExecutionBriefing from '@/components/ExecutionBriefing';
 import { 
   Search, 
@@ -7,6 +7,7 @@ import {
   ArrowRight,
   BookOpen
 } from 'lucide-react';
+import { trackJourneyEvent } from '@/lib/journey-client';
 
 export interface EnterpriseMemoryCase {
   memoryId: string;
@@ -48,15 +49,15 @@ export const ENTERPRISE_MEMORY_CASES: EnterpriseMemoryCase[] = [
     memoryId: 'MEM-2025-Q4-042',
     situation: 'Chilled promo volume surge (+28%) caused 35% warehouse overtime and emergency air freight margin erosion.',
     decision: 'Rebalanced cross-category promotion timing, staggering Chilled and Produce promo start dates by 5 days.',
-    expectedOutcome: 'Smooth RDC throughput peak and eliminate emergency air freight fees.',
-    actualOutcome: 'Overtime expense reduced by £28,000. Net margin compression mitigated from -2.2% to -0.6%.',
-    confidenceScore: 89,
-    interventionExecuted: 'Staggered Category Promo Schedule',
-    businessResult: 'Protected £42,000 in net profit margin across 14 DC hubs.',
-    lessonsLearned: 'Staggering high-velocity categories avoids concurrent labor spikes at RDCs.',
+    expectedOutcome: 'Flatten warehouse throughput spikes while preserving overall campaign gross revenue.',
+    actualOutcome: 'DC overtime reduced by 82%. Emergency freight fees eliminated. Margin compression averted.',
+    confidenceScore: 91,
+    interventionExecuted: 'Staggered Cross-Category Campaign Window',
+    businessResult: 'Saved £42,000 in DC overtime and freight surcharges.',
+    lessonsLearned: 'Staggering fresh categories by 48-72 hours prevents peak labor collisions at regional hubs.',
     provenance: {
       source: 'G10X Innovation Memory Bank',
-      period: 'Q4 2025 (Holiday Surge)',
+      period: 'Q4 2025 (Campaign 42)',
       dataClassification: 'G10X Accelerator',
       isSyntheticDemo: true
     }
@@ -75,6 +76,37 @@ export default function EnterpriseMemory({
   const [selectedCase, setSelectedCase] = useState<EnterpriseMemoryCase>(ENTERPRISE_MEMORY_CASES[0]);
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [showBriefing, setShowBriefing] = useState<boolean>(false);
+
+  useEffect(() => {
+    trackJourneyEvent({
+      event_type: 'EXPERIMENT_OPENED',
+      experiment_id: 'EXP-MEMORY-03',
+      source: 'EnterpriseMemory.tsx',
+      page: 'enterprise-memory'
+    });
+  }, []);
+
+  const handleSelectCase = (c: EnterpriseMemoryCase) => {
+    setSelectedCase(c);
+    trackJourneyEvent({
+      event_type: 'PATTERN_MATCHED',
+      experiment_id: 'EXP-MEMORY-03',
+      source: 'memory_case_card',
+      page: 'enterprise-memory',
+      metadata: { memory_id: c.memoryId, confidence: c.confidenceScore }
+    });
+  };
+
+  const handleOpenBriefing = () => {
+    trackJourneyEvent({
+      event_type: 'EXECUTION_BRIEFING_OPENED',
+      experiment_id: 'EXP-MEMORY-03',
+      source: 'generate_briefing_button',
+      page: 'enterprise-memory',
+      metadata: { memory_id: selectedCase.memoryId }
+    });
+    setShowBriefing(true);
+  };
 
   const filteredCases = ENTERPRISE_MEMORY_CASES.filter(c => 
     c.situation.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -126,7 +158,7 @@ export default function EnterpriseMemory({
             return (
               <div
                 key={c.memoryId}
-                onClick={() => setSelectedCase(c)}
+                onClick={() => handleSelectCase(c)}
                 style={{
                   background: '#FFFFFF',
                   border: isSelected ? '1px solid var(--g10x-orange)' : '1px solid var(--border)',
