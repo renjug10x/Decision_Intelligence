@@ -2,7 +2,6 @@ export const GDPR_CONSENT_KEY = 'di_gdpr_consent';
 
 export type GdprConsent = {
   privacyPolicy: boolean;
-  termsOfService: boolean;
   marketing: boolean;
   analytics: boolean;
   acceptedAt: string;

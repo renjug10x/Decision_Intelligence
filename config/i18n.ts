@@ -60,17 +60,13 @@ export const i18n = {
         prefix: 'I have read and accept the',
         link: 'Privacy Policy',
       },
-      termsOfService: {
-        prefix: 'I have read and accept the',
-        link: 'Terms of Service',
-      },
       marketing:
         'I agree to receive product updates and marketing communications (optional)',
       analytics:
         'I agree to anonymised usage analytics to improve the platform (optional)',
       requiredHint: 'Required to sign in',
       errors: {
-        consentRequired: 'Please accept the Privacy Policy and Terms of Service to continue.',
+        consentRequired: 'Please accept the Privacy Policy to continue.',
       },
     },
     resetPassword: {

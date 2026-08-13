@@ -37,7 +37,6 @@ export default function LoginRoutePage() {
   const [errors, setErrors] = useState({ email: '', password: '', general: '', gdpr: '' });
   const [gdprConsent, setGdprConsent] = useState({
     privacyPolicy: false,
-    termsOfService: false,
     marketing: false,
     analytics: false,
   });
@@ -74,7 +73,7 @@ export default function LoginRoutePage() {
     const newErrors = { email: '', password: '', general: '', gdpr: '' };
     if (!formData.email?.trim()) newErrors.email = i18n.login.errors.emailRequired;
     if (!formData.password?.trim()) newErrors.password = i18n.login.errors.passwordRequired;
-    if (!gdprConsent.privacyPolicy || !gdprConsent.termsOfService) {
+    if (!gdprConsent.privacyPolicy) {
       newErrors.gdpr = i18n.login.gdpr.errors.consentRequired;
     }
     setErrors(newErrors);
@@ -83,12 +82,12 @@ export default function LoginRoutePage() {
 
   const handleGdprChange = (field: keyof typeof gdprConsent, checked: boolean) => {
     setGdprConsent((prev) => ({ ...prev, [field]: checked }));
-    if (errors.gdpr && (field === 'privacyPolicy' || field === 'termsOfService')) {
+    if (errors.gdpr && field === 'privacyPolicy') {
       setErrors((prev) => ({ ...prev, gdpr: '', general: '' }));
     }
   };
 
-  const gdprRequiredMet = gdprConsent.privacyPolicy && gdprConsent.termsOfService;
+  const gdprRequiredMet = gdprConsent.privacyPolicy;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -500,21 +499,6 @@ export default function LoginRoutePage() {
                     {i18n.login.gdpr.privacyPolicy.prefix}{' '}
                     <a href={externalLinks.privacyPolicy} target="_blank" rel="noopener noreferrer">
                       {i18n.login.gdpr.privacyPolicy.link}
-                    </a>
-                  </span>
-                </label>
-
-                <label className="login-gdpr-item">
-                  <input
-                    type="checkbox"
-                    checked={gdprConsent.termsOfService}
-                    onChange={(e) => handleGdprChange('termsOfService', e.target.checked)}
-                    disabled={isLoading || authLoading}
-                  />
-                  <span className="login-gdpr-label">
-                    {i18n.login.gdpr.termsOfService.prefix}{' '}
-                    <a href={externalLinks.termsOfService} target="_blank" rel="noopener noreferrer">
-                      {i18n.login.gdpr.termsOfService.link}
                     </a>
                   </span>
                 </label>
