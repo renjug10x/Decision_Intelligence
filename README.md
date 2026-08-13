@@ -15,7 +15,9 @@ Pipeline: [`.gitlab-ci.yml`](.gitlab-ci.yml) — StoneOS-style stages on branche
 | deploy | Bastion ProxyJump → private EC2 → pull + recreate services |
 | validate | Health check + deployment report artefact |
 
-**Deploy flow:** GitLab runner builds images → pushes to ECR → SSH via bastion (`ProxyJump`) to the private app host → [`ops/ci-deploy-remote.sh`](ops/ci-deploy-remote.sh) pulls and recreates containers using [`docker-compose.ec2.yml`](docker-compose.ec2.yml).
+**Deploy flow:** GitLab runner builds images → pushes to ECR → SSH to bastion → bastion SSH to private app host → [`ops/ci-deploy-remote.sh`](ops/ci-deploy-remote.sh) pulls and recreates containers using [`docker-compose.ec2.yml`](docker-compose.ec2.yml).
+
+The CI key (`PEM_BASE64`) must authorize on the **bastion**. The bastion must already have SSH access to each private app host (standard ALB/private-subnet pattern).
 
 ### Required GitLab CI/CD variables
 

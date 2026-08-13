@@ -62,25 +62,65 @@ variables:
     - export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
     - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
 
+.ssh_relay: &ssh_relay |
+  di_ssh_setup() {
+    mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    echo "$PEM_BASE64" | base64 -d > ~/.ssh/key.pem && chmod 600 ~/.ssh/key.pem
+    EC2IP_CONVERTED=$(echo "$EC2IP" | tr '-' '.')
+    BASTION_HOST_CONVERTED=$(echo "$BASTION_HOST" | tr '-' '.')
+    export DI_EC2IP_CONVERTED="${EC2IP_CONVERTED}"
+    export DI_BASTION_HOST_CONVERTED="${BASTION_HOST_CONVERTED}"
+    export DI_SSH_BASTION="${BASTION_USER}@${BASTION_HOST_CONVERTED}"
+    export DI_SSH_APP="${EC2USER}@${EC2IP_CONVERTED}"
+    ssh-keyscan -H "${BASTION_HOST_CONVERTED}" >> ~/.ssh/known_hosts 2>/dev/null || true
+  }
+
+  di_ssh_bastion() {
+    ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ConnectTimeout=15 "$DI_SSH_BASTION" "$@"
+  }
+
+  di_ssh_app() {
+    local remote_cmd="$*"
+    di_ssh_bastion "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 ${DI_SSH_APP} $(printf '%q' "$remote_cmd")"
+  }
+
+  di_scp_to_app() {
+    local src="$1"
+    local remote_dest="$2"
+    local staging="/tmp/di-relay-$(basename "$src")"
+    scp -i ~/.ssh/key.pem -o StrictHostKeyChecking=no "$src" "${DI_SSH_BASTION}:${staging}"
+    di_ssh_bastion "scp -o StrictHostKeyChecking=no ${staging} ${DI_SSH_APP}:${remote_dest} && rm -f ${staging}"
+  }
+
+  di_scp_from_app() {
+    local remote_src="$1"
+    local local_dest="$2"
+    local staging="/tmp/di-relay-out-$$"
+    di_ssh_bastion "rm -rf ${staging} && mkdir -p ${staging} && scp -o StrictHostKeyChecking=no -r ${DI_SSH_APP}:${remote_src} ${staging}/"
+    scp -i ~/.ssh/key.pem -o StrictHostKeyChecking=no -r "${DI_SSH_BASTION}:${staging}/." "$local_dest"
+    di_ssh_bastion "rm -rf ${staging}" || true
+  }
+
+  di_verify_ssh() {
+    di_ssh_bastion "echo Bastion OK" || {
+      echo "ERROR: Cannot SSH to bastion ${DI_SSH_BASTION}. Check PEM_BASE64, BASTION_USER, BASTION_HOST."
+      exit 1
+    }
+    di_ssh_bastion "ssh-keyscan -H ${DI_EC2IP_CONVERTED} >> ~/.ssh/known_hosts 2>/dev/null || true" || true
+    di_ssh_app "echo App host OK" || {
+      echo "ERROR: Bastion reached but cannot SSH to app ${DI_SSH_APP}."
+      echo "Ensure the bastion has a key authorized on the app host (typical ALB/private-subnet setup)."
+      exit 1
+    }
+  }
+
 .setup-ssh-ecr:
   before_script:
-    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
-    - echo "$PEM_BASE64" | base64 -d > ~/.ssh/key.pem && chmod 600 ~/.ssh/key.pem
-    - export EC2IP_CONVERTED=$(echo "$EC2IP" | tr '-' '.')
-    - export BASTION_HOST_CONVERTED=$(echo "$BASTION_HOST" | tr '-' '.')
-    - export SSH_KEY="-i ~/.ssh/key.pem -o StrictHostKeyChecking=no"
-    - export SSH_JUMP="-J ${BASTION_USER}@${BASTION_HOST_CONVERTED}"
-    - export SSH_TARGET="${EC2USER}@${EC2IP_CONVERTED}"
-    - ssh-keyscan -H "$BASTION_HOST_CONVERTED" >> ~/.ssh/known_hosts || true
-    - |
-      ssh ${SSH_KEY} -o ConnectTimeout=10 "${BASTION_USER}@${BASTION_HOST_CONVERTED}" \
-        "ssh-keyscan -H ${EC2IP_CONVERTED} >> ~/.ssh/known_hosts 2>/dev/null || true" || true
+    - *ssh_relay
+    - di_ssh_setup
     - export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
     - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
-    - |
-      ssh ${SSH_KEY} ${SSH_JUMP} -o ConnectTimeout=10 \
-        "${SSH_TARGET}" "echo Connected to EC2 via bastion successfully" \
-      || (echo "ERROR: Cannot connect to EC2 at ${EC2IP_CONVERTED} via bastion ${BASTION_HOST_CONVERTED}. Check SG/routes/key." && exit 1)
+    - di_verify_ssh
 
 .functions: &functions |
   resolve_local_image() {
@@ -234,55 +274,41 @@ push:
       done
 
 .deploy_script: &deploy_script
+  - *ssh_relay
   - *functions
   - |
     set -e
-    export EC2IP_CONVERTED=$(echo "$EC2IP" | tr '-' '.')
-    export BASTION_HOST_CONVERTED=$(echo "$BASTION_HOST" | tr '-' '.')
+    di_ssh_setup
     export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
     export ECR_PASSWORD=$(aws ecr get-login-password --region $AWS_REGION)
-    export SSH_KEY="-i ~/.ssh/key.pem -o StrictHostKeyChecking=no"
-    export SSH_JUMP="-J ${BASTION_USER}@${BASTION_HOST_CONVERTED}"
-    export SSH_TARGET="${EC2USER}@${EC2IP_CONVERTED}"
 
     {
       echo "DI_NEXTJS_IMAGE=$(ecr_image_for nextjs-app)"
       echo "DI_NGINX_IMAGE=$(ecr_image_for nginx-proxy)"
     } > /tmp/di.env.images
 
-    scp ${SSH_KEY} -o ProxyJump="${BASTION_USER}@${BASTION_HOST_CONVERTED}" \
-      ./docker-compose.ec2.yml "${SSH_TARGET}:/tmp/di-docker-compose.yml"
-    scp ${SSH_KEY} -o ProxyJump="${BASTION_USER}@${BASTION_HOST_CONVERTED}" \
-      /tmp/di.env.images "${SSH_TARGET}:/tmp/di.env.images"
-    scp ${SSH_KEY} -o ProxyJump="${BASTION_USER}@${BASTION_HOST_CONVERTED}" \
-      ./ops/ci-deploy-remote.sh "${SSH_TARGET}:/tmp/di-ci-deploy-remote.sh"
-    scp ${SSH_KEY} -o ProxyJump="${BASTION_USER}@${BASTION_HOST_CONVERTED}" \
-      ./ops/ci-validate-remote.sh "${SSH_TARGET}:/tmp/di-ci-validate-remote.sh"
+    di_scp_to_app ./docker-compose.ec2.yml /tmp/di-docker-compose.yml
+    di_scp_to_app /tmp/di.env.images /tmp/di.env.images
+    di_scp_to_app ./ops/ci-deploy-remote.sh /tmp/di-ci-deploy-remote.sh
+    di_scp_to_app ./ops/ci-validate-remote.sh /tmp/di-ci-validate-remote.sh
 
-    ssh ${SSH_KEY} ${SSH_JUMP} "${SSH_TARGET}" "
-      set -e
-      sudo mkdir -p '${DEPLOY_DIR}' '${DEPLOY_DIR}/deploy-reports'
-      sudo cp /tmp/di-docker-compose.yml '${DEPLOY_DIR}/docker-compose.yml'
-      sudo cp /tmp/di.env.images '${DEPLOY_DIR}/.env.images'
-      sudo cp /tmp/di-ci-deploy-remote.sh '${DEPLOY_DIR}/ci-deploy-remote.sh'
-      sudo cp /tmp/di-ci-validate-remote.sh '${DEPLOY_DIR}/ci-validate-remote.sh'
-      sudo chmod +x '${DEPLOY_DIR}/ci-deploy-remote.sh' '${DEPLOY_DIR}/ci-validate-remote.sh'
-      if [[ ! -f '${DEPLOY_DIR}/.env' ]]; then
-        echo \"WARNING: ${DEPLOY_DIR}/.env is missing — create it with GEMINI_API_KEY before relying on runtime config.\"
-      fi
-      rm -f /tmp/di-docker-compose.yml /tmp/di.env.images \
-            /tmp/di-ci-deploy-remote.sh /tmp/di-ci-validate-remote.sh
-    "
+    di_ssh_app "sudo mkdir -p '${DEPLOY_DIR}' '${DEPLOY_DIR}/deploy-reports' && \
+      sudo cp /tmp/di-docker-compose.yml '${DEPLOY_DIR}/docker-compose.yml' && \
+      sudo cp /tmp/di.env.images '${DEPLOY_DIR}/.env.images' && \
+      sudo cp /tmp/di-ci-deploy-remote.sh '${DEPLOY_DIR}/ci-deploy-remote.sh' && \
+      sudo cp /tmp/di-ci-validate-remote.sh '${DEPLOY_DIR}/ci-validate-remote.sh' && \
+      sudo chmod +x '${DEPLOY_DIR}/ci-deploy-remote.sh' '${DEPLOY_DIR}/ci-validate-remote.sh' && \
+      if [[ ! -f '${DEPLOY_DIR}/.env' ]]; then echo \"WARNING: ${DEPLOY_DIR}/.env is missing — create it with GEMINI_API_KEY before relying on runtime config.\"; fi && \
+      rm -f /tmp/di-docker-compose.yml /tmp/di.env.images /tmp/di-ci-deploy-remote.sh /tmp/di-ci-validate-remote.sh"
 
-    echo "=== DEPLOY ${CI_COMMIT_SHA} → ${EC2IP_CONVERTED} via bastion ${BASTION_HOST_CONVERTED} ==="
-    ssh ${SSH_KEY} ${SSH_JUMP} "${SSH_TARGET}" \
-      "sudo bash '${DEPLOY_DIR}/ci-deploy-remote.sh' \
-        '${DEPLOY_DIR}' \
-        '${ECR_REGISTRY}' \
-        '${ECR_PASSWORD}' \
-        '${HEALTH_CHECK_DELAY}' \
-        '${CI_COMMIT_SHA}' \
-        '${CI_COMMIT_BRANCH}'"
+    echo "=== DEPLOY ${CI_COMMIT_SHA} → ${DI_EC2IP_CONVERTED} via bastion ${DI_BASTION_HOST_CONVERTED} ==="
+    di_ssh_app "sudo bash '${DEPLOY_DIR}/ci-deploy-remote.sh' \
+      '${DEPLOY_DIR}' \
+      '${ECR_REGISTRY}' \
+      '${ECR_PASSWORD}' \
+      '${HEALTH_CHECK_DELAY}' \
+      '${CI_COMMIT_SHA}' \
+      '${CI_COMMIT_BRANCH}'"
     rm -f /tmp/di.env.images
 
 deploy_dev_stage:
@@ -306,13 +332,10 @@ deploy_prod:
     - rm -f ~/.ssh/key.pem /tmp/di.env.images
 
 .validate_script: &validate_script
+  - *ssh_relay
   - |
     set -e
-    export EC2IP_CONVERTED=$(echo "$EC2IP" | tr '-' '.')
-    export BASTION_HOST_CONVERTED=$(echo "$BASTION_HOST" | tr '-' '.')
-    export SSH_KEY="-i ~/.ssh/key.pem -o StrictHostKeyChecking=no"
-    export SSH_JUMP="-J ${BASTION_USER}@${BASTION_HOST_CONVERTED}"
-    export SSH_TARGET="${EC2USER}@${EC2IP_CONVERTED}"
+    di_ssh_setup
     case "${CI_COMMIT_BRANCH}" in
       development) DEFAULT_PUBLIC_URL="${PUBLIC_BASE_URL_DEV:-https://di-dev.glassx.ai}" ;;
       staging)     DEFAULT_PUBLIC_URL="${PUBLIC_BASE_URL_STAGE:-https://di-stage.glassx.ai}" ;;
@@ -322,15 +345,11 @@ deploy_prod:
     PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-${DEFAULT_PUBLIC_URL}}"
 
     echo "=== VALIDATE STAGE for ${CI_COMMIT_SHA} (${PUBLIC_BASE_URL}) ==="
-    ssh ${SSH_KEY} ${SSH_JUMP} "${SSH_TARGET}" \
-      "sudo bash '${DEPLOY_DIR}/ci-validate-remote.sh' '${DEPLOY_DIR}' '${PUBLIC_BASE_URL}'"
+    di_ssh_app "sudo bash '${DEPLOY_DIR}/ci-validate-remote.sh' '${DEPLOY_DIR}' '${PUBLIC_BASE_URL}'"
 
     mkdir -p deploy-reports
-    ssh ${SSH_KEY} ${SSH_JUMP} "${SSH_TARGET}" \
-      "sudo rm -rf /tmp/di-deploy-reports && sudo cp -a '${DEPLOY_DIR}/deploy-reports' /tmp/di-deploy-reports && sudo chown -R ${EC2USER}:${EC2USER} /tmp/di-deploy-reports" \
-      || true
-    scp ${SSH_KEY} -o ProxyJump="${BASTION_USER}@${BASTION_HOST_CONVERTED}" \
-      -r "${SSH_TARGET}:/tmp/di-deploy-reports/." deploy-reports/ || true
+    di_ssh_app "sudo rm -rf /tmp/di-deploy-reports && sudo cp -a '${DEPLOY_DIR}/deploy-reports' /tmp/di-deploy-reports && sudo chown -R ${EC2USER}:${EC2USER} /tmp/di-deploy-reports" || true
+    di_scp_from_app /tmp/di-deploy-reports/. deploy-reports/ || true
     echo "Deployment report retrieved:"
     ls -la deploy-reports || true
     if [[ -f deploy-reports/deployment-report.md ]]; then
