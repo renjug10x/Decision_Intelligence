@@ -13,6 +13,7 @@ variables:
   SONAR_QUALITY_GATE_WAIT: "false"
   SONAR_ENABLED: "true"
   RUNNER_TAG: decision-intelligence
+  BASTION_USER: ubuntu
   COMPOSE_DOCKER_CLI_BUILD: "1"
   DOCKER_BUILDKIT: "1"
   DOCKER_BUILD_NO_CACHE: "true"
@@ -62,65 +63,30 @@ variables:
     - export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
     - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
 
-.ssh_relay: &ssh_relay |
-  di_ssh_setup() {
-    mkdir -p ~/.ssh && chmod 700 ~/.ssh
-    echo "$PEM_BASE64" | base64 -d > ~/.ssh/key.pem && chmod 600 ~/.ssh/key.pem
-    EC2IP_CONVERTED=$(echo "$EC2IP" | tr '-' '.')
-    BASTION_HOST_CONVERTED=$(echo "$BASTION_HOST" | tr '-' '.')
-    export DI_EC2IP_CONVERTED="${EC2IP_CONVERTED}"
-    export DI_BASTION_HOST_CONVERTED="${BASTION_HOST_CONVERTED}"
-    export DI_SSH_BASTION="${BASTION_USER}@${BASTION_HOST_CONVERTED}"
-    export DI_SSH_APP="${EC2USER}@${EC2IP_CONVERTED}"
-    ssh-keyscan -H "${BASTION_HOST_CONVERTED}" >> ~/.ssh/known_hosts 2>/dev/null || true
-  }
-
-  di_ssh_bastion() {
-    ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o ConnectTimeout=15 "$DI_SSH_BASTION" "$@"
-  }
-
-  di_ssh_app() {
-    local remote_cmd="$*"
-    di_ssh_bastion "ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 ${DI_SSH_APP} $(printf '%q' "$remote_cmd")"
-  }
-
-  di_scp_to_app() {
-    local src="$1"
-    local remote_dest="$2"
-    local staging="/tmp/di-relay-$(basename "$src")"
-    scp -i ~/.ssh/key.pem -o StrictHostKeyChecking=no "$src" "${DI_SSH_BASTION}:${staging}"
-    di_ssh_bastion "scp -o StrictHostKeyChecking=no ${staging} ${DI_SSH_APP}:${remote_dest} && rm -f ${staging}"
-  }
-
-  di_scp_from_app() {
-    local remote_src="$1"
-    local local_dest="$2"
-    local staging="/tmp/di-relay-out-$$"
-    di_ssh_bastion "rm -rf ${staging} && mkdir -p ${staging} && scp -o StrictHostKeyChecking=no -r ${DI_SSH_APP}:${remote_src} ${staging}/"
-    scp -i ~/.ssh/key.pem -o StrictHostKeyChecking=no -r "${DI_SSH_BASTION}:${staging}/." "$local_dest"
-    di_ssh_bastion "rm -rf ${staging}" || true
-  }
-
-  di_verify_ssh() {
-    di_ssh_bastion "echo Bastion OK" || {
-      echo "ERROR: Cannot SSH to bastion ${DI_SSH_BASTION}. Check PEM_BASE64, BASTION_USER, BASTION_HOST."
-      exit 1
-    }
-    di_ssh_bastion "ssh-keyscan -H ${DI_EC2IP_CONVERTED} >> ~/.ssh/known_hosts 2>/dev/null || true" || true
-    di_ssh_app "echo App host OK" || {
-      echo "ERROR: Bastion reached but cannot SSH to app ${DI_SSH_APP}."
-      echo "Ensure the bastion has a key authorized on the app host (typical ALB/private-subnet setup)."
-      exit 1
-    }
-  }
-
-.setup-ssh-ecr:
+.setup-bastion-ecr:
   before_script:
-    - *ssh_relay
-    - di_ssh_setup
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - echo "$PEM_BASE64" | base64 -d > ~/.ssh/key.pem && chmod 600 ~/.ssh/key.pem
+    - ssh-keyscan -H $BASTION_HOST >> ~/.ssh/known_hosts || true
+    - export EC2IP_CONVERTED=$(echo "$EC2IP" | tr '-' '.')
     - export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
     - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
-    - di_verify_ssh
+    - scp -i ~/.ssh/key.pem ~/.ssh/key.pem $BASTION_USER@$BASTION_HOST:~/private-key.pem
+    - ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no $BASTION_USER@$BASTION_HOST "chmod 600 ~/private-key.pem"
+    - echo -n "$EC2IP_CONVERTED" > /tmp/target_ip.txt && echo -n "$EC2USER" > /tmp/target_user.txt
+    - scp -i ~/.ssh/key.pem /tmp/target_ip.txt /tmp/target_user.txt $BASTION_USER@$BASTION_HOST:~/
+    - rm -f /tmp/target_ip.txt /tmp/target_user.txt
+    - |
+      ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no $BASTION_USER@$BASTION_HOST \
+        'TARGET_IP=$(cat ~/target_ip.txt | tr -d "\n\r") && TARGET_USER=$(cat ~/target_user.txt | tr -d "\n\r") && \
+         ssh -i ~/private-key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${TARGET_USER}@${TARGET_IP} \
+           "echo Connected to private EC2 successfully"' \
+      || (echo "ERROR: Cannot connect to private EC2. Check SG/routes/ACLs." && exit 1)
+
+.bastion_cleanup:
+  after_script:
+    - ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no $BASTION_USER@$BASTION_HOST "rm -f ~/private-key.pem ~/target_ip.txt ~/target_user.txt" || true
+    - rm -f ~/.ssh/key.pem /tmp/di.env.images
 
 .functions: &functions |
   resolve_local_image() {
@@ -274,11 +240,10 @@ push:
       done
 
 .deploy_script: &deploy_script
-  - *ssh_relay
   - *functions
   - |
     set -e
-    di_ssh_setup
+    export EC2IP_CONVERTED=$(echo "$EC2IP" | tr '-' '.')
     export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
     export ECR_PASSWORD=$(aws ecr get-login-password --region $AWS_REGION)
 
@@ -287,55 +252,61 @@ push:
       echo "DI_NGINX_IMAGE=$(ecr_image_for nginx-proxy)"
     } > /tmp/di.env.images
 
-    di_scp_to_app ./docker-compose.ec2.yml /tmp/di-docker-compose.yml
-    di_scp_to_app /tmp/di.env.images /tmp/di.env.images
-    di_scp_to_app ./ops/ci-deploy-remote.sh /tmp/di-ci-deploy-remote.sh
-    di_scp_to_app ./ops/ci-validate-remote.sh /tmp/di-ci-validate-remote.sh
+    scp -i ~/.ssh/key.pem -o StrictHostKeyChecking=no \
+      ./docker-compose.ec2.yml /tmp/di.env.images ./ops/ci-deploy-remote.sh ./ops/ci-validate-remote.sh \
+      $BASTION_USER@$BASTION_HOST:/tmp/
 
-    di_ssh_app "sudo mkdir -p '${DEPLOY_DIR}' '${DEPLOY_DIR}/deploy-reports' && \
-      sudo cp /tmp/di-docker-compose.yml '${DEPLOY_DIR}/docker-compose.yml' && \
-      sudo cp /tmp/di.env.images '${DEPLOY_DIR}/.env.images' && \
-      sudo cp /tmp/di-ci-deploy-remote.sh '${DEPLOY_DIR}/ci-deploy-remote.sh' && \
-      sudo cp /tmp/di-ci-validate-remote.sh '${DEPLOY_DIR}/ci-validate-remote.sh' && \
-      sudo chmod +x '${DEPLOY_DIR}/ci-deploy-remote.sh' '${DEPLOY_DIR}/ci-validate-remote.sh' && \
-      if [[ ! -f '${DEPLOY_DIR}/.env' ]]; then echo \"WARNING: ${DEPLOY_DIR}/.env is missing — create it with GEMINI_API_KEY before relying on runtime config.\"; fi && \
-      rm -f /tmp/di-docker-compose.yml /tmp/di.env.images /tmp/di-ci-deploy-remote.sh /tmp/di-ci-validate-remote.sh"
-
-    echo "=== DEPLOY ${CI_COMMIT_SHA} → ${DI_EC2IP_CONVERTED} via bastion ${DI_BASTION_HOST_CONVERTED} ==="
-    di_ssh_app "sudo bash '${DEPLOY_DIR}/ci-deploy-remote.sh' \
-      '${DEPLOY_DIR}' \
-      '${ECR_REGISTRY}' \
-      '${ECR_PASSWORD}' \
-      '${HEALTH_CHECK_DELAY}' \
-      '${CI_COMMIT_SHA}' \
-      '${CI_COMMIT_BRANCH}'"
+    echo "=== DEPLOY ${CI_COMMIT_SHA} → ${EC2IP_CONVERTED} via ${BASTION_HOST} ==="
+    ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no $BASTION_USER@$BASTION_HOST "
+      TARGET_IP=\$(cat ~/target_ip.txt | tr -d '\n\r')
+      TARGET_USER=\$(cat ~/target_user.txt | tr -d '\n\r')
+      scp -i ~/private-key.pem -o StrictHostKeyChecking=no \
+        /tmp/docker-compose.ec2.yml /tmp/di.env.images /tmp/ci-deploy-remote.sh /tmp/ci-validate-remote.sh \
+        \${TARGET_USER}@\${TARGET_IP}:/tmp/
+      ssh -i ~/private-key.pem -o StrictHostKeyChecking=no \${TARGET_USER}@\${TARGET_IP} '
+        set -e
+        sudo mkdir -p ${DEPLOY_DIR} ${DEPLOY_DIR}/deploy-reports
+        sudo cp /tmp/docker-compose.ec2.yml ${DEPLOY_DIR}/docker-compose.yml
+        sudo cp /tmp/di.env.images ${DEPLOY_DIR}/.env.images
+        sudo cp /tmp/ci-deploy-remote.sh ${DEPLOY_DIR}/ci-deploy-remote.sh
+        sudo cp /tmp/ci-validate-remote.sh ${DEPLOY_DIR}/ci-validate-remote.sh
+        sudo chmod +x ${DEPLOY_DIR}/ci-deploy-remote.sh ${DEPLOY_DIR}/ci-validate-remote.sh
+        if [[ ! -f ${DEPLOY_DIR}/.env ]]; then
+          echo \"WARNING: ${DEPLOY_DIR}/.env is missing — create it with GEMINI_API_KEY before relying on runtime config.\"
+        fi
+        rm -f /tmp/docker-compose.ec2.yml /tmp/di.env.images /tmp/ci-deploy-remote.sh /tmp/ci-validate-remote.sh
+        sudo bash ${DEPLOY_DIR}/ci-deploy-remote.sh \
+          ${DEPLOY_DIR} \
+          ${ECR_REGISTRY} \
+          ${ECR_PASSWORD} \
+          ${HEALTH_CHECK_DELAY} \
+          ${CI_COMMIT_SHA} \
+          ${CI_COMMIT_BRANCH}
+      '
+      rm -f /tmp/docker-compose.ec2.yml /tmp/di.env.images /tmp/ci-deploy-remote.sh /tmp/ci-validate-remote.sh
+    "
     rm -f /tmp/di.env.images
 
 deploy_dev_stage:
   stage: deploy
   tags:
     - $RUNNER_TAG
-  extends: [.rules_deploy_non_prod, .setup-ssh-ecr]
+  extends: [.rules_deploy_non_prod, .setup-bastion-ecr, .bastion_cleanup]
   resource_group: deploy-$CI_COMMIT_BRANCH-$SERVICE_PREFIX
   script: *deploy_script
-  after_script:
-    - rm -f ~/.ssh/key.pem /tmp/di.env.images
 
 deploy_prod:
   stage: deploy
   tags:
     - $RUNNER_TAG
-  extends: [.rules_deploy_prod, .setup-ssh-ecr]
+  extends: [.rules_deploy_prod, .setup-bastion-ecr, .bastion_cleanup]
   resource_group: deploy-$CI_COMMIT_BRANCH-$SERVICE_PREFIX
   script: *deploy_script
-  after_script:
-    - rm -f ~/.ssh/key.pem /tmp/di.env.images
 
 .validate_script: &validate_script
-  - *ssh_relay
   - |
     set -e
-    di_ssh_setup
+    export EC2IP_CONVERTED=$(echo "$EC2IP" | tr '-' '.')
     case "${CI_COMMIT_BRANCH}" in
       development) DEFAULT_PUBLIC_URL="${PUBLIC_BASE_URL_DEV:-https://di-dev.glassx.ai}" ;;
       staging)     DEFAULT_PUBLIC_URL="${PUBLIC_BASE_URL_STAGE:-https://di-stage.glassx.ai}" ;;
@@ -345,11 +316,17 @@ deploy_prod:
     PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-${DEFAULT_PUBLIC_URL}}"
 
     echo "=== VALIDATE STAGE for ${CI_COMMIT_SHA} (${PUBLIC_BASE_URL}) ==="
-    di_ssh_app "sudo bash '${DEPLOY_DIR}/ci-validate-remote.sh' '${DEPLOY_DIR}' '${PUBLIC_BASE_URL}'"
-
-    mkdir -p deploy-reports
-    di_ssh_app "sudo rm -rf /tmp/di-deploy-reports && sudo cp -a '${DEPLOY_DIR}/deploy-reports' /tmp/di-deploy-reports && sudo chown -R ${EC2USER}:${EC2USER} /tmp/di-deploy-reports" || true
-    di_scp_from_app /tmp/di-deploy-reports/. deploy-reports/ || true
+    ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no $BASTION_USER@$BASTION_HOST "
+      TARGET_IP=\$(cat ~/target_ip.txt | tr -d '\n\r')
+      TARGET_USER=\$(cat ~/target_user.txt | tr -d '\n\r')
+      ssh -i ~/private-key.pem -o StrictHostKeyChecking=no \${TARGET_USER}@\${TARGET_IP} \
+        \"sudo bash ${DEPLOY_DIR}/ci-validate-remote.sh ${DEPLOY_DIR} ${PUBLIC_BASE_URL}\"
+      ssh -i ~/private-key.pem -o StrictHostKeyChecking=no \${TARGET_USER}@\${TARGET_IP} \
+        \"sudo rm -rf /tmp/di-deploy-reports && sudo cp -a ${DEPLOY_DIR}/deploy-reports /tmp/di-deploy-reports && sudo chown -R ${EC2USER}:${EC2USER} /tmp/di-deploy-reports\"
+      scp -i ~/private-key.pem -o StrictHostKeyChecking=no -r \${TARGET_USER}@\${TARGET_IP}:/tmp/di-deploy-reports /tmp/di-deploy-reports
+    "
+    scp -i ~/.ssh/key.pem -o StrictHostKeyChecking=no -r $BASTION_USER@$BASTION_HOST:/tmp/di-deploy-reports/. deploy-reports/ || true
+    ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no $BASTION_USER@$BASTION_HOST "rm -rf /tmp/di-deploy-reports" || true
     echo "Deployment report retrieved:"
     ls -la deploy-reports || true
     if [[ -f deploy-reports/deployment-report.md ]]; then
@@ -360,7 +337,7 @@ validate_dev_stage:
   stage: validate
   tags:
     - $RUNNER_TAG
-  extends: [.rules_deploy_non_prod, .setup-ssh-ecr]
+  extends: [.rules_deploy_non_prod, .setup-bastion-ecr, .bastion_cleanup]
   needs: ["deploy_dev_stage"]
   resource_group: deploy-$CI_COMMIT_BRANCH-$SERVICE_PREFIX
   script: *validate_script
@@ -369,14 +346,12 @@ validate_dev_stage:
     paths:
       - deploy-reports/
     expire_in: 30 days
-  after_script:
-    - rm -f ~/.ssh/key.pem
 
 validate_prod:
   stage: validate
   tags:
     - $RUNNER_TAG
-  extends: [.rules_deploy_prod, .setup-ssh-ecr]
+  extends: [.rules_deploy_prod, .setup-bastion-ecr, .bastion_cleanup]
   needs: ["deploy_prod"]
   resource_group: deploy-$CI_COMMIT_BRANCH-$SERVICE_PREFIX
   script: *validate_script
@@ -385,5 +360,3 @@ validate_prod:
     paths:
       - deploy-reports/
     expire_in: 30 days
-  after_script:
-    - rm -f ~/.ssh/key.pem
