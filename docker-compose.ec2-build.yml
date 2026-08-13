@@ -1,0 +1,7 @@
+services:
+  nginx-proxy:
+    build:
+      context: ./nginx
+      dockerfile: Dockerfile
+      args:
+        NGINX_CONF: nginx.alb.conf

@@ -1,0 +1,363 @@
+stages:
+  - preflight
+  - build
+  - sonar
+  - push
+  - deploy
+  - validate
+
+variables:
+  SERVICE_PREFIX: di
+  DI_SERVICES: "nextjs-app nginx-proxy"
+  HEALTH_CHECK_DELAY: "30"
+  SONAR_QUALITY_GATE_WAIT: "false"
+  SONAR_ENABLED: "true"
+  RUNNER_TAG: decision-intelligence
+  BASTION_USER: ubuntu
+  COMPOSE_DOCKER_CLI_BUILD: "1"
+  DOCKER_BUILDKIT: "1"
+  DOCKER_BUILD_NO_CACHE: "true"
+  ECR_REPO_NAME: obspro-prod
+
+.env_dev: &env_dev
+  ENVIRONMENT: development
+  EC2IP: $EC2IP_DEV
+  IMAGE_TAG_PREFIX: $SERVICE_PREFIX-dev
+
+.env_staging: &env_staging
+  ENVIRONMENT: staging
+  EC2IP: $EC2IP_STAGE
+  IMAGE_TAG_PREFIX: $SERVICE_PREFIX-stage
+
+.env_prod: &env_prod
+  ENVIRONMENT: production
+  EC2IP: $EC2IP_PROD
+  IMAGE_TAG_PREFIX: $SERVICE_PREFIX-prod
+
+.rules_pipeline:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "development"'
+      variables: *env_dev
+    - if: '$CI_COMMIT_BRANCH == "staging"'
+      variables: *env_staging
+    - if: '$CI_COMMIT_BRANCH == "production"'
+      variables: *env_prod
+    - when: never
+
+.rules_deploy_non_prod:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "development"'
+      variables: *env_dev
+    - if: '$CI_COMMIT_BRANCH == "staging"'
+      variables: *env_staging
+    - when: never
+
+.rules_deploy_prod:
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "production"'
+      variables: *env_prod
+    - when: never
+
+.setup-ecr:
+  before_script:
+    - export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+    - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+
+.setup-bastion-ecr:
+  before_script:
+    - mkdir -p ~/.ssh && chmod 700 ~/.ssh
+    - echo "$PEM_BASE64" | base64 -d > ~/.ssh/key.pem && chmod 600 ~/.ssh/key.pem
+    - ssh-keyscan -H $BASTION_HOST >> ~/.ssh/known_hosts || true
+    - export EC2IP_CONVERTED=$(echo "$EC2IP" | tr '-' '.')
+    - export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+    - aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
+    - scp -i ~/.ssh/key.pem ~/.ssh/key.pem $BASTION_USER@$BASTION_HOST:~/private-key.pem
+    - ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no $BASTION_USER@$BASTION_HOST "chmod 600 ~/private-key.pem"
+    - echo -n "$EC2IP_CONVERTED" > /tmp/target_ip.txt && echo -n "$EC2USER" > /tmp/target_user.txt
+    - scp -i ~/.ssh/key.pem /tmp/target_ip.txt /tmp/target_user.txt $BASTION_USER@$BASTION_HOST:~/
+    - rm -f /tmp/target_ip.txt /tmp/target_user.txt
+    - |
+      ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no $BASTION_USER@$BASTION_HOST \
+        'TARGET_IP=$(cat ~/target_ip.txt | tr -d "\n\r") && TARGET_USER=$(cat ~/target_user.txt | tr -d "\n\r") && \
+         ssh -i ~/private-key.pem -o StrictHostKeyChecking=no -o ConnectTimeout=10 ${TARGET_USER}@${TARGET_IP} \
+           "echo Connected to private EC2 successfully"' \
+      || (echo "ERROR: Cannot connect to private EC2. Check SG/routes/ACLs." && exit 1)
+
+.bastion_cleanup:
+  after_script:
+    - ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no $BASTION_USER@$BASTION_HOST "rm -f ~/private-key.pem ~/target_ip.txt ~/target_user.txt" || true
+    - rm -f ~/.ssh/key.pem /tmp/di.env.images
+
+.functions: &functions |
+  resolve_local_image() {
+    local svc="$1"
+    local candidates=(
+      "${SERVICE_PREFIX}-${svc}"
+      "${SERVICE_PREFIX}_${svc}"
+      "${SERVICE_PREFIX}-${svc}:latest"
+      "${SERVICE_PREFIX}_${svc}:latest"
+    )
+    local c
+    for c in "${candidates[@]}"; do
+      if docker image inspect "$c" >/dev/null 2>&1; then
+        echo "$c"
+        return 0
+      fi
+    done
+    echo "ERROR: Could not locate built image for service '${svc}'" >&2
+    docker images
+    return 1
+  }
+
+  ecr_image_for() {
+    local svc="$1"
+    echo "${ECR_REGISTRY}/${ECR_REPO_NAME}:${IMAGE_TAG_PREFIX}-${svc}-${CI_COMMIT_SHORT_SHA}"
+  }
+
+preflight:
+  stage: preflight
+  tags:
+    - $RUNNER_TAG
+  extends: [.rules_pipeline]
+  script:
+    - |
+      set -e
+      mkdir -p deploy-reports
+      echo "=== Pre-deploy working tree validation ==="
+      git status
+      git branch --show-current || true
+      git rev-parse HEAD
+      git log -1 --oneline
+
+      HEAD_SHA=$(git rev-parse HEAD)
+      CURRENT_BRANCH=$(git branch --show-current || true)
+      echo "Pipeline branch: ${CI_COMMIT_BRANCH}"
+      echo "Checkout branch: ${CURRENT_BRANCH:-"(detached HEAD — normal in GitLab CI)"}"
+      echo "Commit SHA:      ${CI_COMMIT_SHA}"
+      echo "Short SHA:       ${CI_COMMIT_SHORT_SHA}"
+      echo "HEAD SHA:        ${HEAD_SHA}"
+
+      if [[ -n "$(git status --porcelain)" ]]; then
+        echo "ERROR: Working tree is not clean. Refuse to deploy a dirty checkout."
+        git status --short
+        exit 1
+      fi
+
+      if [[ -z "${CI_COMMIT_BRANCH}" ]]; then
+        echo "ERROR: CI_COMMIT_BRANCH is empty — refusing to deploy an unknown ref."
+        exit 1
+      fi
+      if [[ "${HEAD_SHA}" != "${CI_COMMIT_SHA}" ]]; then
+        echo "ERROR: HEAD (${HEAD_SHA}) != CI_COMMIT_SHA (${CI_COMMIT_SHA})."
+        exit 1
+      fi
+      if [[ -n "${CURRENT_BRANCH}" && "${CURRENT_BRANCH}" != "${CI_COMMIT_BRANCH}" ]]; then
+        echo "ERROR: Named checkout branch (${CURRENT_BRANCH}) != pipeline branch (${CI_COMMIT_BRANCH})."
+        exit 1
+      fi
+
+      {
+        echo "COMMIT_SHA=${CI_COMMIT_SHA}"
+        echo "COMMIT_SHORT_SHA=${CI_COMMIT_SHORT_SHA}"
+        echo "COMMIT_BRANCH=${CI_COMMIT_BRANCH}"
+        echo "ENVIRONMENT=${ENVIRONMENT}"
+        echo "VALIDATE_TIME_UTC=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+        echo "CHECKOUT_MODE=${CURRENT_BRANCH:-detached}"
+      } > deploy-reports/preflight.env
+      git log -1 --format=fuller > deploy-reports/git-log-1.txt
+      git status > deploy-reports/git-status.txt
+      echo "Preflight OK — deploy SHA ${CI_COMMIT_SHA} on branch ${CI_COMMIT_BRANCH}."
+  artifacts:
+    when: always
+    paths:
+      - deploy-reports/
+    expire_in: 30 days
+
+build:
+  stage: build
+  tags:
+    - $RUNNER_TAG
+  extends: [.rules_pipeline, .setup-ecr]
+  script:
+    - *functions
+    - |
+      set -e
+      export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+      export AUTH_API_URL="${AUTH_API_URL:-https://probx-be.glassx.ai/identity}"
+      echo "=== BUILD revision ${CI_COMMIT_SHA} → ${ECR_REPO_NAME} (${IMAGE_TAG_PREFIX}) ==="
+
+      if docker compose version >/dev/null 2>&1; then
+        COMPOSE="docker compose"
+      elif command -v docker-compose >/dev/null 2>&1; then
+        COMPOSE="docker-compose"
+      else
+        echo "ERROR: docker compose not available on runner"
+        exit 1
+      fi
+
+      BUILD_FLAGS=""
+      if [[ "${DOCKER_BUILD_NO_CACHE}" == "true" || "${DOCKER_BUILD_NO_CACHE}" == "1" ]]; then
+        BUILD_FLAGS="--no-cache"
+        echo "Building with --no-cache (fresh artefacts from this revision)."
+      fi
+
+      $COMPOSE -p "${SERVICE_PREFIX}" -f docker-compose.yml -f docker-compose.ec2-build.yml build ${BUILD_FLAGS} ${DI_SERVICES}
+
+      for svc in ${DI_SERVICES}; do
+        LOCAL_IMAGE=$(resolve_local_image "$svc")
+        ECR_IMAGE=$(ecr_image_for "$svc")
+        echo "  $LOCAL_IMAGE → $ECR_IMAGE"
+        docker tag "$LOCAL_IMAGE" "$ECR_IMAGE"
+      done
+      echo "Build complete for ${CI_COMMIT_SHA}."
+
+sonar_scan:
+  stage: sonar
+  allow_failure: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "development" && $SONAR_ENABLED == "true"'
+  trigger:
+    include:
+      - project: "Development/devops/sonar-ci-template"
+        ref: "v1"
+        file: "v1/be-sonar.yml"
+    strategy: depend
+
+push:
+  stage: push
+  tags:
+    - $RUNNER_TAG
+  extends: [.rules_pipeline, .setup-ecr]
+  script:
+    - *functions
+    - |
+      set -e
+      export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+      echo "=== PUSH revision ${CI_COMMIT_SHORT_SHA} ==="
+      for svc in ${DI_SERVICES}; do
+        ECR_IMAGE=$(ecr_image_for "$svc")
+        echo "Pushing $ECR_IMAGE"
+        docker push "$ECR_IMAGE"
+      done
+
+.deploy_script: &deploy_script
+  - *functions
+  - |
+    set -e
+    export EC2IP_CONVERTED=$(echo "$EC2IP" | tr '-' '.')
+    export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+    export ECR_PASSWORD=$(aws ecr get-login-password --region $AWS_REGION)
+
+    {
+      echo "DI_NEXTJS_IMAGE=$(ecr_image_for nextjs-app)"
+      echo "DI_NGINX_IMAGE=$(ecr_image_for nginx-proxy)"
+    } > /tmp/di.env.images
+
+    scp -i ~/.ssh/key.pem -o StrictHostKeyChecking=no \
+      ./docker-compose.ec2.yml /tmp/di.env.images ./ops/ci-deploy-remote.sh ./ops/ci-validate-remote.sh \
+      $BASTION_USER@$BASTION_HOST:/tmp/
+
+    echo "=== DEPLOY ${CI_COMMIT_SHA} → ${EC2IP_CONVERTED} via ${BASTION_HOST} ==="
+    ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no $BASTION_USER@$BASTION_HOST "
+      TARGET_IP=\$(cat ~/target_ip.txt | tr -d '\n\r')
+      TARGET_USER=\$(cat ~/target_user.txt | tr -d '\n\r')
+      scp -i ~/private-key.pem -o StrictHostKeyChecking=no \
+        /tmp/docker-compose.ec2.yml /tmp/di.env.images /tmp/ci-deploy-remote.sh /tmp/ci-validate-remote.sh \
+        \${TARGET_USER}@\${TARGET_IP}:/tmp/
+      ssh -i ~/private-key.pem -o StrictHostKeyChecking=no \${TARGET_USER}@\${TARGET_IP} '
+        set -e
+        sudo mkdir -p ${DEPLOY_DIR} ${DEPLOY_DIR}/deploy-reports
+        sudo cp /tmp/docker-compose.ec2.yml ${DEPLOY_DIR}/docker-compose.yml
+        sudo cp /tmp/di.env.images ${DEPLOY_DIR}/.env.images
+        sudo cp /tmp/ci-deploy-remote.sh ${DEPLOY_DIR}/ci-deploy-remote.sh
+        sudo cp /tmp/ci-validate-remote.sh ${DEPLOY_DIR}/ci-validate-remote.sh
+        sudo chmod +x ${DEPLOY_DIR}/ci-deploy-remote.sh ${DEPLOY_DIR}/ci-validate-remote.sh
+        if [[ ! -f ${DEPLOY_DIR}/.env ]]; then
+          echo \"WARNING: ${DEPLOY_DIR}/.env is missing — create it with AUTH_API_URL (GEMINI key is entered in the app UI).\"
+        fi
+        rm -f /tmp/docker-compose.ec2.yml /tmp/di.env.images /tmp/ci-deploy-remote.sh /tmp/ci-validate-remote.sh
+        sudo bash ${DEPLOY_DIR}/ci-deploy-remote.sh \
+          ${DEPLOY_DIR} \
+          ${ECR_REGISTRY} \
+          ${ECR_PASSWORD} \
+          ${HEALTH_CHECK_DELAY} \
+          ${CI_COMMIT_SHA} \
+          ${CI_COMMIT_BRANCH}
+      '
+      rm -f /tmp/docker-compose.ec2.yml /tmp/di.env.images /tmp/ci-deploy-remote.sh /tmp/ci-validate-remote.sh
+    "
+    rm -f /tmp/di.env.images
+
+deploy_dev_stage:
+  stage: deploy
+  tags:
+    - $RUNNER_TAG
+  extends: [.rules_deploy_non_prod, .setup-bastion-ecr, .bastion_cleanup]
+  resource_group: deploy-$CI_COMMIT_BRANCH-$SERVICE_PREFIX
+  script: *deploy_script
+
+deploy_prod:
+  stage: deploy
+  tags:
+    - $RUNNER_TAG
+  extends: [.rules_deploy_prod, .setup-bastion-ecr, .bastion_cleanup]
+  resource_group: deploy-$CI_COMMIT_BRANCH-$SERVICE_PREFIX
+  script: *deploy_script
+
+.validate_script: &validate_script
+  - |
+    set -e
+    export EC2IP_CONVERTED=$(echo "$EC2IP" | tr '-' '.')
+    case "${CI_COMMIT_BRANCH}" in
+      development) DEFAULT_PUBLIC_URL="${PUBLIC_BASE_URL_DEV:-https://di-dev.glassx.ai}" ;;
+      staging)     DEFAULT_PUBLIC_URL="${PUBLIC_BASE_URL_STAGE:-https://di-stage.glassx.ai}" ;;
+      production)  DEFAULT_PUBLIC_URL="${PUBLIC_BASE_URL_PROD:-https://di.glassx.ai}" ;;
+      *)           DEFAULT_PUBLIC_URL="https://di.glassx.ai" ;;
+    esac
+    PUBLIC_BASE_URL="${PUBLIC_BASE_URL:-${DEFAULT_PUBLIC_URL}}"
+
+    echo "=== VALIDATE STAGE for ${CI_COMMIT_SHA} (${PUBLIC_BASE_URL}) ==="
+    ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no $BASTION_USER@$BASTION_HOST "
+      TARGET_IP=\$(cat ~/target_ip.txt | tr -d '\n\r')
+      TARGET_USER=\$(cat ~/target_user.txt | tr -d '\n\r')
+      ssh -i ~/private-key.pem -o StrictHostKeyChecking=no \${TARGET_USER}@\${TARGET_IP} \
+        \"sudo bash ${DEPLOY_DIR}/ci-validate-remote.sh ${DEPLOY_DIR} ${PUBLIC_BASE_URL}\"
+      ssh -i ~/private-key.pem -o StrictHostKeyChecking=no \${TARGET_USER}@\${TARGET_IP} \
+        \"sudo rm -rf /tmp/di-deploy-reports && sudo cp -a ${DEPLOY_DIR}/deploy-reports /tmp/di-deploy-reports && sudo chown -R ${EC2USER}:${EC2USER} /tmp/di-deploy-reports\"
+      scp -i ~/private-key.pem -o StrictHostKeyChecking=no -r \${TARGET_USER}@\${TARGET_IP}:/tmp/di-deploy-reports /tmp/di-deploy-reports
+    "
+    scp -i ~/.ssh/key.pem -o StrictHostKeyChecking=no -r $BASTION_USER@$BASTION_HOST:/tmp/di-deploy-reports/. deploy-reports/ || true
+    ssh -i ~/.ssh/key.pem -o StrictHostKeyChecking=no $BASTION_USER@$BASTION_HOST "rm -rf /tmp/di-deploy-reports" || true
+    echo "Deployment report retrieved:"
+    ls -la deploy-reports || true
+    if [[ -f deploy-reports/deployment-report.md ]]; then
+      cat deploy-reports/deployment-report.md
+    fi
+
+validate_dev_stage:
+  stage: validate
+  tags:
+    - $RUNNER_TAG
+  extends: [.rules_deploy_non_prod, .setup-bastion-ecr, .bastion_cleanup]
+  needs: ["deploy_dev_stage"]
+  resource_group: deploy-$CI_COMMIT_BRANCH-$SERVICE_PREFIX
+  script: *validate_script
+  artifacts:
+    when: always
+    paths:
+      - deploy-reports/
+    expire_in: 30 days
+
+validate_prod:
+  stage: validate
+  tags:
+    - $RUNNER_TAG
+  extends: [.rules_deploy_prod, .setup-bastion-ecr, .bastion_cleanup]
+  needs: ["deploy_prod"]
+  resource_group: deploy-$CI_COMMIT_BRANCH-$SERVICE_PREFIX
+  script: *validate_script
+  artifacts:
+    when: always
+    paths:
+      - deploy-reports/
+    expire_in: 30 days
