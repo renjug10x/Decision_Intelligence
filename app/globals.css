@@ -824,7 +824,7 @@ code, pre {
   border-radius: var(--radius-xl);
   padding: 48px 40px;
   width: 100%;
-  max-width: 440px;
+  max-width: 480px;
   box-shadow: var(--shadow-lg);
   animation: scaleIn 0.4s ease;
 }
@@ -886,6 +886,60 @@ code, pre {
 .login-link-btn:disabled {
   opacity: 0.5;
   cursor: not-allowed;
+}
+
+.login-gdpr {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+}
+
+.login-gdpr-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 2px;
+}
+
+.login-gdpr-hint {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  margin: 0 0 4px;
+}
+
+.login-gdpr-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+
+.login-gdpr-item input[type='checkbox'] {
+  accent-color: var(--accent);
+  width: 14px;
+  height: 14px;
+  margin-top: 2px;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.login-gdpr-label {
+  font-size: 0.75rem;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.login-gdpr-label a {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+.login-gdpr-label a:hover {
+  color: var(--accent-hover, var(--accent));
 }
 
 .login-password-reqs {

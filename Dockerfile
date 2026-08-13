@@ -2,6 +2,9 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
+ARG AUTH_API_URL=
+ENV AUTH_API_URL=$AUTH_API_URL
+
 # Install dependencies first for layer caching
 COPY package*.json ./
 RUN npm ci
