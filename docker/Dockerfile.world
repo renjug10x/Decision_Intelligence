@@ -1,0 +1,24 @@
+# CogniX World Domain Service Dockerfile
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+COPY packages/contracts/package*.json ./packages/contracts/
+COPY services/world/package*.json ./services/world/
+RUN npm ci
+COPY . .
+RUN npx tsc --project packages/contracts/tsconfig.json
+RUN npx tsc --project services/world/tsconfig.json
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=8081
+
+COPY --from=builder /app/packages/contracts/dist ./packages/contracts/dist
+COPY --from=builder /app/packages/contracts/src ./packages/contracts/src
+COPY --from=builder /app/services/world/dist ./services/world/dist
+COPY --from=builder /app/services/world/package.json ./services/world/package.json
+COPY --from=builder /app/node_modules ./node_modules
+
+EXPOSE 8081
+CMD ["node", "services/world/dist/services/world/src/server.js"]

@@ -1,5 +1,6 @@
 'use client';
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { env } from '@/config/environment';
 
 export type Role = 'exec' | 'category_manager' | 'store_manager';
 
@@ -67,7 +68,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [userAttributeStoreScope, setUserAttributeStoreScope] = useState<string>('All');
   const [userAttributeCategoryScope, setUserAttributeCategoryScope] = useState<string>('All');
   const [demoMode, setDemoMode] = useState<boolean>(false);
-  const [platformSetupComplete, setPlatformSetupCompleteState] = useState<boolean>(false);
+  const [platformSetupComplete, setPlatformSetupCompleteState] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = sessionStorage.getItem('di_session');
+      if (saved) {
+        try {
+          const s = JSON.parse(saved);
+          if (s.platformSetupComplete !== undefined) return s.platformSetupComplete;
+        } catch {}
+      }
+    }
+    return env.IS_DEMO_MODE ? true : false;
+  });
 
   // Persist to sessionStorage
   useEffect(() => {

@@ -11,6 +11,7 @@ import { getAuthApiService, createAuthService } from '@/services';
 import type { LoginCredentials, OTPValidation } from '@/types/auth';
 import { i18n, replacePlaceholders } from '@/config/i18n';
 import { appRoutes, externalLinks } from '@/config/routes';
+import { env } from '@/config/environment';
 import { safeFocusElement } from '@/utils/domUtils';
 import { saveGdprConsent } from '@/utils/gdprConsent';
 
@@ -54,13 +55,10 @@ export default function LoginRoutePage() {
   const [isForgotPasswordLoading, setIsForgotPasswordLoading] = useState(false);
 
   useEffect(() => {
-    if (!isAuthenticated || authLoading) return;
-    if (platformSetupComplete) {
+    if (env.IS_DEMO_MODE || (isAuthenticated && !authLoading)) {
       router.replace(appRoutes.home);
-    } else {
-      router.replace(appRoutes.platformSetup);
     }
-  }, [isAuthenticated, authLoading, platformSetupComplete, router]);
+  }, [isAuthenticated, authLoading, router]);
 
   const handleInputChange = (field: keyof LoginCredentials, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }));

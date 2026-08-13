@@ -2,7 +2,7 @@
 
 export const i18n = {
   common: {
-    appName: 'Decision Intelligence',
+    appName: 'CogniX',
     labels: {
       email: 'Email',
       password: 'Password',

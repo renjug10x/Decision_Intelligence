@@ -1,0 +1,137 @@
+openapi: 3.1.0
+info:
+  title: CogniX Enterprise World Service API
+  description: OpenAPI specification for CogniX Enterprise World Domain Service (T-90 to T+30 temporal scenario data).
+  version: 1.0.0
+servers:
+  - url: /api/v1
+    description: Primary API Gateway
+paths:
+  /scenarios:
+    get:
+      summary: Retrieve temporal enterprise scenarios
+      operationId: getEnterpriseScenarios
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+            default: tenant_uk_retail_01
+        - name: family_id
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [promotion_surge, weather_demand, supplier_breach, fresh_perishable_waste, dc_overtime, regional_imbalance]
+        - name: temporal_range
+          in: query
+          required: false
+          schema:
+            type: string
+            default: T-90_to_T+30
+      responses:
+        '200':
+          description: Successful scenario retrieval
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  tenant_id:
+                    type: string
+                    example: tenant_uk_retail_01
+                  timestamp:
+                    type: string
+                    format: date-time
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EnterpriseWorldScenario'
+  /health:
+    get:
+      summary: Service health check
+      operationId: getHealthStatus
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [live, ready]
+            default: live
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                    example: cognix-world
+                  uptime_seconds:
+                    type: number
+
+components:
+  schemas:
+    EnterpriseWorldScenario:
+      type: object
+      required:
+        - scenarioId
+        - familyId
+        - title
+        - tenantId
+        - temporalData
+      properties:
+        scenarioId:
+          type: string
+          example: SCN-PROMO-01
+        familyId:
+          type: string
+          example: promotion_surge
+        title:
+          type: string
+          example: Regional Promotion Surge & Supplier Headroom Mismatch
+        tenantId:
+          type: string
+          example: tenant_uk_retail_01
+        temporalData:
+          type: array
+          items:
+            $ref: '#/components/schemas/TemporalDataPoint'
+        baselineMetrics:
+          type: object
+          properties:
+            weeklyDemandUnits:
+              type: number
+            supplierCapacityUnits:
+              type: number
+            onTimeDeliveryPct:
+              type: number
+            wasteRatePct:
+              type: number
+    TemporalDataPoint:
+      type: object
+      required:
+        - period
+        - demandUnits
+        - capacityUnits
+        - wastePct
+      properties:
+        period:
+          type: string
+          enum: [T-90, T-30, T-7, Today, T+7, T+30]
+        demandUnits:
+          type: number
+        capacityUnits:
+          type: number
+        wastePct:
+          type: number

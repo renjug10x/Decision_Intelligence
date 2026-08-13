@@ -1,0 +1,14 @@
+{
+  "name": "@cognix/enterprise-world-contracts",
+  "version": "1.0.0",
+  "description": "Shared contracts and canonical Enterprise World seed generator for CogniX",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "typescript": "^5.0.0"
+  }
+}

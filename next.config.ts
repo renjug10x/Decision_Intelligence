@@ -1,6 +1,7 @@
 import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
+  output: 'standalone',
   // Expose AUTH_API_URL to the client bundle (used by auth Axios client).
   env: {
     AUTH_API_URL: process.env.AUTH_API_URL ?? '',

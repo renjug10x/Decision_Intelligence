@@ -1,108 +1,60 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Construction, Calendar, FlaskConical, Bell, Lock, Zap } from 'lucide-react';
+import { Bell } from 'lucide-react';
 import { useApp } from '@/lib/context';
 import { useAuth } from '@/context/AuthContext';
-import { appRoutes, externalLinks } from '@/config/routes';
+import { appRoutes } from '@/config/routes';
 import Sidebar from '@/components/Sidebar';
-import TodayPriorities from '@/components/TodayPriorities';
-import StoreCopilot from '@/components/StoreCopilot';
+import InnovationPortfolio from '@/components/InnovationPortfolio';
+import QuestionsWorthAsking from '@/components/QuestionsWorthAsking';
+import ExperimentCanvas from '@/components/ExperimentCanvas';
 import CategoryIntelligence from '@/components/CategoryIntelligence';
-import SupplyChainRadar from '@/components/SupplyChainRadar';
 import PromotionPlanner from '@/components/PromotionPlanner';
 import Forecasting from '@/components/Forecasting';
 import Settings from '@/components/Settings';
-import BriefingCentre from '@/components/BriefingCentre';
-import WasteIntelligence from '@/components/WasteIntelligence';
 import AvailabilityIntelligence from '@/components/AvailabilityIntelligence';
 import Help from '@/components/Help';
-import { G10XLogo } from '@/components/G10XLogo';
-
-const PAGE_TITLES: Record<string, string> = {
-  dashboard:        "Today's Priorities",
-  briefing:         'Executive Briefing',
-  'store-copilot':  'Store Ops Copilot',
-  category:         'Category Intelligence',
-  'supply-chain':   'Supply Chain Radar',
-  waste:            'Waste Intelligence',
-  availability:     'Availability Intelligence',
-  promotions:       'Promotion Planner',
-  forecasting:      'Forecasting',
-  settings:         'Governance',
-  help:             'Help & Platform Architecture',
-};
-
-const NOTIFICATIONS_DATA = [
-  {
-    id: 'N001',
-    title: 'Ready Meal Deliveries Delayed',
-    desc: 'Piccadilly ready meals OOS risk. Click to view in Command Centre.',
-    severity: 'high',
-    targetPage: 'dashboard',
-    categoryFilter: 'Chilled',
-    storeFilter: 'S001',
-    read: false
-  },
-  {
-    id: 'N002',
-    title: 'FreshDirect Delivery Failures',
-    desc: '61% of Produce deliveries delayed/cancelled. Click to view Supply Chain Radar.',
-    severity: 'high',
-    targetPage: 'supply-chain',
-    categoryFilter: 'Produce',
-    read: false
-  },
-  {
-    id: 'N003',
-    title: 'Dairy Margin Compression NW',
-    desc: 'Dairy margin compressed to 26.9% in the NW. Click to view Category Intelligence.',
-    severity: 'medium',
-    targetPage: 'category',
-    categoryFilter: 'Dairy',
-    storeFilter: 'S001',
-    read: false
-  },
-  {
-    id: 'N004',
-    title: 'Produce Spoilage Risk',
-    desc: 'Waste units spiked +24% WoW. Click to view Forecasting.',
-    severity: 'medium',
-    targetPage: 'forecasting',
-    categoryFilter: 'Produce',
-    read: false
-  }
-];
-
-function PlaceholderScreen({ title }: { title: string }) {
-  return (
-    <div className="page-content">
-      <div className="empty-state" style={{ minHeight: '60vh' }}>
-        <Construction size={48} strokeWidth={1.25} color="#4A5A7A" style={{ opacity: 0.6 }} />
-        <h3 style={{ marginTop: 16 }}>{title}</h3>
-        <p>Coming in the next sprint. Explore the five live modules first.</p>
-      </div>
-    </div>
-  );
-}
+import CommitmentIntelligence from '@/components/CommitmentIntelligence';
+import DecisionRippleIntelligence from '@/components/DecisionRippleIntelligence';
+import EnterpriseMemory from '@/components/EnterpriseMemory';
+import OpportunityIntelligence from '@/components/OpportunityIntelligence';
+import { EXPERIMENT_REGISTRY } from '@/config/experiments';
+import { env } from '@/config/environment';
+import { DOMAIN_CATALOGUE, getDomainById, DEFAULT_DOMAIN_ID } from '@/config/domains';
+import { PERSONA_CATALOGUE, getPersonaById } from '@/config/personas';
+import ShellToast, { ToastMessage } from '@/components/ShellToast';
+import { trackJourneyEvent, updateTelemetryContext } from '@/lib/journey-client';
 
 export default function App() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
-  const { role, setRole, muteNotificationNoise, demoMode, setDemoMode, platformSetupComplete } = useApp();
-  const [currentPage, setCurrentPage] = useState('dashboard');
-  const [notifications, setNotifications] = useState<any[]>(NOTIFICATIONS_DATA);
-  const [showNotifications, setShowNotifications] = useState(false);
+  const { role, setRole, platformSetupComplete } = useApp();
+  
+  const [currentPage, setCurrentPage] = useState<string>('portfolio');
+  const [selectedExperimentId, setSelectedExperimentId] = useState<string>('EXP-COMMITMENT-01');
+  const [activeDomainId, setActiveDomainId] = useState<string>(DEFAULT_DOMAIN_ID);
+  const [toast, setToast] = useState<ToastMessage | null>(null);
+
+  // Telemetry Session Start
+  useEffect(() => {
+    trackJourneyEvent({
+      event_type: 'SESSION_STARTED',
+      source: 'app_init',
+      page: 'portfolio',
+      metadata: { environment: 'demo_lab' }
+    });
+  }, []);
 
   useEffect(() => {
-    if (!authLoading && !user) {
+    if (!authLoading && !user && !env.IS_DEMO_MODE) {
       router.replace(appRoutes.login);
     }
   }, [authLoading, user, router]);
 
   useEffect(() => {
-    if (authLoading || !user) return;
-    if (!platformSetupComplete) {
+    if (authLoading || (!user && !env.IS_DEMO_MODE)) return;
+    if (!platformSetupComplete && !env.IS_DEMO_MODE) {
       router.replace(appRoutes.platformSetup);
     }
   }, [authLoading, user, platformSetupComplete, router]);
@@ -111,278 +63,252 @@ export default function App() {
     return (
       <div className="login-bg">
         <div className="login-card" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-          Loading…
+          Loading CogniX Lab…
         </div>
       </div>
     );
   }
 
-  if (!user) {
+  if (!env.IS_DEMO_MODE && (!user || !platformSetupComplete)) {
     return null;
   }
 
-  if (!platformSetupComplete) {
-    return (
-      <div className="login-bg">
-        <div className="login-card" style={{ textAlign: 'center', color: 'var(--text-muted)' }}>
-          Loading…
-        </div>
-      </div>
-    );
-  }
+  const selectedExperiment = EXPERIMENT_REGISTRY.find(e => e.id === selectedExperimentId) || EXPERIMENT_REGISTRY[0];
 
-  const renderPage = () => {
-    switch (currentPage) {
-      case 'dashboard':      return <TodayPriorities />;
-      case 'briefing':       return <BriefingCentre />;
-      case 'store-copilot':  return <StoreCopilot />;
-      case 'category':       return <CategoryIntelligence />;
-      case 'supply-chain':   return <SupplyChainRadar />;
-      case 'waste':          return <WasteIntelligence />;
-      case 'availability':   return <AvailabilityIntelligence />;
-      case 'promotions':     return <PromotionPlanner />;
-      case 'forecasting':    return <Forecasting />;
-      case 'settings':       return <Settings />;
-      case 'help':           return <Help />;
-      default:               return <TodayPriorities />;
+  const handleNavigateToExperiment = (expId: string) => {
+    if (expId === 'EXP-COMMITMENT-01') setCurrentPage('commitment-intelligence');
+    else if (expId === 'EXP-RIPPLE-02') setCurrentPage('decision-ripple');
+    else if (expId === 'EXP-MEMORY-03') setCurrentPage('enterprise-memory');
+    else if (expId === 'EXP-OPPORTUNITY-04') setCurrentPage('opportunity-intelligence');
+    else {
+      setSelectedExperimentId(expId);
+      setCurrentPage('canvas');
     }
   };
 
-  // ── Role-Governed Notification Scoping ────────────────────────────────────
-  const filteredNotifications = notifications.filter(n => {
-    if (muteNotificationNoise && n.severity !== 'high') {
-      return false;
-    }
-    if (role === 'store_manager') {
-      // Store managers scope Piccadilly (S001) in North West region
-      return n.storeFilter === 'S001';
-    }
-    if (role === 'category_manager') {
-      // Category managers scope Chilled, Dairy, Produce category alerts
-      return n.categoryFilter === 'Chilled' || n.categoryFilter === 'Dairy' || n.categoryFilter === 'Produce';
-    }
-    return true; // Executive sees all alerts
-  });
+  const handleNavigateToSolution = (solId: string) => {
+    if (solId === 'SOL-PROMO-01') setCurrentPage('solution-promo');
+    else if (solId === 'SOL-DEMAND-02') setCurrentPage('solution-demand');
+    else if (solId === 'SOL-INV-03') setCurrentPage('solution-inventory');
+    else if (solId === 'SOL-CAT-04') setCurrentPage('solution-category');
+  };
 
-  const unreadCount = filteredNotifications.filter(n => !n.read).length;
-
-  const handleNotificationClick = (n: any) => {
-    // 1. Mark as read
-    setNotifications(prev => prev.map(notif => notif.id === n.id ? { ...notif, read: true } : notif));
-    setShowNotifications(false);
-
-    // 2. Dynamic IAM Lock check (consistent with Sidebar navigation block)
-    const isLocked = (role === 'category_manager' && n.targetPage === 'supply-chain') ||
-                     (role === 'store_manager' && (n.targetPage === 'category' || n.targetPage === 'supply-chain' || n.targetPage === 'forecasting'));
+  const handleDomainChange = (domainId: string) => {
+    const domain = getDomainById(domainId);
+    const activeTarget = domain && domain.status === 'coming_soon' ? 'retail_grocery' : domainId;
     
-    if (isLocked) {
-      alert(`Access Restricted: Under Looker access policies, the '${PAGE_TITLES[n.targetPage]}' module is restricted for the ${role === 'store_manager' ? 'Store Manager' : 'Category Manager'} role.`);
+    updateTelemetryContext({ domain_id: domainId });
+    trackJourneyEvent({
+      event_type: 'DOMAIN_SELECTED',
+      source: 'topbar_domain_select',
+      page: currentPage,
+      metadata: {
+        requested_domain: domainId,
+        active_domain: activeTarget,
+        availability_status: domain ? domain.status : 'active'
+      }
+    });
+
+    if (domain && domain.status === 'coming_soon') {
+      setToast({
+        id: `domain_${domain.id}_${Date.now()}`,
+        title: `${domain.name}`,
+        message: `Domain experience coming soon. CogniX experiments and demonstration solutions for ${domain.name} are planned for a future innovation pack.`,
+        teaser: domain.teaser,
+        type: 'coming_soon',
+        actionText: 'Stay in Retail & Grocery',
+        onAction: () => setActiveDomainId('retail_grocery')
+      });
+      // Do not switch active domain away from working retail_grocery
     } else {
-      setCurrentPage(n.targetPage);
+      setActiveDomainId(domainId);
+    }
+  };
+
+  const handlePersonaChange = (personaId: string) => {
+    const persona = getPersonaById(personaId);
+    const prevPersona = role;
+
+    updateTelemetryContext({ persona_id: personaId });
+    trackJourneyEvent({
+      event_type: 'PERSONA_SELECTED',
+      source: 'topbar_persona_select',
+      page: currentPage,
+      previous_state: { persona_id: prevPersona },
+      new_state: { persona_id: personaId },
+      metadata: {
+        adaptive_behaviour_enabled: false,
+        persona_status: persona ? persona.status : 'active'
+      }
+    });
+
+    setRole(personaId as any);
+    if (persona && persona.status === 'coming_soon') {
+      setToast({
+        id: `persona_${persona.id}_${Date.now()}`,
+        title: `Persona Selected: ${persona.name}`,
+        message: `Adaptive decision behaviour for ${persona.name} will be enabled in a future intelligence phase.`,
+        teaser: persona.decisionLens,
+        type: 'coming_soon'
+      });
+    }
+  };
+
+  const handleNotificationClick = () => {
+    setToast({
+      id: `notif_${Date.now()}`,
+      title: 'Notifications coming soon',
+      message: 'CogniX will surface Intelligence Moments, emerging risks, opportunities and learning events here.',
+      type: 'info'
+    });
+  };
+
+  const renderPage = () => {
+    switch (currentPage) {
+      case 'portfolio':
+        return (
+          <InnovationPortfolio
+            onSelectExperiment={handleNavigateToExperiment}
+            onSelectSolution={handleNavigateToSolution}
+            onNavigateToCuriosity={() => setCurrentPage('curiosity')}
+          />
+        );
+      case 'curiosity':
+        return (
+          <QuestionsWorthAsking
+            onSelectExperiment={handleNavigateToExperiment}
+            onSelectSolution={handleNavigateToSolution}
+          />
+        );
+      case 'commitment-intelligence':
+        return <CommitmentIntelligence onNavigateToExperiment={handleNavigateToExperiment} />;
+      case 'decision-ripple':
+        return <DecisionRippleIntelligence onNavigateToExperiment={handleNavigateToExperiment} />;
+      case 'enterprise-memory':
+        return <EnterpriseMemory onNavigateToSolution={handleNavigateToSolution} onNavigateToExperiment={handleNavigateToExperiment} />;
+      case 'opportunity-intelligence':
+        return <OpportunityIntelligence onNavigateToSolution={handleNavigateToSolution} onNavigateToExperiment={handleNavigateToExperiment} />;
+      case 'solution-promo':
+      case 'promotions':
+        return <PromotionPlanner onNavigateToExperiment={handleNavigateToExperiment} />;
+      case 'solution-demand':
+      case 'forecasting':
+        return <Forecasting onNavigateToExperiment={handleNavigateToExperiment} />;
+      case 'solution-inventory':
+      case 'availability':
+        return <AvailabilityIntelligence onNavigateToExperiment={handleNavigateToExperiment} />;
+      case 'solution-category':
+      case 'category':
+        return <CategoryIntelligence onNavigateToExperiment={handleNavigateToExperiment} />;
+      case 'canvas':
+        return (
+          <ExperimentCanvas
+            experiment={selectedExperiment}
+            onBackToPortfolio={() => setCurrentPage('portfolio')}
+          />
+        );
+      case 'settings':       return <Settings />;
+      case 'help':           return <Help />;
+      default:               
+        return (
+          <InnovationPortfolio
+            onSelectExperiment={handleNavigateToExperiment}
+            onSelectSolution={handleNavigateToSolution}
+            onNavigateToCuriosity={() => setCurrentPage('curiosity')}
+          />
+        );
     }
   };
 
   return (
     <div className="app-shell">
       <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} />
+      
       <div className="main-content">
-        {/* Topbar */}
-        <div className="topbar">
-          <div className="topbar-left">
-            <span className="page-title">{PAGE_TITLES[currentPage]}</span>
+        {/* Topbar: Quiet Context/Control Bar (No Page Title) */}
+        <div className="topbar" style={{ background: '#FFFFFF', borderBottom: '1px solid var(--border)', height: 54, padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div className="topbar-left" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              CogniX Laboratory
+            </span>
           </div>
-          <div className="topbar-right" style={{ gap: 16 }}>
 
-          <a
-              href={externalLinks.g10x}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="topbar-brand-link"
-              aria-label="G10X — visit g10x.com (opens in new tab)"
-            >
-              <G10XLogo className="topbar-brand-logo" />
-            </a>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginRight: 8 }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>Demo Role:</span>
+          <div className="topbar-right" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            {/* Domain Context Selector */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>Domain Context:</span>
+              <select
+                className="select"
+                value={activeDomainId}
+                onChange={e => handleDomainChange(e.target.value)}
+                title="Choose innovation domain"
+                style={{ width: 175, height: 28, padding: '2px 6px', fontSize: '0.75rem', background: '#F8FAFC', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 4 }}
+              >
+                {DOMAIN_CATALOGUE.map(cat => (
+                  <optgroup key={cat.category} label={cat.category}>
+                    {cat.items.map(item => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} {item.status === 'coming_soon' ? '(Coming Soon)' : '[Active]'}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
+              </select>
+            </div>
+
+            {/* Persona / Decision Perspective Switcher */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>Persona:</span>
               <select
                 className="select"
                 value={role}
-                onChange={e => {
-                  setRole(e.target.value as any);
-                  setCurrentPage('dashboard');
-                }}
-                style={{ width: 155, height: 30, padding: '2px 8px', fontSize: '0.8125rem' }}
+                onChange={e => handlePersonaChange(e.target.value)}
+                title="Choose decision perspective"
+                style={{ width: 165, height: 28, padding: '2px 6px', fontSize: '0.75rem', background: '#F8FAFC', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 4 }}
               >
-                <option value="exec">Executive</option>
-                <option value="category_manager">Category Manager</option>
-                <option value="store_manager">Store Manager</option>
+                {PERSONA_CATALOGUE.map(cat => (
+                  <optgroup key={cat.category} label={cat.category}>
+                    {cat.items.map(item => (
+                      <option key={item.id} value={item.id}>
+                        {item.name} {item.status === 'coming_soon' ? '(Coming Soon)' : ''}
+                      </option>
+                    ))}
+                  </optgroup>
+                ))}
               </select>
             </div>
-            
-            <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Calendar size={14} strokeWidth={1.75} color="#4A5A7A" />
-              4 Jun 2026 · Last 90 days
-            </span>
 
-            {/* Demo Mode Toggle */}
-            <button
-              onClick={() => setDemoMode(!demoMode)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '4px 10px',
-                borderRadius: 'var(--radius-sm)',
-                border: `1px solid ${demoMode ? 'rgba(245,158,11,0.4)' : 'var(--border)'}`,
-                background: demoMode ? 'rgba(245,158,11,0.08)' : 'none',
-                color: demoMode ? 'var(--warning)' : 'var(--text-muted)',
-                fontSize: '0.75rem',
-                fontWeight: 700,
-                cursor: 'pointer',
-                transition: 'var(--transition)',
-              }}
-              title={demoMode ? 'Demo Mode Active — Click to disable' : 'Enable Demo Mode for optimal demo scenarios'}
-            >
-              <Zap size={12} strokeWidth={2} color="currentColor" />
-              {demoMode ? 'DEMO ON' : 'Demo'}
-            </button>
-
-            <span className="badge badge-yellow" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <FlaskConical size={11} strokeWidth={2} color="currentColor" />
-              POC Demo
-            </span>
-
-            {/* Notification Bell Icon */}
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
-              <button 
-                onClick={() => setShowNotifications(!showNotifications)}
-                className="btn btn-ghost" 
-                style={{ 
-                  position: 'relative', 
-                  width: 32, 
-                  height: 32, 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  borderRadius: '50%',
+            {/* Notifications Button (No fake red dot) */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={handleNotificationClick}
+                style={{
+                  position: 'relative',
+                  width: 32,
+                  height: 32,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: 'var(--radius-sm)',
                   padding: 0,
                   border: '1px solid var(--border)',
-                  background: showNotifications ? 'var(--bg-elevated)' : 'none',
-                  cursor: 'pointer'
+                  background: '#F8FAFC',
+                  cursor: 'pointer',
+                  color: 'var(--text-secondary)'
                 }}
-                title="System Notifications"
+                title="Notifications"
+                aria-label="Notifications"
               >
-                <Bell size={15} strokeWidth={1.75} color={unreadCount > 0 ? "var(--text-primary)" : "var(--text-secondary)"} />
-                {unreadCount > 0 && (
-                  <span style={{
-                    position: 'absolute',
-                    top: 2,
-                    right: 2,
-                    width: 7,
-                    height: 7,
-                    borderRadius: '50%',
-                    background: 'var(--danger)',
-                    boxShadow: '0 0 6px var(--danger)'
-                  }} />
-                )}
+                <Bell size={14} />
               </button>
-              
-              {showNotifications && (
-                <div style={{
-                  position: 'absolute',
-                  top: 40,
-                  right: 0,
-                  width: 300,
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-strong)',
-                  borderRadius: 'var(--radius-lg)',
-                  boxShadow: 'var(--shadow-lg)',
-                  zIndex: 100,
-                  padding: '12px 0',
-                  animation: 'scaleIn 0.2s ease',
-                  backdropFilter: 'blur(12px)'
-                }}>
-                  {/* Dropdown Header */}
-                  <div style={{ padding: '0 16px 10px', borderBottom: '1px solid var(--border)' }} className="flex justify-between items-center">
-                    <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: 'var(--text-primary)' }}>Notifications</span>
-                    {unreadCount > 0 && (
-                      <button 
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setNotifications(prev => prev.map(notif => ({ ...notif, read: true })));
-                        }}
-                        style={{ background: 'none', border: 'none', color: 'var(--accent)', fontSize: '0.6875rem', fontWeight: 600, cursor: 'pointer', padding: 0 }}
-                      >
-                        Mark all as read
-                      </button>
-                    )}
-                  </div>
-                  
-                  {/* Dropdown Body */}
-                  <div style={{ maxHeight: 280, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-                    {filteredNotifications.length === 0 ? (
-                      <div style={{ padding: '24px 16px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.75rem' }}>
-                        No notifications for your active scope.
-                      </div>
-                    ) : (
-                      filteredNotifications.map(n => {
-                        const isLocked = (role === 'category_manager' && n.targetPage === 'supply-chain') ||
-                                         (role === 'store_manager' && (n.targetPage === 'category' || n.targetPage === 'supply-chain' || n.targetPage === 'forecasting'));
-                        return (
-                          <div 
-                            key={n.id}
-                            onClick={() => handleNotificationClick(n)}
-                            style={{
-                              padding: '10px 16px',
-                              borderBottom: '1px solid var(--border)',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              gap: 10,
-                              alignItems: 'flex-start',
-                              opacity: n.read ? 0.45 : 1,
-                              background: n.read ? 'none' : 'rgba(0,120,255,0.02)'
-                            }}
-                            className="nav-item-notification"
-                          >
-                            {/* Dot indicating severity */}
-                            <span style={{
-                              width: 6,
-                              height: 6,
-                              borderRadius: '50%',
-                              background: n.severity === 'high' ? 'var(--danger)' : 'var(--warning)',
-                              marginTop: 5,
-                              flexShrink: 0
-                            }} />
-                            
-                            <div style={{ flex: 1 }}>
-                              <div style={{ 
-                                display: 'flex', 
-                                alignItems: 'center', 
-                                gap: 6,
-                                fontSize: '0.75rem', 
-                                fontWeight: 700, 
-                                color: 'var(--text-primary)' 
-                              }}>
-                                {n.title}
-                                {isLocked && <Lock size={10} color="#6B7A8D" style={{ flexShrink: 0 }} />}
-                              </div>
-                              <div style={{ fontSize: '0.6875rem', color: 'var(--text-secondary)', marginTop: 2, lineHeight: 1.4 }}>
-                                {n.desc}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
-
           </div>
         </div>
 
-        {/* Page content */}
+        {/* Reusable Shell Toast Feedback */}
+        <ShellToast toast={toast} onClose={() => setToast(null)} />
+
+        {/* Page Content View */}
         <div key={currentPage} className="animate-fade">
           {renderPage()}
         </div>

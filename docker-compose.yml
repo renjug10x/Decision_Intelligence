@@ -1,12 +1,11 @@
 services:
-  # Monolithic Next.js application
-  nextjs-app:
+  cognix-web:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: docker/Dockerfile.web
+    container_name: cognix-web
       args:
         AUTH_API_URL: ${AUTH_API_URL:-}
-    container_name: nextjs-app
     restart: unless-stopped
     environment:
       - GEMINI_API_KEY=${GEMINI_API_KEY}
@@ -32,13 +31,35 @@ services:
         - NGINX_CONF=nginx.local.conf
     container_name: nginx-proxy
     restart: unless-stopped
+>>>>>>> docker-compose.yml
     ports:
-      - "8080:80"
-    depends_on:
-      nextjs-app:
-        condition: service_healthy
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - HOSTNAME=0.0.0.0
+      - PORT=3000
+      - COGNIX_WORLD_MODE=service
+      - COGNIX_WORLD_SERVICE_URL=http://cognix-world:8081
     healthcheck:
-      test: ["CMD-SHELL", "nginx -t && wget --no-verbose --tries=1 --spider http://localhost/api/health || exit 1"]
-      interval: 30s
-      timeout: 10s
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/v1/health?type=live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    depends_on:
+      - cognix-world
+
+  cognix-world:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.world
+    container_name: cognix-world
+    ports:
+      - "8081:8081"
+    environment:
+      - NODE_ENV=production
+      - PORT=8081
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8081/api/v1/health?type=ready || exit 1"]
+      interval: 10s
+      timeout: 5s
       retries: 3

@@ -60,7 +60,7 @@ export default function PlatformSetupPage() {
           </div>
           <h2 style={{ fontSize: '1.375rem', marginBottom: 6 }}>Decision Intelligence</h2>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-            Lidl UK · Powered by Looker + Gemini AI
+            CogniX Lab · Powered by Looker + Gemini AI
           </p>
         </div>
 

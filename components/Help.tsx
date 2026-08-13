@@ -2,79 +2,34 @@
 
 import React, { useState } from 'react';
 import {
-  Layers, Activity, BookOpen, Sparkles, Lock, CheckCircle2,
-  Zap, Play, Check, Loader2, ArrowRight, ShieldAlert, Award
+  Layers, Activity, Sparkles, Lock, CheckCircle2,
+  Zap, ArrowRight, ShieldAlert, Award
 } from 'lucide-react';
 import ArchitectureExplorer from '@/components/ArchitectureExplorer';
 
-// Sample data for Resolution Pattern Library (Decision Memory V2)
-interface PatternItem {
-  id: string;
-  trigger: string;
-  category: string;
-  cause: string;
-  action: string;
-  result: string;
-  confidence: number;
-  storesImpacted: number;
-}
-
-const INITIAL_PATTERNS: PatternItem[] = [
-  {
-    id: 'PAT001',
-    trigger: 'Fresh Produce Waste Spike',
-    category: 'Produce',
-    cause: 'Promotion + Weather',
-    action: 'Reduce Reorder Threshold by 8% and accelerate markdown to 24h',
-    result: '14% Waste Reduction',
-    confidence: 91,
-    storesImpacted: 12
-  },
-  {
-    id: 'PAT002',
-    trigger: 'Chilled Ready Meal Stockout',
-    category: 'Chilled',
-    cause: 'High Weekend Demand',
-    action: 'Rebalance 40 units from Trafford (S002) to Piccadilly (S001)',
-    result: 'Saved £820 in lost sales',
-    confidence: 94,
-    storesImpacted: 5
-  },
-  {
-    id: 'PAT003',
-    trigger: 'Dairy Margin Compression',
-    category: 'Dairy',
-    cause: 'Promo Price Matching',
-    action: 'Activate bakery-cheese bundle promotions in 8 stores',
-    result: 'Dairy Margin recovered to 32.8%',
-    confidence: 79,
-    storesImpacted: 8
-  },
-  {
-    id: 'PAT004',
-    trigger: 'Store Staffing Shortage',
-    category: 'Labour',
-    cause: 'Local Football Event',
-    action: 'Reallocate 2 ambient stockers to checkouts during peak hours',
-    result: 'Customer queue times kept < 2.5 mins',
-    confidence: 85,
-    storesImpacted: 3
-  }
-];
-
 export default function Help() {
-  const [activeTab, setActiveTab] = useState<'storyboard' | 'lifecycle' | 'learning'>('storyboard');
-  const [patterns, setPatterns] = useState<PatternItem[]>(INITIAL_PATTERNS);
-  const [appliedPatterns, setAppliedPatterns] = useState<Record<string, boolean>>({});
-  const [applyingId, setApplyingId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'storyboard' | 'lifecycle' | 'telemetry'>('storyboard');
   const [hoveredStep, setHoveredStep] = useState<number | null>(null);
+  const [journeyEvents, setJourneyEvents] = useState<any[]>([]);
+  const [loadingTelemetry, setLoadingTelemetry] = useState(false);
 
-  const handleApplyResolution = async (id: string) => {
-    setApplyingId(id);
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    setAppliedPatterns((prev) => ({ ...prev, [id]: true }));
-    setApplyingId(null);
+  const fetchTelemetry = async () => {
+    setLoadingTelemetry(true);
+    try {
+      const res = await fetch('/api/v1/journey/events?limit=30');
+      const json = await res.json();
+      if (json.data) setJourneyEvents(json.data);
+    } catch (e) {
+      console.warn('Failed to fetch telemetry events', e);
+    }
+    setLoadingTelemetry(false);
   };
+
+  React.useEffect(() => {
+    if (activeTab === 'telemetry') {
+      fetchTelemetry();
+    }
+  }, [activeTab]);
 
   return (
     <div className="page-content" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
@@ -83,7 +38,7 @@ export default function Help() {
         <div>
           <h2>Help & Platform Architecture</h2>
           <p style={{ marginTop: 4 }}>
-            Explore the platform\'s inner mechanics, security layers, and organisational learning database.
+            Explore the platform's inner mechanics, security layers, and governed Looker semantic query lifecycle.
           </p>
         </div>
         
@@ -98,7 +53,7 @@ export default function Help() {
           {[
             { id: 'storyboard', label: 'Architecture Storyboard', Icon: Layers },
             { id: 'lifecycle', label: 'Decision Lifecycle', Icon: Activity },
-            { id: 'learning', label: 'Resolution Pattern Library', Icon: BookOpen }
+            { id: 'telemetry', label: 'Journey Telemetry Diagnostics', Icon: Sparkles }
           ].map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -201,7 +156,7 @@ export default function Help() {
                   tech: 'AppSheet Webhooks / ERP Write-Back API',
                   icon: CheckCircle2,
                   color: 'var(--success)',
-                  detail: 'Completes the operational feedback loop, logging actions back to BigQuery to feed the Resolution Library.'
+                  detail: 'Completes the operational feedback loop, logging actions back to BigQuery to feed Enterprise Memory.'
                 }
               ].map((life) => {
                 const isHovered = hoveredStep === life.step;
@@ -277,109 +232,78 @@ export default function Help() {
           </div>
         )}
 
-        {/* TAB 3: Resolution Pattern Library (Decision Memory V2) */}
-        {activeTab === 'learning' && (
-          <div className="card animate-fade" style={{ padding: 24, display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div>
-              <h3 style={{ fontSize: '1rem', fontWeight: 800 }}>Resolution Pattern Library (Closed-Loop Learning)</h3>
-              <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-                Lidl\'s Decision Intelligence platform acts as a learning organizational brain, logging historical incident outcomes and surfacing verified patterns for instant reuse.
-              </p>
-            </div>
-
-            <div style={{ overflowX: 'auto', marginTop: 12 }}>
-              <table className="table" style={{ width: '100%', minWidth: 700 }}>
-                <thead>
-                  <tr>
-                    <th>Incident Trigger</th>
-                    <th>Category</th>
-                    <th>Identified Cause</th>
-                    <th>Action Taken</th>
-                    <th>Measurable Result</th>
-                    <th>Confidence</th>
-                    <th>Impact Scope</th>
-                    <th style={{ textAlign: 'right' }}>Reuse Pattern</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {patterns.map((p) => {
-                    const applied = appliedPatterns[p.id];
-                    const isApplying = applyingId === p.id;
-                    
-                    return (
-                      <tr key={p.id} style={{ opacity: applied ? 0.6 : 1, transition: 'opacity 0.25s ease' }}>
-                        <td>
-                          <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: 'var(--text-primary)' }}>{p.trigger}</div>
-                          <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>ID: {p.id}</div>
-                        </td>
-                        <td>
-                          <span className="badge badge-yellow" style={{ fontSize: '0.6875rem', padding: '2px 6px' }}>{p.category}</span>
-                        </td>
-                        <td style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{p.cause}</td>
-                        <td style={{ fontSize: '0.75rem', color: 'var(--text-primary)', maxWidth: 220 }}>{p.action}</td>
-                        <td style={{ fontSize: 0.75 + 'rem', fontWeight: 600, color: 'var(--success)' }}>{p.result}</td>
-                        <td style={{ fontSize: '0.75rem', fontWeight: 700, color: p.confidence >= 90 ? 'var(--success)' : 'var(--warning)' }}>
-                          {p.confidence}%
-                        </td>
-                        <td style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{p.storesImpacted} stores</td>
-                        <td style={{ textAlign: 'right' }}>
-                          <button
-                            className={`btn btn-sm ${applied ? 'btn-secondary' : 'btn-primary'}`}
-                            onClick={() => !applied && handleApplyResolution(p.id)}
-                            disabled={applied || isApplying}
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: 6, minWidth: 140, justifyContent: 'center' }}
-                          >
-                            {isApplying ? (
-                              <>
-                                <Loader2 size={12} style={{ animation: 'spin 0.8s linear infinite' }} />
-                                Applying...
-                              </>
-                            ) : applied ? (
-                              <>
-                                <Check size={12} />
-                                Resolution Active
-                              </>
-                            ) : (
-                              <>
-                                <Play size={10} fill="currentColor" />
-                                Apply Pattern
-                              </>
-                            )}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-
-            {/* Simulated write-back popup notification */}
-            {Object.keys(appliedPatterns).length > 0 && (
-              <div
-                className="card animate-fade"
+        {/* TAB 3: Journey Telemetry Diagnostics */}
+        {activeTab === 'telemetry' && (
+          <div className="animate-fade" style={{ background: '#FFFFFF', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', padding: 20 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+              <div>
+                <h3 style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                  WP10-B Journey Telemetry Diagnostic Buffer
+                </h3>
+                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  In-memory diagnostic ring buffer displaying recent canonical journey events captured across CogniX.
+                </p>
+              </div>
+              <button
+                onClick={fetchTelemetry}
+                disabled={loadingTelemetry}
                 style={{
-                  background: 'rgba(16, 185, 129, 0.04)',
-                  border: '1px solid var(--border-success)',
-                  padding: 12,
-                  borderRadius: 'var(--radius-md)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 12,
-                  marginTop: 10
+                  padding: '4px 10px',
+                  borderRadius: 4,
+                  background: '#F8FAFC',
+                  border: '1px solid var(--border)',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.75rem',
+                  fontWeight: 500,
+                  cursor: 'pointer'
                 }}
               >
-                <CheckCircle2 size={16} color="var(--success)" />
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-primary)', flex: 1 }}>
-                  <strong>Simulated Pattern Triggered Successfully:</strong> ERP threshold parameters updated for {Object.keys(appliedPatterns).length * 8} stores. Rules written to Looker semantic audit logs.
-                </div>
-                <button
-                  className="btn btn-ghost btn-sm"
-                  onClick={() => setAppliedPatterns({})}
-                  style={{ color: 'var(--text-muted)' }}
-                >
-                  Reset
-                </button>
+                {loadingTelemetry ? 'Refreshing...' : 'Refresh Events'}
+              </button>
+            </div>
+
+            {journeyEvents.length === 0 ? (
+              <div style={{ padding: '30px', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.8125rem' }}>
+                No telemetry events captured yet. Navigate through CogniX to generate observable decision intent.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, maxHeight: 450, overflowY: 'auto' }}>
+                {journeyEvents.map((evt, idx) => (
+                  <div
+                    key={evt.event_id || idx}
+                    style={{
+                      background: '#F8FAFC',
+                      border: '1px solid var(--border)',
+                      borderRadius: 6,
+                      padding: '10px 14px',
+                      fontSize: '0.75rem',
+                      fontFamily: 'monospace'
+                    }}
+                  >
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <span style={{ fontWeight: 700, color: 'var(--g10x-orange)' }}>
+                        #{evt.sequence_number || idx + 1} {evt.event_type}
+                      </span>
+                      <span style={{ color: 'var(--text-muted)' }}>
+                        {evt.timestamp ? new Date(evt.timestamp).toLocaleTimeString() : ''}
+                      </span>
+                    </div>
+                    <div style={{ color: 'var(--text-secondary)', display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                      <span>ID: <strong>{evt.event_id}</strong></span>
+                      <span>Session: <strong>{evt.session_id}</strong></span>
+                      <span>Tenant: <strong>{evt.tenant_id}</strong></span>
+                      <span>Persona: <strong>{evt.persona_id}</strong></span>
+                      <span>Source: <strong>{evt.source}</strong></span>
+                    </div>
+                    {(evt.previous_state || evt.new_state || evt.metadata) && (
+                      <div style={{ marginTop: 6, paddingTop: 6, borderTop: '1px solid #E2E8F0', color: 'var(--text-muted)', fontSize: '0.6875rem' }}>
+                        {evt.previous_state && <div>Prev: {JSON.stringify(evt.previous_state)}</div>}
+                        {evt.new_state && <div>New: {JSON.stringify(evt.new_state)}</div>}
+                        {evt.metadata && <div>Meta: {JSON.stringify(evt.metadata)}</div>}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             )}
           </div>

@@ -1,0 +1,215 @@
+openapi: 3.1.0
+info:
+  title: CogniX Journey Telemetry API
+  description: OpenAPI 3.1 specification for CogniX Journey Telemetry Domain service endpoints.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: CogniX Web BFF / Proxy Gateway
+paths:
+  /api/v1/journey/health:
+    get:
+      summary: Journey Domain Liveness Probe
+      operationId: getJourneyHealth
+      responses:
+        '200':
+          description: Journey domain is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                    example: cognix-journey-domain
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /api/v1/journey/events:
+    post:
+      summary: Ingest a Canonical Journey Event
+      operationId: trackJourneyEvent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JourneyEvent'
+      responses:
+        '202':
+          description: Event accepted for processing
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: accepted
+                  event_id:
+                    type: string
+                    example: evt_8f1a2b3c
+                  correlation_id:
+                    type: string
+                    example: corr_9x8y7z
+        '400':
+          description: Invalid or malformed event schema
+    get:
+      summary: Query Recent Journey Telemetry Events (Diagnostics)
+      operationId: getJourneyEvents
+      parameters:
+        - name: session_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: event_type
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: List of telemetry events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  count:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/JourneyEvent'
+
+  /api/v1/journey/sessions/{session_id}:
+    get:
+      summary: Get Reconstructed Event Sequence for a Session
+      operationId: getSessionSequence
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Session event sequence
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  session_id:
+                    type: string
+                  event_count:
+                    type: integer
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/JourneyEvent'
+
+components:
+  schemas:
+    JourneyEvent:
+      type: object
+      required:
+        - event_id
+        - event_type
+        - tenant_id
+        - user_id
+        - session_id
+        - timestamp
+        - schema_version
+      properties:
+        event_id:
+          type: string
+          example: evt_9a8b7c6d
+        event_type:
+          type: string
+          example: SCENARIO_CHANGED
+        tenant_id:
+          type: string
+          example: tenant_uk_retail_01
+        user_id:
+          type: string
+          example: demo_user
+        persona_id:
+          type: string
+          example: exec
+        session_id:
+          type: string
+          example: ses_12345678
+        domain_id:
+          type: string
+          example: retail_grocery
+        experiment_id:
+          type: string
+          example: EXP-COMMITMENT-01
+        solution_id:
+          type: string
+          example: SOL-DEMAND-02
+        scenario_id:
+          type: string
+          example: SCN-PROMO-01
+        decision_id:
+          type: string
+          example: DEC-001
+        timestamp:
+          type: string
+          format: date-time
+        sequence_number:
+          type: integer
+          example: 1
+        source:
+          type: string
+          example: Forecasting.tsx
+        page:
+          type: string
+          example: solution-demand
+        previous_state:
+          type: object
+          additionalProperties: true
+        new_state:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+        correlation_id:
+          type: string
+          example: corr_123456
+        causation_id:
+          type: string
+          example: evt_8a7b6c5d
+        schema_version:
+          type: string
+          example: "1.0"
+        data_classification:
+          type: string
+          example: synthetic_demo
+        synthetic_demo:
+          type: boolean
+          example: true

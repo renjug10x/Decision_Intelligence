@@ -1,7 +1,8 @@
 'use client';
 import React, { useEffect, useState } from 'react';
-import { Sparkles, Loader2, CheckCircle2, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Lock, XCircle } from 'lucide-react';
+import { Sparkles, Loader2, CheckCircle2, ChevronDown, ChevronUp, TrendingUp, TrendingDown, Lock, XCircle, ChevronRight } from 'lucide-react';
 import { useApp } from '@/lib/context';
+import ExecutionBriefing from '@/components/ExecutionBriefing';
 
 const CATEGORIES = ['All','Chilled','Dairy','Produce','Bakery','Frozen','Ambient','BWS','Non-food'];
 
@@ -42,7 +43,11 @@ const ROOT_CAUSES: Record<string, string> = {
   'Non-food': 'Planned range reduction; clearance activity ongoing',
 };
 
-export default function CategoryIntelligence() {
+interface CategoryIntelligenceProps {
+  onNavigateToExperiment?: (experimentId: string) => void;
+}
+
+export default function CategoryIntelligence({ onNavigateToExperiment }: CategoryIntelligenceProps = {}) {
   const { role, apiKey, selectedStore } = useApp();
   const [activeCategory, setActiveCategory] = useState(role === 'category_manager' ? 'Chilled' : 'All');
   const [data, setData]         = useState<any>(null);
@@ -54,6 +59,7 @@ export default function CategoryIntelligence() {
   // Access Denied simulation state
   const [showAccessDenied, setShowAccessDenied] = useState(false);
   const [deniedCategory, setDeniedCategory] = useState('');
+  const [showBriefing, setShowBriefing] = useState(false);
 
   const isTabLocked = (cat: string) => {
     return role === 'category_manager' && cat !== 'Chilled';
@@ -116,32 +122,154 @@ export default function CategoryIntelligence() {
   const storeObj = STORES.find(s => s.id === selectedStore);
 
   return (
-    <div className="page-content">
+    <div className="page-content animate-fade" style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 48 }}>
+      {/* Five-Second Proposition Header Banner */}
+      <div style={{
+        background: '#FFFFFF',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-md)',
+        padding: '20px',
+        marginBottom: 24,
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div>
+            <h1 style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              Category Intelligence
+            </h1>
+          </div>
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div>
-          <h2>Category Intelligence</h2>
-          <p style={{ marginTop: 4 }}>
-            {role === 'store_manager'
-              ? `Underperforming SKUs in store ${storeObj?.name || selectedStore} — last 7 days`
-              : 'Underperforming SKUs across UK stores — last 7 days vs prior week'
-            }
-          </p>
+          {onNavigateToExperiment && (
+            <button
+              onClick={() => onNavigateToExperiment('EXP-OPPORTUNITY-04')}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--g10x-orange)',
+                color: '#FFFFFF',
+                border: 'none',
+                fontWeight: 500,
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 4
+              }}
+            >
+              Launch Opportunity Intelligence <ChevronRight size={13} />
+            </button>
+          )}
         </div>
-        <button
-          className="btn btn-primary"
-          onClick={getAiInsight}
-          disabled={aiLoading || !skus.length}
-          style={{ gap: 8 }}
-        >
-          {aiLoading
-            ? <Loader2 size={16} strokeWidth={1.75} color="white" style={{ animation: 'spin 0.8s linear infinite' }} />
-            : <Sparkles size={16} strokeWidth={1.75} color="white" />
-          }
-          {aiLoading ? 'Analysing…' : 'AI Root Cause'}
-        </button>
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: 12,
+          background: 'var(--bg-base)',
+          padding: '14px 18px',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border)'
+        }}>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Dairy Margin Lift
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--success)' }}>
+              +3.2% Expansion
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Premium SKU Shrinkage
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--warning)' }}>
+              +1.8% Loss Variance
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Assortment Velocity
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--g10x-blue)' }}>
+              8 Top-Performing SKUs
+            </div>
+          </div>
+        </div>
       </div>
+
+      {/* Enterprise Learning Pattern Card */}
+      <div style={{
+        background: '#FFFFFF',
+        border: '1px solid var(--border)',
+        borderLeft: '4px solid var(--g10x-orange)',
+        borderRadius: 'var(--radius-md)',
+        padding: '16px 20px',
+        marginBottom: 24,
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', background: 'rgba(255,107,0,0.08)', padding: '2px 8px', borderRadius: 4 }}>
+              Enterprise Learning Pattern Recognized
+            </span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              Promotion-Driven Category Cannibalisation (PAT-BEH-05)
+            </span>
+          </div>
+
+          <button
+            onClick={() => setShowBriefing(true)}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-sm)',
+              background: '#FFFFFF',
+              border: '1px solid var(--border)',
+              color: 'var(--g10x-orange)',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4
+            }}
+          >
+            Generate Execution Briefing <ChevronRight size={13} />
+          </button>
+        </div>
+
+        <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 10 }}>
+          Standalone premium brand promotions without standard line price adjustment cause -24% volume drop in standard lines, eroding total category profit.
+        </p>
+
+        <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          <span>Situation Similarity: <strong style={{ color: 'var(--text-primary)' }}>87%</strong></span>
+          <span>Pattern Confidence: <strong style={{ color: 'var(--text-primary)' }}>83%</strong></span>
+          <span>Intervention Success Rate: <strong style={{ color: 'var(--success)' }}>80% (5 occurrences)</strong></span>
+        </div>
+      </div>
+
+      <ExecutionBriefing
+        isOpen={showBriefing}
+        onClose={() => setShowBriefing(false)}
+        briefing={{
+          title: 'Category Assortment Execution Briefing — Dairy Lines',
+          situation: 'Premium Organic Milk 25% discount promotion is cannibalising Standard Whole Milk volume (-24%), eroding total net category profit by -3.8%.',
+          whyNow: 'Current promotional pricing model reduces category contribution margin by £6.1K weekly.',
+          recommendedAction: 'Restructure standalone premium discount into a category multi-buy bundle pairing Premium & Standard lines.',
+          owner: 'Category Merchandising Manager',
+          dependencies: ['Commercial Pricing Strategy Approval', 'EPOS Promotion Mapping Update'],
+          timeHorizon: 'Next 5 Days',
+          expectedOutcome: 'Prevents £6,100 cannibalisation loss and increases category profit contribution by +4.2%.',
+          confidence: 83,
+          patternId: 'PAT-BEH-05',
+          contractStatus: 'VERIFIED',
+          evidence: [
+            'Standard line sales volume down -24% during premium promo week',
+            'Cross-elasticity coefficient measured at 0.72 (Threshold: 0.65)',
+            '5 historical occurrences evaluated; bundle optimization protected baseline volume in 4 cases'
+          ]
+        }}
+      />
 
       {/* Role Restriction Banner for Category Managers */}
       {showAccessDenied && (
@@ -153,7 +281,7 @@ export default function CategoryIntelligence() {
               <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: 4, lineHeight: 1.5 }}>
                 Access Denied to category <strong>{deniedCategory}</strong>. Your Looker user profile is governed by the <code>restricted_to: own_category</code> policy, scoping your access exclusively to <strong>Chilled</strong>.
               </p>
-              <button className="btn btn-ghost btn-sm" style={{ marginTop: 10, padding: '4px 8px', fontSize: '0.75rem', height: 28 }} onClick={() => alert('Access request submitted to Lidl BI Admin team. Request ID: REQ-99201')}>
+              <button className="btn btn-ghost btn-sm" style={{ marginTop: 10, padding: '4px 8px', fontSize: '0.75rem', height: 28 }} onClick={() => alert('Access request submitted to Enterprise BI Admin team. Request ID: REQ-99201')}>
                 Request Category Access Extension
               </button>
             </div>

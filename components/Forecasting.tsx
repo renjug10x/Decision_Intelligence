@@ -7,6 +7,7 @@ import {
   Lightbulb, RefreshCw
 } from 'lucide-react';
 import { useApp } from '@/lib/context';
+import ExecutionBriefing from '@/components/ExecutionBriefing';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS, CategoryScale, LinearScale, PointElement,
@@ -15,6 +16,7 @@ import {
 
 import productsData from '@/data/products.json';
 import storesData from '@/data/stores.json';
+import { fetchWorldScenario } from '@/lib/world-client';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
@@ -35,7 +37,11 @@ interface ForecastResult {
   };
 }
 
-export default function Forecasting() {
+interface ForecastingProps {
+  onNavigateToExperiment?: (experimentId: string) => void;
+}
+
+export default function Forecasting({ onNavigateToExperiment }: ForecastingProps = {}) {
   const { role, apiKey, selectedStore, setSelectedStore } = useApp();
 
   // ── Governance Scoping ─────────────────────────────────────────────────────
@@ -51,10 +57,28 @@ export default function Forecasting() {
     }
   }, [role, selectedStore]);
 
+  // ── Enterprise World Scenario Binding ──────────────────────────────────────
+  const [worldScenario, setWorldScenario] = useState<any>(null);
+  const [worldError, setWorldError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchWorldScenario('promotion_surge')
+      .then((scenarios) => {
+        if (scenarios && scenarios.length > 0) {
+          setWorldScenario(scenarios[0]);
+        }
+      })
+      .catch((err) => {
+        console.warn('[Forecasting] Could not fetch Enterprise World scenario:', err.message);
+        setWorldError(err.message);
+      });
+  }, []);
+
   // ── State Variables ────────────────────────────────────────────────────────
   const [metric, setMetric] = useState<'revenue' | 'units' | 'waste'>('revenue');
   const [horizon, setHorizon] = useState<7 | 14 | 30>(14);
   const [model, setModel] = useState<'arima' | 'prophet' | 'genai'>('genai');
+  const [showBriefing, setShowBriefing] = useState(false);
   
   // Scenarios Sandbox adjusters
   const [promoLift, setPromoLift] = useState(0);
@@ -278,19 +302,81 @@ export default function Forecasting() {
   const chartObj = getChartData();
 
   return (
-    <div className="page-content">
+    <div className="page-content animate-fade" style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 48 }}>
 
-      {/* Header Row */}
-      <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
-        <div>
-          <h2>Proactive Demand Forecasting</h2>
-          <p style={{ marginTop: 4 }}>
-            {role === 'exec' 
-              ? 'Governed predictive model evaluation & risk simulations' 
-              : `Looker Scoped Horizon: ${role === 'store_manager' ? `Store - ${storeName}` : `Category - ${focusCategory}`} (RLS Scoped)`}
-          </p>
+      {/* Five-Second Proposition Header Banner */}
+      <div style={{
+        background: '#FFFFFF',
+        border: '1px solid var(--border)',
+        borderRadius: 'var(--radius-md)',
+        padding: '20px',
+        marginBottom: 24,
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <div>
+            <h1 style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              Demand & Forecast Intelligence
+            </h1>
+          </div>
+
+          {onNavigateToExperiment && (
+            <button
+              onClick={() => onNavigateToExperiment('EXP-RIPPLE-02')}
+              style={{
+                padding: '5px 12px',
+                borderRadius: 'var(--radius-sm)',
+                background: 'var(--g10x-orange)',
+                color: '#FFFFFF',
+                border: 'none',
+                fontWeight: 500,
+                fontSize: '0.75rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6
+              }}
+            >
+              Explore Decision Ripple <ChevronRight size={14} />
+            </button>
+          )}
         </div>
-        
+
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+          gap: 12,
+          background: 'var(--bg-base)',
+          padding: '14px 18px',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border)'
+        }}>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Forecast Confidence
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--success)' }}>
+              91% Model Accuracy
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Fresh Demand Trajectory
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--g10x-blue)' }}>
+              +13% Accelerating
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Multi-Horizon Window
+            </div>
+            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              14 to 90 Days
+            </div>
+          </div>
+        </div>
+
         {/* Scoped RLS Controls */}
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
           {role === 'category_manager' && (
@@ -553,9 +639,82 @@ export default function Forecasting() {
               <div style={{ width: 10, height: 2, background: '#0078FF', borderStyle: 'dashed', borderWidth: '1px' }} /> Projected Forecast
             </span>
           </div>
-
         </div>
       </div>
+
+      {/* Enterprise Learning Pattern Card */}
+      <div style={{
+        background: '#FFFFFF',
+        border: '1px solid var(--border)',
+        borderLeft: '4px solid var(--g10x-orange)',
+        borderRadius: 'var(--radius-md)',
+        padding: '16px 20px',
+        marginBottom: 24,
+        boxShadow: 'var(--shadow-sm)'
+      }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', background: 'rgba(255,107,0,0.08)', padding: '2px 8px', borderRadius: 4 }}>
+              Enterprise Learning Pattern Recognized
+            </span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+              Regional Demand Surge & Supplier Headroom (PAT-OPP-02)
+            </span>
+          </div>
+
+          <button
+            onClick={() => setShowBriefing(true)}
+            style={{
+              padding: '4px 10px',
+              borderRadius: 'var(--radius-sm)',
+              background: '#FFFFFF',
+              border: '1px solid var(--border)',
+              color: 'var(--g10x-orange)',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4
+            }}
+          >
+            Generate Execution Briefing <ChevronRight size={13} />
+          </button>
+        </div>
+
+        <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 10 }}>
+          Concurrent demand acceleration (+18%) with Muller Dairy supply headroom (+25%) and Trafford DC inventory surplus produces average +6.8% margin lift.
+        </p>
+
+        <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          <span>Situation Similarity: <strong style={{ color: 'var(--text-primary)' }}>89%</strong></span>
+          <span>Pattern Confidence: <strong style={{ color: 'var(--text-primary)' }}>84%</strong></span>
+          <span>Intervention Success Rate: <strong style={{ color: 'var(--success)' }}>86% (7 occurrences)</strong></span>
+        </div>
+      </div>
+
+      <ExecutionBriefing
+        isOpen={showBriefing}
+        onClose={() => setShowBriefing(false)}
+        briefing={{
+          title: 'Demand Planning Execution Briefing — Dairy & Chilled',
+          situation: 'Dairy demand trajectory is accelerating +18% into week 24 while Muller Dairy capacity headroom remains unutilized (+25%).',
+          whyNow: 'Trafford DC holds 1,400 surplus units approaching optimal shelf-life window.',
+          recommendedAction: 'Deploy 15% regional promotional feature across 12 North West stores supported by Muller Dairy headroom.',
+          owner: 'Demand Planning & Commercial Lead',
+          dependencies: ['Muller Dairy Promotional Rebate', 'Trafford DC Allocation Schedule'],
+          timeHorizon: 'Next 7 Days',
+          expectedOutcome: '+£24,500 incremental revenue with +6.8% margin contribution.',
+          confidence: 86,
+          patternId: 'PAT-OPP-02',
+          contractStatus: 'VERIFIED',
+          evidence: [
+            'GenAI forecast ensemble accuracy 91% over 14-day horizon',
+            'Supplier capacity headroom confirmed via live API feed',
+            '7 historical occurrences evaluated; 86% achieved expected margin lift'
+          ]
+        }}
+      />
 
       {/* Projections KPI Summary Cards */}
       {result && (
