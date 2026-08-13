@@ -54,6 +54,25 @@ export const i18n = {
       },
     },
     aria: { showPassword: 'Show password', hidePassword: 'Hide password' },
+    gdpr: {
+      sectionTitle: 'Data protection & consent',
+      privacyPolicy: {
+        prefix: 'I have read and accept the',
+        link: 'Privacy Policy',
+      },
+      termsOfService: {
+        prefix: 'I have read and accept the',
+        link: 'Terms of Service',
+      },
+      marketing:
+        'I agree to receive product updates and marketing communications (optional)',
+      analytics:
+        'I agree to anonymised usage analytics to improve the platform (optional)',
+      requiredHint: 'Required to sign in',
+      errors: {
+        consentRequired: 'Please accept the Privacy Policy and Terms of Service to continue.',
+      },
+    },
     resetPassword: {
       title: 'Set a new password',
       subtitle: 'Choose a strong password for your account.',

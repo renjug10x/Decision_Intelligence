@@ -11,6 +11,8 @@ export const appRoutes = {
 /** External marketing / partner links */
 export const externalLinks = {
   g10x: 'https://www.g10x.com/',
+  privacyPolicy: 'https://www.glassx.ai/privacy',
+  termsOfService: 'https://www.glassx.ai/terms',
 } as const;
 
 /** Backend API paths (auth: appended to `AUTH_API_URL`) */

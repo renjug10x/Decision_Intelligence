@@ -10,8 +10,9 @@ import { useApp } from '@/lib/context';
 import { getAuthApiService, createAuthService } from '@/services';
 import type { LoginCredentials, OTPValidation } from '@/types/auth';
 import { i18n, replacePlaceholders } from '@/config/i18n';
-import { appRoutes } from '@/config/routes';
+import { appRoutes, externalLinks } from '@/config/routes';
 import { safeFocusElement } from '@/utils/domUtils';
+import { saveGdprConsent } from '@/utils/gdprConsent';
 
 function getErrorMessage(error: unknown, fallback: string): string {
   if (error && typeof error === 'object' && 'response' in error) {
@@ -33,7 +34,13 @@ export default function LoginRoutePage() {
   const authService = useMemo(() => createAuthService(apiService), [apiService]);
 
   const [formData, setFormData] = useState<LoginCredentials>({ email: '', password: '' });
-  const [errors, setErrors] = useState({ email: '', password: '', general: '' });
+  const [errors, setErrors] = useState({ email: '', password: '', general: '', gdpr: '' });
+  const [gdprConsent, setGdprConsent] = useState({
+    privacyPolicy: false,
+    termsOfService: false,
+    marketing: false,
+    analytics: false,
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [showPasskeyForm, setShowPasskeyForm] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
@@ -64,18 +71,31 @@ export default function LoginRoutePage() {
   };
 
   const validateForm = () => {
-    const newErrors = { email: '', password: '', general: '' };
+    const newErrors = { email: '', password: '', general: '', gdpr: '' };
     if (!formData.email?.trim()) newErrors.email = i18n.login.errors.emailRequired;
     if (!formData.password?.trim()) newErrors.password = i18n.login.errors.passwordRequired;
+    if (!gdprConsent.privacyPolicy || !gdprConsent.termsOfService) {
+      newErrors.gdpr = i18n.login.gdpr.errors.consentRequired;
+    }
     setErrors(newErrors);
-    return !newErrors.email && !newErrors.password;
+    return !newErrors.email && !newErrors.password && !newErrors.gdpr;
   };
+
+  const handleGdprChange = (field: keyof typeof gdprConsent, checked: boolean) => {
+    setGdprConsent((prev) => ({ ...prev, [field]: checked }));
+    if (errors.gdpr && (field === 'privacyPolicy' || field === 'termsOfService')) {
+      setErrors((prev) => ({ ...prev, gdpr: '', general: '' }));
+    }
+  };
+
+  const gdprRequiredMet = gdprConsent.privacyPolicy && gdprConsent.termsOfService;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) return;
     setIsLoading(true);
     try {
+      saveGdprConsent(gdprConsent);
       const response = await authService.login(formData);
       showToast({
         message: response.message || i18n.login.success.otpSent,
@@ -464,10 +484,68 @@ export default function LoginRoutePage() {
                 </button>
               </div>
               {errors.general ? <div className="login-error-banner">{errors.general}</div> : null}
+
+              <div className="login-gdpr">
+                <p className="login-gdpr-title">{i18n.login.gdpr.sectionTitle}</p>
+                <p className="login-gdpr-hint">{i18n.login.gdpr.requiredHint}</p>
+
+                <label className="login-gdpr-item">
+                  <input
+                    type="checkbox"
+                    checked={gdprConsent.privacyPolicy}
+                    onChange={(e) => handleGdprChange('privacyPolicy', e.target.checked)}
+                    disabled={isLoading || authLoading}
+                  />
+                  <span className="login-gdpr-label">
+                    {i18n.login.gdpr.privacyPolicy.prefix}{' '}
+                    <a href={externalLinks.privacyPolicy} target="_blank" rel="noopener noreferrer">
+                      {i18n.login.gdpr.privacyPolicy.link}
+                    </a>
+                  </span>
+                </label>
+
+                <label className="login-gdpr-item">
+                  <input
+                    type="checkbox"
+                    checked={gdprConsent.termsOfService}
+                    onChange={(e) => handleGdprChange('termsOfService', e.target.checked)}
+                    disabled={isLoading || authLoading}
+                  />
+                  <span className="login-gdpr-label">
+                    {i18n.login.gdpr.termsOfService.prefix}{' '}
+                    <a href={externalLinks.termsOfService} target="_blank" rel="noopener noreferrer">
+                      {i18n.login.gdpr.termsOfService.link}
+                    </a>
+                  </span>
+                </label>
+
+                <label className="login-gdpr-item">
+                  <input
+                    type="checkbox"
+                    checked={gdprConsent.marketing}
+                    onChange={(e) => handleGdprChange('marketing', e.target.checked)}
+                    disabled={isLoading || authLoading}
+                  />
+                  <span className="login-gdpr-label">{i18n.login.gdpr.marketing}</span>
+                </label>
+
+                <label className="login-gdpr-item">
+                  <input
+                    type="checkbox"
+                    checked={gdprConsent.analytics}
+                    onChange={(e) => handleGdprChange('analytics', e.target.checked)}
+                    disabled={isLoading || authLoading}
+                  />
+                  <span className="login-gdpr-label">{i18n.login.gdpr.analytics}</span>
+                </label>
+
+                {errors.gdpr ? <div className="login-error-banner">{errors.gdpr}</div> : null}
+              </div>
+
               <button
                 type="submit"
                 className="btn btn-primary w-full btn-lg"
-                disabled={isLoading || authLoading}
+                disabled={isLoading || authLoading || !gdprRequiredMet}
                 style={{ justifyContent: 'center' }}
               >
                 {isLoading ? i18n.login.sendingOtp : i18n.login.loginButton}
