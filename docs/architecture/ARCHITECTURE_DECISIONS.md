@@ -199,3 +199,29 @@
 - **Context:** Rewriting CogniX from scratch risks breaking working executive demonstration capabilities.
 - **Decision:** Adopt an 8-stage strangler migration strategy (`Stage 1: API Contracts` $\rightarrow$ `Stage 8: Thinned Presentation Application`), progressively extracting backend services while keeping the Next.js presentation UI fully operational at every stage.
 - **Consequences:** Guarantees 100% demo continuity and zero downtime throughout the multi-service transformation.
+
+---
+
+### ADR-023: Strict Architectural Separation of Journey Telemetry and Enterprise Signals
+- **Status:** Approved
+- **Context:** User interface interactions and enterprise/market operational signals carry fundamentally different semantics and operational lifecycles. Conflating them risks corrupting user analytics and machine learning models.
+- **Decision:** CogniX explicitly separates:
+  1. `Journey Telemetry` (`journey-model.ts`): Captures what the CogniX user does (`SESSION_STARTED`, `SCENARIO_CHANGED`, `EXECUTION_BRIEFING_OPENED`).
+  2. `Enterprise Signals` (`EnterpriseSignal` contract): Captures what is happening in the enterprise, customer environment, or logistics network (`basket_add_acceleration`, `supplier_lead_time_drift`).
+- **Consequences:** Prevents telemetry schema pollution and maintains clean domain boundaries for future ML pattern learning.
+
+---
+
+### ADR-024: Synthetic-First, Connector-Compatible Enterprise Signal Contract
+- **Status:** Approved
+- **Context:** CogniX requires demonstrable early customer and supply chain signals before physical connectors to enterprise planning platforms (Blue Yonder, SAP IBP) are active.
+- **Decision:** Define a single canonical `EnterpriseSignal` contract schema. Synthetic signal generators in `cognix-world` emit signals using the exact transport contract expected from future production connectors.
+- **Consequences:** Guarantees zero code rewrite when transitioning from synthetic innovation demonstrations to production enterprise deployment.
+
+---
+
+### ADR-025: Intent Fusion Intelligence as a Reusable Cross-Functional Mechanism
+- **Status:** Approved
+- **Context:** Executive innovation propositions (e.g. Intent Fusion) risk proliferating top-level sidebar navigation items and competing with established customer forecasting tools.
+- **Decision:** Intent Fusion is implemented as a reusable cross-functional intelligence mechanism reconciling Commercial Intent, baseline enterprise forecasts, observed Enterprise Signals, and downstream commitments into `Shared Decision State`. CogniX does not replace the enterprise forecast; it contextualises decision consequences around it.
+- **Consequences:** Maximises component reuse across `Promotion`, `Forecasting`, `Commitment`, `Ripple`, and `Briefing` without adding UI clutter.

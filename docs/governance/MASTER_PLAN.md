@@ -254,8 +254,51 @@ API-first OpenAPI 3.1 contract (`docs/openapi/world-v1.yaml`), seed/scenario ext
 #### Phase 10B — Journey Telemetry Foundation [COMPLETED]
 Canonical OpenAPI 3.1 contract (`docs/openapi/journey-v1.yaml`), event schema validation, `packages/contracts` event catalogue, non-blocking `lib/journey-client.ts`, REST ingestion/query endpoints (`/api/v1/journey/*`), diagnostic ring-buffer store, and comprehensive UI instrumentation across Shell, Portfolio, Questions, Commitment, Ripple, Memory, Opportunity, and Solutions.
 
-#### Phase 10C — Shared Decision State Foundation [PENDING]
-Shared state engine enabling cross-solution decision propagation.
+#### Phase 10C — Shared Decision State Foundation [COMPLETED]
+Canonical OpenAPI 3.1 contract (`docs/openapi/decision-state-v1.yaml`), transport-neutral contract model (`packages/contracts/src/decision-state-model.ts`), replaceable store abstraction (`lib/decision-state-store.ts`), optimistic concurrency versioning (`v1 → v2`), tenant/session isolation, and cross-solution deterministic propagation across Promotion, Demand & Forecast, Commitment, Inventory, Decision Ripple, Opportunity, Category, Contract Verification, and Execution Briefing.
+
+#### Phase 10D — Memory & Learning API Extraction [PENDING]
+Enterprise Memory and Learning pattern service extraction.
+
+---
+
+### Cross-Cutting Capability — Enterprise Signal Fabric (ESF)
+A canonical, source-independent mechanism for representing business, customer, operational, and market signals, strictly separated from user Journey Telemetry.
+
+- **ESF-1 — Enterprise Signal Contract & Synthetic Signal Foundation:** Establish canonical `EnterpriseSignal` contract schema, signal taxonomy (Customer, Demand, Supply, Inventory, Fulfilment, Financial), provenance model, and connector-compatible synthetic signal generation interface. *Dependencies: WP10-A, WP10-C.*
+- **ESF-2 — Dynamic Signal Simulation:** Deterministic simulation engine evolving enterprise signals dynamically over time based on active scenario, Commercial Intent, Shared Decision State, and selected interventions (`Intent Registered → Engagement Accelerates → Slot Pressure Emerges → Demand Acceleration Materialises`). *Dependencies: ESF-1.*
+- **ESF-3 — External Signal Connector Contract:** Abstraction layer enabling production signal feeds (commerce telemetry, enterprise planning systems like Blue Yonder/SAP IBP, campaign platforms, logistics telemetry) to publish into the canonical `EnterpriseSignal` contract. *Dependencies: ESF-1.*
+- **ESF-4 — Signal Quality, Confidence & Provenance:** Signal reliability metrics, freshness tracking, completeness scoring, and source classification (`synthetic_world`, `commerce_telemetry`, `planning_system`, `supplier_feed`). *Dependencies: ESF-2, ESF-3.*
+- **ESF-5 — Learned Signal Behaviour:** ML phase scoring signal sequences, precursor patterns, and signal-to-outcome correlations against historical memory precedents. *Dependencies: WP10-D, ESF-4, Phase 10F.*
+
+---
+
+### Innovation Capability — Intent Fusion Intelligence (IFI)
+A reusable cross-functional intelligence mechanism reconciling Commercial Intent, baseline enterprise forecasts, observed Enterprise Signals, and downstream commitments into Shared Decision State.
+
+- **IFI-01 — Intent Fusion Integration:** Cross-solution decision context integration linking Commercial Intent (`PromotionPlanner`), Demand Contextualisation (`Forecasting`), Commitment Gap Rehearsal (`CommitmentIntelligence`), Inventory Exposure (`AvailabilityIntelligence`), Multi-Order Consequence Ripple (`DecisionRipple`), Pattern Matching (`EnterpriseMemory`), Contract SLA Check (`ContractVerification`), and Executive Action (`ExecutionBriefing`). *Dependencies: WP10-A, WP10-B, WP10-C, ESF-1, ESF-2. Strengthened by WP10-D.*
+
+---
+
+### Roadmap Dependency Structure
+```text
+  WP10-A Enterprise World
+           ↓
+  WP10-B Journey Telemetry
+           ↓
+  WP10-C Shared Decision State
+           │
+     ┌─────┴───────────────┐
+     ▼                     ▼
+   ESF-1                 WP10-D Memory & Learning API Extraction
+   (Signal Contract)     (Preserved Intact)
+     ↓                     │
+   ESF-2                   │
+   (Dynamic Simulation)    │
+     ↓                     │
+   IFI-01 ◄────────────────┘ (Optional Enhancement Path)
+   (Intent Fusion)
+```
 
 #### Phase 10K — Counterfactual Learning
 Comparative outcome engine evaluating Chosen Decision vs Alternative Interventions vs Do-Nothing baseline.

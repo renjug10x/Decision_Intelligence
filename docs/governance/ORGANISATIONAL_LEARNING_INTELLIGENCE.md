@@ -99,10 +99,17 @@ CogniX organizes learning into six conceptual categories:
 - **Current Baseline (Implemented):** Deterministic demonstration implementation backed by canonical registry (`config/patterns.ts`).
 - **Planned Baseline (Programme 10):** Machine Learning-backed adaptive organisational learning service (`cognix-learning` & `cognix-intelligence`) operating over real-time journey telemetry.
 
-### 7.2 Counterfactual Learning & Automatic Pattern Confidence Decay
-When a decision is executed and an outcome is observed:
-1. The system logs `Predicted Outcome` versus `Actual Outcome`.
-2. Compute outcome variance: $\Delta = |\text{Predicted} - \text{Actual}|$.
-3. If actual outcomes repeatedly contradict a pattern across $N \ge 3$ occurrences, pattern confidence score automatically decays:
-$$\text{PatternConfidence}_{\text{new}} = \text{PatternConfidence}_{\text{old}} \times (1 - \gamma \cdot \Delta)$$
-This prevents stale organizational assumptions from being permanently presented as trusted truth.
+### 7.3 Enterprise Signals in Organisational Learning
+Future ML phases (ESF-5 & Phase 10F) will consume the Enterprise Signal Fabric to match recurring precursor signal sequences against historical outcomes:
+```text
+Observed Signal Sequence (Search +5%, Basket +8%, Lead-Time +2d)
+                     +
+Shared Decision Context (Commercial Intent + 1,800 unit Deficit)
+                     +
+Selected Intervention (SLA Flex Rule 4)
+                     +
+Actual Outcome (Delivery SLA Maintained, Zero Stockout)
+                     ↓
+Enterprise Memory & Learning Pattern (Refines Precursor Pattern Confidence)
+```
+This enables CogniX to recognise structural precursor patterns weeks before customer demand or operational breaches materialise.
