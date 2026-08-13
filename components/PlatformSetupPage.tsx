@@ -2,20 +2,21 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Briefcase, Package, Store, ArrowRight, Lock, Eye, EyeOff, Activity } from 'lucide-react';
+import { ArrowRight, Lock, Eye, EyeOff, Activity, ExternalLink } from 'lucide-react';
 import { useApp, type Role } from '@/lib/context';
 import { appRoutes } from '@/config/routes';
+import { DEFAULT_PERSONA_ID } from '@/config/personas';
 
-const ROLES: { id: Role; Icon: typeof Briefcase; name: string; desc: string }[] = [
-  { id: 'exec', Icon: Briefcase, name: 'Executive', desc: 'Full business overview' },
-  { id: 'category_manager', Icon: Package, name: 'Category Manager', desc: 'Category & SKU insights' },
-  { id: 'store_manager', Icon: Store, name: 'Store Manager', desc: 'My store performance' },
+const GEMINI_KEY_STEPS = [
+  'Sign in with your Google account.',
+  'Click "Get API key" in the left sidebar (or open the API keys page).',
+  'Click "Create API key" and choose a Google Cloud project (or create a new one).',
+  'Copy the generated key and paste it below.',
 ];
 
 export default function PlatformSetupPage() {
   const router = useRouter();
   const { setRole, setApiKey, setDemoMode, setIsAuthenticated, setPlatformSetupComplete } = useApp();
-  const [selectedRole, setSelectedRole] = useState<Role>('exec');
   const [keyInput, setKeyInput] = useState('');
   const [showKey, setShowKey] = useState(false);
   const [skipKey, setSkipKey] = useState(false);
@@ -30,7 +31,7 @@ export default function PlatformSetupPage() {
     setLoading(true);
     setError('');
     await new Promise((r) => setTimeout(r, 400));
-    setRole(selectedRole);
+    setRole(DEFAULT_PERSONA_ID as Role);
     setApiKey(skipKey ? '' : keyInput.trim());
     setDemoMode(skipKey);
     setIsAuthenticated(true);
@@ -74,45 +75,73 @@ export default function PlatformSetupPage() {
             marginBottom: 10,
           }}
         >
-          Select your role
-        </p>
-        <div className="role-grid">
-          {ROLES.map(({ id, Icon, name, desc }) => (
-            <div
-              key={id}
-              className={`role-card ${selectedRole === id ? 'selected' : ''}`}
-              onClick={() => {
-                setSelectedRole(id);
-                setError('');
-              }}
-            >
-              <div style={{ marginBottom: 10 }}>
-                <Icon
-                  size={20}
-                  strokeWidth={1.75}
-                  color={selectedRole === id ? '#0078FF' : '#6B7A8D'}
-                />
-              </div>
-              <div className="role-name">{name}</div>
-              <div className="role-desc">{desc}</div>
-            </div>
-          ))}
-        </div>
-
-        <div className="divider" />
-
-        <p
-          style={{
-            fontSize: '0.6875rem',
-            fontWeight: 700,
-            color: 'var(--text-muted)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            marginBottom: 10,
-          }}
-        >
           Gemini API Key
         </p>
+
+        <div
+          style={{
+            marginBottom: 16,
+            padding: '12px 14px',
+            borderRadius: 8,
+            background: 'rgba(0, 120, 255, 0.06)',
+            border: '1px solid rgba(0, 120, 255, 0.12)',
+          }}
+        >
+          <p
+            style={{
+              fontSize: '0.8125rem',
+              fontWeight: 600,
+              color: 'var(--text-primary)',
+              marginBottom: 8,
+            }}
+          >
+            How to create a Gemini API key
+          </p>
+          <ol
+            style={{
+              margin: 0,
+              paddingLeft: 18,
+              fontSize: '0.75rem',
+              color: 'var(--text-secondary)',
+              lineHeight: 1.6,
+            }}
+          >
+            <li style={{ marginBottom: 4 }}>
+              Go to{' '}
+              <a
+                href="https://aistudio.google.com/apikey"
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: 'var(--accent)', textDecoration: 'none' }}
+              >
+                Google AI Studio
+              </a>
+              .
+            </li>
+            {GEMINI_KEY_STEPS.map((step, index) => (
+              <li key={step} style={{ marginBottom: index === GEMINI_KEY_STEPS.length - 1 ? 0 : 4 }}>
+                {step}
+              </li>
+            ))}
+          </ol>
+          <a
+            href="https://aistudio.google.com/apikey"
+            target="_blank"
+            rel="noreferrer"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 4,
+              marginTop: 10,
+              fontSize: '0.75rem',
+              color: 'var(--accent)',
+              textDecoration: 'none',
+            }}
+          >
+            Open Google AI Studio
+            <ExternalLink size={12} strokeWidth={1.75} />
+          </a>
+        </div>
 
         <div style={{ position: 'relative', marginBottom: 10 }}>
           <Lock
@@ -165,7 +194,7 @@ export default function PlatformSetupPage() {
           )}
         </div>
 
-        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 6 }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', marginBottom: 20 }}>
           <input
             type="checkbox"
             checked={skipKey}
@@ -179,18 +208,6 @@ export default function PlatformSetupPage() {
             Demo mode — use mock AI responses
           </span>
         </label>
-
-        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 20 }}>
-          Free key at{' '}
-          <a
-            href="https://aistudio.google.com"
-            target="_blank"
-            rel="noreferrer"
-            style={{ color: 'var(--accent)', textDecoration: 'none' }}
-          >
-            aistudio.google.com
-          </a>
-        </p>
 
         {error && (
           <div
