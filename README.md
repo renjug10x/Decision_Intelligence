@@ -1,6 +1,38 @@
 # Decision Intelligence
 
+Lidl UK Decision Intelligence POC — Next.js monolith with Nginx reverse proxy, deployed to AWS EC2 behind ALB via GitLab CI/CD.
 
+## CI/CD
+
+Pipeline: [`.gitlab-ci.yml`](.gitlab-ci.yml) — StoneOS-style stages on branches `development` → `staging` → `production`.
+
+| Stage | Purpose |
+|-------|---------|
+| preflight | Clean checkout + deploy SHA |
+| build | Build `nextjs-app` + `nginx-proxy` images |
+| sonar | Optional Sonar scan (development) |
+| push | Push images to ECR |
+| deploy | Bastion ProxyJump → private EC2 → pull + recreate services |
+| validate | Health check + deployment report artefact |
+
+**Deploy flow:** GitLab runner builds images → pushes to ECR → SSH via bastion (`ProxyJump`) to the private app host → [`ops/ci-deploy-remote.sh`](ops/ci-deploy-remote.sh) pulls and recreates containers using [`docker-compose.ec2.yml`](docker-compose.ec2.yml).
+
+### Required GitLab CI/CD variables
+
+| Variable | Description |
+|----------|-------------|
+| `AWS_ACCOUNT_ID`, `AWS_REGION` | ECR login |
+| `EC2IP_DEV`, `EC2IP_STAGE`, `EC2IP_PROD` | Private app host IPs (`x-x-x-x` or dotted) |
+| `BASTION_HOST` | Shared bastion host (same for dev, staging, production) |
+| `PEM_BASE64` | Base64-encoded SSH private key |
+| `EC2USER`, `BASTION_USER` | SSH users (e.g. `ubuntu`) |
+| `DEPLOY_DIR` | Host deploy directory (e.g. `/home/ubuntu/Decision_Intelligence`) |
+
+Optional: `PUBLIC_BASE_URL`, `PUBLIC_BASE_URL_DEV`, `PUBLIC_BASE_URL_STAGE`, `PUBLIC_BASE_URL_PROD`, `ECR_REPO_NAME`, `RUNNER_TAG` (default `decision-intelligence`), `DOCKER_BUILD_NO_CACHE`, `SONAR_ENABLED`, `HEALTH_CHECK_DELAY`.
+
+### Host setup
+
+On each app EC2 instance, create `DEPLOY_DIR/.env` with `GEMINI_API_KEY` (never committed). Ensure Let's Encrypt certs exist at `/etc/letsencrypt` if using HTTPS on the host nginx.
 
 ## Getting started
 
