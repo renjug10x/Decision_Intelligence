@@ -4,6 +4,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        AUTH_API_URL: ${AUTH_API_URL:-}
     container_name: nextjs-app
     restart: unless-stopped
     environment:

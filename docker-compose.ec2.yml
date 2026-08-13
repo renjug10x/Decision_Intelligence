@@ -1,14 +1,20 @@
 # EC2 runtime compose — pulls pre-built images from ECR (no local build).
-# Image pins are supplied via .env.images (written by CI deploy job).
-# Runtime secrets (GEMINI_API_KEY) come from host .env — never committed.
+# Image pins: .env.images (CI). Host .env: AUTH_API_URL, DI_HTTP_PORT (optional).
+# Host nginx proxies di.glassx.ai → 127.0.0.1:8080 (DI_HTTP_PORT). GEMINI key is set in the UI.
 
 services:
   nextjs-app:
     image: ${DI_NEXTJS_IMAGE}
     container_name: nextjs-app
     restart: unless-stopped
+    env_file:
+      - path: .env.images
+        required: true
+      - path: .env
+        required: false
     environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - AUTH_API_URL=${AUTH_API_URL:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - NODE_ENV=production
       - PORT=3000
     expose:
@@ -24,26 +30,19 @@ services:
     image: ${DI_NGINX_IMAGE}
     container_name: nginx-proxy
     restart: unless-stopped
+    env_file:
+      - path: .env.images
+        required: true
+      - path: .env
+        required: false
     ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-      - /var/www/certbot:/var/www/certbot:ro
+      - "${DI_HTTP_PORT:-8080}:80"
     depends_on:
       nextjs-app:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "nginx -t && wget --no-verbose --tries=1 --spider --no-check-certificate https://localhost/api/health || exit 1"]
+      test: ["CMD-SHELL", "nginx -t && wget --no-verbose --tries=1 --spider http://localhost/api/health || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 3
-
-  certbot:
-    image: certbot/certbot:latest
-    container_name: certbot
-    restart: unless-stopped
-    volumes:
-      - /etc/letsencrypt:/etc/letsencrypt
-      - /var/www/certbot:/var/www/certbot
-    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
+      start_period: 15s

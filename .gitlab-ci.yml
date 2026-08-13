@@ -183,6 +183,7 @@ build:
     - |
       set -e
       export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
+      export AUTH_API_URL="${AUTH_API_URL:-https://probx-be.glassx.ai/identity}"
       echo "=== BUILD revision ${CI_COMMIT_SHA} → ${ECR_REPO_NAME} (${IMAGE_TAG_PREFIX}) ==="
 
       if docker compose version >/dev/null 2>&1; then
@@ -200,7 +201,7 @@ build:
         echo "Building with --no-cache (fresh artefacts from this revision)."
       fi
 
-      $COMPOSE -p "${SERVICE_PREFIX}" -f docker-compose.yml -f docker-compose.prod.yml build ${BUILD_FLAGS} ${DI_SERVICES}
+      $COMPOSE -p "${SERVICE_PREFIX}" -f docker-compose.yml -f docker-compose.ec2-build.yml build ${BUILD_FLAGS} ${DI_SERVICES}
 
       for svc in ${DI_SERVICES}; do
         LOCAL_IMAGE=$(resolve_local_image "$svc")
@@ -272,7 +273,7 @@ push:
         sudo cp /tmp/ci-validate-remote.sh ${DEPLOY_DIR}/ci-validate-remote.sh
         sudo chmod +x ${DEPLOY_DIR}/ci-deploy-remote.sh ${DEPLOY_DIR}/ci-validate-remote.sh
         if [[ ! -f ${DEPLOY_DIR}/.env ]]; then
-          echo \"WARNING: ${DEPLOY_DIR}/.env is missing — create it with GEMINI_API_KEY before relying on runtime config.\"
+          echo \"WARNING: ${DEPLOY_DIR}/.env is missing — create it with AUTH_API_URL (GEMINI key is entered in the app UI).\"
         fi
         rm -f /tmp/docker-compose.ec2.yml /tmp/di.env.images /tmp/ci-deploy-remote.sh /tmp/ci-validate-remote.sh
         sudo bash ${DEPLOY_DIR}/ci-deploy-remote.sh \

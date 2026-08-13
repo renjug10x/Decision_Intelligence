@@ -34,7 +34,16 @@ Optional: `PUBLIC_BASE_URL`, `PUBLIC_BASE_URL_DEV`, `PUBLIC_BASE_URL_STAGE`, `PU
 
 ### Host setup
 
-On each app EC2 instance, create `DEPLOY_DIR/.env` with `GEMINI_API_KEY` (never committed). Ensure Let's Encrypt certs exist at `/etc/letsencrypt` if using HTTPS on the host nginx.
+On each app EC2 instance, create `DEPLOY_DIR/.env` with runtime config (never committed), for example:
+
+```
+AUTH_API_URL=https://probx-be.glassx.ai/identity
+DI_HTTP_PORT=8080
+```
+
+Host nginx (already on the instance) proxies `di.glassx.ai` → `http://127.0.0.1:8080`. The Gemini API key is **not** in `.env` — users enter it in the platform setup UI after login.
+
+Set `AUTH_API_URL` as a GitLab CI variable too so it is baked into the Next.js build.
 
 ## Getting started
 

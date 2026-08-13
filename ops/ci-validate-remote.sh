@@ -26,6 +26,22 @@ fi
 
 cd "${DEPLOY_DIR}"
 
+if [[ -f .env ]]; then
+  # shellcheck disable=SC1091
+  set -a
+  source .env
+  set +a
+fi
+DI_HTTP_PORT="${DI_HTTP_PORT:-8080}"
+
+compose() {
+  local args=(--env-file .env.images -f docker-compose.yml)
+  if [[ -f .env ]]; then
+    args=(--env-file .env "${args[@]}")
+  fi
+  ${COMPOSE} "${args[@]}" "$@"
+}
+
 VALIDATE_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 DEPLOY_ENV="${REPORT_DIR}/deploy.env"
 COMMIT_SHA="unknown"
@@ -39,7 +55,7 @@ if [[ -f "${DEPLOY_ENV}" ]]; then
 fi
 
 log "Compose service status:"
-${COMPOSE} -f docker-compose.yml ps | tee "${REPORT_DIR}/compose-ps.txt"
+compose ps | tee "${REPORT_DIR}/compose-ps.txt"
 
 CONTAINER_HEALTH="unknown"
 if docker inspect --format='{{.State.Health.Status}}' nextjs-app 2>/dev/null; then
@@ -55,7 +71,11 @@ HTTP_STATUS="000"
 HEALTH_BODY=""
 REDIRECT_NOTE="not checked"
 
+LOCAL_NGINX_STATUS="000"
 if command -v curl >/dev/null 2>&1; then
+  log "Checking local nginx on :${DI_HTTP_PORT}/api/health"
+  LOCAL_NGINX_STATUS="$(curl -s -o /tmp/di-local-health.json -w "%{http_code}" "http://127.0.0.1:${DI_HTTP_PORT}/api/health" || echo "000")"
+
   log "Checking public health endpoint: ${HEALTH_URL}"
   HTTP_STATUS="$(curl -s -o /tmp/di-health.json -w "%{http_code}" "${HEALTH_URL}" || echo "000")"
   if [[ -f /tmp/di-health.json ]]; then
@@ -70,10 +90,16 @@ else
 fi
 
 OVERALL="PASS"
+if [[ "${LOCAL_NGINX_STATUS}" != "200" ]]; then
+  OVERALL="FAIL"
+fi
 if [[ "${HTTP_STATUS}" != "200" ]]; then
   OVERALL="FAIL"
 fi
-if [[ "${CONTAINER_HEALTH}" != "healthy" && "${CONTAINER_HEALTH}" != "unknown" ]]; then
+if [[ "${NGINX_HEALTH}" != "healthy" && "${NGINX_HEALTH}" != "unknown" ]]; then
+  OVERALL="FAIL"
+fi
+if ! docker ps --format '{{.Names}}' | grep -qx 'nginx-proxy'; then
   OVERALL="FAIL"
 fi
 
@@ -87,7 +113,11 @@ cat > "${REPORT_FILE}" <<EOF
 | Branch | ${COMMIT_BRANCH} |
 | Public URL | ${PUBLIC_BASE_URL} |
 | Health URL | ${HEALTH_URL} |
+| DI_HTTP_PORT | ${DI_HTTP_PORT} |
+| Local nginx health | http://127.0.0.1:${DI_HTTP_PORT}/api/health → ${LOCAL_NGINX_STATUS} |
 | Overall | **${OVERALL}** |
+
+Host nginx / ALB must forward \`${PUBLIC_BASE_URL}\` → \`http://127.0.0.1:${DI_HTTP_PORT}\`.
 
 ## Images
 
@@ -116,7 +146,7 @@ ${HEALTH_BODY}
 
 - [ ] Application loads in browser at ${PUBLIC_BASE_URL}
 - [ ] Login / onboarding flow works
-- [ ] AI features respond (GEMINI_API_KEY configured on host)
+- [ ] AI features respond (Gemini key entered via platform setup UI)
 
 EOF
 
