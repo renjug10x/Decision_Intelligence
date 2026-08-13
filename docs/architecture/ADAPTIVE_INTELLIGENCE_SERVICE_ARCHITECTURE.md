@@ -112,7 +112,8 @@ State Versioning (v2) + Deterministic Impact Recalculation
       +
 
 ### 4.4 Enterprise Signal Fabric (ESF-1 Implemented) Architecture
-- **Implementation Status:** Canonical transport contract schema (`packages/contracts/src/enterprise-signal-model.ts`), OpenAPI 3.1 contract (`docs/openapi/enterprise-signals-v1.yaml`), deterministic generator in `cognix-world`, BFF proxy routes (`/api/v1/signals/*`), developer diagnostic view (`components/Help.tsx`), and Shared Decision State reference integration.
+- **ESF-1 Enterprise Signal Foundation [COMPLETED]:** `EnterpriseSignal` schema model, taxonomy, OpenAPI 3.1 spec, generator in `services/world`, BFF proxy endpoints (`/api/v1/signals/*`), and developer diagnostic panel.
+- **ESF-2 Dynamic Signal Simulation [COMPLETED]:** Deterministic simulation engine (`services/world/src/dynamic-signal-simulator.ts`), temporal timeline models (`EnterpriseSignalTimeline`, `EnterpriseSignalObservation`), bounded context projection (`SignalSimulationContext`), same-origin simulation BFF (`POST /api/v1/signals/simulate`), intervention timing immutability, and 17/17 verified unit & regression tests.
 - **The Five Information Classes:**
   1. *Enterprise World:* Authoritative baseline reality.
   2. *Enterprise Forecast:* Expected demand trajectory from upstream platforms (Blue Yonder / SAP IBP).

@@ -1,10 +1,38 @@
 "use strict";
 /**
  * CogniX Enterprise Signal Fabric Model
- * Transport-neutral types, signal taxonomy, source classification, and validation helpers.
+ * Transport-neutral types, signal taxonomy, source classification, temporal models, and validation helpers.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.ORDERED_SIMULATION_PERIODS = void 0;
+exports.validateTemporalRange = validateTemporalRange;
 exports.validateEnterpriseSignal = validateEnterpriseSignal;
+exports.validateSignalSimulationContext = validateSignalSimulationContext;
+exports.ORDERED_SIMULATION_PERIODS = [
+    'T-90',
+    'T-30',
+    'T-7',
+    'T-5',
+    'T-3',
+    'T-2',
+    'T-1',
+    'Today',
+    'T+1',
+    'T+3',
+    'T+7',
+    'T+30'
+];
+function validateTemporalRange(from, to) {
+    const fromIndex = exports.ORDERED_SIMULATION_PERIODS.indexOf(from);
+    const toIndex = exports.ORDERED_SIMULATION_PERIODS.indexOf(to);
+    if (fromIndex === -1)
+        return { valid: false, error: `Invalid 'from' period: ${from}` };
+    if (toIndex === -1)
+        return { valid: false, error: `Invalid 'to' period: ${to}` };
+    if (fromIndex > toIndex)
+        return { valid: false, error: `Invalid temporal range: 'from' (${from}) must precede or equal 'to' (${to})` };
+    return { valid: true };
+}
 function validateEnterpriseSignal(signal) {
     const errors = [];
     if (!signal.signal_id)
@@ -32,6 +60,25 @@ function validateEnterpriseSignal(signal) {
     if (/AIzaSy[A-Za-z0-9_-]{33}/.test(strPayload) || /"password"\s*:\s*"[^"]+"/.test(strPayload)) {
         errors.push('Security violation: Signal payload contains credentials or sensitive tokens');
     }
+    return {
+        valid: errors.length === 0,
+        errors
+    };
+}
+function validateSignalSimulationContext(context) {
+    const errors = [];
+    if (!context.tenant_id)
+        errors.push('Missing required field: tenant_id');
+    if (!context.scenario_id)
+        errors.push('Missing required field: scenario_id');
+    if (!context.session_id)
+        errors.push('Missing required field: session_id');
+    if (!context.decision_state_id)
+        errors.push('Missing required field: decision_state_id');
+    if (typeof context.decision_state_version !== 'number')
+        errors.push('Missing required field: decision_state_version');
+    if (typeof context.promotion_lift !== 'number')
+        errors.push('Missing required field: promotion_lift');
     return {
         valid: errors.length === 0,
         errors

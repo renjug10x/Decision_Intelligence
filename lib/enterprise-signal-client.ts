@@ -66,3 +66,19 @@ export async function fetchSignalById(signalId: string): Promise<EnterpriseSigna
     return null;
   }
 }
+
+export async function simulateSignalTimelines(request: any): Promise<any | null> {
+  try {
+    const res = await fetch('/api/v1/signals/simulate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request)
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.data || null;
+  } catch (e: any) {
+    console.error(`[EnterpriseSignalClient] Simulation failed: ${e.message}`);
+    return null;
+  }
+}

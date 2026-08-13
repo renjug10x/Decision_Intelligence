@@ -1,6 +1,6 @@
 /**
  * CogniX Enterprise Signal Fabric Model
- * Transport-neutral types, signal taxonomy, source classification, and validation helpers.
+ * Transport-neutral types, signal taxonomy, source classification, temporal models, and validation helpers.
  */
 
 export type SignalCategory =
@@ -71,6 +71,35 @@ export type CanonicalSignalType =
   | 'LOGISTICS_COST_ESCALATION'
   | 'INCREMENTAL_REVENUE_OPPORTUNITY';
 
+export type SimulationPeriod =
+  | 'T-90'
+  | 'T-30'
+  | 'T-7'
+  | 'T-5'
+  | 'T-3'
+  | 'T-2'
+  | 'T-1'
+  | 'Today'
+  | 'T+1'
+  | 'T+3'
+  | 'T+7'
+  | 'T+30';
+
+export const ORDERED_SIMULATION_PERIODS: SimulationPeriod[] = [
+  'T-90',
+  'T-30',
+  'T-7',
+  'T-5',
+  'T-3',
+  'T-2',
+  'T-1',
+  'Today',
+  'T+1',
+  'T+3',
+  'T+7',
+  'T+30'
+];
+
 export interface EnterpriseSignal {
   signal_id: string;              // sig_<uuid>
   signal_type: CanonicalSignalType;
@@ -86,7 +115,7 @@ export interface EnterpriseSignal {
   observed_value: number;
   delta: number;
   delta_pct: number;
-  unit: string;                   // e.g. 'percent', 'units', 'hours', 'gbp', 'days'
+  unit: string;                   // e.g. 'percent', 'units', 'hours', 'days'
   source_type: SignalSourceType;
   source_system: string;          // e.g. 'cognix_world_generator', 'blue_yonder_demand_planning'
   confidence: number;             // 0 to 100
@@ -94,6 +123,93 @@ export interface EnterpriseSignal {
   provenance: Record<string, string>;
   synthetic_demo: boolean;        // true
   schema_version: string;         // "1.0"
+}
+
+export interface SignalSimulationIntervention {
+  intervention_id: string;           // e.g. 'sla_flex_rule_4'
+  effective_period: SimulationPeriod; // e.g. 'T-2'
+}
+
+export interface SignalSimulationContext {
+  session_id: string;
+  decision_state_id: string;
+  decision_state_version: number;
+  tenant_id: string;
+  scenario_id: string;
+  scenario_family?: string;
+  promotion_lift: number;
+  supplier_capacity_cap: number;
+  forecast_horizon_days: number;
+  promotion_method: string;
+  campaign_scope: 'national' | 'regional' | 'phased';
+  cannibalisation_factor: number;
+  event_boost: string;
+  selected_interventions: SignalSimulationIntervention[];
+}
+
+export interface EnterpriseSignalObservation {
+  period: SimulationPeriod;
+  observed_at: string;
+  effective_at: string;
+  baseline_value: number;
+  observed_value: number;
+  delta: number;
+  delta_pct: number;
+  unit: string;
+  confidence: number;
+  quality: number;
+  provenance: {
+    rule_id: string;
+    drivers: Record<string, number | string | boolean>;
+    source_signal_refs?: string[];
+    decision_state_version: number;
+    intervention_refs?: string[];
+    generator_version: string;
+  };
+}
+
+export interface EnterpriseSignalTimeline {
+  timeline_id: string;
+  signal_type: CanonicalSignalType;
+  category: SignalCategory;
+  tenant_id: string;
+  scenario_id: string;
+  entity_type: SignalEntityType;
+  entity_id: string;
+  unit: string;
+  synthetic_demo: boolean;
+  schema_version: string;
+  observations: EnterpriseSignalObservation[];
+}
+
+export interface SignalSimulationRequest {
+  context: SignalSimulationContext;
+  temporal_range?: {
+    from: SimulationPeriod;
+    to: SimulationPeriod;
+  };
+}
+
+export interface SignalSimulationResponse {
+  simulation_id: string;
+  tenant_id: string;
+  scenario_id: string;
+  decision_state_id: string;
+  decision_state_version: number;
+  generator_version: string;
+  timelines: EnterpriseSignalTimeline[];
+  timestamp: string;
+}
+
+export function validateTemporalRange(from: SimulationPeriod, to: SimulationPeriod): { valid: boolean; error?: string } {
+  const fromIndex = ORDERED_SIMULATION_PERIODS.indexOf(from);
+  const toIndex = ORDERED_SIMULATION_PERIODS.indexOf(to);
+
+  if (fromIndex === -1) return { valid: false, error: `Invalid 'from' period: ${from}` };
+  if (toIndex === -1) return { valid: false, error: `Invalid 'to' period: ${to}` };
+  if (fromIndex > toIndex) return { valid: false, error: `Invalid temporal range: 'from' (${from}) must precede or equal 'to' (${to})` };
+
+  return { valid: true };
 }
 
 export function validateEnterpriseSignal(signal: Partial<EnterpriseSignal>): { valid: boolean; errors: string[] } {
@@ -120,6 +236,22 @@ export function validateEnterpriseSignal(signal: Partial<EnterpriseSignal>): { v
   if (/AIzaSy[A-Za-z0-9_-]{33}/.test(strPayload) || /"password"\s*:\s*"[^"]+"/.test(strPayload)) {
     errors.push('Security violation: Signal payload contains credentials or sensitive tokens');
   }
+
+  return {
+    valid: errors.length === 0,
+    errors
+  };
+}
+
+export function validateSignalSimulationContext(context: Partial<SignalSimulationContext>): { valid: boolean; errors: string[] } {
+  const errors: string[] = [];
+
+  if (!context.tenant_id) errors.push('Missing required field: tenant_id');
+  if (!context.scenario_id) errors.push('Missing required field: scenario_id');
+  if (!context.session_id) errors.push('Missing required field: session_id');
+  if (!context.decision_state_id) errors.push('Missing required field: decision_state_id');
+  if (typeof context.decision_state_version !== 'number') errors.push('Missing required field: decision_state_version');
+  if (typeof context.promotion_lift !== 'number') errors.push('Missing required field: promotion_lift');
 
   return {
     valid: errors.length === 0,

@@ -148,7 +148,7 @@ Conceptual simulation timeline:
 
 - **Domain Ownership:** Dynamic synthetic signal simulation belongs exclusively to the Enterprise World domain (`services/world/src/dynamic-signal-simulator.ts`).
 - **Transport Contracts:** All signals consume the transport-neutral `EnterpriseSignal` model exported from `packages/contracts/src/index`. `packages/contracts` must remain transport-neutral and own zero scenario simulation rules.
-- **BFF Gateway Proxy:** Browser calls same-origin `/api/v1/signals/timeline` or `/api/v1/signals` on `cognix-web` (port 3000), which proxies to `cognix-world` (port 8081) in `COGNIX_WORLD_MODE=service`.
+- **BFF Gateway Proxy:** Browser calls same-origin `POST /api/v1/signals/simulate` or GET `/api/v1/signals` on `cognix-web` (port 3000), which proxies to `cognix-world` (port 8081) in `COGNIX_WORLD_MODE=service`.
 - **Shared Decision State Integration:** Shared Decision State (`v1 → v2`) dynamically alters signal deltas (e.g. increasing promotion lift from 20% to 30% dynamically accelerates basket add and capacity pressure signals). Decision State stores signal reference IDs (`sig_<id>`), not duplicate full signal objects.
 - **Journey Telemetry Separation:** Telemetry logs user UI interactions (`SCENARIO_CHANGED`). Signals represent enterprise operational shifts. Zero schema cross-pollution.
 - **Topology Boundary:** No new microservice container. Container topology remains strictly `cognix-web + cognix-world`.
@@ -177,7 +177,7 @@ Conceptual simulation timeline:
    - Both `cognix-web` and `cognix-world` healthy.
 5. **Runtime HTTP Probes & Regression:**
    - `curl -s "http://localhost:3000/api/v1/signals/health"` $\rightarrow$ HTTP 200 OK
-   - `curl -s "http://localhost:3000/api/v1/signals/timeline?scenario_id=SCN-PROMO-01"` $\rightarrow$ HTTP 200 OK (Timeline signals)
+   - `curl -s -X POST "http://localhost:3000/api/v1/signals/simulate"` $\rightarrow$ HTTP 200 OK (Timeline signals)
    - Regression: WP10-A (`/api/v1/scenarios`), WP10-B (`/api/v1/journey/health`), WP10-C (`/api/v1/decision-state/health`), ESF-1 (`/api/v1/signals`).
 
 ---

@@ -114,7 +114,13 @@ The underlying signal contract is 100% identical between synthetic and productio
 ## 6. Enterprise Signal Fabric Roadmap Progression
 
 - **`ESF-1` — Enterprise Signal Contract & Synthetic Signal Foundation [COMPLETED]:** Canonical contract schema, taxonomy, `cognix-world` generator, BFF proxy, and developer diagnostics.
-- **`ESF-2` — Dynamic Signal Simulation [PENDING]:** Deterministic simulation engine evolving signals dynamically over time based on active scenario parameters, Commercial Intent, and selected interventions.
+- **`ESF-2` — Dynamic Signal Simulation & Temporal Timeline Models (ESF-2)**
+
+ESF-2 introduces deterministic temporal signal simulation (`services/world/src/dynamic-signal-simulator.ts`):
+- **Temporal Sequence:** `T-90`, `T-30`, `T-7`, `T-5`, `T-3`, `T-2`, `T-1`, `Today`, `T+1`, `T+3`, `T+7`, `T+30`, where `Today` is the canonical zero/current period.
+- **Bounded Simulation Context:** `SignalSimulationContext` projects bounded decision state parameters (`session_id`, `decision_state_id`, `decision_state_version`, `promotion_lift`, `supplier_capacity_cap`, `selected_interventions`) into `cognix-world` via `POST /api/v1/signals/simulate`.
+- **Intervention Temporal Immutability:** Interventions become effective at a specific `effective_period` (e.g. `T-2`). Historical observations at or before `effective_period` remain strictly unchanged (`period <= effective_period`), while future observations (`period > effective_period`) deterministically reflect intervention consequences.
+- **Pure Function Simulation:** Dynamic simulation is 100% calculative and on-demand. It mutates zero state in Enterprise World, Decision State, or Telemetry.
 - **`ESF-3` — External Signal Connector Contract [PENDING]:** Transport adapters for enterprise planning (Blue Yonder / SAP IBP) and commerce telemetry.
 - **`ESF-4` — Signal Quality, Confidence & Provenance [PENDING]:** Signal freshness metrics, reliability scoring, and source anomaly detection.
 - **`ESF-5` — Learned Signal Behaviour [PENDING]:** Machine Learning scoring signal precursor sequences against historical memory precedents.

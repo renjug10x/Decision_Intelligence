@@ -5,7 +5,7 @@ info:
   version: 1.0.0
 servers:
   - url: http://localhost:3000
-    description: CogniX Web BFF Gateway Gateway
+    description: CogniX Web BFF Gateway
   - url: http://localhost:8081
     description: Enterprise World Microservice Endpoint
 paths:
@@ -36,6 +36,39 @@ paths:
                   timestamp:
                     type: string
                     format: date-time
+
+  /api/v1/signals/simulate:
+    post:
+      summary: Simulate Dynamic Enterprise Signal Timelines
+      description: Pure calculative function executing dynamic temporal signal trajectory simulation from supplied SignalSimulationContext.
+      operationId: simulateEnterpriseSignals
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignalSimulationRequest'
+      responses:
+        '200':
+          description: Calculated Enterprise Signal Timelines
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  service:
+                    type: string
+                    example: cognix-world
+                  domain:
+                    type: string
+                    example: enterprise-signals
+                  data:
+                    $ref: '#/components/schemas/SignalSimulationResponse'
+        '400':
+          description: Invalid simulation request or temporal range
 
   /api/v1/signals:
     get:
@@ -154,6 +187,270 @@ paths:
 
 components:
   schemas:
+    SimulationPeriod:
+      type: string
+      enum:
+        - T-90
+        - T-30
+        - T-7
+        - T-5
+        - T-3
+        - T-2
+        - T-1
+        - Today
+        - T+1
+        - T+3
+        - T+7
+        - T+30
+      example: Today
+
+    SignalSimulationIntervention:
+      type: object
+      required:
+        - intervention_id
+        - effective_period
+      properties:
+        intervention_id:
+          type: string
+          example: sla_flex_rule_4
+        effective_period:
+          $ref: '#/components/schemas/SimulationPeriod'
+
+    SignalSimulationContext:
+      type: object
+      required:
+        - session_id
+        - decision_state_id
+        - decision_state_version
+        - tenant_id
+        - scenario_id
+        - promotion_lift
+        - supplier_capacity_cap
+        - forecast_horizon_days
+        - promotion_method
+        - campaign_scope
+        - cannibalisation_factor
+        - event_boost
+        - selected_interventions
+      properties:
+        session_id:
+          type: string
+          example: sess_test
+        decision_state_id:
+          type: string
+          example: ds_test
+        decision_state_version:
+          type: integer
+          example: 1
+        tenant_id:
+          type: string
+          example: tenant_uk_retail_01
+        scenario_id:
+          type: string
+          example: SCN-PROMO-01
+        scenario_family:
+          type: string
+          example: promotion_surge
+        promotion_lift:
+          type: number
+          example: 20
+        supplier_capacity_cap:
+          type: number
+          example: 10
+        forecast_horizon_days:
+          type: number
+          example: 14
+        promotion_method:
+          type: string
+          example: 20_percent_off
+        campaign_scope:
+          type: string
+          enum: [national, regional, phased]
+          example: national
+        cannibalisation_factor:
+          type: number
+          example: 0
+        event_boost:
+          type: string
+          example: none
+        selected_interventions:
+          type: array
+          items:
+            $ref: '#/components/schemas/SignalSimulationIntervention'
+
+    EnterpriseSignalObservation:
+      type: object
+      required:
+        - period
+        - observed_at
+        - effective_at
+        - baseline_value
+        - observed_value
+        - delta
+        - delta_pct
+        - unit
+        - confidence
+        - quality
+        - provenance
+      properties:
+        period:
+          $ref: '#/components/schemas/SimulationPeriod'
+        observed_at:
+          type: string
+          format: date-time
+        effective_at:
+          type: string
+          format: date-time
+        baseline_value:
+          type: number
+          example: 100
+        observed_value:
+          type: number
+          example: 118
+        delta:
+          type: number
+          example: 18
+        delta_pct:
+          type: number
+          example: 18
+        unit:
+          type: string
+          example: percent_baseline
+        confidence:
+          type: number
+          example: 92
+        quality:
+          type: number
+          example: 95
+        provenance:
+          type: object
+          required:
+            - rule_id
+            - drivers
+            - decision_state_version
+            - generator_version
+          properties:
+            rule_id:
+              type: string
+              example: SIG-RULE-SEARCH-ACCEL
+            drivers:
+              type: object
+            source_signal_refs:
+              type: array
+              items:
+                type: string
+            decision_state_version:
+              type: integer
+            intervention_refs:
+              type: array
+              items:
+                type: string
+            generator_version:
+              type: string
+
+    EnterpriseSignalTimeline:
+      type: object
+      required:
+        - timeline_id
+        - signal_type
+        - category
+        - tenant_id
+        - scenario_id
+        - entity_type
+        - entity_id
+        - unit
+        - synthetic_demo
+        - schema_version
+        - observations
+      properties:
+        timeline_id:
+          type: string
+          example: tl_search_SCN-PROMO-01
+        signal_type:
+          type: string
+          example: SEARCH_VELOCITY_ACCELERATION
+        category:
+          type: string
+          example: CUSTOMER
+        tenant_id:
+          type: string
+          example: tenant_uk_retail_01
+        scenario_id:
+          type: string
+          example: SCN-PROMO-01
+        entity_type:
+          type: string
+          example: CATEGORY
+        entity_id:
+          type: string
+          example: Fresh Dairy
+        unit:
+          type: string
+          example: percent_baseline
+        synthetic_demo:
+          type: boolean
+          example: true
+        schema_version:
+          type: string
+          example: "1.0"
+        observations:
+          type: array
+          items:
+            $ref: '#/components/schemas/EnterpriseSignalObservation'
+
+    SignalSimulationRequest:
+      type: object
+      required:
+        - context
+      properties:
+        context:
+          $ref: '#/components/schemas/SignalSimulationContext'
+        temporal_range:
+          type: object
+          properties:
+            from:
+              $ref: '#/components/schemas/SimulationPeriod'
+            to:
+              $ref: '#/components/schemas/SimulationPeriod'
+
+    SignalSimulationResponse:
+      type: object
+      required:
+        - simulation_id
+        - tenant_id
+        - scenario_id
+        - decision_state_id
+        - decision_state_version
+        - generator_version
+        - timelines
+        - timestamp
+      properties:
+        simulation_id:
+          type: string
+          example: sig_sim_x7y8z9
+        tenant_id:
+          type: string
+          example: tenant_uk_retail_01
+        scenario_id:
+          type: string
+          example: SCN-PROMO-01
+        decision_state_id:
+          type: string
+          example: ds_test
+        decision_state_version:
+          type: integer
+          example: 1
+        generator_version:
+          type: string
+          example: sim_gen_v1.0.0
+        timelines:
+          type: array
+          items:
+            $ref: '#/components/schemas/EnterpriseSignalTimeline'
+        timestamp:
+          type: string
+          format: date-time
+
     EnterpriseSignal:
       type: object
       required:
