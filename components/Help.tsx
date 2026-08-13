@@ -10,10 +10,12 @@ import ArchitectureExplorer from '@/components/ArchitectureExplorer';
 import { useDecisionState } from '@/context/DecisionStateContext';
 
 export default function Help() {
-  const [activeTab, setActiveTab] = useState<'storyboard' | 'lifecycle' | 'telemetry' | 'decision_state'>('storyboard');
+  const [activeTab, setActiveTab] = useState<'storyboard' | 'lifecycle' | 'telemetry' | 'decision_state' | 'signals'>('storyboard');
   const [hoveredStep, setHoveredStep] = useState<number | null>(null);
   const [journeyEvents, setJourneyEvents] = useState<any[]>([]);
   const [loadingTelemetry, setLoadingTelemetry] = useState(false);
+  const [enterpriseSignals, setEnterpriseSignals] = useState<any[]>([]);
+  const [loadingSignals, setLoadingSignals] = useState(false);
   const { decisionState, resetScenario, refreshState } = useDecisionState();
 
   const fetchTelemetry = async () => {
@@ -28,9 +30,23 @@ export default function Help() {
     setLoadingTelemetry(false);
   };
 
+  const fetchSignals = async () => {
+    setLoadingSignals(true);
+    try {
+      const res = await fetch('/api/v1/signals?tenant_id=tenant_uk_retail_01');
+      const json = await res.json();
+      if (json.data) setEnterpriseSignals(json.data);
+    } catch (e) {
+      console.warn('Failed to fetch enterprise signals', e);
+    }
+    setLoadingSignals(false);
+  };
+
   React.useEffect(() => {
     if (activeTab === 'telemetry') {
       fetchTelemetry();
+    } else if (activeTab === 'signals') {
+      fetchSignals();
     }
   }, [activeTab]);
 
@@ -57,7 +73,8 @@ export default function Help() {
             { id: 'storyboard', label: 'Architecture Storyboard', Icon: Layers },
             { id: 'lifecycle', label: 'Decision Lifecycle', Icon: Activity },
             { id: 'telemetry', label: 'Journey Telemetry', Icon: Sparkles },
-            { id: 'decision_state', label: 'Shared Decision State Diagnostics', Icon: Zap }
+            { id: 'decision_state', label: 'Shared Decision State Diagnostics', Icon: Zap },
+            { id: 'signals', label: 'Enterprise Signals (ESF-1)', Icon: ShieldAlert }
           ].map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -425,6 +442,75 @@ export default function Help() {
               ) : (
                 <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
                   No active Decision State found.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Enterprise Signals Diagnostic Tab */}
+        {activeTab === 'signals' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              padding: 20
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Synthetic Enterprise Signals (ESF-1 Foundation)
+                  </h3>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                    Canonical Enterprise Signal snapshots generated deterministically by Enterprise World.
+                  </p>
+                </div>
+                <button
+                  onClick={() => fetchSignals()}
+                  disabled={loadingSignals}
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.75rem', padding: '6px 12px' }}
+                >
+                  {loadingSignals ? 'Refreshing...' : 'Refresh Signals'}
+                </button>
+              </div>
+
+              {enterpriseSignals.length === 0 ? (
+                <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
+                  No enterprise signals retrieved.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 480, overflowY: 'auto' }}>
+                  {enterpriseSignals.map((sig, idx) => (
+                    <div key={sig.signal_id || idx} style={{
+                      background: 'var(--bg-surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 6,
+                      padding: '12px 16px',
+                      fontSize: '0.75rem',
+                      fontFamily: 'monospace'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ fontWeight: 800, color: 'var(--accent)' }}>
+                          [{sig.category}] {sig.signal_type}
+                        </span>
+                        <span style={{ background: 'rgba(255,107,0,0.1)', color: 'var(--g10x-orange)', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                          {sig.delta_pct > 0 ? `+${sig.delta_pct}%` : `${sig.delta_pct}%`}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', color: 'var(--text-secondary)' }}>
+                        <span>ID: <strong>{sig.signal_id}</strong></span>
+                        <span>Entity: <strong>{sig.entity_type} ({sig.entity_id})</strong></span>
+                        <span>Baseline: <strong>{sig.baseline_value}</strong></span>
+                        <span>Observed: <strong>{sig.observed_value} ({sig.unit})</strong></span>
+                        <span>Source: <strong>{sig.source_type} ({sig.source_system})</strong></span>
+                      </div>
+                      <div style={{ marginTop: 6, color: 'var(--text-muted)', fontSize: '0.6875rem' }}>
+                        Confidence: {sig.confidence}% | Quality: {sig.quality}% | Synthetic Demo: {String(sig.synthetic_demo)} | Rule: {sig.provenance?.rule || 'n/a'}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>

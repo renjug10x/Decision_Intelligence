@@ -18,3 +18,4 @@ __exportStar(require("./enterprise-world-model"), exports);
 __exportStar(require("./enterprise-world-seed"), exports);
 __exportStar(require("./journey-model"), exports);
 __exportStar(require("./decision-state-model"), exports);
+__exportStar(require("./enterprise-signal-model"), exports);

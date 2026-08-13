@@ -1,0 +1,243 @@
+openapi: 3.1.0
+info:
+  title: CogniX Enterprise Signal Fabric API
+  description: OpenAPI 3.1 specification for CogniX Enterprise Signal domain endpoints.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: CogniX Web BFF Gateway Gateway
+  - url: http://localhost:8081
+    description: Enterprise World Microservice Endpoint
+paths:
+  /api/v1/signals/health:
+    get:
+      summary: Enterprise Signal Domain Health Probe
+      operationId: getEnterpriseSignalHealth
+      responses:
+        '200':
+          description: Domain health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                    example: cognix-world
+                  domain:
+                    type: string
+                    example: enterprise-signals
+                  version:
+                    type: string
+                    example: 1.0.0
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /api/v1/signals:
+    get:
+      summary: Query Enterprise Signal Snapshots
+      operationId: getEnterpriseSignals
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+            default: tenant_uk_retail_01
+        - name: scenario_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: signal_type
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: entity_type
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: entity_id
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of matching enterprise signals
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  count:
+                    type: integer
+                    example: 5
+                  timestamp:
+                    type: string
+                    format: date-time
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EnterpriseSignal'
+
+  /api/v1/signals/current:
+    get:
+      summary: Get Current Scenario Signal Snapshot
+      operationId: getCurrentSignalSnapshot
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+            default: tenant_uk_retail_01
+        - name: scenario_id
+          in: query
+          required: false
+          schema:
+            type: string
+            default: SCN-PROMO-01
+      responses:
+        '200':
+          description: Signal snapshot for current scenario
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  scenario_id:
+                    type: string
+                  count:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EnterpriseSignal'
+
+  /api/v1/signals/{id}:
+    get:
+      summary: Get Enterprise Signal by ID
+      operationId: getEnterpriseSignalById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Enterprise Signal details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnterpriseSignal'
+        '404':
+          description: Signal not found
+
+components:
+  schemas:
+    EnterpriseSignal:
+      type: object
+      required:
+        - signal_id
+        - signal_type
+        - category
+        - tenant_id
+        - entity_type
+        - entity_id
+        - observed_at
+        - baseline_value
+        - observed_value
+        - delta
+        - delta_pct
+        - unit
+        - source_type
+        - confidence
+        - quality
+        - schema_version
+      properties:
+        signal_id:
+          type: string
+          example: sig_7f8e9d0a
+        signal_type:
+          type: string
+          example: SEARCH_VELOCITY_ACCELERATION
+        category:
+          type: string
+          example: CUSTOMER
+        tenant_id:
+          type: string
+          example: tenant_uk_retail_01
+        domain_id:
+          type: string
+          example: retail_grocery
+        scenario_id:
+          type: string
+          example: SCN-PROMO-01
+        entity_type:
+          type: string
+          example: SKU
+        entity_id:
+          type: string
+          example: P004
+        observed_at:
+          type: string
+          format: date-time
+        effective_at:
+          type: string
+          format: date-time
+        baseline_value:
+          type: number
+          example: 100
+        observed_value:
+          type: number
+          example: 118
+        delta:
+          type: number
+          example: 18
+        delta_pct:
+          type: number
+          example: 18
+        unit:
+          type: string
+          example: percent
+        source_type:
+          type: string
+          example: SYNTHETIC_WORLD
+        source_system:
+          type: string
+          example: cognix_world_generator
+        confidence:
+          type: number
+          example: 92
+        quality:
+          type: number
+          example: 95
+        provenance:
+          type: object
+          additionalProperties:
+            type: string
+        synthetic_demo:
+          type: boolean
+          example: true
+        schema_version:
+          type: string
+          example: "1.0"

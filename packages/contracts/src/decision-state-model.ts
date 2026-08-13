@@ -57,7 +57,7 @@ export interface DecisionState {
   created_at: string;
   updated_at: string;
   scenario_parameters: DecisionScenarioParameters;
-  enterprise_signals: string[];
+  enterprise_signals: string[]; // Canonical Enterprise Signal reference IDs (e.g. ['sig_ps_001', 'sig_ps_002']) owned by Enterprise World
   constraints: string[];
   selected_interventions: string[];
   derived_impacts: DecisionDerivedImpacts;

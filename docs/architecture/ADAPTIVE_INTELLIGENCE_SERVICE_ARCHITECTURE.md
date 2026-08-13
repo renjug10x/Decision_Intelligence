@@ -111,8 +111,8 @@ State Versioning (v2) + Deterministic Impact Recalculation
 
       +
 
-### 4.4 Enterprise Signal Fabric (ESF) Architecture [GOVERNANCE BLUEPRINT]
-- **Fundamental Signal Separation Principle:** CogniX strictly distinguishes between **User Journey Telemetry** ("What did the CogniX user do?") and **Enterprise Signals** ("What is happening in the enterprise, customer environment, operations, or market?"). Telemetry events log UI actions (`SESSION_STARTED`, `SCENARIO_CHANGED`); Enterprise Signals represent operational data (`basket_add_acceleration`, `supplier_lead_time_drift`, `slot_booking_pressure`).
+### 4.4 Enterprise Signal Fabric (ESF-1 Implemented) Architecture
+- **Implementation Status:** Canonical transport contract schema (`packages/contracts/src/enterprise-signal-model.ts`), OpenAPI 3.1 contract (`docs/openapi/enterprise-signals-v1.yaml`), deterministic generator in `cognix-world`, BFF proxy routes (`/api/v1/signals/*`), developer diagnostic view (`components/Help.tsx`), and Shared Decision State reference integration.
 - **The Five Information Classes:**
   1. *Enterprise World:* Authoritative baseline reality.
   2. *Enterprise Forecast:* Expected demand trajectory from upstream platforms (Blue Yonder / SAP IBP).

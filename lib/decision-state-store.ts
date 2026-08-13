@@ -95,9 +95,11 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
       updated_at: now,
       scenario_parameters: initialParams,
       enterprise_signals: [
-        'Promotional discount increased during peak campaign',
-        'Primary supplier FreshDirect UK capacity capped',
-        'Southern DC out-of-stock risk accelerated'
+        'sig_ps_001',
+        'sig_ps_002',
+        'sig_ps_003',
+        'sig_ps_004',
+        'sig_ps_005'
       ],
       constraints: [
         'FreshDirect UK allocation cap: 48,000 units/week',
