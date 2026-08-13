@@ -22,6 +22,8 @@ const fmt = {
   wow:      (v: number) => `${v >= 0 ? '+' : ''}${(v*100).toFixed(1)}%`,
 };
 
+import { useDecisionState } from '@/context/DecisionStateContext';
+
 // Types
 interface Product {
   sku_id: string;
@@ -50,9 +52,9 @@ interface PromotionPlannerProps {
 
 export default function PromotionPlanner({ onNavigateToExperiment }: PromotionPlannerProps = {}) {
   const { role, apiKey, selectedStore } = useApp();
+  const { decisionState, executeCommand } = useDecisionState();
 
   // ── Governance & Row-Level Filtering Scopes ───────────────────────────────
-  // Store Manager region mapping (Manchester S001-S003 is North West)
   const [storeRegion, setStoreRegion] = useState('North West');
   const [focusCategory, setFocusCategory] = useState('Chilled');
   const [showBriefing, setShowBriefing] = useState(false);
@@ -69,9 +71,21 @@ export default function PromotionPlanner({ onNavigateToExperiment }: PromotionPl
   // ── Simulator Form State ───────────────────────────────────────────────────
   const [selectedSku, setSelectedSku] = useState('P004'); // Cheddar Mature 400g
   const [promoType, setPromoType] = useState('price_cut'); // price_cut | bogof | bundle
-  const [discountPct, setDiscountPct] = useState(20);
+  const [discountPct, setDiscountPct] = useState(decisionState?.scenario_parameters.promotion_lift || 20);
   const [region, setRegion] = useState('All');
   const [duration, setDuration] = useState(14); // 7 | 14 | 30
+
+  // Sync state from shared decision context
+  useEffect(() => {
+    if (decisionState?.scenario_parameters.promotion_lift !== undefined) {
+      setDiscountPct(decisionState.scenario_parameters.promotion_lift);
+    }
+  }, [decisionState?.scenario_parameters.promotion_lift]);
+
+  const handleDiscountChange = (newDiscount: number) => {
+    setDiscountPct(newDiscount);
+    executeCommand('SET_PROMOTION_LIFT', { promotion_lift: newDiscount }, 'PromotionPlanner.tsx');
+  };
 
   const [simulating, setSimulating] = useState(false);
   const [simResult, setSimResult] = useState<any>(null);
@@ -517,7 +531,7 @@ export default function PromotionPlanner({ onNavigateToExperiment }: PromotionPl
                 max="50"
                 step="5"
                 value={discountPct}
-                onChange={e => setDiscountPct(Number(e.target.value))}
+                onChange={e => handleDiscountChange(Number(e.target.value))}
                 disabled={isLocked}
                 style={{ width: '100%', accentColor: 'var(--accent)', cursor: isLocked ? 'not-allowed' : 'pointer' }}
               />

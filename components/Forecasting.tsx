@@ -18,6 +18,8 @@ import productsData from '@/data/products.json';
 import storesData from '@/data/stores.json';
 import { fetchWorldScenario } from '@/lib/world-client';
 
+import { useDecisionState } from '@/context/DecisionStateContext';
+
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
 const fmt = {
@@ -43,6 +45,7 @@ interface ForecastingProps {
 
 export default function Forecasting({ onNavigateToExperiment }: ForecastingProps = {}) {
   const { role, apiKey, selectedStore, setSelectedStore } = useApp();
+  const { decisionState, executeCommand } = useDecisionState();
 
   // ── Governance Scoping ─────────────────────────────────────────────────────
   const [storeName, setStoreName] = useState('Manchester Piccadilly');
@@ -76,14 +79,33 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
 
   // ── State Variables ────────────────────────────────────────────────────────
   const [metric, setMetric] = useState<'revenue' | 'units' | 'waste'>('revenue');
-  const [horizon, setHorizon] = useState<7 | 14 | 30>(14);
+  const [horizon, setHorizon] = useState<7 | 14 | 30>((decisionState?.scenario_parameters.forecast_horizon_days as any) || 14);
   const [model, setModel] = useState<'arima' | 'prophet' | 'genai'>('genai');
   const [showBriefing, setShowBriefing] = useState(false);
   
-  // Scenarios Sandbox adjusters
-  const [promoLift, setPromoLift] = useState(0);
-  const [cannibalization, setCannibalization] = useState(0);
-  const [eventBoost, setEventBoost] = useState('none');
+  // Scenarios Sandbox adjusters synced with Shared Decision State
+  const [promoLift, setPromoLift] = useState(decisionState?.scenario_parameters.promotion_lift || 20);
+  const [cannibalization, setCannibalization] = useState(decisionState?.scenario_parameters.cannibalisation_factor || 0);
+  const [eventBoost, setEventBoost] = useState(decisionState?.scenario_parameters.event_boost || 'none');
+
+  useEffect(() => {
+    if (decisionState?.scenario_parameters) {
+      setPromoLift(decisionState.scenario_parameters.promotion_lift);
+      setHorizon((decisionState.scenario_parameters.forecast_horizon_days as any) || 14);
+      setCannibalization(decisionState.scenario_parameters.cannibalisation_factor || 0);
+      setEventBoost(decisionState.scenario_parameters.event_boost || 'none');
+    }
+  }, [decisionState?.scenario_parameters]);
+
+  const handlePromoLiftChange = (val: number) => {
+    setPromoLift(val);
+    executeCommand('SET_PROMOTION_LIFT', { promotion_lift: val }, 'Forecasting.tsx');
+  };
+
+  const handleHorizonChange = (val: 7 | 14 | 30) => {
+    setHorizon(val);
+    executeCommand('SET_FORECAST_HORIZON', { forecast_horizon_days: val }, 'Forecasting.tsx');
+  };
 
   // Execution states
   const [loading, setLoading] = useState(false);
@@ -530,7 +552,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
                 max="50"
                 step="5"
                 value={promoLift}
-                onChange={e => setPromoLift(Number(e.target.value))}
+                onChange={e => handlePromoLiftChange(Number(e.target.value))}
                 style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
               />
               <span style={{ fontSize: '0.625rem', color: 'var(--text-muted)' }}>Simulate sales volume expansion due to marketing campaign depths</span>

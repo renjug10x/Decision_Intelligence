@@ -10,6 +10,8 @@ import {
 } from 'lucide-react';
 import { trackJourneyEvent, debouncedTrackJourneyEvent } from '@/lib/journey-client';
 
+import { useDecisionState } from '@/context/DecisionStateContext';
+
 interface ChainStage {
   id: string;
   title: string;
@@ -26,12 +28,24 @@ interface CommitmentIntelligenceProps {
 }
 
 export default function CommitmentIntelligence({ onNavigateToExperiment }: CommitmentIntelligenceProps = {}) {
-  const [promoLift, setPromoLift] = useState<number>(22);
-  const [supplierCap, setSupplierCap] = useState<number>(10);
-  const [enableSlaFlex, setEnableSlaFlex] = useState<boolean>(false);
+  const { decisionState, executeCommand, toggleIntervention } = useDecisionState();
+
+  const [promoLift, setPromoLift] = useState<number>(decisionState?.scenario_parameters.promotion_lift || 20);
+  const [supplierCap, setSupplierCap] = useState<number>(decisionState?.scenario_parameters.supplier_capacity_cap || 10);
+  const [enableSlaFlex, setEnableSlaFlex] = useState<boolean>(
+    decisionState?.selected_interventions.includes('SLA_FLEX_RULE_4') || false
+  );
   const [discovered, setDiscovered] = useState<boolean>(false);
   const [showBriefing, setShowBriefing] = useState<boolean>(false);
   const [showContractVerification, setShowContractVerification] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (decisionState) {
+      setPromoLift(decisionState.scenario_parameters.promotion_lift);
+      setSupplierCap(decisionState.scenario_parameters.supplier_capacity_cap);
+      setEnableSlaFlex(decisionState.selected_interventions.includes('SLA_FLEX_RULE_4'));
+    }
+  }, [decisionState]);
 
   useEffect(() => {
     trackJourneyEvent({
@@ -43,44 +57,17 @@ export default function CommitmentIntelligence({ onNavigateToExperiment }: Commi
   }, []);
 
   const handlePromoLiftChange = (newVal: number) => {
-    const prevVal = promoLift;
     setPromoLift(newVal);
-    debouncedTrackJourneyEvent('commit_lift', {
-      event_type: 'SCENARIO_CHANGED',
-      experiment_id: 'EXP-COMMITMENT-01',
-      source: 'promo_lift_slider',
-      page: 'commitment-intelligence',
-      previous_state: { promo_lift: prevVal },
-      new_state: { promo_lift: newVal },
-      metadata: { supplier_cap: supplierCap, sla_flex: enableSlaFlex }
-    });
+    executeCommand('SET_PROMOTION_LIFT', { promotion_lift: newVal }, 'CommitmentIntelligence.tsx');
   };
 
   const handleSupplierCapChange = (newVal: number) => {
-    const prevVal = supplierCap;
     setSupplierCap(newVal);
-    debouncedTrackJourneyEvent('commit_cap', {
-      event_type: 'SCENARIO_CHANGED',
-      experiment_id: 'EXP-COMMITMENT-01',
-      source: 'supplier_cap_slider',
-      page: 'commitment-intelligence',
-      previous_state: { supplier_cap: prevVal },
-      new_state: { supplier_cap: newVal },
-      metadata: { promo_lift: promoLift, sla_flex: enableSlaFlex }
-    });
+    executeCommand('SET_SUPPLIER_CAPACITY_CAP', { supplier_capacity_cap: newVal }, 'CommitmentIntelligence.tsx');
   };
 
   const handleToggleSlaFlex = () => {
-    const nextFlex = !enableSlaFlex;
-    setEnableSlaFlex(nextFlex);
-    trackJourneyEvent({
-      event_type: 'INTERVENTION_SELECTED',
-      experiment_id: 'EXP-COMMITMENT-01',
-      source: 'sla_flex_toggle',
-      page: 'commitment-intelligence',
-      new_state: { enable_sla_flex: nextFlex },
-      metadata: { flex_capacity_units: nextFlex ? 1200 : 0 }
-    });
+    toggleIntervention('SLA_FLEX_RULE_4');
   };
 
   const handleOpenBriefing = () => {

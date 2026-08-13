@@ -90,12 +90,15 @@ const ROOT_CAUSE_COLORS: Record<string, string> = {
   demand: 'var(--accent)',
 };
 
+import { useDecisionState } from '@/context/DecisionStateContext';
+
 interface AvailabilityIntelligenceProps {
   onNavigateToExperiment?: (experimentId: string) => void;
 }
 
 export default function AvailabilityIntelligence({ onNavigateToExperiment }: AvailabilityIntelligenceProps = {}) {
   const { role } = useApp();
+  const { decisionState, executeCommand } = useDecisionState();
   const [resolvedEvents, setResolvedEvents] = useState<Record<string, boolean>>({});
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [expandedEvent, setExpandedEvent] = useState<string | null>('AV001');
@@ -118,13 +121,14 @@ export default function AvailabilityIntelligence({ onNavigateToExperiment }: Ava
   }, []);
   const [showBriefing, setShowBriefing] = useState(false);
 
-  const totalLostRevenue = STOCKOUT_EVENTS.reduce((a, e) => a + e.lostRevenue, 0);
+  const totalLostRevenue = decisionState?.derived_impacts.financial_exposure_gbp || STOCKOUT_EVENTS.reduce((a, e) => a + e.lostRevenue, 0);
   const totalEvents = STOCKOUT_EVENTS.reduce((a, e) => a + e.skus, 0);
   const totalStores = AFFECTED_STORES.length;
 
   const handleResolve = async (id: string) => {
     setResolvingId(id);
-    await new Promise(r => setTimeout(r, 1200));
+    await executeCommand('SELECT_INTERVENTION', { intervention_id: id }, 'AvailabilityIntelligence.tsx');
+    await new Promise(r => setTimeout(r, 800));
     setResolvedEvents(prev => ({ ...prev, [id]: true }));
     setResolvingId(null);
     setExpandedEvent(null);

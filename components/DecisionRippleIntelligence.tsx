@@ -8,15 +8,28 @@ import {
 import ExecutionBriefing from '@/components/ExecutionBriefing';
 import { trackJourneyEvent, debouncedTrackJourneyEvent } from '@/lib/journey-client';
 
+import { useDecisionState } from '@/context/DecisionStateContext';
+
 interface DecisionRippleProps {
   onNavigateToExperiment?: (experimentId: string) => void;
 }
 
 export default function DecisionRippleIntelligence({ onNavigateToExperiment }: DecisionRippleProps = {}) {
+  const { decisionState, executeCommand } = useDecisionState();
+
   const [selectedAction, setSelectedAction] = useState<string>('promo_boost');
-  const [budgetBoost, setBudgetBoost] = useState<number>(15);
-  const [campaignScope, setCampaignScope] = useState<'national' | 'regional' | 'phased'>('national');
+  const [budgetBoost, setBudgetBoost] = useState<number>(decisionState?.scenario_parameters.promotion_lift || 20);
+  const [campaignScope, setCampaignScope] = useState<'national' | 'regional' | 'phased'>(
+    (decisionState?.scenario_parameters.campaign_scope as any) || 'national'
+  );
   const [showBriefing, setShowBriefing] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (decisionState) {
+      setBudgetBoost(decisionState.scenario_parameters.promotion_lift);
+      setCampaignScope(decisionState.scenario_parameters.campaign_scope as any);
+    }
+  }, [decisionState]);
 
   useEffect(() => {
     trackJourneyEvent({
@@ -28,31 +41,13 @@ export default function DecisionRippleIntelligence({ onNavigateToExperiment }: D
   }, []);
 
   const handleBudgetBoostChange = (newVal: number) => {
-    const prevVal = budgetBoost;
     setBudgetBoost(newVal);
-    debouncedTrackJourneyEvent('ripple_boost', {
-      event_type: 'SCENARIO_CHANGED',
-      experiment_id: 'EXP-RIPPLE-02',
-      source: 'budget_boost_slider',
-      page: 'decision-ripple',
-      previous_state: { budget_boost: prevVal },
-      new_state: { budget_boost: newVal },
-      metadata: { scope: campaignScope }
-    });
+    executeCommand('SET_PROMOTION_LIFT', { promotion_lift: newVal }, 'DecisionRippleIntelligence.tsx');
   };
 
   const handleScopeChange = (newScope: 'national' | 'regional' | 'phased') => {
-    const prevScope = campaignScope;
     setCampaignScope(newScope);
-    trackJourneyEvent({
-      event_type: 'SCENARIO_REHEARSED',
-      experiment_id: 'EXP-RIPPLE-02',
-      source: 'campaign_scope_select',
-      page: 'decision-ripple',
-      previous_state: { campaign_scope: prevScope },
-      new_state: { campaign_scope: newScope },
-      metadata: { budget_boost: budgetBoost }
-    });
+    executeCommand('SET_CAMPAIGN_SCOPE', { campaign_scope: newScope }, 'DecisionRippleIntelligence.tsx');
   };
 
   const handleOpenBriefing = () => {
