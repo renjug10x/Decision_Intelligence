@@ -1,6 +1,6 @@
 # Decision Intelligence
 
-Lidl UK Decision Intelligence POC — Next.js monolith with Nginx reverse proxy, deployed to AWS EC2 behind ALB via GitLab CI/CD.
+Lidl UK Decision Intelligence POC — Next.js BFF (`cognix-web`) with domain microservices (`cognix-world`, `cognix-learning`), deployed to AWS EC2 behind ALB via GitLab CI/CD.
 
 ## CI/CD
 
@@ -9,7 +9,7 @@ Pipeline: [`.gitlab-ci.yml`](.gitlab-ci.yml) — StoneOS-style stages on branche
 | Stage | Purpose |
 |-------|---------|
 | preflight | Clean checkout + deploy SHA |
-| build | Build `nextjs-app` + `nginx-proxy` images |
+| build | Build `cognix-web`, `cognix-world`, and `cognix-learning` images |
 | sonar | Optional Sonar scan (development) |
 | push | Push images to ECR |
 | deploy | Bastion ProxyJump → private EC2 → pull + recreate services |
