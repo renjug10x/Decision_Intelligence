@@ -4,7 +4,8 @@ import {
   X, CheckCircle2, AlertTriangle, ShieldCheck, Clock, User, 
   ArrowRight, FileText, Sparkles, Layers, BookOpen
 } from 'lucide-react';
-import { ENTERPRISE_LEARNING_PATTERNS } from '@/config/patterns';
+import { fetchLearningPatternById } from '@/lib/learning-pattern-client';
+import { EnterpriseLearningPattern } from '@/packages/contracts/src/index';
 
 export interface ExecutionBriefingProps {
   isOpen: boolean;
@@ -35,11 +36,17 @@ export default function ExecutionBriefing({
   onNavigateToPattern,
   onExecuteAction
 }: ExecutionBriefingProps) {
-  if (!isOpen || !briefing) return null;
+  const [matchedPattern, setMatchedPattern] = React.useState<EnterpriseLearningPattern | null>(null);
 
-  const matchedPattern = briefing.patternId 
-    ? ENTERPRISE_LEARNING_PATTERNS.find(p => p.id === briefing.patternId)
-    : null;
+  React.useEffect(() => {
+    if (briefing?.patternId) {
+      fetchLearningPatternById(briefing.patternId).then(p => setMatchedPattern(p));
+    } else {
+      setMatchedPattern(null);
+    }
+  }, [briefing?.patternId]);
+
+  if (!isOpen || !briefing) return null;
 
   return (
     <div style={{
@@ -201,12 +208,12 @@ export default function ExecutionBriefing({
                 Supported by Enterprise Learning Pattern
               </div>
               <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)', marginTop: 2 }}>
-                {matchedPattern.name}
+                {matchedPattern.pattern_name}
               </div>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4, display: 'flex', gap: 12 }}>
-                <span>Similarity: <strong>{matchedPattern.situationSimilarity}%</strong></span>
-                <span>Confidence: <strong>{matchedPattern.patternConfidence}%</strong></span>
-                <span>Success Rate: <strong>{matchedPattern.interventionSuccessRate}%</strong></span>
+                <span>Similarity: <strong>{matchedPattern.situation_similarity}%</strong></span>
+                <span>Confidence: <strong>{matchedPattern.pattern_confidence}%</strong></span>
+                <span>Success Rate: <strong>{matchedPattern.intervention_success_rate}%</strong></span>
               </div>
             </div>
 
@@ -214,7 +221,7 @@ export default function ExecutionBriefing({
               <button
                 onClick={() => {
                   onClose();
-                  onNavigateToPattern(matchedPattern.id);
+                  onNavigateToPattern(matchedPattern.pattern_id);
                 }}
                 style={{
                   background: '#FFFFFF',

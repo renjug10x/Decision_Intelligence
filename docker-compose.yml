@@ -3,42 +3,54 @@ services:
   nextjs-app:
     build:
       context: .
-      dockerfile: Dockerfile
-      args:
-        AUTH_API_URL: ${AUTH_API_URL:-}
-    container_name: nextjs-app
-    restart: unless-stopped
-    environment:
-      - GEMINI_API_KEY=${GEMINI_API_KEY}
-      - NODE_ENV=production
-      - PORT=3000
-    # Port 3000 is NOT mapped to the host, preventing public exposure.
-    # It is only accessible internally within the Docker Compose network.
-    expose:
-      - "3000"
-    healthcheck:
-      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 20s
-
-  # Nginx reverse proxy gateway
-  nginx-proxy:
-    build:
-      context: ./nginx
-      dockerfile: Dockerfile
-      args:
-        - NGINX_CONF=nginx.local.conf
-    container_name: nginx-proxy
-    restart: unless-stopped
+      dockerfile: docker/Dockerfile.web
+    container_name: cognix-web
     ports:
-      - "8080:80"
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - HOSTNAME=0.0.0.0
+      - PORT=3000
+      - COGNIX_WORLD_MODE=service
+      - COGNIX_WORLD_SERVICE_URL=http://cognix-world:8081
+      - LEARNING_SERVICE_URL=http://cognix-learning:8082
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/v1/health?type=live || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
     depends_on:
-      nextjs-app:
-        condition: service_healthy
+      - cognix-world
+      - cognix-learning
+
+  cognix-world:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.world
+    container_name: cognix-world
+    ports:
+      - "8081:8081"
+    environment:
+      - NODE_ENV=production
+      - PORT=8081
     healthcheck:
       test: ["CMD-SHELL", "nginx -t && wget --no-verbose --tries=1 --spider http://localhost/api/health || exit 1"]
       interval: 30s
       timeout: 10s
+      retries: 3
+
+  cognix-learning:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile.learning
+    container_name: cognix-learning
+    ports:
+      - "8082:8082"
+    environment:
+      - NODE_ENV=production
+      - PORT=8082
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8082/api/v1/health || exit 1"]
+      interval: 10s
+      timeout: 5s
       retries: 3

@@ -18,6 +18,8 @@ import productsData from '@/data/products.json';
 import storesData from '@/data/stores.json';
 import { fetchWorldScenario } from '@/lib/world-client';
 
+import { useDecisionState } from '@/context/DecisionStateContext';
+
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
 const fmt = {
@@ -43,6 +45,7 @@ interface ForecastingProps {
 
 export default function Forecasting({ onNavigateToExperiment }: ForecastingProps = {}) {
   const { role, apiKey, selectedStore, setSelectedStore } = useApp();
+  const { decisionState, executeCommand } = useDecisionState();
 
   // ── Governance Scoping ─────────────────────────────────────────────────────
   const [storeName, setStoreName] = useState('Manchester Piccadilly');
@@ -76,14 +79,33 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
 
   // ── State Variables ────────────────────────────────────────────────────────
   const [metric, setMetric] = useState<'revenue' | 'units' | 'waste'>('revenue');
-  const [horizon, setHorizon] = useState<7 | 14 | 30>(14);
+  const [horizon, setHorizon] = useState<7 | 14 | 30>((decisionState?.scenario_parameters.forecast_horizon_days as any) || 14);
   const [model, setModel] = useState<'arima' | 'prophet' | 'genai'>('genai');
   const [showBriefing, setShowBriefing] = useState(false);
   
-  // Scenarios Sandbox adjusters
-  const [promoLift, setPromoLift] = useState(0);
-  const [cannibalization, setCannibalization] = useState(0);
-  const [eventBoost, setEventBoost] = useState('none');
+  // Scenarios Sandbox adjusters synced with Shared Decision State
+  const [promoLift, setPromoLift] = useState(decisionState?.scenario_parameters.promotion_lift || 20);
+  const [cannibalization, setCannibalization] = useState(decisionState?.scenario_parameters.cannibalisation_factor || 0);
+  const [eventBoost, setEventBoost] = useState(decisionState?.scenario_parameters.event_boost || 'none');
+
+  useEffect(() => {
+    if (decisionState?.scenario_parameters) {
+      setPromoLift(decisionState.scenario_parameters.promotion_lift);
+      setHorizon((decisionState.scenario_parameters.forecast_horizon_days as any) || 14);
+      setCannibalization(decisionState.scenario_parameters.cannibalisation_factor || 0);
+      setEventBoost(decisionState.scenario_parameters.event_boost || 'none');
+    }
+  }, [decisionState?.scenario_parameters]);
+
+  const handlePromoLiftChange = (val: number) => {
+    setPromoLift(val);
+    executeCommand('SET_PROMOTION_LIFT', { promotion_lift: val }, 'Forecasting.tsx');
+  };
+
+  const handleHorizonChange = (val: 7 | 14 | 30) => {
+    setHorizon(val);
+    executeCommand('SET_FORECAST_HORIZON', { forecast_horizon_days: val }, 'Forecasting.tsx');
+  };
 
   // Execution states
   const [loading, setLoading] = useState(false);
@@ -316,13 +338,13 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <div>
             <h1 style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-              Demand & Forecast Intelligence
+              Demand & Forecast Contextualisation
             </h1>
           </div>
 
           {onNavigateToExperiment && (
             <button
-              onClick={() => onNavigateToExperiment('EXP-RIPPLE-02')}
+              onClick={() => onNavigateToExperiment('EXP-COMMITMENT-01')}
               style={{
                 padding: '5px 12px',
                 borderRadius: 'var(--radius-sm)',
@@ -337,9 +359,62 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
                 gap: 6
               }}
             >
-              Explore Decision Ripple <ChevronRight size={14} />
+              Explore Commitment Impact <ChevronRight size={14} />
             </button>
           )}
+        </div>
+
+        {/* Intent Fusion Contextualised Decision Outlook Panel */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: 12,
+          background: 'var(--bg-base)',
+          padding: '16px 20px',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border-accent)',
+          marginBottom: 16
+        }}>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Baseline Forecast
+            </div>
+            <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              +12% Volume
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--g10x-orange)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Commercial Intent
+            </div>
+            <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--g10x-orange)' }}>
+              +7% (20% Promo)
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--g10x-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Observed Signals
+            </div>
+            <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--g10x-blue)' }}>
+              +3% (Early Demand)
+            </div>
+          </div>
+          <div style={{ borderLeft: '2px solid var(--g10x-blue)', paddingLeft: 12 }}>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--g10x-blue)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Contextualised Outlook
+            </div>
+            <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--g10x-blue)' }}>
+              +22% Demand Lift
+            </div>
+          </div>
+          <div style={{ borderLeft: '2px solid var(--danger)', paddingLeft: 12 }}>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--danger)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Supplier Capacity Cap
+            </div>
+            <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--danger)' }}>
+              +10% (12pp Gap)
+            </div>
+          </div>
         </div>
 
         <div style={{
@@ -530,7 +605,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
                 max="50"
                 step="5"
                 value={promoLift}
-                onChange={e => setPromoLift(Number(e.target.value))}
+                onChange={e => handlePromoLiftChange(Number(e.target.value))}
                 style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
               />
               <span style={{ fontSize: '0.625rem', color: 'var(--text-muted)' }}>Simulate sales volume expansion due to marketing campaign depths</span>

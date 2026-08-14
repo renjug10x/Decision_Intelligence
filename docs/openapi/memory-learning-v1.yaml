@@ -1,0 +1,230 @@
+openapi: 3.1.0
+info:
+  title: CogniX Enterprise Memory & Learning Pattern API
+  description: OpenAPI 3.1 specification for Enterprise Memory precedent retrieval and Enterprise Learning Pattern matching endpoints.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: CogniX Web BFF Gateway Proxy
+  - url: http://localhost:8082
+    description: CogniX Learning Domain Microservice Port
+paths:
+  /api/v1/memory:
+    get:
+      summary: Query Enterprise Memory Cases
+      operationId: queryMemoryCases
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+            default: tenant_uk_retail_01
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: pattern_id
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of Enterprise Memory cases
+    post:
+      summary: Register Enterprise Memory Case
+      operationId: registerMemoryCase
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EnterpriseMemoryCase'
+      responses:
+        '200':
+          description: Registered Memory Case
+
+  /api/v1/memory/search:
+    post:
+      summary: Search Precedent Memory Cases
+      operationId: searchMemoryPrecedents
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tenant_id
+              properties:
+                tenant_id:
+                  type: string
+                query:
+                  type: string
+                category:
+                  type: string
+                pattern_id:
+                  type: string
+      responses:
+        '200':
+          description: Matching precedent memory cases
+
+  /api/v1/memory/{id}:
+    get:
+      summary: Get Memory Case by ID
+      operationId: getMemoryCaseById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Memory case details
+        '404':
+          description: Case not found
+
+  /api/v1/learning-patterns:
+    get:
+      summary: Query Enterprise Learning Patterns
+      operationId: queryLearningPatterns
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: category
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of Enterprise Learning Patterns
+
+  /api/v1/learning-patterns/match:
+    post:
+      summary: Contextually Match Learning Patterns
+      operationId: matchLearningPatterns
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tenant_id
+              properties:
+                tenant_id:
+                  type: string
+                category:
+                  type: string
+                region:
+                  type: string
+                promotion_lift:
+                  type: number
+      responses:
+        '200':
+          description: Ranked learning pattern matches
+
+  /api/v1/learning-patterns/{id}:
+    get:
+      summary: Get Learning Pattern by ID
+      operationId: getLearningPatternById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Learning pattern details
+
+  /api/v1/learning-patterns/{id}/memories:
+    get:
+      summary: Get Supporting Memories for Learning Pattern
+      operationId: getSupportingMemories
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Supporting memory cases
+
+components:
+  schemas:
+    EnterpriseMemoryCase:
+      type: object
+      required:
+        - memory_id
+        - tenant_id
+        - situation_summary
+        - decision_taken
+        - expected_outcome
+        - actual_outcome
+      properties:
+        memory_id:
+          type: string
+        tenant_id:
+          type: string
+        title:
+          type: string
+        category:
+          type: string
+        situation_summary:
+          type: string
+        decision_taken:
+          type: string
+        selected_interventions:
+          type: array
+          items:
+            type: string
+        expected_outcome:
+          type: string
+        actual_outcome:
+          type: string
+        business_result:
+          type: string
+        lessons_learned:
+          type: string
+        confidence:
+          type: number
+
+    EnterpriseLearningPattern:
+      type: object
+      required:
+        - pattern_id
+        - pattern_name
+        - pattern_type
+        - situation_signature
+        - situation_similarity
+        - pattern_confidence
+        - intervention_success_rate
+      properties:
+        pattern_id:
+          type: string
+        pattern_name:
+          type: string
+        pattern_type:
+          type: string
+        situation_signature:
+          type: string
+        situation_similarity:
+          type: number
+        pattern_confidence:
+          type: number
+        intervention_success_rate:
+          type: number

@@ -1,0 +1,286 @@
+openapi: 3.1.0
+info:
+  title: CogniX Intent Fusion Intelligence API
+  description: OpenAPI 3.1 specification for Commercial Intent registration and Intent Fusion evaluation endpoints.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: CogniX Web BFF Gateway
+paths:
+  /api/v1/commercial-intents:
+    post:
+      summary: Register Commercial Intent
+      description: Registers a structured planned commercial action and propagates transition into Shared Decision State.
+      operationId: registerCommercialIntent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CommercialIntent'
+      responses:
+        '200':
+          description: Registered Commercial Intent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    $ref: '#/components/schemas/CommercialIntent'
+    get:
+      summary: Get Active Commercial Intent
+      operationId: getActiveCommercialIntent
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+            default: tenant_uk_retail_01
+        - name: session_id
+          in: query
+          required: false
+          schema:
+            type: string
+            default: sess_001
+      responses:
+        '200':
+          description: Active Commercial Intent for session
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    $ref: '#/components/schemas/CommercialIntent'
+
+  /api/v1/commercial-intents/current:
+    get:
+      summary: Get Current Commercial Intent
+      operationId: getCurrentCommercialIntent
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: session_id
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current Commercial Intent details
+
+  /api/v1/commercial-intents/{id}:
+    get:
+      summary: Get Commercial Intent by ID
+      operationId: getCommercialIntentById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Commercial Intent details
+        '404':
+          description: Intent not found
+
+  /api/v1/intent-fusion/evaluate:
+    post:
+      summary: Evaluate Intent Fusion & Contextualised Decision Outlook
+      description: Reconciles baseline forecast context, Commercial Intent, observed Enterprise Signals, and Shared Decision State into a Contextualised Decision Outlook.
+      operationId: evaluateIntentFusion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IntentFusionRequest'
+      responses:
+        '200':
+          description: Contextualised Decision Outlook result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    $ref: '#/components/schemas/ContextualisedDecisionOutlook'
+
+components:
+  schemas:
+    CommercialIntent:
+      type: object
+      required:
+        - commercial_intent_id
+        - tenant_id
+        - session_id
+        - category
+        - region
+        - promotion_type
+        - discount_depth
+        - planned_start
+        - planned_end
+      properties:
+        commercial_intent_id:
+          type: string
+          example: intent_7f8e9d0a
+        tenant_id:
+          type: string
+          example: tenant_uk_retail_01
+        session_id:
+          type: string
+          example: sess_001
+        campaign_id:
+          type: string
+          example: CMP-DAIRY-Q3
+        category:
+          type: string
+          example: Fresh Dairy
+        sku_scope:
+          type: array
+          items:
+            type: string
+          example: ['P004 Cheddar Mature 400g']
+        region:
+          type: string
+          example: North West
+        customer_segment:
+          type: string
+          example: Family Shoppers
+        channel:
+          type: string
+          example: Omnichannel
+        promotion_type:
+          type: string
+          example: 20_percent_off
+        discount_depth:
+          type: number
+          example: 20
+        planned_start:
+          type: string
+          format: date-time
+        planned_end:
+          type: string
+          format: date-time
+        expected_uplift:
+          type: number
+          example: 25
+        campaign_objective:
+          type: string
+        media_support:
+          type: string
+        inventory_assumption:
+          type: string
+        supplier_assumption:
+          type: string
+        source_system:
+          type: string
+          example: cognix_promotion_planner
+        source_type:
+          type: string
+          example: PROMOTION_PLANNER
+        created_at:
+          type: string
+          format: date-time
+        provenance:
+          type: object
+        synthetic_demo:
+          type: boolean
+          example: true
+        schema_version:
+          type: string
+          example: "1.0"
+
+    IntentFusionRequest:
+      type: object
+      required:
+        - tenant_id
+        - session_id
+      properties:
+        tenant_id:
+          type: string
+          example: tenant_uk_retail_01
+        session_id:
+          type: string
+          example: sess_001
+        commercial_intent_id:
+          type: string
+        decision_state_id:
+          type: string
+        decision_state_version:
+          type: integer
+        baseline_forecast_lift_pct:
+          type: number
+          example: 12
+
+    ContextualisedDecisionOutlook:
+      type: object
+      required:
+        - fusion_id
+        - tenant_id
+        - session_id
+        - commercial_intent_id
+        - decision_state_id
+        - decision_state_version
+        - baseline_forecast
+        - commercial_intent
+        - observed_signals
+        - interaction_adjustment_pct
+        - contextualised_outlook_pct
+        - supplier_capacity_cap_pct
+        - potential_commitment_gap_pp
+        - calculation_mode
+        - confidence
+        - provenance
+        - timestamp
+        - schema_version
+      properties:
+        fusion_id:
+          type: string
+          example: fus_a1b2c3d4
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        commercial_intent_id:
+          type: string
+        decision_state_id:
+          type: string
+        decision_state_version:
+          type: integer
+        interaction_adjustment_pct:
+          type: number
+          example: 0
+        contextualised_outlook_pct:
+          type: number
+          example: 22
+        supplier_capacity_cap_pct:
+          type: number
+          example: 10
+        potential_commitment_gap_pp:
+          type: number
+          example: 12
+        calculation_mode:
+          type: string
+          example: deterministic_demo_decomposition
+        confidence:
+          type: number
+          example: 91
+        timestamp:
+          type: string
+          format: date-time

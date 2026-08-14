@@ -35,6 +35,8 @@ var __importStar = (this && this.__importStar) || (function () {
 Object.defineProperty(exports, "__esModule", { value: true });
 const http = __importStar(require("http"));
 const index_1 = require("../../../packages/contracts/src/index");
+const enterprise_signal_generator_1 = require("./enterprise-signal-generator");
+const dynamic_signal_simulator_1 = require("./dynamic-signal-simulator");
 const PORT = parseInt(process.env.PORT || '8081', 10);
 const startTime = Date.now();
 const server = http.createServer((req, res) => {
@@ -46,7 +48,7 @@ const server = http.createServer((req, res) => {
     // Set CORS & JSON Content Type
     res.setHeader('Content-Type', 'application/json');
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Tenant-ID, X-Correlation-ID');
     res.setHeader('X-Correlation-ID', correlationId);
     if (req.method === 'OPTIONS') {
@@ -84,6 +86,102 @@ const server = http.createServer((req, res) => {
             data: scenarios
         }));
         return;
+    }
+    // ── ROUTE 3: /api/v1/signals/health ────────────────────────────────────────
+    if (pathname === '/api/v1/signals/health') {
+        res.writeHead(200);
+        res.end(JSON.stringify({
+            status: 'ok',
+            service: 'cognix-world',
+            domain: 'enterprise-signals',
+            version: '1.0.0',
+            timestamp: new Date().toISOString()
+        }));
+        return;
+    }
+    // ── ROUTE 4: POST /api/v1/signals/simulate ────────────────────────────────
+    if (pathname === '/api/v1/signals/simulate' && req.method === 'POST') {
+        let body = '';
+        req.on('data', chunk => { body += chunk; });
+        req.on('end', () => {
+            try {
+                const payload = JSON.parse(body);
+                const result = (0, dynamic_signal_simulator_1.simulateEnterpriseSignalTimelines)(payload);
+                console.log(`[cognix-world] HTTP POST /api/v1/signals/simulate | sim_id: ${result.simulation_id} | tenant: ${result.tenant_id} | state_v: ${result.decision_state_version} | timelines: ${result.timelines.length}`);
+                res.writeHead(200);
+                res.end(JSON.stringify({
+                    status: 'success',
+                    service: 'cognix-world',
+                    domain: 'enterprise-signals',
+                    data: result
+                }));
+            }
+            catch (e) {
+                console.error(`[cognix-world] HTTP POST /api/v1/signals/simulate failed: ${e.message}`);
+                res.writeHead(400);
+                res.end(JSON.stringify({
+                    status: 'error',
+                    error: 'BadRequest',
+                    message: e.message,
+                    timestamp: new Date().toISOString()
+                }));
+            }
+        });
+        return;
+    }
+    // ── ROUTE 5: /api/v1/signals or /api/v1/signals/current ────────────────────
+    if (pathname === '/api/v1/signals' || pathname === '/api/v1/signals/current') {
+        const scenarioFamily = searchParams.get('family_id') || searchParams.get('scenario_family') || 'promotion_surge';
+        const scenarioId = searchParams.get('scenario_id') || 'SCN-PROMO-01';
+        const signalType = searchParams.get('signal_type');
+        const category = searchParams.get('category');
+        const entityType = searchParams.get('entity_type');
+        const entityId = searchParams.get('entity_id');
+        let signals = (0, enterprise_signal_generator_1.generateSyntheticSignalSnapshot)(scenarioFamily, tenantId, scenarioId);
+        // Apply filtering
+        if (signalType)
+            signals = signals.filter(s => s.signal_type === signalType);
+        if (category)
+            signals = signals.filter(s => s.category === category);
+        if (entityType)
+            signals = signals.filter(s => s.entity_type === entityType);
+        if (entityId)
+            signals = signals.filter(s => s.entity_id === entityId);
+        console.log(`[cognix-world] HTTP GET ${pathname} | tenant: ${tenantId} | family: ${scenarioFamily} | count: ${signals.length}`);
+        res.writeHead(200);
+        res.end(JSON.stringify({
+            status: 'success',
+            service: 'cognix-world',
+            domain: 'enterprise-signals',
+            tenant_id: tenantId,
+            scenario_id: scenarioId,
+            count: signals.length,
+            correlation_id: correlationId,
+            timestamp: new Date().toISOString(),
+            data: signals
+        }));
+        return;
+    }
+    // ── ROUTE 6: /api/v1/signals/{id} ──────────────────────────────────────────
+    if (pathname.startsWith('/api/v1/signals/')) {
+        const id = pathname.split('/')[4];
+        if (id) {
+            const allSignals = [
+                ...(0, enterprise_signal_generator_1.generateSyntheticSignalSnapshot)('promotion_surge', tenantId, 'SCN-PROMO-01'),
+                ...(0, enterprise_signal_generator_1.generateSyntheticSignalSnapshot)('supplier_breach', tenantId, 'SCN-BREACH-02')
+            ];
+            const match = allSignals.find(s => s.signal_id === id);
+            if (match) {
+                res.writeHead(200);
+                res.end(JSON.stringify({
+                    status: 'success',
+                    service: 'cognix-world',
+                    domain: 'enterprise-signals',
+                    data: match
+                }));
+                return;
+            }
+        }
     }
     // ── 404 Not Found ──────────────────────────────────────────────────────────
     res.writeHead(404);

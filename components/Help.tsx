@@ -7,11 +7,16 @@ import {
 } from 'lucide-react';
 import ArchitectureExplorer from '@/components/ArchitectureExplorer';
 
+import { useDecisionState } from '@/context/DecisionStateContext';
+
 export default function Help() {
-  const [activeTab, setActiveTab] = useState<'storyboard' | 'lifecycle' | 'telemetry'>('storyboard');
+  const [activeTab, setActiveTab] = useState<'storyboard' | 'lifecycle' | 'telemetry' | 'decision_state' | 'signals'>('storyboard');
   const [hoveredStep, setHoveredStep] = useState<number | null>(null);
   const [journeyEvents, setJourneyEvents] = useState<any[]>([]);
   const [loadingTelemetry, setLoadingTelemetry] = useState(false);
+  const [enterpriseSignals, setEnterpriseSignals] = useState<any[]>([]);
+  const [loadingSignals, setLoadingSignals] = useState(false);
+  const { decisionState, resetScenario, refreshState } = useDecisionState();
 
   const fetchTelemetry = async () => {
     setLoadingTelemetry(true);
@@ -25,9 +30,23 @@ export default function Help() {
     setLoadingTelemetry(false);
   };
 
+  const fetchSignals = async () => {
+    setLoadingSignals(true);
+    try {
+      const res = await fetch('/api/v1/signals?tenant_id=tenant_uk_retail_01');
+      const json = await res.json();
+      if (json.data) setEnterpriseSignals(json.data);
+    } catch (e) {
+      console.warn('Failed to fetch enterprise signals', e);
+    }
+    setLoadingSignals(false);
+  };
+
   React.useEffect(() => {
     if (activeTab === 'telemetry') {
       fetchTelemetry();
+    } else if (activeTab === 'signals') {
+      fetchSignals();
     }
   }, [activeTab]);
 
@@ -53,7 +72,9 @@ export default function Help() {
           {[
             { id: 'storyboard', label: 'Architecture Storyboard', Icon: Layers },
             { id: 'lifecycle', label: 'Decision Lifecycle', Icon: Activity },
-            { id: 'telemetry', label: 'Journey Telemetry Diagnostics', Icon: Sparkles }
+            { id: 'telemetry', label: 'Journey Telemetry', Icon: Sparkles },
+            { id: 'decision_state', label: 'Shared Decision State Diagnostics', Icon: Zap },
+            { id: 'signals', label: 'Enterprise Signals (ESF-1)', Icon: ShieldAlert }
           ].map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -306,6 +327,193 @@ export default function Help() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* Decision State Diagnostic Tab */}
+        {activeTab === 'decision_state' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              padding: 20
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Authoritative Shared Decision State Context
+                  </h3>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                    Active deterministic enterprise state versioning, cross-functional impacts, and provenance.
+                  </p>
+                </div>
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <button
+                    onClick={() => refreshState()}
+                    className="btn btn-secondary"
+                    style={{ fontSize: '0.75rem', padding: '6px 12px' }}
+                  >
+                    Refresh State
+                  </button>
+                  <button
+                    onClick={() => resetScenario()}
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.75rem', padding: '6px 12px' }}
+                  >
+                    Reset to Baseline
+                  </button>
+                </div>
+              </div>
+
+              {decisionState ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                  {/* Summary Bar */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                    gap: 12,
+                    background: 'var(--bg-surface)',
+                    padding: 12,
+                    borderRadius: 6,
+                    border: '1px solid var(--border)',
+                    fontSize: '0.8125rem'
+                  }}>
+                    <div>State ID: <strong style={{ color: 'var(--accent)' }}>{decisionState.decision_state_id}</strong></div>
+                    <div>Version: <strong style={{ color: 'var(--g10x-orange)' }}>v{decisionState.state_version}</strong></div>
+                    <div>Session: <strong>{decisionState.session_id}</strong></div>
+                    <div>Tenant: <strong>{decisionState.tenant_id}</strong></div>
+                    <div>Scenario: <strong>{decisionState.scenario_id}</strong></div>
+                  </div>
+
+                  {/* Scenario Parameters & Derived Impacts */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+                    <div style={{
+                      background: 'var(--bg-surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 6,
+                      padding: 14
+                    }}>
+                      <h4 style={{ fontSize: '0.875rem', fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>
+                        Scenario Parameters
+                      </h4>
+                      <pre style={{ fontSize: '0.75rem', fontFamily: 'monospace', margin: 0, color: 'var(--text-secondary)' }}>
+                        {JSON.stringify(decisionState.scenario_parameters, null, 2)}
+                      </pre>
+                    </div>
+
+                    <div style={{
+                      background: 'var(--bg-surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 6,
+                      padding: 14
+                    }}>
+                      <h4 style={{ fontSize: '0.875rem', fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>
+                        Deterministic Derived Impacts
+                      </h4>
+                      <pre style={{ fontSize: '0.75rem', fontFamily: 'monospace', margin: 0, color: 'var(--text-secondary)' }}>
+                        {JSON.stringify(decisionState.derived_impacts, null, 2)}
+                      </pre>
+                    </div>
+                  </div>
+
+                  {/* Selected Interventions & Version History */}
+                  <div style={{
+                    background: 'var(--bg-surface)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 6,
+                    padding: 14
+                  }}>
+                    <h4 style={{ fontSize: '0.875rem', fontWeight: 700, marginBottom: 8, color: 'var(--text-primary)' }}>
+                      Version History ({decisionState.history?.length || 0} transitions)
+                    </h4>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, maxHeight: 180, overflowY: 'auto' }}>
+                      {decisionState.history?.map((h: any, idx: number) => (
+                        <div key={idx} style={{ fontSize: '0.75rem', fontFamily: 'monospace', color: 'var(--text-secondary)', display: 'flex', gap: 12 }}>
+                          <span>v{h.version}</span>
+                          <span style={{ color: 'var(--accent)' }}>{h.command_type}</span>
+                          <span style={{ color: 'var(--text-muted)' }}>[{h.changed_fields.join(', ')}]</span>
+                          <span style={{ color: 'var(--text-muted)' }}>{new Date(h.timestamp).toLocaleTimeString()}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
+                  No active Decision State found.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Enterprise Signals Diagnostic Tab */}
+        {activeTab === 'signals' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+            <div style={{
+              background: 'var(--bg-elevated)',
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius-md)',
+              padding: 20
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+                <div>
+                  <h3 style={{ fontSize: '1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                    Synthetic Enterprise Signals (ESF-1 Foundation)
+                  </h3>
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+                    Canonical Enterprise Signal snapshots generated deterministically by Enterprise World.
+                  </p>
+                </div>
+                <button
+                  onClick={() => fetchSignals()}
+                  disabled={loadingSignals}
+                  className="btn btn-secondary"
+                  style={{ fontSize: '0.75rem', padding: '6px 12px' }}
+                >
+                  {loadingSignals ? 'Refreshing...' : 'Refresh Signals'}
+                </button>
+              </div>
+
+              {enterpriseSignals.length === 0 ? (
+                <div style={{ padding: 24, textAlign: 'center', color: 'var(--text-muted)' }}>
+                  No enterprise signals retrieved.
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10, maxHeight: 480, overflowY: 'auto' }}>
+                  {enterpriseSignals.map((sig, idx) => (
+                    <div key={sig.signal_id || idx} style={{
+                      background: 'var(--bg-surface)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 6,
+                      padding: '12px 16px',
+                      fontSize: '0.75rem',
+                      fontFamily: 'monospace'
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+                        <span style={{ fontWeight: 800, color: 'var(--accent)' }}>
+                          [{sig.category}] {sig.signal_type}
+                        </span>
+                        <span style={{ background: 'rgba(255,107,0,0.1)', color: 'var(--g10x-orange)', padding: '2px 8px', borderRadius: 4, fontWeight: 700 }}>
+                          {sig.delta_pct > 0 ? `+${sig.delta_pct}%` : `${sig.delta_pct}%`}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', color: 'var(--text-secondary)' }}>
+                        <span>ID: <strong>{sig.signal_id}</strong></span>
+                        <span>Entity: <strong>{sig.entity_type} ({sig.entity_id})</strong></span>
+                        <span>Baseline: <strong>{sig.baseline_value}</strong></span>
+                        <span>Observed: <strong>{sig.observed_value} ({sig.unit})</strong></span>
+                        <span>Source: <strong>{sig.source_type} ({sig.source_system})</strong></span>
+                      </div>
+                      <div style={{ marginTop: 6, color: 'var(--text-muted)', fontSize: '0.6875rem' }}>
+                        Confidence: {sig.confidence}% | Quality: {sig.quality}% | Synthetic Demo: {String(sig.synthetic_demo)} | Rule: {sig.provenance?.rule || 'n/a'}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

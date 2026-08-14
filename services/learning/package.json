@@ -1,0 +1,15 @@
+{
+  "name": "cognix-learning-service",
+  "version": "1.0.0",
+  "description": "CogniX Enterprise Memory & Learning Pattern Domain Microservice",
+  "main": "dist/server.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "typescript": "^5.0.0"
+  }
+}

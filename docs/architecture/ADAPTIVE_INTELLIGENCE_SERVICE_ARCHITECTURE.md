@@ -1,9 +1,9 @@
 # COGNIX ADAPTIVE INTELLIGENCE & SERVICE ARCHITECTURE BLUEPRINT
 
-**Document Status:** Authoritative Architectural Blueprint & Roadmap  
-**Version:** 1.0.0  
-**Effective Date:** August 2026  
-**Owner:** G10X Enterprise Innovation Lab Architecture Steering Group  
+**Document Status:** Authoritative Architectural Blueprint & Roadmap
+**Version:** 1.0.0
+**Effective Date:** August 2026
+**Owner:** G10X Enterprise Innovation Lab Architecture Steering Group
 
 ---
 
@@ -24,11 +24,11 @@ CogniX is evolving from a collection of deterministic demonstrations into a **li
 ## 2. Core Architectural Principles
 
 ### Principle A — Screens Do Not Own Intelligence
-> **"CogniX screens consume intelligence. Domain services own intelligence."**  
+> **"CogniX screens consume intelligence. Domain services own intelligence."**
 UI components are presentation containers. Business logic, learning models, decision state, contract rules, and execution engines reside strictly inside backend domain services.
 
 ### Principle B — Every Meaningful Interaction Is Observable
-> **"Every meaningful user action generates an observable event capable of influencing current and future decision state."**  
+> **"Every meaningful user action generates an observable event capable of influencing current and future decision state."**
 Actions such as scenario adjustments, evidence inspections, recommendation accepts/rejects, pattern explorations, contract checks, and decision executions are emitted as structured telemetry events.
 
 ### Principle C — API-First Architecture
@@ -78,7 +78,7 @@ To prevent premature microservice complexity, CogniX establishes an initial topo
 2. **`cognix-core`:** API Gateway / BFF. Handles portfolio metadata, demonstration session state, industry pack configs, user authentication/authorization, and request routing.
 3. **`cognix-world`:** Synthetic Enterprise World engine. Generates causally coherent, multi-tenant temporal supply chain, demand, and inventory telemetry across `T-90` to `T+30`.
 4. **`cognix-decision`:** Shared Decision State orchestrator. Manages cross-solution decision propagation between Promotion, Demand, Inventory, Category, Commitment, and Ripple views.
-5. **`cognix-learning`:** Enterprise Memory & Learning Pattern service. Manages historical case memory (`EnterpriseMemoryCase`), pattern retrieval (`EnterpriseLearningPattern`), and pattern lifecycle.
+5. **`cognix-learning` [IMPLEMENTED]:** Enterprise Memory & Learning Pattern microservice (`services/learning` on port 8082). Manages historical case memory (`EnterpriseMemoryCase`), pattern matching (`EnterpriseLearningPattern`), 3-metric preservation (`situation_similarity`, `pattern_confidence`, `intervention_success_rate`), and bidirectional Memory ↔ Pattern relationship lookups.
 6. **`cognix-intelligence`:** Intelligence & ML orchestration service. Houses pattern similarity matching, outcome prediction models, intervention rankers, and Gemini reasoning pipelines.
 7. **`cognix-governance`:** Commercial Contract Verification & Execution engine. Executes contract SLA checks, clause verification, backup supplier auto-activation, and Execution Briefing dispatches.
 
@@ -88,16 +88,66 @@ As load, security, or domain ownership demands grow, initial deployables decompo
 - `cognix-intelligence` $\longrightarrow$ `model-service` + `reasoning-service`
 - `cognix-governance` $\longrightarrow$ `contract-service` + `execution-service`
 
-### 4.2 WP10-B Journey Telemetry Foundation Architecture [IMPLEMENTED]
-- **Deployment Decision:** Integrated logically within the Next.js BFF proxy gateway (`app/api/v1/journey/`) under Option A, maintaining strict modular domain boundaries without unnecessary microservice container overhead during initial scale.
-- **API Specification:** OpenAPI 3.1 contract (`docs/openapi/journey-v1.yaml`).
-- **Shared Model & Contracts:** `packages/contracts/src/journey-model.ts` exporting canonical event types, schema validation, and privacy enforcement.
-- **Ingestion & Diagnostic Storage:** In-memory ring buffer store (`lib/journey-store.ts`) with session sequence tracking and idempotency boundaries.
-- **Client Tracking:** Non-blocking async client abstraction (`lib/journey-client.ts`) with automatic session/tenant/persona/domain context enrichment and debounced slider telemetry.
+### 4.3 WP10-C Shared Decision State Foundation Architecture [IMPLEMENTED]
+- **Deployment Decision:** Integrated logically within Next.js BFF proxy gateway (`app/api/v1/decision-state/`) under Option A, preserving an explicit service extraction boundary for future `cognix-decision`.
+- **API Specification:** OpenAPI 3.1 specification (`docs/openapi/decision-state-v1.yaml`).
+- **Domain Model & Contracts:** `packages/contracts/src/decision-state-model.ts` providing transport-neutral types, command registry, deterministic derived impact calculator, and validation logic.
+- **Store & Concurrency Engine:** Replaceable store abstraction `IDecisionStateStore` (`lib/decision-state-store.ts`) enforcing optimistic concurrency versioning (`v1 → v2`), version history snapshots, provenance mapping, and session/tenant isolation boundaries.
+- **Cross-Functional Propagation Flow:**
+```text
+Enterprise World (baseline)
+      ↓
+Shared Decision State (v1)
+      ↑
+User Command (e.g. Promotion Lift +28%)
+      ↓
+State Versioning (v2) + Deterministic Impact Recalculation
+      ├── Promotion: Lift +28%
+      ├── Demand & Forecast: Demand 12,800 units (+28%)
+      ├── Commitment: Supplier Gap 1,800 units
+      ├── Inventory: Availability Exposure +58%
+      ├── Decision Ripple: 2nd Order Overtime 23h, 3rd Order Erosion 3.1%
+      └── Opportunity: Evaluates available intervention context
+
+      +
+
+### 4.4 Enterprise Signal Fabric (ESF-1 Implemented) Architecture
+- **ESF-1 Enterprise Signal Foundation [COMPLETED]:** `EnterpriseSignal` schema model, taxonomy, OpenAPI 3.1 spec, generator in `services/world`, BFF proxy endpoints (`/api/v1/signals/*`), and developer diagnostic panel.
+- **ESF-2 Dynamic Signal Simulation [COMPLETED]:** Deterministic simulation engine (`services/world/src/dynamic-signal-simulator.ts`), temporal timeline models (`EnterpriseSignalTimeline`, `EnterpriseSignalObservation`), bounded context projection (`SignalSimulationContext`), same-origin simulation BFF (`POST /api/v1/signals/simulate`), intervention timing immutability, and 17/17 verified unit & regression tests.
+- **The Five Information Classes:**
+  1. *Enterprise World:* Authoritative baseline reality.
+  2. *Enterprise Forecast:* Expected demand trajectory from upstream platforms (Blue Yonder / SAP IBP).
+  3. *Commercial Intent:* Planned enterprise campaign actions (e.g., 20% Off, T+7 in North West).
+  4. *Observed Enterprise Signals:* Emerging early customer and supply chain behavior.
+  5. *Shared Decision State:* Reconciled decision context combining all 4 sources right now.
+- **Synthetic-First, Connector-Compatible Architecture:** Synthetic enterprise signals generated by `cognix-world` adhere strictly to the canonical `EnterpriseSignal` schema, rendering synthetic demo feeds interchangeable with future production connectors without changing UI or state handling.
+- **Causality & Deterministic Advance:** Synthetic signals evolve dynamically based on active scenario parameters and state transitions (`Intent Registered → Engagement Accelerates → Slot Pressure Emerges → Demand Materialises`). Signals never claim to learn autonomously prior to Phase 10F ML.
+
+### 4.5 Intent Fusion Intelligence (IFI) Architecture [IFI-01 IMPLEMENTED]
+- **Positioning:** Intent Fusion is a **reusable cross-functional intelligence mechanism**, not a top-level solution product or replacement forecasting engine.
+- **Executive Value Proposition:** *"What if every operational decision knew what the business was planning before demand reacted?"*
+- **Cross-System Information Flow:**
+```text
+Existing Enterprise Forecast (Upstream)
+        +
+Commercial Intent (Promotion Intelligence)
+        +
+Observed Enterprise Signals (Signal Fabric)
+        ↓
+Shared Decision State (Reconciled Context)
+        ↓
+Commitment Gap & Inventory Exposure Rehearsal
+```
+- **Implementation Delivered (IFI-01):**
+  - **Contracts:** `CommercialIntent` & `ContextualisedDecisionOutlook` transport contracts in `packages/contracts`.
+  - **Domain Store:** `lib/commercial-intent-store.ts` (in-memory tenant/session isolated store).
+  - **Fusion Engine:** `lib/intent-fusion/intent-fusion-engine.ts` (reconciles baseline forecast + intent + signals + decision state).
+  - **REST Endpoints:** `POST /api/v1/commercial-intents`, `GET /api/v1/commercial-intents/current`, `POST /api/v1/intent-fusion/evaluate`.
+  - **OpenAPI 3.1 Contract:** `docs/openapi/intent-fusion-v1.yaml`.
+  - **Decomposition:** `Outlook (+22%) = Baseline Forecast (+12%) + Intent (+7%) + Signals (+3%) + Interaction (0%)`.
+  - **Capacity Cap:** `Supplier Capacity Cap (+10%), Potential Commitment Gap (12 pp)`.
 
 ---
-
-## 4. Logical Domain Architecture (13 Bounded Contexts)
 
 ```text
 ┌──────────────────────────────────────────────────────────────────────────────────────────┐

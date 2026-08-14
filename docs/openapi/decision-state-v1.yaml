@@ -1,0 +1,349 @@
+openapi: 3.1.0
+info:
+  title: CogniX Shared Decision State API
+  description: OpenAPI 3.1 specification for CogniX Shared Decision State domain endpoints.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: CogniX Web BFF Gateway
+paths:
+  /api/v1/decision-state/health:
+    get:
+      summary: Decision State Domain Health Probe
+      operationId: getDecisionStateHealth
+      responses:
+        '200':
+          description: Domain health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  service:
+                    type: string
+                    example: cognix-decision-state-domain
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /api/v1/decision-state:
+    post:
+      summary: Create or Initialise a Decision State
+      operationId: createDecisionState
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - tenant_id
+                - session_id
+                - scenario_id
+              properties:
+                tenant_id:
+                  type: string
+                  example: tenant_uk_retail_01
+                session_id:
+                  type: string
+                  example: ses_123456
+                domain_id:
+                  type: string
+                  example: retail_grocery
+                persona_id:
+                  type: string
+                  example: exec
+                scenario_id:
+                  type: string
+                  example: SCN-PROMO-01
+                scenario_family:
+                  type: string
+                  example: promotion_surge
+      responses:
+        '201':
+          description: Decision state created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionState'
+
+  /api/v1/decision-state/current:
+    get:
+      summary: Get Active Decision State for Current Session
+      operationId: getCurrentDecisionState
+      parameters:
+        - name: session_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Active decision state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionState'
+        '404':
+          description: Decision state not found
+
+  /api/v1/decision-state/{id}:
+    get:
+      summary: Get Decision State by ID
+      operationId: getDecisionStateById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Decision state details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionState'
+        '404':
+          description: State not found
+    patch:
+      summary: Execute Deterministic Command State Transition
+      operationId: updateDecisionState
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - command_type
+                - expected_version
+              properties:
+                command_type:
+                  type: string
+                  example: SET_PROMOTION_LIFT
+                expected_version:
+                  type: integer
+                  example: 1
+                payload:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: State updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TransitionResult'
+        '409':
+          description: Optimistic concurrency version conflict
+
+  /api/v1/decision-state/{id}/reset:
+    post:
+      summary: Reset Decision State to Baseline
+      operationId: resetDecisionState
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: State reset to baseline
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DecisionState'
+
+  /api/v1/decision-state/{id}/history:
+    get:
+      summary: Get Version History for Decision State
+      operationId: getDecisionStateHistory
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: State version history
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  decision_state_id:
+                    type: string
+                  history_count:
+                    type: integer
+                  versions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        version:
+                          type: integer
+                        timestamp:
+                          type: string
+                        command_type:
+                          type: string
+                        changed_fields:
+                          type: array
+                          items:
+                            type: string
+
+components:
+  schemas:
+    DecisionState:
+      type: object
+      required:
+        - decision_state_id
+        - tenant_id
+        - session_id
+        - state_version
+        - scenario_parameters
+        - derived_impacts
+      properties:
+        decision_state_id:
+          type: string
+          example: ds_8f7e6d5c
+        tenant_id:
+          type: string
+          example: tenant_uk_retail_01
+        session_id:
+          type: string
+          example: ses_123456
+        domain_id:
+          type: string
+          example: retail_grocery
+        persona_id:
+          type: string
+          example: exec
+        scenario_id:
+          type: string
+          example: SCN-PROMO-01
+        scenario_family:
+          type: string
+          example: promotion_surge
+        state_version:
+          type: integer
+          example: 1
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        scenario_parameters:
+          type: object
+          properties:
+            promotion_lift:
+              type: number
+              example: 28
+            supplier_capacity_cap:
+              type: number
+              example: 10
+            forecast_horizon_days:
+              type: number
+              example: 14
+            promotion_method:
+              type: string
+              example: 20_percent_off
+            campaign_scope:
+              type: string
+              example: national
+            cannibalisation_factor:
+              type: number
+              example: 5
+            event_boost:
+              type: string
+              example: none
+        constraints:
+          type: array
+          items:
+            type: string
+        selected_interventions:
+          type: array
+          items:
+            type: string
+        derived_impacts:
+          type: object
+          properties:
+            weekly_demand_units:
+              type: number
+              example: 12800
+            supplier_capacity_units:
+              type: number
+              example: 11000
+            commitment_gap_units:
+              type: number
+              example: 1800
+            delivery_risk_pct:
+              type: number
+              example: 45
+            financial_exposure_gbp:
+              type: number
+              example: 216000
+            dc_overtime_hours:
+              type: number
+              example: 18
+            margin_erosion_pct:
+              type: number
+              example: 2.2
+            stockout_probability_pct:
+              type: number
+              example: 42
+        provenance:
+          type: object
+          additionalProperties:
+            type: string
+        synthetic_demo:
+          type: boolean
+          example: true
+
+    TransitionResult:
+      type: object
+      required:
+        - status
+        - decision_state_id
+        - previous_version
+        - new_version
+        - changed_fields
+        - state
+      properties:
+        status:
+          type: string
+          example: success
+        decision_state_id:
+          type: string
+        previous_version:
+          type: integer
+        new_version:
+          type: integer
+        command_type:
+          type: string
+        changed_fields:
+          type: array
+          items:
+            type: string
+        state:
+          $ref: '#/components/schemas/DecisionState'

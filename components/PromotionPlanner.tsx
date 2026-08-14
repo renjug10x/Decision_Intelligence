@@ -22,6 +22,8 @@ const fmt = {
   wow:      (v: number) => `${v >= 0 ? '+' : ''}${(v*100).toFixed(1)}%`,
 };
 
+import { useDecisionState } from '@/context/DecisionStateContext';
+
 // Types
 interface Product {
   sku_id: string;
@@ -50,9 +52,9 @@ interface PromotionPlannerProps {
 
 export default function PromotionPlanner({ onNavigateToExperiment }: PromotionPlannerProps = {}) {
   const { role, apiKey, selectedStore } = useApp();
+  const { decisionState, executeCommand } = useDecisionState();
 
   // ── Governance & Row-Level Filtering Scopes ───────────────────────────────
-  // Store Manager region mapping (Manchester S001-S003 is North West)
   const [storeRegion, setStoreRegion] = useState('North West');
   const [focusCategory, setFocusCategory] = useState('Chilled');
   const [showBriefing, setShowBriefing] = useState(false);
@@ -69,9 +71,21 @@ export default function PromotionPlanner({ onNavigateToExperiment }: PromotionPl
   // ── Simulator Form State ───────────────────────────────────────────────────
   const [selectedSku, setSelectedSku] = useState('P004'); // Cheddar Mature 400g
   const [promoType, setPromoType] = useState('price_cut'); // price_cut | bogof | bundle
-  const [discountPct, setDiscountPct] = useState(20);
+  const [discountPct, setDiscountPct] = useState(decisionState?.scenario_parameters.promotion_lift || 20);
   const [region, setRegion] = useState('All');
   const [duration, setDuration] = useState(14); // 7 | 14 | 30
+
+  // Sync state from shared decision context
+  useEffect(() => {
+    if (decisionState?.scenario_parameters.promotion_lift !== undefined) {
+      setDiscountPct(decisionState.scenario_parameters.promotion_lift);
+    }
+  }, [decisionState?.scenario_parameters.promotion_lift]);
+
+  const handleDiscountChange = (newDiscount: number) => {
+    setDiscountPct(newDiscount);
+    executeCommand('SET_PROMOTION_LIFT', { promotion_lift: newDiscount }, 'PromotionPlanner.tsx');
+  };
 
   const [simulating, setSimulating] = useState(false);
   const [simResult, setSimResult] = useState<any>(null);
@@ -233,6 +247,63 @@ export default function PromotionPlanner({ onNavigateToExperiment }: PromotionPl
       });
       setSimSimulating(false);
     }, 1200); // UI feel delay
+  };
+
+  const [registeringIntent, setRegisteringIntent] = useState(false);
+  const [intentRegisteredSuccess, setIntentRegisteredSuccess] = useState<string | null>(null);
+
+  const handleRegisterCommercialIntent = async () => {
+    setRegisteringIntent(true);
+    setIntentRegisteredSuccess(null);
+
+    const product = (productsData as Product[]).find(p => p.sku_id === selectedSku);
+    const skuName = product ? product.name : selectedSku;
+    const cat = product ? product.category : 'Fresh Dairy';
+
+    const intentPayload = {
+      commercial_intent_id: `intent_${Math.random().toString(36).substr(2, 9)}`,
+      tenant_id: 'tenant_uk_retail_01',
+      session_id: 'sess_001',
+      campaign_id: 'CMP-DAIRY-Q3',
+      category: cat,
+      sku_scope: [selectedSku],
+      region: region === 'All' ? 'North West' : region,
+      customer_segment: 'Family Shoppers',
+      channel: 'Omnichannel',
+      promotion_type: promoType,
+      discount_depth: discountPct,
+      planned_start: new Date(Date.now() + 7 * 86400000).toISOString(),
+      planned_end: new Date(Date.now() + (7 + duration) * 86400000).toISOString(),
+      expected_uplift: Math.round(discountPct * 1.25),
+      campaign_objective: 'Volume Surge & Market Share Growth',
+      media_support: 'Digital Banner + In-App Push Notification',
+      inventory_assumption: 'Trafford RDC safety stock buffer 3 days',
+      supplier_assumption: 'FreshDirect UK capped at 48,000 units/week',
+      source_system: 'cognix_promotion_planner',
+      source_type: 'PROMOTION_PLANNER' as const,
+      created_at: new Date().toISOString(),
+      provenance: {
+        generator: 'cognix_promotion_planner_ui',
+        rule: 'user_registered_intent'
+      },
+      synthetic_demo: true,
+      schema_version: '1.0'
+    };
+
+    try {
+      const res = await fetch('/api/v1/commercial-intents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(intentPayload)
+      });
+      if (res.ok) {
+        setIntentRegisteredSuccess(`Commercial Intent for ${skuName} (${discountPct}% discount, ${duration}d) successfully registered into active CogniX decision context.`);
+      }
+    } catch (e: any) {
+      console.error('Failed to register commercial intent', e);
+    } finally {
+      setRegisteringIntent(false);
+    }
   };
 
   const setSimSimulating = (val: boolean) => {
@@ -517,7 +588,7 @@ export default function PromotionPlanner({ onNavigateToExperiment }: PromotionPl
                 max="50"
                 step="5"
                 value={discountPct}
-                onChange={e => setDiscountPct(Number(e.target.value))}
+                onChange={e => handleDiscountChange(Number(e.target.value))}
                 disabled={isLocked}
                 style={{ width: '100%', accentColor: 'var(--accent)', cursor: isLocked ? 'not-allowed' : 'pointer' }}
               />
@@ -562,24 +633,65 @@ export default function PromotionPlanner({ onNavigateToExperiment }: PromotionPl
             </div>
           </div>
 
-          <button
-            className="btn btn-primary w-full"
-            onClick={handleRunSimulation}
-            disabled={isLocked || simulating}
-            style={{ justifyContent: 'center', height: 42 }}
-          >
-            {simulating ? (
-              <>
-                <Loader2 size={16} strokeWidth={2} style={{ animation: 'spin 0.8s linear infinite' }} />
-                <span>Running Looker Analytics Predictor…</span>
-              </>
-            ) : (
-              <>
-                <Play size={15} strokeWidth={2} fill="currentColor" />
-                <span>Simulate AI Predict</span>
-              </>
-            )}
-          </button>
+          {intentRegisteredSuccess && (
+            <div style={{
+              background: 'var(--success-light)',
+              border: '1px solid var(--success)',
+              borderRadius: 'var(--radius-sm)',
+              padding: '10px 14px',
+              marginBottom: 16,
+              fontSize: '0.8125rem',
+              color: 'var(--text-primary)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8
+            }}>
+              <CheckCircle2 size={16} color="var(--success)" />
+              <span>{intentRegisteredSuccess}</span>
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <button
+              className="btn btn-primary"
+              onClick={handleRunSimulation}
+              disabled={isLocked || simulating}
+              style={{ justifyContent: 'center', height: 42 }}
+            >
+              {simulating ? (
+                <>
+                  <Loader2 size={16} strokeWidth={2} style={{ animation: 'spin 0.8s linear infinite' }} />
+                  <span>Simulating Predictor…</span>
+                </>
+              ) : (
+                <>
+                  <Play size={15} strokeWidth={2} fill="currentColor" />
+                  <span>Simulate AI Predict</span>
+                </>
+              )}
+            </button>
+
+            <button
+              className="btn"
+              onClick={handleRegisterCommercialIntent}
+              disabled={isLocked || registeringIntent}
+              style={{
+                justifyContent: 'center',
+                height: 42,
+                background: 'var(--g10x-orange)',
+                color: '#FFFFFF',
+                border: 'none',
+                fontWeight: 600
+              }}
+            >
+              {registeringIntent ? (
+                <Loader2 size={16} style={{ animation: 'spin 0.8s linear infinite' }} />
+              ) : (
+                <Tag size={15} />
+              )}
+              <span>Register Commercial Intent</span>
+            </button>
+          </div>
         </div>
 
         {/* AI Recommendations Card */}
