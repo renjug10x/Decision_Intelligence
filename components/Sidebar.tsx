@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { useApp } from '@/lib/context';
 import { useAuth } from '@/context/AuthContext';
-import { CognixWordmark } from '@/components/CognixWordmark';
+import { CognixBrandLockup } from '@/components/CognixBrandLockup';
 
 import { trackJourneyEvent, resetSessionId } from '@/lib/journey-client';
 
@@ -35,7 +35,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
     <div className="sidebar" style={{ background: '#F8FAFC', borderRight: '1px solid var(--border)' }}>
       {/* Brand Header */}
       <div className="sidebar-logo" style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)' }}>
-        <CognixWordmark showDescriptor={true} size="md" onClick={handleWordmarkClick} />
+        <CognixBrandLockup size="sm" centered={false} onClick={handleWordmarkClick} />
       </div>
 
       {/* Role Indicator */}
