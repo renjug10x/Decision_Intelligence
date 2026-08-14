@@ -91,6 +91,7 @@ async function runTests() {
     signal_refs: [],
     provenance: {
       source: 'G10X Synthetic Demonstration Precedent',
+      period: 'Q1 2026 (Tenant B Test)',
       data_classification: 'G10X Accelerator Synthetic Precedent',
       is_synthetic_demo: true
     },
