@@ -1,15 +1,15 @@
 # COGNIX MASTER IMPLEMENTATION PLAN & ROADMAP (PHASES 0 – 11)
 
-**Document Status:** Approved & Authoritative  
-**Version:** 1.0.0  
-**Effective Date:** August 2026  
-**Owner:** CogniX Transformation Steering Group  
+**Document Status:** Approved & Authoritative
+**Version:** 1.0.0
+**Effective Date:** August 2026
+**Owner:** CogniX Transformation Steering Group
 
 ---
 
 ## Executive Summary & Program Structure
 
-This document defines the comprehensive master roadmap for transforming the retail Decision Intelligence POC into **CogniX**, G10X's Enterprise Innovation Lab. 
+This document defines the comprehensive master roadmap for transforming the retail Decision Intelligence POC into **CogniX**, G10X's Enterprise Innovation Lab.
 
 The roadmap is structured across 12 sequential phases (Phases 0 through 11). Implementation is grouped into an **Immediate Implementation Wave** (Phases 0–6 / Work Packages WP1–WP6) followed by advanced lab capabilities (Phases 7–11).
 
@@ -273,32 +273,112 @@ A canonical, source-independent mechanism for representing business, customer, o
 
 ---
 
-### Innovation Capability — Intent Fusion Intelligence (IFI)
-A reusable cross-functional intelligence mechanism reconciling Commercial Intent, baseline enterprise forecasts, observed Enterprise Signals, and downstream commitments into Shared Decision State.
+# COGNIX MASTER IMPLEMENTATION PLAN & ROADMAP (PHASES 0 – 11)
 
-- **IFI-01 — Intent Fusion Integration [COMPLETED]:** Cross-solution decision context integration linking Commercial Intent (`PromotionPlanner`), Demand Contextualisation (`Forecasting`), Commitment Gap Rehearsal (`CommitmentIntelligence`), Inventory Exposure (`AvailabilityIntelligence`), Multi-Order Consequence Ripple (`DecisionRipple`), Pattern Matching (`EnterpriseMemory`), Contract SLA Check (`ContractVerification`), and Executive Action (`ExecutionBriefing`). *Dependencies: WP10-A, WP10-B, WP10-C, ESF-1, ESF-2. Strengthened by WP10-D.*
+**Document Status:** Approved & Authoritative
+**Version:** 1.1.0
+**Effective Date:** August 2026
+**Owner:** CogniX Transformation Steering Group
+
+---
+
+### Core Innovation Capability — Campaign Decision Intelligence (CDI)
+A transformational decision capability discovering whether, what, where, when, and how to intervene, understanding cross-functional consequences, monitoring decision half-life, and closing the operational learning loop.
+
+#### Work Package Dependency Classification Semantics:
+- **HARD:** Implementation cannot proceed without this prerequisite.
+- **INTEGRATION:** Capability develops independently, but requires this dependency for end-to-end cross-system flow.
+- **ENHANCEMENT:** Dependency enriches intelligence/telemetry but does not block initial delivery or validation.
+
+#### CDI Work Package Specifications:
+- **CDI-01 — Campaign Decision Canvas & Intent Model:** Progressive 4-area input framework (`CampaignIntent`, `BaselineObjective`, `AudienceMarket`, `DecisionContext`).
+  - *Hard Dependencies:* `WP10-C` (Shared Decision State), `IFI-01` (Commercial Intent Store).
+  - *Integration Dependencies:* None.
+  - *Enhancement Dependencies:* `ESF-1`.
+- **CDI-02 — Counterfactual Baseline & Causal Campaign Engine:** Domain separation of Current Baseline vs Expected Without Intervention vs Predicted With Intervention. Causal demand engine.
+  - *Hard Dependencies:* `CDI-01` (`CampaignIntent` contract).
+  - *Integration Dependencies:* `ESF-2` (Dynamic Signal Simulation).
+  - *Enhancement Dependencies:* None.
+- **CDI-03 — Opportunity Window & Micro-Market Opportunity Graph:** Date discovery mode ("Find the best window") and micro-market store graph evaluation. Can proceed in parallel with CDI-02 once CDI-01 contract is frozen.
+  - *Hard Dependencies:* `CDI-01` (`CampaignIntent` contract).
+  - *Integration Dependencies:* `WP10-A` (Enterprise World Store Data).
+  - *Enhancement Dependencies:* None.
+- **CDI-04 — Campaign Decision Readiness & Resilience:** 6-dimension evaluation producing explainable readiness states (`GO`, `CONDITIONAL GO`, `REVIEW`, `DO NOT PROCEED`). Integrates pre-mortem resilience with Decision Ripple rather than creating a parallel risk engine.
+  - *Hard Dependencies:* `CDI-02` (`CounterfactualBaseline` & `CausalDemandContribution`).
+  - *Integration Dependencies:* `CDI-03` (`MicroMarketOpportunity`), `Decision Ripple Engine`.
+  - *Enhancement Dependencies:* None.
+- **CDI-05 — Decision Timeline & Curiosity-Driven Demand Decomposition:** Contextual multi-lens timeline (`DemandTimelineProjection`) with progressive driver decomposition (`What? → Why? → Evidence → What If?`).
+  - *Hard Dependencies:* `CDI-02` (`CounterfactualBaseline` & `CausalDemandContribution`).
+  - *Integration Dependencies:* `CDI-04` (`DecisionReadinessAssessment`).
+  - *Enhancement Dependencies:* `CDI-03` (`OpportunityWindowEvaluation`).
+- **CDI-06 — Multi-Objective Outcome Frontier & AI Competing Strategies:** Pareto-efficient strategy trade-off engine and deterministic AI-generated competing plays (Scenario 0 Do-Nothing, Non-Promotion Stock Reallocation).
+  - *Hard Dependencies:* `CDI-02` (`CausalDemandContribution`), `CDI-05` (`DemandDecomposition`).
+  - *Integration Dependencies:* `CDI-04` (`DecisionReadinessAssessment`).
+  - *Enhancement Dependencies:* Gemini AI narrative synthesis wrapper.
+- **CDI-07A — Decision Contract & Decision Half-Life:** Rich `DecisionContract` schema evolution, Decision Half-Life duration tracking, and signal volatility triggers monitoring recommendation validity against `ESF-1`/`ESF-2`/`ESF-3` signals.
+  - *Hard Dependencies:* `CDI-01` (`CampaignIntent`), `CDI-06` (`OutcomeFrontier`).
+  - *Integration Dependencies:* `WP10-C` (Shared Decision State).
+  - *Enhancement Dependencies:* `ESF-1`/`ESF-2` signal feeds.
+- **CDI-07B — Campaign Pre-Mortem & Closed Learning Loop:** Sub-slice internal evidence gates (`CDI-07B.1` Pre-Mortem Resilience, `CDI-07B.2` Prediction vs Reality Comparison, `CDI-07B.3` Enterprise Memory/Learning Integration).
+  - *Hard Dependencies:* `CDI-07A` (`DecisionContract`), `WP10-D` (`cognix-learning`).
+  - *Integration Dependencies:* `ESF-3` (External Signal Connectors).
+  - *Enhancement Dependencies:* None.
+
+---
+
+### ESF-3 Disposition & Dependency Position
+- **Status:** Unchanged / Active Next Executable Package.
+- **Role:** `ESF-3 — External Signal Connector Contract` is provider-neutral and is NOT deleted, absorbed, or superseded. It defines connector contracts for planning, commerce, weather, events, competitive intel, operational telemetry, and demographic sources.
+- **CDI Dependency:** CDI work packages `CDI-01` through `CDI-06` use synthetic `ESF-1`/`ESF-2` signal feeds during lab development. `CDI-07B` binds production signal feeds from `ESF-3` for real-world outcome comparison.
 
 ---
 
 ### Roadmap Dependency Structure
+
+#### 1. Primary HARD Execution Flow DAG
 ```text
   WP10-A Enterprise World
            ↓
   WP10-B Journey Telemetry
            ↓
-  WP10-C Shared Decision State
-           │
-     ┌─────┴───────────────┐
-     ▼                     ▼
-   ESF-1                 WP10-D Memory & Learning API Extraction
-   (Signal Contract)     (Preserved Intact)
-     ↓                     │
-   ESF-2                   │
-   (Dynamic Simulation)    │
-     ↓                     │
-   IFI-01 ◄────────────────┘ (Optional Enhancement Path)
-   (Intent Fusion)
+  WP10-C Shared Decision State ─── HARD ───┐
+           │                               │
+     ┌─────┴─────────────────────┐         │
+     ▼                           ▼         │
+   ESF-1 (Signal Contract)     WP10-D      │
+     ↓                           │         │
+   ESF-2 (Dynamic Simulation)    │         │
+     ↓                           │         │
+   IFI-01 (Intent Fusion) ───────┼── HARD ─┤
+     │                           │         │
+     └───────────────────────────┼─────────┴──> CDI-01 (Canvas & Intent)
+                                 │               ├── HARD ──> CDI-02 (Counterfactual & Causal)
+                                 │               │              ├── HARD ──> CDI-04 (Readiness & Resilience)
+                                 │               │              ├── HARD ──> CDI-05 (Timeline & Decomposition)
+                                 │               │              │              │
+                                 │               │              └────── HARD ──┼──> CDI-06 (Outcome Frontier & Plays)
+                                 │               │                             │      │
+                                 │               └─── HARD ────────────────────┼─────>┼──> CDI-07A (Decision Contract & Half-Life)
+                                 │                                             │      │      │
+                                 └──────────────────────── HARD ───────────────┼──────┼─────>┼──> CDI-07B (Pre-Mortem & Closed Loop)
+                                                                               │      │      ▲
+                                                                               │      │      │
+                                                                             ESF-3  Gemini (ENHANCEMENT)
 ```
+
+#### 2. Companion Direct Dependency Matrix
+Every direct dependency declared in the Work Package Specification Table is explicitly recorded and classified below:
+
+| Work Package | HARD Dependencies (Blocks Execution) | INTEGRATION Dependencies (Cross-System Flow) | ENHANCEMENT Dependencies (Enriches Intelligence) |
+|---|---|---|---|
+| **`CDI-01`** | `WP10-C` (Shared Decision State), `IFI-01` (Commercial Intent Store) | None | `ESF-1` (Signal Contract) |
+| **`CDI-02`** | `CDI-01` (`CampaignIntent` contract) | `ESF-2` (Dynamic Signal Simulation) | None |
+| **`CDI-03`** | `CDI-01` (`CampaignIntent` contract) | `WP10-A` (Enterprise World Store Data) | None |
+| **`CDI-04`** | `CDI-02` (`CounterfactualBaseline` & `CausalDemandContribution`) | `CDI-03` (`MicroMarketOpportunity`), Decision Ripple Capability | None |
+| **`CDI-05`** | `CDI-02` (`CounterfactualBaseline` & `CausalDemandContribution`) | `CDI-04` (`DecisionReadinessAssessment`) | `CDI-03` (`OpportunityWindowEvaluation`) |
+| **`CDI-06`** | `CDI-02` (`CausalDemandContribution`), `CDI-05` (`DemandDecomposition`) | `CDI-04` (`DecisionReadinessAssessment`) | Generative AI Narrative Capability (Gemini wrapper) |
+| **`CDI-07A`** | `CDI-01` (`CampaignIntent`), `CDI-06` (`OutcomeFrontier`) | `WP10-C` (Shared Decision State) | `ESF-1`/`ESF-2` Signal Feeds |
+| **`CDI-07B`** | `CDI-07A` (`DecisionContract`), `WP10-D` (`cognix-learning`) | `ESF-3` (External Signal Connectors) | None |
 
 #### Phase 10K — Counterfactual Learning
 Comparative outcome engine evaluating Chosen Decision vs Alternative Interventions vs Do-Nothing baseline.

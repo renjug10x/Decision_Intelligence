@@ -1,9 +1,9 @@
 # ORGANISATIONAL LEARNING INTELLIGENCE & ENTERPRISE LEARNING PATTERNS
 
-**Document Status:** Authoritative & Approved  
-**Version:** 1.0.0  
-**Effective Date:** August 2026  
-**Owner:** G10X Enterprise Innovation Lab Architecture Group  
+**Document Status:** Approved & Authoritative
+**Version:** 1.1.0
+**Effective Date:** August 2026
+**Owner:** G10X Enterprise Innovation Lab Architecture Group
 
 ---
 
@@ -113,3 +113,21 @@ Actual Outcome (Delivery SLA Maintained, Zero Stockout)
 Enterprise Memory & Learning Pattern (Refines Precursor Pattern Confidence)
 ```
 This enables CogniX to recognise structural precursor patterns weeks before customer demand or operational breaches materialise.
+
+---
+
+## 8. Closed Learning Loop for Campaign Decision Intelligence
+
+### 8.1 The Closed Loop Architecture
+Campaign Decision Intelligence establishes an explicit 8-step closed learning loop:
+
+$$\text{Prediction} \longrightarrow \text{Decision} \longrightarrow \text{Execution} \longrightarrow \text{Observation} \longrightarrow \text{Outcome Comparison} \longrightarrow \text{Learning} \longrightarrow \text{Enterprise Memory} \longrightarrow \text{Future Decision}$$
+
+1. **Prediction:** Contextualised Decision Outlook predicts demand, revenue, halo, cannibalisation, and risk.
+2. **Decision:** Executive selects strategy play and registers `DecisionContract`.
+3. **Execution:** Decision dispatched via Execution Briefing.
+4. **Observation:** Real-world Enterprise Signals (`ESF-1`/`ESF-2`/`ESF-3`) observe actual run-rates.
+5. **Outcome Comparison:** Evaluates predicted vs observed uplift, halo, cannibalisation, and weather impact.
+6. **Learning:** Extracts prediction error deltas ($\Delta \text{Uplift}$, $\Delta \text{Margin}$).
+7. **Enterprise Memory:** Stores an `EnterpriseMemoryCase` with explicit provenance (`synthetic_demo` or production connector).
+8. **Future Decision:** Surfaces historical analogues during subsequent decision canvas evaluations.

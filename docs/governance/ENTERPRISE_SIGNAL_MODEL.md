@@ -1,9 +1,9 @@
 # ENTERPRISE SIGNAL FABRIC & CANONICAL SIGNAL MODEL
 
-**Document Status:** Authoritative & Implemented (ESF-1)  
-**Version:** 1.0.0  
-**Effective Date:** August 2026  
-**Owner:** G10X Enterprise Innovation Lab Architecture Group  
+**Document Status:** Approved & Authoritative
+**Version:** 1.1.0
+**Effective Date:** August 2026
+**Owner:** G10X Enterprise Innovation Lab Architecture Group
 
 ---
 
@@ -124,3 +124,23 @@ ESF-2 introduces deterministic temporal signal simulation (`services/world/src/d
 - **`ESF-3` — External Signal Connector Contract [PENDING]:** Transport adapters for enterprise planning (Blue Yonder / SAP IBP) and commerce telemetry.
 - **`ESF-4` — Signal Quality, Confidence & Provenance [PENDING]:** Signal freshness metrics, reliability scoring, and source anomaly detection.
 - **`ESF-5` — Learned Signal Behaviour [PENDING]:** Machine Learning scoring signal precursor sequences against historical memory precedents.
+
+---
+
+## 7. Contextual Signals & Decision Half-Life Signal Tracking
+
+### 7.1 Contextual Factor Signals
+Campaign Decision Intelligence extends the taxonomy to capture contextual signals:
+- `WEATHER_TEMPERATURE_ANOMALY`
+- `WEATHER_PRECIPITATION_SHIFT`
+- `COMPETITOR_CAMPAIGN_LAUNCH`
+- `LOCAL_EVENT_DEMAND_SURGE`
+- `PAYDAY_CALENDAR_EFFECT`
+- `DEMOGRAPHIC_MISSION_SHIFT`
+
+### 7.2 Decision Half-Life & Volatility Signals
+- `RECOMMENDATION_HALF_LIFE_DECAY`
+- `ASSUMPTION_SENSITIVITY_BREACH`
+- `SIGNAL_VOLATILITY_SURGE`
+
+Intent Fusion monitors these signals against active `DecisionContract` assumptions. If volatility triggers a threshold breach, a `RE_SIMULATION_RECOMMENDED` signal is published to `cognix-decision`.

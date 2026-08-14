@@ -1,5 +1,10 @@
 # COGNIX — INTENT FUSION INTELLIGENCE ARCHITECTURE & GOVERNANCE
 
+**Document Status:** Approved & Authoritative
+**Version:** 1.1.0
+**Effective Date:** August 2026
+**Owner:** G10X Enterprise Innovation Lab Architecture Group
+
 ## 1. Executive Summary
 
 Intent Fusion Intelligence is a cross-cutting CogniX capability designed to reconcile planned commercial decisions (**Commercial Intent**) with upstream baseline forecasts, observed operational signals (**Enterprise Signal Fabric**), and shared decision contexts (**Shared Decision State**).
@@ -52,3 +57,19 @@ Intent Fusion operates across the CogniX journey:
 3. **Commitment Intelligence (`Commitment.tsx`):** Rehearses downstream supplier allocation risks driven by the 12 pp commitment gap.
 4. **Predictive Inventory & Decision Ripple (`Inventory.tsx`, `Ripple.tsx`):** Projects 2nd/3rd order consequences into DC overtime and margin erosion.
 5. **Execution Briefing (`Briefing.tsx`):** Recommends actionable mitigations backed by learning pattern evidence.
+
+---
+
+## 6. Decision Contract Evolution & Decision Half-Life Integration
+
+### 6.1 Decision Contract Architecture
+In Campaign Decision Intelligence, `CommercialIntent` evolves into a rich **`DecisionContract`**:
+- **Business Objective:** Specific goal (e.g. `Clearance`, `Revenue Acceleration`, `Margin Protection`).
+- **Chosen Intervention:** Selected intervention mechanics (e.g. `Price Cut`, `BOGOF`, `Bundle`, `Reallocation`).
+- **Rejected Alternatives:** Record of unselected Pareto-efficient options.
+- **Counterfactual Baseline:** Run-rate without intervention vs expected trajectory with intervention.
+- **Micro-Market Cohorts:** Targeted store cohorts, micro-markets, and channels.
+- **Assumptions & Reconsideration Triggers:** Explicit contextual conditions (e.g. weather stability, supplier SLA headroom).
+
+### 6.2 Decision Half-Life Signal Tracking
+Recommendations carry a **Decision Half-Life** duration (e.g. `36 hours`). Intent Fusion monitors observed Enterprise Signals (`ESF-1`/`ESF-2`). If key assumptions deviate beyond threshold limits, Intent Fusion emits a `RECOMMENDATION_AGEING` or `RE_SIMULATION_REQUIRED` signal to Shared Decision State.

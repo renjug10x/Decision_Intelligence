@@ -1,9 +1,9 @@
 # COGNIX UX & VISUAL DESIGN PRINCIPLES
 
-**Document Status:** Approved & Authoritative  
-**Version:** 1.0.0  
-**Effective Date:** August 2026  
-**Owner:** G10X Experience & Design Systems Group  
+**Document Status:** Approved & Authoritative
+**Version:** 1.1.0
+**Effective Date:** August 2026
+**Owner:** G10X Experience & Design Systems Group
 
 ---
 
@@ -110,7 +110,7 @@ When an executive opens CogniX, they are greeted by the **Curiosity Engine**:
 
 ### Progressive Disclosure Flow:
 ```text
-  [ Provocative Question ] 
+  [ Provocative Question ]
              ↓
   [ Innovation Canvas ]  ──> Problem statement, hypothesis, business value.
              ↓
@@ -126,3 +126,38 @@ When an executive opens CogniX, they are greeted by the **Curiosity Engine**:
 - **Border Radius:** Subtly rounded (`var(--radius-sm)` = 6px, `var(--radius-md)` = 8px, `var(--radius-lg)` = 12px)
 - **Elevation Shadows:** Very light, crisp directional shadows (`box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03)`).
 - **Glassmorphism:** Prohibited except for floating modal backdrop filters where readability demands it.
+
+---
+
+## 5. Campaign Decision Intelligence UX & Progressive Disclosure Patterns
+
+### 5.1 Non-Cockpit Decision Surface
+Campaign Decision Intelligence surfaces MUST NOT create dense, cluttered dashboard cockpits. Primary views present progressive disclosure, answering five executive questions in order:
+1. **What are we considering?** (Campaign Intent & Objective)
+2. **What does CogniX predict?** (Decision Timeline & Counterfactual Baseline)
+3. **Should we proceed?** (Campaign Decision Readiness: GO / CONDITIONAL GO / REVIEW / DO NOT PROCEED)
+4. **Is there a better intervention?** (Multi-Objective Outcome Frontier & AI Competing Strategies)
+5. **What should I investigate?** (Curiosity-Driven Demand Decomposition & Pre-Mortem)
+
+### 5.2 Progressive Disclosure Pattern: `What? → Why? → Evidence → What If?`
+Executives are never forced to inspect dense numbers or complex multi-variable breakdown charts upfront:
+- **`What?`** High-level headline prediction (e.g. `Campaign Demand +28% · 84% Confidence`).
+- **`Why?`** Clicking *Why?* surfaces progressive driver contributions (Mechanic +18.2pp, Audience +6.4pp, Weather +4.1pp, Competitor -2.1pp).
+- **`Evidence`** Clicking *Show Evidence* exposes underlying data telemetry, historical analogues, and confidence bounds.
+- **`What If?`** Clicking *What If?* opens scenario adjustment controls and alternative trade-off frontiers.
+
+### 5.3 Multi-Objective Outcome Frontier UX
+Trade-offs between Revenue, Profit Contribution, Waste Reduction, and Customer Availability are presented as clear strategy cards (*Maximum Growth*, *Maximum Contribution*, *Maximum Waste Reduction*, *Balanced*) with visible, explainable trade-offs—never as opaque single-number optimizations.
+
+### 5.4 Primary Campaign Delta Decision Surface ("Should We Intervene?")
+The "Do Nothing vs Proposed Intervention" comparison (Campaign Delta) is elevated as a mandatory primary decision surface. It exposes true incremental net monetary value (£ contribution delta, net volume delta, waste reduction delta), answering: *"Does intervention create more value than doing nothing?"*
+
+### 5.5 Decision Readiness UX: Compact Summary → 6-Dimension Evidence
+Decision Readiness is never reduced to a static badge or generic AI text. It follows a 2-tier structure:
+- **Tier 1 (Compact Summary):** Overall state (`GO` | `CONDITIONAL GO` | `REVIEW` | `DO NOT PROCEED`) with confidence score.
+- **Tier 2 (Progressively Disclosed Evidence):** Interactive drawer exposing 6-dimension evaluation breakdown (*Commercial*, *Demand*, *Operational*, *Context*, *Customer*, *Strategic*) with evidence provenance.
+
+### 5.6 Decision Half-Life UX: Compact Validity Indicator → Validity Evidence
+Decision Half-Life is never implemented as a superficial countdown timer. It follows a signal-driven pattern:
+- **Tier 1 (Compact Indicator):** Validity status (e.g. `Valid (Est. 36h remaining)` | `Re-Simulation Recommended`).
+- **Tier 2 (Progressively Disclosed Evidence):** Signal volatility drawer showing specific assumption drifts (e.g., weather shift +3.2°C, competitor price change -5%) triggering recommendation decay.

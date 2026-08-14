@@ -1,9 +1,9 @@
 # COGNIX TARGET ARCHITECTURE SPECIFICATION
 
-**Document Status:** Approved & Authoritative  
-**Version:** 1.0.0  
-**Effective Date:** August 2026  
-**Owner:** G10X Architecture Review Board  
+**Document Status:** Approved & Authoritative
+**Version:** 1.1.0
+**Effective Date:** August 2026
+**Owner:** G10X Architecture Review Board
 
 ---
 
@@ -120,5 +120,36 @@ CogniX is transitioning to an **API-first, event-aware, multi-tenant adaptive pl
 
 ### 5.3 Storage & Isolation Architecture
 - **PostgreSQL Schemas:** Isolated schemas (`identity.*`, `world.*`, `decision.*`, `memory.*`, `learning.*`, `contracts.*`). No direct cross-schema queries.
-- **Redis:** Session caching, ephemeral Decision State, and initial event transport.
+- **Redis:** Used for session caching, ephemeral Decision State, and initial event transport.
 - **Multi-Tenant Learning Scopes:** Strict separation between Tenant-Private Learning, Cross-Tenant Generalised Learning (G10X IP), and Global Synthetic Learning. No cross-tenant data leakage.
+
+---
+
+## 6. Campaign Decision Intelligence Architecture
+
+CogniX establishes **Campaign Decision Intelligence** as a core domain capability connecting:
+$$\text{Opportunity Intel} \longrightarrow \text{Campaign Decision Intel} \longrightarrow \text{Decision Contract} \longrightarrow \text{Intent Fusion} \longrightarrow \text{Demand/Forecast} \longrightarrow \text{Signals} \longrightarrow \text{Decision State} \longrightarrow \text{Ripple} \longrightarrow \text{Memory} \longrightarrow \text{Learning}$$
+
+### 6.1 The Five Decision Questions
+Campaign Decision Intelligence answers five fundamental retail decision questions:
+1. **Should we intervene?** (Determines if intervention creates more value than doing nothing).
+2. **What intervention should we make?** (Evaluates promotions, markdowns, bundling, loyalty activation, assortment changes, inventory reallocations, cross-merchandising, supplier-funded activations, localized campaigns, channel interventions, or doing nothing).
+3. **Where and when should we intervene?** (Discovers optimal timing, campaign windows, regions, store cohorts, micro-markets, customer cohorts, and fulfilment channels).
+4. **What happens elsewhere if we intervene?** (Models consequences across demand, revenue, contribution, margin, inventory, availability, waste, cannibalisation, substitution, halo, basket effects, demand pull-forward, supply pressure, labor, neighbouring stores, and channels).
+5. **What did reality teach us?** (Compares prediction against actual execution, storing evidence with explicit provenance in Enterprise Memory and Learning).
+
+### 6.2 The 14 Core Capabilities
+1. **Campaign Decision Canvas:** 4-area input framework (Campaign Intent, Baseline & Objective, Audience & Market, Decision Context).
+2. **Counterfactual Baseline:** Distinguishes *What is happening now* vs *What would happen without intervention* vs *What is predicted if intervention occurs*.
+3. **Causal Campaign Model:** Evaluates intrinsic demand, promotion response, audience response, place response, temporal response, external signals, and portfolio effects.
+4. **Opportunity Window Discovery:** Supports both "I know my dates" and "Find the best window" timing discovery.
+5. **Micro-Market Opportunity Graph:** Evaluates Store + Catchment + Customer Missions + Demographics + Competitors + Inventory + Events + Fulfilment Channels + Neighbouring Stores.
+6. **Campaign Decision Readiness:** Evaluates 6 dimensions (Commercial, Demand, Operational, Context, Customer, Strategic) producing explainable readiness states (GO, CONDITIONAL GO, REVIEW, DO NOT PROCEED).
+7. **Decision Timeline:** Visualizes historical actual + counterfactual + campaign + confidence envelope + constraints + context events across Demand, Revenue, Contribution, and Inventory lenses.
+8. **Curiosity-Driven Demand Decomposition:** Progressive disclosure flow (`What? → Why? → Evidence → What If?`).
+9. **Multi-Objective Outcome Frontier:** Evaluates Pareto-efficient strategy trade-offs (Maximum Growth, Maximum Contribution, Maximum Waste Reduction, Balanced).
+10. **AI-Generated Competing Strategies:** Generates Growth Play, Margin-Protected Play, Waste-Reduction Play, Customer-Acquisition Play, Scenario 0 (Do Nothing), and Non-Promotion Alternatives.
+11. **Decision Contract & Intent Fusion:** Reconciles Statistical Forecast + Commercial Intent + Observed Signals + Contextual Factors + Operational Constraints $\rightarrow$ Contextualised Demand Outlook.
+12. **Decision Half-Life:** Tracks recommendation validity duration, signal volatility, and assumption sensitivity decay.
+13. **Campaign Pre-Mortem:** Identifies failure modes, likelihood, impact, and resilience mitigations connected to Decision Ripple.
+14. **Closed Learning Loop:** Closes the operational loop (`Prediction → Decision → Execution → Observation → Outcome Comparison → Learning → Memory → Future Decision`).

@@ -1,9 +1,9 @@
 # COGNIX INFORMATION ARCHITECTURE & COMPONENT STRATEGY
 
-**Document Status:** Approved & Authoritative  
-**Version:** 1.0.0  
-**Effective Date:** August 2026  
-**Owner:** CogniX UX & Architecture Team  
+**Document Status:** Approved & Authoritative
+**Version:** 1.1.0
+**Effective Date:** August 2026
+**Owner:** CogniX UX & Architecture Team
 
 ---
 
@@ -92,3 +92,39 @@ CogniX Shell Context
 - **Frontend Continuity:** UI navigation remains strictly organized around **Innovation Experiments** and **Demonstration Solutions** so executive user journeys remain intuitive and uncluttered.
 - **Service Invisibility:** The underlying 7-deployable service topology (`cognix-web`, `cognix-core`, `cognix-world`, `cognix-decision`, `cognix-learning`, `cognix-intelligence`, `cognix-governance`) operates entirely behind backend API and event boundaries.
 - **Presentation Decoupling:** Frontend views consume structured `/api/v1/...` REST endpoints and publish client events without directly embedding domain simulation logic. Technical service boundaries remain 100% invisible to end users.
+
+---
+
+## 5. Campaign Decision Intelligence Information Architecture & Visual Surfaces
+
+### 5.1 Campaign Decision Intelligence UI Workspace (`components/CampaignDecisionCanvas.tsx`)
+Campaign Decision Intelligence is mapped into the Information Architecture as a progressive, non-cockpit decision canvas with 5 dedicated progressive disclosure layers:
+
+```text
+Campaign Decision Intelligence Workspace
+  │
+  ├── Layer 1: Campaign Intent & Objective
+  │    ├── Intent Selector (Inventory Clearance, Revenue Acceleration, Market Defense, Launch)
+  │    └── Baseline & Operational Constraints (Volume, Revenue, Cost, Capacity Caps)
+  │
+  ├── Layer 2: Decision Timeline & Counterfactual Baseline
+  │    ├── Observed Current Run-Rate
+  │    ├── Expected Without Intervention (Counterfactual Baseline)
+  │    ├── Expected With Intervention (Campaign Demand + Confidence Envelope)
+  │    └── Multi-Lens Selector (Demand | Revenue | Contribution | Inventory)
+  │
+  ├── Layer 3: Campaign Decision Readiness
+  │    ├── Overall Readiness Score (GO / CONDITIONAL GO / REVIEW / DO NOT PROCEED)
+  │    ├── 6-Dimension Evaluation (Commercial, Demand, Operational, Context, Customer, Strategic)
+  │    └── Material Reconsideration Triggers
+  │
+  ├── Layer 4: Multi-Objective Outcome Frontier & AI Competing Strategies
+  │    ├── Strategy Plays (Growth Play, Margin-Protected Play, Waste-Reduction Play, Balanced)
+  │    ├── Counterfactual Scenario 0 (Do Nothing)
+  │    └── Non-Promotion Alternatives (e.g. Stock Reallocation)
+  │
+  └── Layer 5: Progressive Evidence & Closed Learning Loop
+       ├── Curiosity-Driven Demand Decomposition (What? → Why? → Evidence → What If?)
+       ├── Campaign Pre-Mortem (Failure modes, likelihood, mitigations → Decision Ripple)
+       └── Closed Learning Loop & Historical Analogues (Enterprise Memory & Learning Patterns)
+```

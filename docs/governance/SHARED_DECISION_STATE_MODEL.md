@@ -1,9 +1,9 @@
 # COGNIX SHARED DECISION STATE MODEL & GOVERNANCE
 
-**Document Status:** Approved & Authoritative  
-**Version:** 1.0.0  
-**Effective Date:** August 2026  
-**Owner:** CogniX Architecture Steering Group  
+**Document Status:** Approved & Authoritative
+**Version:** 1.1.0
+**Effective Date:** August 2026
+**Owner:** CogniX Architecture Steering Group
 
 ---
 
@@ -128,3 +128,20 @@ Journey Telemetry Records SCENARIO_CHANGED Event
 - `PATCH /api/v1/decision-state/{id}` — Execute Deterministic Command State Transition
 - `POST /api/v1/decision-state/{id}/reset` — Reset State to Baseline
 - `GET  /api/v1/decision-state/{id}/history` — Fetch Version History
+
+---
+
+## 8. Campaign Decision Contract & Outcome Frontier Integration
+
+### 8.1 Active Decision Contract Binding
+Shared Decision State binds to the active `DecisionContract`:
+- `contract_ref`: Unique reference ID (`ctr_<uuid>`).
+- `selected_strategy_play`: Active frontier strategy (`growth`, `contribution`, `waste_reduction`, `balanced`).
+- `counterfactual_run_rate`: Unadjusted baseline run-rate.
+- `targeted_micro_markets`: Array of targeted store cohort IDs (`coh_nw_01`, `coh_urban_suburban`).
+- `decision_half_life`: Remaining validity duration (hours).
+
+### 8.2 Extended Commands
+- `SET_STRATEGY_PLAY`: Switches Pareto frontier selection.
+- `UPDATE_COUNTERFACTUAL_BASELINE`: Recalculates true incremental uplift compared to counterfactual trajectory.
+- `TRIGGER_CAMPAIGN_PREMORTEM`: Evaluates campaign resilience against failure modes in Decision Ripple.

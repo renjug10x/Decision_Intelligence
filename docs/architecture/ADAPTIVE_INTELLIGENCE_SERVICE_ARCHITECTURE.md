@@ -1,11 +1,12 @@
-# COGNIX ADAPTIVE INTELLIGENCE & SERVICE ARCHITECTURE BLUEPRINT
+# COGNIX — ADAPTIVE INTELLIGENCE SERVICE ARCHITECTURE & BLUEPRINT
 
-**Document Status:** Authoritative Architectural Blueprint & Roadmap
-**Version:** 1.0.0
+**Document Status:** Approved & Authoritative
+**Version:** 1.1.0
 **Effective Date:** August 2026
 **Owner:** G10X Enterprise Innovation Lab Architecture Steering Group
 
 ---
+
 
 ## 1. Executive Strategic Vision
 

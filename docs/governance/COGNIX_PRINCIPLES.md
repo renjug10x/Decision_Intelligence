@@ -1,15 +1,15 @@
-# COGNIX OPERATING PRINCIPLES
+# COGNIX CORE GOVERNANCE PRINCIPLES
 
-**Document Status:** Approved & Authoritative  
-**Version:** 1.0.0  
-**Effective Date:** August 2026  
-**Owner:** G10X Architecture & Innovation Board  
+**Document Status:** Approved & Authoritative
+**Version:** 1.1.0
+**Effective Date:** August 2026
+**Owner:** CogniX Governance Steering Group & Innovation Board
 
 ---
 
 ## Overview
 
-The following 10 Operating Principles govern all research, design, architecture, UX, data modeling, and software engineering within **CogniX (G10X Enterprise Innovation Lab)**.
+The following Operating Principles govern all research, design, architecture, UX, data modeling, and software engineering within **CogniX (G10X Enterprise Innovation Lab)**.
 
 ---
 
@@ -58,3 +58,26 @@ CogniX must remain strictly client-neutral at the core engine level. Customer-sp
 
 ### Principle 10 — Business value before technical novelty
 Every experiment must clearly articulate its commercial, financial, or operational ROI upfront. Novel algorithms or AI architectures without demonstrable business value are prohibited from entering the active prototype portfolio.
+
+### Principle 11 — Campaign Decision Intelligence North Star
+CogniX must not become another generic promotion optimiser. It must operate as a **Campaign Decision Intelligence System** that evaluates choices across five fundamental retail decision questions:
+1. **Should we intervene?** Determine whether intervention creates more value than doing nothing.
+2. **What intervention should we make?** Evaluate promotions, markdowns, bundling, loyalty activation, assortment changes, inventory reallocations, cross-merchandising, supplier-funded activations, localized campaigns, channel interventions, or no intervention.
+3. **Where and when should we intervene?** Discover optimal timing, campaign windows, regions, store cohorts, micro-markets, customer cohorts, and fulfilment channels.
+4. **What happens elsewhere if we intervene?** Model 1st, 2nd, and 3rd-order consequences across demand, revenue, contribution, margin, inventory, availability, waste, cannibalisation, substitution, halo, basket effects, demand pull-forward, supply pressure, labor, neighbouring stores, and channels.
+5. **What did reality teach us?** Close the operational loop by comparing prediction against actual execution, storing evidence with explicit provenance in Enterprise Memory and Learning.
+
+The domain connection chain must remain coherent across all experiences:
+$$\text{Opportunity Intel} \longrightarrow \text{Campaign Decision Intel} \longrightarrow \text{Decision Contract} \longrightarrow \text{Intent Fusion} \longrightarrow \text{Demand/Forecast} \longrightarrow \text{Signals} \longrightarrow \text{Decision State} \longrightarrow \text{Ripple} \longrightarrow \text{Memory} \longrightarrow \text{Learning}$$
+
+### Principle 12 — Anti-Drift Guardrails
+All implementation packages MUST strictly enforce anti-drift guardrails to prevent product dilution:
+- **No Promotion Calculator Reduction:** Never reduce Campaign Intelligence to a simple discount percentage calculator.
+- **Counterfactual Imperative & Campaign Delta Elevation:** Always compare predicted interventions against an explicit Counterfactual Baseline (Do Nothing). "Do Nothing vs Proposed Intervention" (Campaign Delta) is a mandatory primary decision surface exposing net monetary value (£ contribution delta, volume delta, waste delta), not merely percentage uplift.
+- **Date Discovery:** Timing must be an active decision variable ("Find the best window"), not merely a static date picker.
+- **Explainable Targeting:** Micro-market store recommendations must be explainable by catchment, inventory, and missions—never un-explained AI rankings.
+- **Multi-Objective Frontier:** Strategies must present Pareto trade-offs across revenue, contribution, waste, and availability—never opaque single-number optimizations. Fixed weights are not required upfront; trade-offs remain visible as distinct strategy plays.
+- **Deterministic Strategy Generation:** Core competing strategy plays and scenario comparisons MUST have deterministic structured domain representations. Generative AI (Gemini) may explain, summarize, or propose variants, but strategy generation MUST NOT depend exclusively on an external LLM being available.
+- **Provider-Neutral Signal Connectors:** External signal connectors (ESF-3) are defined as provider-neutral contract adapters across planning, commerce, weather, events, competitive intel, operational telemetry, and demographic sources. Vendor platforms (e.g. Blue Yonder, SAP IBP) represent reference implementations, not hardcoded architectural dependencies.
+- **Resilience over Parallel Risk Engines:** Pre-mortem analysis MUST integrate with Decision Ripple, Enterprise Signals, and Decision Readiness rather than creating a disconnected risk engine.
+- **Intelligence Before Visualization:** No visual UI surface may precede the conceptual domain contract and calculation engine required to back it.

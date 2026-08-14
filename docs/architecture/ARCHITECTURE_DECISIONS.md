@@ -1,9 +1,9 @@
 # COGNIX ARCHITECTURE DECISION RECORDS (ADR)
 
-**Document Status:** Approved & Authoritative  
-**Version:** 1.0.0  
-**Effective Date:** August 2026  
-**Owner:** G10X Principal Architecture Group  
+**Document Status:** Approved & Authoritative
+**Version:** 1.1.0
+**Effective Date:** August 2026
+**Owner:** G10X Principal Architecture Group
 
 ---
 
@@ -225,3 +225,27 @@
 - **Context:** Executive innovation propositions (e.g. Intent Fusion) risk proliferating top-level sidebar navigation items and competing with established customer forecasting tools.
 - **Decision:** Intent Fusion is implemented as a reusable cross-functional intelligence mechanism reconciling Commercial Intent, baseline enterprise forecasts, observed Enterprise Signals, and downstream commitments into `Shared Decision State`. CogniX does not replace the enterprise forecast; it contextualises decision consequences around it.
 - **Consequences:** Maximises component reuse across `Promotion`, `Forecasting`, `Commitment`, `Ripple`, and `Briefing` without adding UI clutter.
+
+---
+
+### ADR-026: Campaign Decision Intelligence Architecture & 14-Capability Framework
+- **Status:** Approved & Authoritative
+- **Context:** Standard retail promotion tools focus narrowly on SKU discount depth optimization, ignoring counterfactual baselines, micro-market targeting, multi-objective trade-offs, pre-mortems, decision half-lives, and closed-loop learning.
+- **Decision:** CogniX adopts the **Campaign Decision Intelligence** architecture, establishing a 14-capability framework connected across the domain chain:
+$$\text{Opportunity Intel} \longrightarrow \text{Campaign Decision Intel} \longrightarrow \text{Decision Contract} \longrightarrow \text{Intent Fusion} \longrightarrow \text{Demand/Forecast} \longrightarrow \text{Signals} \longrightarrow \text{Decision State} \longrightarrow \text{Ripple} \longrightarrow \text{Memory} \longrightarrow \text{Learning}$$
+- **14 Core Capabilities:**
+  1. Campaign Decision Canvas
+  2. Counterfactual Baseline
+  3. Causal Campaign Model
+  4. Opportunity Window Discovery
+  5. Micro-Market Opportunity Graph
+  6. Campaign Decision Readiness
+  7. Decision Timeline
+  8. Curiosity-Driven Demand Decomposition (`What? → Why? → Evidence → What If?`)
+  9. Multi-Objective Outcome Frontier
+  10. AI-Generated Competing Strategies
+  11. Decision Contract & Intent Fusion
+  12. Decision Half-Life
+  13. Campaign Pre-Mortem
+  14. Closed Learning Loop
+- **Consequences:** Differentiates CogniX from legacy promotion tools by discovering whether intervention is needed, determining what intervention should be made, discovering where and when it should happen, understanding cross-functional consequences, monitoring recommendation half-life, and learning from reality afterwards.
