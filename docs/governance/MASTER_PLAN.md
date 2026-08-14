@@ -257,8 +257,8 @@ Canonical OpenAPI 3.1 contract (`docs/openapi/journey-v1.yaml`), event schema va
 #### Phase 10C — Shared Decision State Foundation [COMPLETED]
 Canonical OpenAPI 3.1 contract (`docs/openapi/decision-state-v1.yaml`), transport-neutral contract model (`packages/contracts/src/decision-state-model.ts`), replaceable store abstraction (`lib/decision-state-store.ts`), optimistic concurrency versioning (`v1 → v2`), tenant/session isolation, and cross-solution deterministic propagation across Promotion, Demand & Forecast, Commitment, Inventory, Decision Ripple, Opportunity, Category, Contract Verification, and Execution Briefing.
 
-#### Phase 10D — Memory & Learning API Extraction [PENDING]
-Enterprise Memory and Learning pattern service extraction.
+#### Phase 10D — Memory & Learning API Extraction [COMPLETED]
+Canonical OpenAPI 3.1 contract (`docs/openapi/memory-learning-v1.yaml`), transport-neutral contract schemas (`packages/contracts/src/memory-model.ts`, `packages/contracts/src/learning-pattern-model.ts`), replaceable repository abstractions (`IMemoryRepository`, `ILearningPatternRepository`), standalone `cognix-learning` Docker microservice (port 8082), same-origin BFF proxy gateway (`/api/v1/memory/*`, `/api/v1/learning-patterns/*`), 3-metric preservation (`situation_similarity`, `pattern_confidence`, `intervention_success_rate`), bidirectional relationship lookups (`Memory ↔ Pattern`), static import elimination, and visual component integration.
 
 ---
 

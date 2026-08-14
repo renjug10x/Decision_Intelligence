@@ -78,7 +78,7 @@ To prevent premature microservice complexity, CogniX establishes an initial topo
 2. **`cognix-core`:** API Gateway / BFF. Handles portfolio metadata, demonstration session state, industry pack configs, user authentication/authorization, and request routing.
 3. **`cognix-world`:** Synthetic Enterprise World engine. Generates causally coherent, multi-tenant temporal supply chain, demand, and inventory telemetry across `T-90` to `T+30`.
 4. **`cognix-decision`:** Shared Decision State orchestrator. Manages cross-solution decision propagation between Promotion, Demand, Inventory, Category, Commitment, and Ripple views.
-5. **`cognix-learning`:** Enterprise Memory & Learning Pattern service. Manages historical case memory (`EnterpriseMemoryCase`), pattern retrieval (`EnterpriseLearningPattern`), and pattern lifecycle.
+5. **`cognix-learning` [IMPLEMENTED]:** Enterprise Memory & Learning Pattern microservice (`services/learning` on port 8082). Manages historical case memory (`EnterpriseMemoryCase`), pattern matching (`EnterpriseLearningPattern`), 3-metric preservation (`situation_similarity`, `pattern_confidence`, `intervention_success_rate`), and bidirectional Memory ↔ Pattern relationship lookups.
 6. **`cognix-intelligence`:** Intelligence & ML orchestration service. Houses pattern similarity matching, outcome prediction models, intervention rankers, and Gemini reasoning pipelines.
 7. **`cognix-governance`:** Commercial Contract Verification & Execution engine. Executes contract SLA checks, clause verification, backup supplier auto-activation, and Execution Briefing dispatches.
 

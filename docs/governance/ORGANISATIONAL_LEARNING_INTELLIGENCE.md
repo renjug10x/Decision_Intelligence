@@ -95,9 +95,9 @@ CogniX organizes learning into six conceptual categories:
                                          Counterfactual Learning & Pattern Decay
 ```
 
-### 7.1 Current vs Planned Distinction
-- **Current Baseline (Implemented):** Deterministic demonstration implementation backed by canonical registry (`config/patterns.ts`).
-- **Planned Baseline (Programme 10):** Machine Learning-backed adaptive organisational learning service (`cognix-learning` & `cognix-intelligence`) operating over real-time journey telemetry.
+### 7.1 Current Implementation Truth
+- **Completed Baseline (WP10-D Implemented):** Standalone `cognix-learning` microservice (port 8082) with transport contracts (`packages/contracts/src/memory-model.ts`, `packages/contracts/src/learning-pattern-model.ts`), OpenAPI 3.1 contract (`docs/openapi/memory-learning-v1.yaml`), replaceable repository abstractions (`IMemoryRepository`, `ILearningPatternRepository`), same-origin BFF proxy gateway (`/api/v1/memory/*`, `/api/v1/learning-patterns/*`), and static import elimination.
+- **Future ML Boundary (Programme 10 Phase 10F):** Machine Learning-backed adaptive similarity scoring, neural pattern matching, and automated counterfactual pattern decay operating over real-time journey telemetry streams.
 
 ### 7.3 Enterprise Signals in Organisational Learning
 Future ML phases (ESF-5 & Phase 10F) will consume the Enterprise Signal Fabric to match recurring precursor signal sequences against historical outcomes:

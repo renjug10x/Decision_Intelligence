@@ -86,7 +86,7 @@ export default function CommitmentIntelligence({ onNavigateToExperiment }: Commi
       experiment_id: 'EXP-COMMITMENT-01',
       source: 'pattern_card',
       page: 'commitment-intelligence',
-      metadata: { pattern_id: 'PAT-COMMIT-01' }
+      metadata: { pattern_id: 'PAT-COMM-01' }
     });
   };
 

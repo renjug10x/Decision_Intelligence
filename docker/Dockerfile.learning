@@ -1,0 +1,24 @@
+# CogniX Learning Domain Microservice Dockerfile
+FROM node:20-alpine AS builder
+WORKDIR /app
+COPY package*.json ./
+COPY packages/contracts/package*.json ./packages/contracts/
+COPY services/learning/package*.json ./services/learning/
+RUN npm ci
+COPY . .
+RUN npx tsc --project packages/contracts/tsconfig.json
+RUN npx tsc --project services/learning/tsconfig.json
+
+FROM node:20-alpine AS runner
+WORKDIR /app
+ENV NODE_ENV=production
+ENV PORT=8082
+
+COPY --from=builder /app/packages/contracts/dist ./packages/contracts/dist
+COPY --from=builder /app/packages/contracts/src ./packages/contracts/src
+COPY --from=builder /app/services/learning/dist ./services/learning/dist
+COPY --from=builder /app/services/learning/package.json ./services/learning/package.json
+COPY --from=builder /app/node_modules ./node_modules
+
+EXPOSE 8082
+CMD ["node", "services/learning/dist/services/learning/src/server.js"]
