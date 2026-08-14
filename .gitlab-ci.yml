@@ -8,7 +8,7 @@ stages:
 
 variables:
   SERVICE_PREFIX: di
-  DI_SERVICES: "nextjs-app nginx-proxy"
+  DI_SERVICES: "cognix-web cognix-world cognix-learning"
   HEALTH_CHECK_DELAY: "30"
   SONAR_QUALITY_GATE_WAIT: "false"
   SONAR_ENABLED: "true"
@@ -249,8 +249,9 @@ push:
     export ECR_PASSWORD=$(aws ecr get-login-password --region $AWS_REGION)
 
     {
-      echo "DI_NEXTJS_IMAGE=$(ecr_image_for nextjs-app)"
-      echo "DI_NGINX_IMAGE=$(ecr_image_for nginx-proxy)"
+      echo "DI_COGNIX_WEB_IMAGE=$(ecr_image_for cognix-web)"
+      echo "DI_COGNIX_WORLD_IMAGE=$(ecr_image_for cognix-world)"
+      echo "DI_COGNIX_LEARNING_IMAGE=$(ecr_image_for cognix-learning)"
     } > /tmp/di.env.images
 
     scp -i ~/.ssh/key.pem -o StrictHostKeyChecking=no \
