@@ -3,7 +3,8 @@
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Activity, Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
+import { CognixBrandLockup } from '@/components/CognixBrandLockup';
 import { useAuth } from '@/context/AuthContext';
 import { useToast } from '@/context/ToastContext';
 import { useApp } from '@/lib/context';
@@ -244,25 +245,10 @@ function CompleteRegistrationContent() {
     <div className="login-bg">
       <div className="login-card">
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <Link href={appRoutes.home} aria-label="Go to home" style={{ display: 'inline-block' }}>
-            <div
-              style={{
-                width: 56,
-                height: 56,
-                borderRadius: 14,
-                background: 'var(--gradient-brand)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                margin: '0 auto 16px',
-                boxShadow: '0 0 28px rgba(0,120,255,0.25)',
-                cursor: 'pointer',
-              }}
-            >
-              <Activity size={26} strokeWidth={1.75} color="white" />
-            </div>
+          <Link href={appRoutes.home} aria-label="Go to home" style={{ display: 'inline-block', width: '100%' }}>
+            <CognixBrandLockup showWordmark={false} size="lg" />
           </Link>
-          <h2 style={{ fontSize: '1.375rem', marginBottom: 8 }}>{copy.title}</h2>
+          <h2 style={{ fontSize: '1.375rem', marginTop: 16, marginBottom: 8 }}>{copy.title}</h2>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{copy.subtitle}</p>
         </div>
 

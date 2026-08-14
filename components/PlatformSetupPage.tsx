@@ -2,10 +2,11 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, Lock, Eye, EyeOff, Activity, ExternalLink } from 'lucide-react';
+import { ArrowRight, Lock, Eye, EyeOff, ExternalLink } from 'lucide-react';
 import { useApp, type Role } from '@/lib/context';
 import { appRoutes } from '@/config/routes';
 import { DEFAULT_PERSONA_ID } from '@/config/personas';
+import { CognixBrandLockup } from '@/components/CognixBrandLockup';
 
 const GEMINI_KEY_STEPS = [
   'Sign in with your Google account.',
@@ -42,27 +43,9 @@ export default function PlatformSetupPage() {
 
   return (
     <div className="login-bg">
-      <div className="login-card">
-        <div style={{ textAlign: 'center', marginBottom: 36 }}>
-          <div
-            style={{
-              width: 56,
-              height: 56,
-              borderRadius: 14,
-              background: 'linear-gradient(135deg, #003978 0%, #0060CC 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 16px',
-              boxShadow: '0 0 28px rgba(0,120,255,0.25)',
-            }}
-          >
-            <Activity size={26} strokeWidth={1.75} color="white" />
-          </div>
-          <h2 style={{ fontSize: '1.375rem', marginBottom: 6 }}>Decision Intelligence</h2>
-          <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-            CogniX Lab · Powered by Looker + Gemini AI
-          </p>
+      <div className="login-card login-card-wide">
+        <div style={{ marginBottom: 32 }}>
+          <CognixBrandLockup subtitle="Powered by Looker + Gemini AI" />
         </div>
 
         <p

@@ -52,7 +52,7 @@
   --warning-light:    rgba(217,119,6,0.06);
 
   /* Gradients */
-  --gradient-brand:   none;
+  --gradient-brand:   linear-gradient(135deg, #003978 0%, #0060CC 100%);
   --gradient-card:    none;
   --gradient-glow:    none;
 
@@ -827,6 +827,10 @@ code, pre {
   max-width: 480px;
   box-shadow: var(--shadow-lg);
   animation: scaleIn 0.4s ease;
+}
+
+.login-card-wide {
+  max-width: 520px;
 }
 
 .login-form-stack {
