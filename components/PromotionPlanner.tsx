@@ -165,7 +165,7 @@ export default function PromotionPlanner({ onNavigateToExperiment }: PromotionPl
     // 2. Perform deterministic math
     const discountDecimal = discountPct / 100;
     const promoPrice = product.rrp * (1 - discountDecimal);
-    
+
     // Assume baseline units depending on stores count
     let storesCount = 50;
     if (region !== 'All') {
@@ -175,23 +175,23 @@ export default function PromotionPlanner({ onNavigateToExperiment }: PromotionPl
     const totalBaselineUnits = baselineDailyPerStore * storesCount * duration;
 
     // Volume Elasticity curve based on Discount depth and Promo type
-    let elasticityFactor = 2.4; 
+    let elasticityFactor = 2.4;
     if (promoType === 'bogof') elasticityFactor = 3.6; // High volume, high cost
     if (promoType === 'bundle') elasticityFactor = 1.9; // Lower elasticity
-    
+
     const upliftPct = discountDecimal * elasticityFactor;
     const predictedUnits = Math.round(totalBaselineUnits * (1 + upliftPct));
-    
+
     const baselineRevenue = totalBaselineUnits * product.rrp;
     const predictedRevenue = predictedUnits * promoPrice;
-    
+
     const baselineMarginPct = (product.rrp - product.cost_price) / product.rrp;
     const predictedMarginPct = (promoPrice - product.cost_price) / promoPrice;
     const marginCompressionPct = predictedMarginPct - baselineMarginPct; // percentage point difference
-    
+
     // Estimate cannibalization rate on adjacent products
     const cannibalizationRisk = Math.min(Math.round(discountDecimal * 28 * 10) / 10, 15);
-    
+
     // Net profit change
     const baselineProfit = totalBaselineUnits * (product.rrp - product.cost_price);
     const promoProfit = predictedUnits * (promoPrice - product.cost_price);
@@ -218,15 +218,15 @@ export default function PromotionPlanner({ onNavigateToExperiment }: PromotionPl
     }
 
     if (!aiBrief) {
-      // Fallback highly-accurate templates
-      if (product.category === 'Dairy' && discountPct >= 20) {
-        aiBrief = `Proposed Mature Cheddar promo squeezes margins by ${(Math.abs(marginCompressionPct)*100).toFixed(1)}% (to ${(predictedMarginPct*100).toFixed(1)}%). While volume rises +${(upliftPct*100).toFixed(0)}%, the deep discount degrades category profit by ${fmt.currency(Math.abs(netProfitChange))} unless structured as a multi-buy bundle.`;
+      // Fallback highly-accurate templates derived dynamically from active SKU context
+      if (netProfitChange < 0) {
+        aiBrief = `Proposed ${product.name} promo squeezes margins by ${(Math.abs(marginCompressionPct)*100).toFixed(1)}% (to ${(predictedMarginPct*100).toFixed(1)}%). While volume rises +${(upliftPct*100).toFixed(0)}%, deep discounting degrades net profit by ${fmt.currency(Math.abs(netProfitChange))} unless structured as a multi-buy bundle or supported by supplier rebates.`;
       } else if (product.category === 'Produce') {
         aiBrief = `Clearance activity on ${product.name} (+${(upliftPct*100).toFixed(0)}% volume) is highly recommended for the ${region} region to alleviate logistics backlog. Net profit increases by ${fmt.currency(netProfitChange)} with negligible cannibalization risk (${cannibalizationRisk}%).`;
       } else if (product.category === 'Bakery') {
-        aiBrief = `${product.name} promotion drives strong store footfall and bakery attachment rates. The gross margin compression is easily offset by secondary margin gains on spreads and dairy in adjacent aisles.`;
+        aiBrief = `${product.name} promotion drives strong store footfall and bakery attachment rates (+${(upliftPct*100).toFixed(0)}% volume). Gross margin compression is offset by secondary margin gains on adjacent lines, yielding ${fmt.currency(netProfitChange)} net profit lift.`;
       } else {
-        aiBrief = `The proposed ${(discountPct)}% promotion on ${product.name} yields a positive volume response (+${(upliftPct*100).toFixed(0)}% units), leading to a net profit variance of ${netProfitChange >= 0 ? '+' : ''}${fmt.currency(netProfitChange)}. Ensure supply buffers at ${region} distribution hubs to support replenishment.`;
+        aiBrief = `The proposed ${discountPct}% promotion on ${product.name} yields a positive volume response (+${(upliftPct*100).toFixed(0)}% units), leading to a net profit variance of ${netProfitChange >= 0 ? '+' : ''}${fmt.currency(netProfitChange)}. Ensure supply buffers at ${region} distribution hubs to support replenishment.`;
       }
     }
 
@@ -356,7 +356,7 @@ export default function PromotionPlanner({ onNavigateToExperiment }: PromotionPl
     const price = prod ? prod.rrp * (1 - p.discount_pct) : 0;
     return acc + (p.promo_units * price);
   }, 0);
-  
+
   const avgHistoricalUplift = filteredPromos.length
     ? filteredPromos.reduce((acc, p) => acc + p.uplift_pct, 0) / filteredPromos.length
     : 0;
@@ -897,7 +897,7 @@ export default function PromotionPlanner({ onNavigateToExperiment }: PromotionPl
                 {filteredPromos.map(promo => {
                   const prod = prodMap[promo.sku_id];
                   const skuName = prod ? prod.name : promo.sku_id;
-                  
+
                   // Compute duration days
                   const d1 = new Date(promo.start_date);
                   const d2 = new Date(promo.end_date);

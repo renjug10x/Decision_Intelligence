@@ -91,6 +91,7 @@ async function runTests() {
     signal_refs: [],
     provenance: {
       source: 'G10X Synthetic Demonstration Precedent',
+      period: 'Q2 2025 (Campaign 18)',
       data_classification: 'G10X Accelerator Synthetic Precedent',
       is_synthetic_demo: true
     },
@@ -124,7 +125,7 @@ async function runTests() {
   console.log('\n9. Bidirectional Memory <-> Pattern Resolution');
   const memCase = memoryRepository.getMemoryCaseById('MEM-2025-Q2-018');
   assert(memCase?.pattern_id === 'PAT-COMM-01', 'Memory references pattern_id PAT-COMM-01');
-  const patObj = learningPatternRepository.getLearningPatternById(memCase!.pattern_id);
+  const patObj = learningPatternRepository.getLearningPatternById(memCase!.pattern_id!);
   assert(patObj?.pattern_id === 'PAT-COMM-01', 'Pattern ID resolves back to pattern object');
   assert(patObj?.supporting_memory_ids.includes('MEM-2025-Q2-018') === true, 'Pattern references supporting memory ID MEM-2025-Q2-018');
 
