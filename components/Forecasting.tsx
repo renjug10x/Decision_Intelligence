@@ -338,13 +338,13 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <div>
             <h1 style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-              Demand & Forecast Intelligence
+              Demand & Forecast Contextualisation
             </h1>
           </div>
 
           {onNavigateToExperiment && (
             <button
-              onClick={() => onNavigateToExperiment('EXP-RIPPLE-02')}
+              onClick={() => onNavigateToExperiment('EXP-COMMITMENT-01')}
               style={{
                 padding: '5px 12px',
                 borderRadius: 'var(--radius-sm)',
@@ -359,9 +359,62 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
                 gap: 6
               }}
             >
-              Explore Decision Ripple <ChevronRight size={14} />
+              Explore Commitment Impact <ChevronRight size={14} />
             </button>
           )}
+        </div>
+
+        {/* Intent Fusion Contextualised Decision Outlook Panel */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+          gap: 12,
+          background: 'var(--bg-base)',
+          padding: '16px 20px',
+          borderRadius: 'var(--radius-md)',
+          border: '1px solid var(--border-accent)',
+          marginBottom: 16
+        }}>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Baseline Forecast
+            </div>
+            <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+              +12% Volume
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--g10x-orange)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Commercial Intent
+            </div>
+            <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--g10x-orange)' }}>
+              +7% (20% Promo)
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--g10x-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Observed Signals
+            </div>
+            <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--g10x-blue)' }}>
+              +3% (Early Demand)
+            </div>
+          </div>
+          <div style={{ borderLeft: '2px solid var(--g10x-blue)', paddingLeft: 12 }}>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--g10x-blue)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Contextualised Outlook
+            </div>
+            <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--g10x-blue)' }}>
+              +22% Demand Lift
+            </div>
+          </div>
+          <div style={{ borderLeft: '2px solid var(--danger)', paddingLeft: 12 }}>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--danger)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+              Supplier Capacity Cap
+            </div>
+            <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--danger)' }}>
+              +10% (12pp Gap)
+            </div>
+          </div>
         </div>
 
         <div style={{

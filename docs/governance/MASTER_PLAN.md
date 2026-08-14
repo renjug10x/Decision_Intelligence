@@ -276,7 +276,7 @@ A canonical, source-independent mechanism for representing business, customer, o
 ### Innovation Capability — Intent Fusion Intelligence (IFI)
 A reusable cross-functional intelligence mechanism reconciling Commercial Intent, baseline enterprise forecasts, observed Enterprise Signals, and downstream commitments into Shared Decision State.
 
-- **IFI-01 — Intent Fusion Integration:** Cross-solution decision context integration linking Commercial Intent (`PromotionPlanner`), Demand Contextualisation (`Forecasting`), Commitment Gap Rehearsal (`CommitmentIntelligence`), Inventory Exposure (`AvailabilityIntelligence`), Multi-Order Consequence Ripple (`DecisionRipple`), Pattern Matching (`EnterpriseMemory`), Contract SLA Check (`ContractVerification`), and Executive Action (`ExecutionBriefing`). *Dependencies: WP10-A, WP10-B, WP10-C, ESF-1, ESF-2. Strengthened by WP10-D.*
+- **IFI-01 — Intent Fusion Integration [COMPLETED]:** Cross-solution decision context integration linking Commercial Intent (`PromotionPlanner`), Demand Contextualisation (`Forecasting`), Commitment Gap Rehearsal (`CommitmentIntelligence`), Inventory Exposure (`AvailabilityIntelligence`), Multi-Order Consequence Ripple (`DecisionRipple`), Pattern Matching (`EnterpriseMemory`), Contract SLA Check (`ContractVerification`), and Executive Action (`ExecutionBriefing`). *Dependencies: WP10-A, WP10-B, WP10-C, ESF-1, ESF-2. Strengthened by WP10-D.*
 
 ---
 

@@ -19,3 +19,5 @@ __exportStar(require("./enterprise-world-seed"), exports);
 __exportStar(require("./journey-model"), exports);
 __exportStar(require("./decision-state-model"), exports);
 __exportStar(require("./enterprise-signal-model"), exports);
+__exportStar(require("./commercial-intent-model"), exports);
+__exportStar(require("./intent-fusion-model"), exports);

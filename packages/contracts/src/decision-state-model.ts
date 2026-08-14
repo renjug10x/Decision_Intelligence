@@ -13,6 +13,7 @@ export type DecisionCommandType =
   | 'SET_EVENT_BOOST'
   | 'SELECT_INTERVENTION'
   | 'DESELECT_INTERVENTION'
+  | 'REGISTER_COMMERCIAL_INTENT'
   | 'RESET_SCENARIO';
 
 export interface DecisionScenarioParameters {
@@ -60,6 +61,7 @@ export interface DecisionState {
   enterprise_signals: string[]; // Canonical Enterprise Signal reference IDs (e.g. ['sig_ps_001', 'sig_ps_002']) owned by Enterprise World
   constraints: string[];
   selected_interventions: string[];
+  commercial_intent_ref?: string;
   derived_impacts: DecisionDerivedImpacts;
   history: DecisionStateVersionRecord[];
   provenance: Record<string, string>;

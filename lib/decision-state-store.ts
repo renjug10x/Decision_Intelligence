@@ -279,6 +279,17 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
         }
         break;
 
+      case 'REGISTER_COMMERCIAL_INTENT':
+        if (typeof commandPayload.payload.promotion_lift === 'number') {
+          updatedParams.promotion_lift = commandPayload.payload.promotion_lift;
+          changedFields.push('promotion_lift');
+        }
+        if (commandPayload.payload.commercial_intent_ref) {
+          changedFields.push('commercial_intent_ref');
+        }
+        updatedProvenance.commercial_intent = 'registered_intent';
+        break;
+
       case 'RESET_SCENARIO':
         Object.assign(updatedParams, DEFAULT_SCENARIO_PARAMS);
         updatedInterventions = [];
@@ -305,6 +316,7 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
       updated_at: now,
       scenario_parameters: updatedParams,
       selected_interventions: updatedInterventions,
+      commercial_intent_ref: commandPayload.payload.commercial_intent_ref || currentState.commercial_intent_ref,
       derived_impacts: newDerivedImpacts,
       provenance: updatedProvenance,
       history: [versionRecord, ...currentState.history].slice(0, 50)
@@ -349,3 +361,30 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
 }
 
 export const decisionStateStore: IDecisionStateStore = new InMemoryDecisionStateStore();
+
+export function getDecisionState(tenantId: string = 'tenant_uk_retail_01', sessionId: string = 'sess_001'): DecisionState {
+  return decisionStateStore.getCurrentStateBySession(sessionId, tenantId)!;
+}
+
+export function transitionDecisionState(
+  tenantId: string,
+  sessionId: string,
+  commandType: DecisionCommandType,
+  payload: any
+): DecisionState {
+  const current = getDecisionState(tenantId, sessionId);
+  const result = decisionStateStore.applyCommandTransition(current.decision_state_id, {
+    command_type: commandType,
+    expected_version: current.state_version,
+    payload
+  });
+  if (result.status === 'error' || result.status === 'conflict') {
+    throw new Error(result.error || 'Transition failed');
+  }
+  return result.state;
+}
+
+export function resetDecisionState(tenantId: string = 'tenant_uk_retail_01', sessionId: string = 'sess_001'): DecisionState {
+  const current = getDecisionState(tenantId, sessionId);
+  return decisionStateStore.resetDecisionState(current.decision_state_id)!;
+}

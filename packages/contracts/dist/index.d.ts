@@ -3,3 +3,5 @@ export * from './enterprise-world-seed';
 export * from './journey-model';
 export * from './decision-state-model';
 export * from './enterprise-signal-model';
+export * from './commercial-intent-model';
+export * from './intent-fusion-model';
