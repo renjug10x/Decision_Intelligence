@@ -25,7 +25,8 @@ import {
   registerCampaignIntentClient,
   saveCampaignIntentDraftClient,
   evaluateCampaignDecisionClient,
-  discoverCampaignOpportunityClient
+  discoverCampaignOpportunityClient,
+  evaluateCampaignReadinessClient
 } from '@/lib/campaign-intent-client';
 import { trackJourneyEvent } from '@/lib/journey-client';
 
@@ -64,7 +65,6 @@ const AREA_META: Record<
 };
 
 const FUTURE_LAYERS = [
-  { id: 'CDI-04', label: 'Decision Readiness' },
   { id: 'CDI-05+', label: 'Timeline, Frontier, Half-Life & Learning' }
 ];
 
@@ -79,6 +79,9 @@ export default function CampaignDecisionCanvas({
   const [evaluating, setEvaluating] = useState(false);
   const [opportunity, setOpportunity] = useState<any | null>(null);
   const [discovering, setDiscovering] = useState(false);
+  const [readiness, setReadiness] = useState<any | null>(null);
+  const [assessing, setAssessing] = useState(false);
+  const [readinessExpanded, setReadinessExpanded] = useState(false);
 
   useEffect(() => {
     trackJourneyEvent({
@@ -269,6 +272,22 @@ export default function CampaignDecisionCanvas({
       return;
     }
     setOpportunity(opp);
+  };
+
+  const handleAssessReadiness = async () => {
+    setAssessing(true);
+    setError(null);
+    const result = await evaluateCampaignReadinessClient({
+      tenant_id: intent.tenant_id,
+      session_id: intent.session_id,
+      campaign_intent_id: intent.campaign_intent_id
+    });
+    setAssessing(false);
+    if (!result) {
+      setError('CDI-04 readiness assessment failed.');
+      return;
+    }
+    setReadiness(result);
   };
 
   const advance = () => {
@@ -1114,7 +1133,159 @@ export default function CampaignDecisionCanvas({
         )}
       </section>
 
-      {/* Explicit non-implementation of CDI-04+ — locked teaser only */}
+      {/* Layer 4 — CDI-04 Decision Readiness */}
+      <section
+        style={{
+          marginTop: 8,
+          marginBottom: 16,
+          padding: '18px 20px',
+          borderRadius: 12,
+          border: '1px solid var(--border)',
+          background: '#FFFFFF'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+              Layer 4 · CDI-04
+            </div>
+            <h2 style={{ margin: '0 0 6px', fontSize: '1.125rem', color: 'var(--text-primary)' }}>
+              Are we ready to proceed?
+            </h2>
+            <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)', maxWidth: 640 }}>
+              Six independent dimensions; aggregation is a floor, never a score. Thresholds are synthetic demonstration policy and never fire vetoes.
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={assessing || !isRegistered}
+            onClick={handleAssessReadiness}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: isRegistered ? 'var(--curiosity-light)' : '#F1F5F9',
+              color: isRegistered ? 'var(--g10x-orange)' : 'var(--text-muted)',
+              fontWeight: 600,
+              fontSize: '0.75rem',
+              cursor: isRegistered ? 'pointer' : 'not-allowed',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {assessing ? 'Assessing…' : isRegistered ? 'Assess readiness' : 'Register intent first'}
+          </button>
+        </div>
+
+        {!isRegistered && (
+          <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Lock size={13} /> Register Campaign Intent to unlock readiness assessment.
+          </div>
+        )}
+
+        {readiness?.readiness && (
+          <div style={{ display: 'grid', gap: 12, marginTop: 8 }}>
+            <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--curiosity-light)' }}>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                Readiness · {readiness.readiness.state}
+              </div>
+              <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                {readiness.readiness.headline}
+              </div>
+              <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                Confidence {readiness.readiness.confidence.band}
+                {typeof readiness.readiness.confidence.confidence_index === 'number'
+                  ? ` · index ${readiness.readiness.confidence.confidence_index}`
+                  : ''}
+                {' · '}
+                strength floor {readiness.readiness.confidence.evidence_strength_floor}
+                {readiness.readiness.state_caps_applied?.length
+                  ? ` · caps ${readiness.readiness.state_caps_applied.join(', ')}`
+                  : ''}
+              </div>
+              {readiness.readiness.commercial_tolerance && (
+                <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  Commercial class {readiness.readiness.commercial_tolerance.objective_class}
+                  {' · '}
+                  Δ£{readiness.readiness.commercial_tolerance.contribution_delta_gbp}
+                  {readiness.readiness.commercial_tolerance.tolerance_declared
+                    ? ` · tolerance headroom £${readiness.readiness.commercial_tolerance.headroom_gbp}`
+                    : ''}
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setReadinessExpanded(v => !v)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 6,
+                background: 'transparent',
+                border: 'none',
+                padding: 0,
+                cursor: 'pointer',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                color: 'var(--g10x-orange)'
+              }}
+            >
+              <ChevronRight size={14} style={{ transform: readinessExpanded ? 'rotate(90deg)' : undefined }} />
+              {readinessExpanded ? 'Hide' : 'Show'} six-dimension evidence
+            </button>
+
+            {readinessExpanded && (
+              <div style={{ display: 'grid', gap: 10 }}>
+                {readiness.readiness.dimensions.map((d: any) => (
+                  <div key={d.dimension} style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#F8FAFC' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
+                      <span style={{ fontSize: '0.8125rem', fontWeight: 650, color: 'var(--text-primary)' }}>{d.dimension}</span>
+                      <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        {d.state} · {d.evidence_strength_floor}
+                      </span>
+                    </div>
+                    {d.not_evaluated_reason && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>{d.not_evaluated_reason}</div>
+                    )}
+                    {d.findings.map((f: any) => (
+                      <div key={f.finding_id} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                        <strong>{f.rule_id}</strong> [{f.evidence.map((e: any) => e.strength).join(', ')}] {f.statement}
+                        {/* Seeded/proxy disclosures travel verbatim with the finding they justify (design gate §8.4). */}
+                        {f.evidence
+                          .filter((e: any) => e.disclosure)
+                          .map((e: any, i: number) => (
+                            <div
+                              key={`${f.finding_id}_disc_${i}`}
+                              style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 2 }}
+                            >
+                              {e.field_path} ({e.strength}): {e.disclosure}
+                            </div>
+                          ))}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+                {readiness.readiness.vetoes?.length > 0 && (
+                  <div style={{ fontSize: '0.75rem', color: '#9F1239' }}>
+                    Vetoes: {readiness.readiness.vetoes.map((v: any) => `${v.veto_id} (${v.veto_basis})`).join('; ')}
+                  </div>
+                )}
+                {readiness.readiness.conditions?.length > 0 && (
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    Conditions: {readiness.readiness.conditions.map((c: any) => c.statement).join(' · ')}
+                  </div>
+                )}
+                <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
+                  Threshold policy: {readiness.readiness.threshold_policy.provenance} (uncalibrated lab defaults).
+                  Resilience evidence is read-only WP10-C DecisionDerivedImpacts — no ripple engine.
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Explicit non-implementation of CDI-05+ — locked teaser only */}
       <section
         style={{
           marginTop: 8,
@@ -1125,7 +1296,7 @@ export default function CampaignDecisionCanvas({
         }}
       >
         <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
-          Next decision layers (not in CDI-03)
+          Next decision layers (not in CDI-04)
         </div>
         <div style={{ display: 'grid', gap: 8 }}>
           {FUTURE_LAYERS.map(layer => (

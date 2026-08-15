@@ -433,6 +433,18 @@ Confidence is **not** a decorative percentage. It is a band, derived determinist
 | `LOW` | Any required input missing, or strength floor = `PROXY`, or `model_divergence` present |
 | `INSUFFICIENT` | Model integrity failed (reconciliation or a validator), or ≥ 2 dimensions `INSUFFICIENT_EVIDENCE` |
 
+> **Reconciliation — independent implementation review, 2026-08-15 (authoritative).** The `LOW` row above contradicted §2.5 rule 4 and acceptance criterion 18, both of which state that `model_divergence` **caps confidence at `MODERATE`**. Because `LOW` trips cap K5, the §4.2 wording would have forced `REVIEW` on every divergent assessment — including recoverable operational situations that the gate elsewhere requires to resolve to `CONDITIONAL_GO` (§2.5 demo-path consequence). Two of the three gate statements, and the owner direction that divergence "must remain visible and consequential, but should not automatically turn a recoverable operational situation into `REVIEW`", resolve the conflict in favour of the `MODERATE` cap. **The authoritative rule is therefore:**
+>
+> | Trigger | Band effect |
+> |---|---|
+> | A **required** input (CDI-01 intent, CDI-02 counterfactual/causal) missing | `LOW` |
+> | Strength floor `PROXY` or `MISSING` | `LOW` |
+> | `model_divergence` present | ceiling `MODERATE` — published, never `HIGH`, never `LOW` on divergence alone |
+> | An **optional** integration absent (CDI-03, Decision State, signals) | ceiling `MODERATE`, plus caps K2/K3/K4 — never `LOW` (owner ruling U6: absence is a cap, not a forced `REVIEW`) |
+> | Strength floor `PLACEHOLDER_EXCLUDED` | ceiling `MODERATE` — a placeholder is evidence deliberately *excluded* from attribution, not weak evidence relied upon; it remains unable to raise any dimension state (§4.1 invariant 2) |
+>
+> The `evidence_coverage` published on the response is exactly the set the band was derived from, so the band can always be audited against its own components. Regression guards: CDI-04 tests 44–48.
+
 A numeric `confidence_index` (0–100) **may** be emitted solely as a display projection for UX §5.5 Tier 1 ordering, and only under three constraints: it is derived from the band and the three components; it is **excluded from all state determination**; and it may not be rendered without its band and components alongside it. If those cannot be guaranteed at the surface, the numeric must be dropped — owner ruling U5 (§10).
 
 ### 4.3 Missing data

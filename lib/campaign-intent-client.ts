@@ -113,3 +113,35 @@ export async function discoverCampaignOpportunityClient(params: {
     return null;
   }
 }
+
+export async function evaluateCampaignReadinessClient(params: {
+  tenant_id?: string;
+  session_id?: string;
+  campaign_intent_id?: string;
+  include_signals?: boolean;
+  economic_tolerance?: {
+    max_contribution_sacrifice_gbp: number;
+    rationale: string;
+    declared_by: string;
+    objective_basis: string;
+  };
+}): Promise<any | null> {
+  try {
+    const res = await fetch('/api/v1/campaigns/readiness', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenant_id: params.tenant_id || TENANT,
+        session_id: params.session_id || SESSION,
+        campaign_intent_id: params.campaign_intent_id,
+        include_signals: params.include_signals !== false,
+        ...(params.economic_tolerance ? { economic_tolerance: params.economic_tolerance } : {})
+      })
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.data || null;
+  } catch {
+    return null;
+  }
+}

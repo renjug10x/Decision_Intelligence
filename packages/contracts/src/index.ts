@@ -8,6 +8,7 @@ export * from './commercial-intent-model';
 export * from './campaign-intent-model';
 export * from './campaign-counterfactual-model';
 export * from './campaign-opportunity-model';
+export * from './campaign-readiness-model';
 export * from './intent-fusion-model';
 export * from './learning-pattern-model';
 export * from './memory-model';

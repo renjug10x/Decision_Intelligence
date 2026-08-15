@@ -1,8 +1,11 @@
 openapi: 3.1.0
 info:
-  title: CogniX Campaign Decision Intelligence API (CDI-01 / CDI-02 / CDI-03)
-  description: OpenAPI 3.1 specification for Campaign Decision Canvas (CDI-01), Counterfactual/Causal evaluation (CDI-02), and Opportunity Window / Micro-Market discovery (CDI-03).
-  version: 1.2.0
+  title: CogniX Campaign Decision Intelligence API (CDI-01 / CDI-02 / CDI-03 / CDI-04)
+  description: >-
+    OpenAPI 3.1 specification for Campaign Decision Canvas (CDI-01), Counterfactual/Causal
+    evaluation (CDI-02), Opportunity Window / Micro-Market discovery (CDI-03), and
+    Decision Readiness & Resilience (CDI-04).
+  version: 1.3.0
 servers:
   - url: http://localhost:3000
     description: CogniX Web BFF Gateway
@@ -218,6 +221,29 @@ paths:
           description: Combined when/where discovery payload
         '400':
           description: Invalid discovery request
+        '404':
+          description: campaign_intent_id not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/readiness:
+    post:
+      summary: Campaign Decision Readiness & Resilience (CDI-04)
+      description: >-
+        Six-dimension non-compensatory readiness lattice. Thresholds are
+        synthetic_demonstration_policy and never fire vetoes. Decision Ripple
+        evidence is read-only DecisionDerivedImpacts references. CDI-03 discovery
+        anchors are SEEDED_ASSUMPTION, not live calendar evidence.
+      operationId: evaluateCampaignReadiness
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReadinessEvaluationRequest'
+      responses:
+        '200':
+          description: Decision readiness assessment
+        '400':
+          description: Rejection R1–R6 or invalid request
         '404':
           description: campaign_intent_id not found, or not visible to the supplied tenant/session
 
@@ -510,6 +536,38 @@ components:
             type: object
         synthetic_demo:
           type: boolean
+
+    ReadinessEvaluationRequest:
+      type: object
+      required: [tenant_id, session_id]
+      properties:
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        campaign_intent_id:
+          type: string
+        include_signals:
+          type: boolean
+          default: true
+        economic_tolerance:
+          type: object
+          description: >-
+            Owner-declared contribution sacrifice limit for VALUE_TRADE objectives only.
+            Illegal on VALUE_CREATION (rejection R5). Strength DECLARED_INPUT — never OBSERVED.
+          properties:
+            max_contribution_sacrifice_gbp:
+              type: number
+              minimum: 0
+            rationale:
+              type: string
+            declared_by:
+              type: string
+            objective_basis:
+              type: string
+        threshold_overrides:
+          description: Forbidden — presence triggers rejection R6
+          nullable: true
 
     DemandTrajectoryPoint:
       type: object

@@ -304,10 +304,11 @@ A transformational decision capability discovering whether, what, where, when, a
   - *Integration Dependencies:* `WP10-A` (Enterprise World Store Data).
   - *Enhancement Dependencies:* None.
   - *Additive CDI-02 hook:* optional `resolved_temporal_uplift_pp` on causal evaluation replaces FIND_BEST_WINDOW timing-placeholder dampener when a window is resolved.
-- **CDI-04 — Campaign Decision Readiness & Resilience:** 6-dimension evaluation producing explainable readiness states (`GO`, `CONDITIONAL GO`, `REVIEW`, `DO NOT PROCEED`). Integrates pre-mortem resilience with Decision Ripple rather than creating a parallel risk engine.
+- **CDI-04 — Campaign Decision Readiness & Resilience [COMPLETED]:** 6-dimension evaluation producing explainable readiness states (`GO`, `CONDITIONAL GO`, `REVIEW`, `DO NOT PROCEED`). Integrates pre-mortem resilience with Decision Ripple rather than creating a parallel risk engine.
   - *Hard Dependencies:* `CDI-02` (`CounterfactualBaseline` & `CausalDemandContribution`).
-  - *Integration Dependencies:* `CDI-03` (`MicroMarketOpportunity`), `Decision Ripple Engine`.
+  - *Integration Dependencies:* `CDI-03` (`MicroMarketOpportunity`), `Decision Ripple Engine` (read-only `DecisionDerivedImpacts` / `calculateDerivedImpacts()` — no standalone ripple engine).
   - *Enhancement Dependencies:* None.
+  - *Owner rulings:* U1 (thresholds centralised; V4 = structural infeasibility); U2 (Commercial objective-aware; economic tolerance).
 - **CDI-05 — Decision Timeline & Curiosity-Driven Demand Decomposition:** Contextual multi-lens timeline (`DemandTimelineProjection`) with progressive driver decomposition (`What? → Why? → Evidence → What If?`).
   - *Hard Dependencies:* `CDI-02` (`CounterfactualBaseline` & `CausalDemandContribution`).
   - *Integration Dependencies:* `CDI-04` (`DecisionReadinessAssessment`).
@@ -331,7 +332,7 @@ A transformational decision capability discovering whether, what, where, when, a
 - **Status:** COMPLETED (provider-neutral connector contract delivered).
 - **Role:** `ESF-3 — External Signal Connector Contract` remains provider-neutral and is NOT deleted, absorbed, or superseded. It defines connector contracts for planning, commerce, weather, events, competitive intel, operational telemetry, and demographic sources.
 - **CDI Dependency:** CDI work packages `CDI-01` through `CDI-06` use synthetic `ESF-1`/`ESF-2` signal feeds during lab development. `CDI-07B` binds production signal feeds from `ESF-3` for real-world outcome comparison.
-- **Successor:** `CDI-01` [COMPLETED], `CDI-02` [COMPLETED], `CDI-03` [COMPLETED]. Next CDI package: `CDI-04` (HARD on CDI-02; INTEGRATION on CDI-03). `ESF-4` remains parallel-eligible under separate file ownership.
+- **Successor:** `CDI-01`–`CDI-04` [COMPLETED]. Next CDI package: `CDI-05` (HARD on CDI-02; INTEGRATION on CDI-04; ENHANCEMENT on CDI-03). `ESF-4` remains parallel-eligible under separate file ownership.
 
 ---
 

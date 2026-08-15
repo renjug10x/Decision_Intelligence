@@ -29,6 +29,13 @@ export interface IDecisionStateStore {
 
   getCurrentStateBySession(sessionId: string, tenantId?: string): DecisionState | null;
 
+  /**
+   * Strictly read-only lookup. Returns null when no state exists for the tenant/session
+   * instead of initialising one. Required by read-only consumers (CDI-04) that must never
+   * write to Shared Decision State.
+   */
+  peekCurrentStateBySession(sessionId: string, tenantId?: string): DecisionState | null;
+
   applyCommandTransition(
     id: string,
     command: TransitionCommandPayload
@@ -143,6 +150,16 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
     }
     // Auto-create if none exists for active session
     return this.createOrInitialiseState({ tenant_id: tenantId, session_id: sessionId });
+  }
+
+  public peekCurrentStateBySession(
+    sessionId: string,
+    tenantId: string = 'tenant_uk_retail_01'
+  ): DecisionState | null {
+    const sessionKey = this.getSessionKey(tenantId, sessionId);
+    const stateId = this.sessionIndexMap.get(sessionKey);
+    if (!stateId) return null;
+    return this.statesMap.get(stateId) || null;
   }
 
   public applyCommandTransition(
