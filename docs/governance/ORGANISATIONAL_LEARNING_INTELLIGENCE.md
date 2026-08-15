@@ -126,8 +126,8 @@ $$\text{Prediction} \longrightarrow \text{Decision} \longrightarrow \text{Execut
 1. **Prediction:** Contextualised Decision Outlook predicts demand, revenue, halo, cannibalisation, and risk.
 2. **Decision:** Executive selects strategy play and registers `DecisionContract`.
 3. **Execution:** Decision dispatched via Execution Briefing.
-4. **Observation:** Real-world Enterprise Signals (`ESF-1`/`ESF-2`/`ESF-3`) observe actual run-rates.
-5. **Outcome Comparison:** Evaluates predicted vs observed uplift, halo, cannibalisation, and weather impact.
-6. **Learning:** Extracts prediction error deltas ($\Delta \text{Uplift}$, $\Delta \text{Margin}$).
+4. **Observation:** Externally sourced `ESF-3` connector signals observe actual run-rates. `ESF-1`/`ESF-2` are deterministic simulations of Shared Decision State and are never authoritative observations of the world; a synthetic connector feed is likewise never a real-world outcome, whatever its external shape.
+5. **Outcome Comparison:** Evaluates predicted against observed quantities **only where grain and measurement basis match**. The contracted headline prediction is attributable — counterfactual-differenced, excluding ambient drivers — while connector observations are gross, so the two are never differenced; where no like-for-like quantity exists the comparison is indeterminate with the missing authoritative capability named.
+6. **Learning:** Records prediction error deltas as descriptive evidence about the prediction. An error is never a verdict on the decision: a decision made on the best declared evidence available can still be followed by an outcome the model did not anticipate.
 7. **Enterprise Memory:** Stores an `EnterpriseMemoryCase` with explicit provenance (`synthetic_demo` or production connector).
 8. **Future Decision:** Surfaces historical analogues during subsequent decision canvas evaluations.

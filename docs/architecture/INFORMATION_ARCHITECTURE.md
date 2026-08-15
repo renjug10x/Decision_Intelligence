@@ -125,6 +125,6 @@ Campaign Decision Intelligence Workspace
   │
   └── Layer 5: Progressive Evidence & Closed Learning Loop
        ├── Curiosity-Driven Demand Decomposition (What? → Why? → Evidence → What If?)
-       ├── Campaign Pre-Mortem (Failure modes, likelihood, mitigations → Decision Ripple)
+       ├── Campaign Pre-Mortem (Failure modes, grounding, consequence order, resilience → Decision Ripple)
        └── Closed Learning Loop & Historical Analogues (Enterprise Memory & Learning Patterns)
 ```
