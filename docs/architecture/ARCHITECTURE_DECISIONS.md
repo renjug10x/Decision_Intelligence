@@ -249,3 +249,11 @@ $$\text{Opportunity Intel} \longrightarrow \text{Campaign Decision Intel} \longr
   13. Campaign Pre-Mortem
   14. Closed Learning Loop
 - **Consequences:** Differentiates CogniX from legacy promotion tools by discovering whether intervention is needed, determining what intervention should be made, discovering where and when it should happen, understanding cross-functional consequences, monitoring recommendation half-life, and learning from reality afterwards.
+
+---
+
+### ADR-027: Provider-Neutral External Signal Connector Contract (ESF-3)
+- **Status:** Approved & Implemented
+- **Context:** Production and contextual feeds (planning, commerce, weather, events, competitive intel, operational telemetry, demographic context) must enter CogniX without coupling the architecture to any single vendor platform.
+- **Decision:** Introduce a provider-neutral connector contract (`ExternalSignalConnectorDescriptor`, `ExternalSignalEnvelope`) and a deterministic normalisation path into the existing canonical `EnterpriseSignal` model. Vendor systems may appear only as optional reference adapter aliases. Raw provider payloads are forbidden on the canonical path; only opaque `provider_payload_ref` provenance is retained. Synthetic/demo adapters always set `synthetic_demo=true`.
+- **Consequences:** Preserves ESF-1/ESF-2 interchangeability, enables CDI-07B production binding later, and keeps CogniX free of vendor-specific architectural dependencies.

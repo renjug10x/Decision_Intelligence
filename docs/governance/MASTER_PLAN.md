@@ -267,7 +267,7 @@ A canonical, source-independent mechanism for representing business, customer, o
 
 - **ESF-1 — Enterprise Signal Contract & Synthetic Signal Foundation [COMPLETED]:** Canonical `EnterpriseSignal` OpenAPI 3.1 & TypeScript contract schema, taxonomy, source classification, deterministic generator in `cognix-world`, same-origin BFF proxy (`/api/v1/signals/*`), developer diagnostic view, and Shared Decision State integration. *Dependencies: WP10-A, WP10-C.*
 - **ESF-2 — Dynamic Signal Simulation [COMPLETED]:** Deterministic simulation engine evolving enterprise signals dynamically over time based on active scenario, Commercial Intent, Shared Decision State, and selected interventions (`Intent Registered → Engagement Accelerates → Slot Pressure Emerges → Demand Acceleration Materialises`). *Dependencies: ESF-1.*
-- **ESF-3 — External Signal Connector Contract:** Abstraction layer enabling production signal feeds (commerce telemetry, enterprise planning systems like Blue Yonder/SAP IBP, campaign platforms, logistics telemetry) to publish into the canonical `EnterpriseSignal` contract. *Dependencies: ESF-1.*
+- **ESF-3 — External Signal Connector Contract [COMPLETED]:** Provider-neutral connector abstraction enabling planning, commerce, weather, events, competitive intelligence, operational telemetry, and demographic feeds to publish into the canonical `EnterpriseSignal` contract via envelope normalisation. Vendor platforms remain reference adapters only. *Dependencies: ESF-1.*
 - **ESF-4 — Signal Quality, Confidence & Provenance:** Signal reliability metrics, freshness tracking, completeness scoring, and source classification (`synthetic_world`, `commerce_telemetry`, `planning_system`, `supplier_feed`). *Dependencies: ESF-2, ESF-3.*
 - **ESF-5 — Learned Signal Behaviour:** ML phase scoring signal sequences, precursor patterns, and signal-to-outcome correlations against historical memory precedents. *Dependencies: WP10-D, ESF-4, Phase 10F.*
 
@@ -327,9 +327,10 @@ A transformational decision capability discovering whether, what, where, when, a
 ---
 
 ### ESF-3 Disposition & Dependency Position
-- **Status:** Unchanged / Active Next Executable Package.
-- **Role:** `ESF-3 — External Signal Connector Contract` is provider-neutral and is NOT deleted, absorbed, or superseded. It defines connector contracts for planning, commerce, weather, events, competitive intel, operational telemetry, and demographic sources.
+- **Status:** COMPLETED (provider-neutral connector contract delivered).
+- **Role:** `ESF-3 — External Signal Connector Contract` remains provider-neutral and is NOT deleted, absorbed, or superseded. It defines connector contracts for planning, commerce, weather, events, competitive intel, operational telemetry, and demographic sources.
 - **CDI Dependency:** CDI work packages `CDI-01` through `CDI-06` use synthetic `ESF-1`/`ESF-2` signal feeds during lab development. `CDI-07B` binds production signal feeds from `ESF-3` for real-world outcome comparison.
+- **Successor:** Both `ESF-4` (HARD deps `ESF-2`/`ESF-3` satisfied) and `CDI-01` (HARD deps `WP10-C`/`IFI-01` satisfied) are executable. **`CDI-01` takes execution priority:** it is the single HARD gate on `CDI-02`–`CDI-07B` (seven packages), whereas `ESF-4` gates only `ESF-5`, which is additionally blocked on `WP10-D` and Phase 10F. `ESF-4` also has no consumer for its quality semantics until a decision surface exists, so it should follow `CDI-01` and be informed by it. `ESF-4` remains parallel-eligible under separate file ownership.
 
 ---
 

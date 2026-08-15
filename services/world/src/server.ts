@@ -1,7 +1,18 @@
 import * as http from 'http';
-import { generateCanonicalScenario, ScenarioFamilyId, SignalSimulationRequest } from '../../../packages/contracts/src/index';
+import {
+  generateCanonicalScenario,
+  ScenarioFamilyId,
+  SignalSimulationRequest,
+  ExternalSignalIngestRequest
+} from '../../../packages/contracts/src/index';
 import { generateSyntheticSignalSnapshot } from './enterprise-signal-generator';
 import { simulateEnterpriseSignalTimelines } from './dynamic-signal-simulator';
+import {
+  ingestExternalSignals,
+  listExternalSignalConnectors,
+  listIngestedExternalSignals,
+  getExternalSignalConnector
+} from './external-signal-connector';
 
 const PORT = parseInt(process.env.PORT || '8081', 10);
 const startTime = Date.now();
@@ -11,7 +22,10 @@ const server = http.createServer((req, res) => {
   const pathname = reqUrl.pathname;
   const searchParams = reqUrl.searchParams;
   const correlationId = (req.headers['x-correlation-id'] as string) || `corr_${Math.random().toString(36).substr(2, 9)}`;
-  const tenantId = (req.headers['x-tenant-id'] as string) || searchParams.get('tenant_id') || 'tenant_uk_retail_01';
+  // Tenant scope supplied explicitly by the caller (header or query). Distinct from `tenantId`,
+  // which falls back to the lab default and therefore cannot be used to enforce a boundary.
+  const explicitTenantScope = (req.headers['x-tenant-id'] as string) || searchParams.get('tenant_id') || null;
+  const tenantId = explicitTenantScope || 'tenant_uk_retail_01';
 
   // Set CORS & JSON Content Type
   res.setHeader('Content-Type', 'application/json');
@@ -104,6 +118,129 @@ const server = http.createServer((req, res) => {
         }));
       }
     });
+    return;
+  }
+
+  // ── ROUTE 5a: GET /api/v1/signals/connectors ───────────────────────────────
+  if (pathname === '/api/v1/signals/connectors' && req.method === 'GET') {
+    const category = searchParams.get('category') || undefined;
+    const status = searchParams.get('status') || undefined;
+    const connectors = listExternalSignalConnectors({ category, status });
+
+    console.log(`[cognix-world] HTTP GET /api/v1/signals/connectors | tenant: ${tenantId} | count: ${connectors.length} | corr: ${correlationId}`);
+
+    res.writeHead(200);
+    res.end(JSON.stringify({
+      status: 'success',
+      service: 'cognix-world',
+      domain: 'enterprise-signal-connectors',
+      tenant_id: tenantId,
+      count: connectors.length,
+      correlation_id: correlationId,
+      timestamp: new Date().toISOString(),
+      data: connectors
+    }));
+    return;
+  }
+
+  // ── ROUTE 5b: POST /api/v1/signals/connectors/ingest ───────────────────────
+  if (pathname === '/api/v1/signals/connectors/ingest' && req.method === 'POST') {
+    let body = '';
+    req.on('data', chunk => { body += chunk; });
+    req.on('end', () => {
+      try {
+        const payload: ExternalSignalIngestRequest = JSON.parse(body);
+        // Enforce the tenant boundary whenever the caller scoped the request explicitly
+        // (X-Tenant-ID header or tenant_id query), regardless of which channel carried it.
+        if (payload.tenant_id && explicitTenantScope && payload.tenant_id !== explicitTenantScope) {
+          res.writeHead(403);
+          res.end(JSON.stringify({
+            status: 'error',
+            error: 'TenantBoundaryViolation',
+            message: `Request tenant_id (${payload.tenant_id}) does not match scoped tenant (${explicitTenantScope})`,
+            timestamp: new Date().toISOString()
+          }));
+          return;
+        }
+        if (!payload.tenant_id) {
+          payload.tenant_id = tenantId;
+        }
+
+        const result = ingestExternalSignals(payload);
+
+        console.log(`[cognix-world] HTTP POST /api/v1/signals/connectors/ingest | ingest_id: ${result.ingest_id} | accepted: ${result.accepted_count} | rejected: ${result.rejected_count}`);
+
+        res.writeHead(result.accepted_count > 0 ? 200 : 400);
+        res.end(JSON.stringify({
+          status: result.accepted_count > 0 ? 'success' : 'error',
+          service: 'cognix-world',
+          domain: 'enterprise-signal-connectors',
+          data: result
+        }));
+      } catch (e: any) {
+        console.error(`[cognix-world] HTTP POST /api/v1/signals/connectors/ingest failed: ${e.message}`);
+        res.writeHead(400);
+        res.end(JSON.stringify({
+          status: 'error',
+          error: 'BadRequest',
+          message: e.message,
+          timestamp: new Date().toISOString()
+        }));
+      }
+    });
+    return;
+  }
+
+  // ── ROUTE 5c: GET /api/v1/signals/connectors/ingested ──────────────────────
+  if (pathname === '/api/v1/signals/connectors/ingested' && req.method === 'GET') {
+    const sessionId = searchParams.get('session_id') || undefined;
+    const signals = listIngestedExternalSignals(tenantId, sessionId);
+
+    res.writeHead(200);
+    res.end(JSON.stringify({
+      status: 'success',
+      service: 'cognix-world',
+      domain: 'enterprise-signal-connectors',
+      tenant_id: tenantId,
+      count: signals.length,
+      timestamp: new Date().toISOString(),
+      data: signals
+    }));
+    return;
+  }
+
+  // ── ROUTE 5d: GET /api/v1/signals/connectors/{id} ──────────────────────────
+  if (pathname.startsWith('/api/v1/signals/connectors/') && req.method === 'GET') {
+    const connectorId = pathname.split('/')[5];
+    const reserved = new Set(['ingest', 'ingested']);
+    if (!connectorId || reserved.has(connectorId)) {
+      res.writeHead(404);
+      res.end(JSON.stringify({
+        status: 'error',
+        error: 'NotFound',
+        message: `Route ${pathname} not found on cognix-world service`,
+        timestamp: new Date().toISOString()
+      }));
+      return;
+    }
+    const connector = getExternalSignalConnector(connectorId);
+    if (!connector) {
+      res.writeHead(404);
+      res.end(JSON.stringify({
+        status: 'error',
+        error: 'NotFound',
+        message: `Connector ${connectorId} not found`,
+        timestamp: new Date().toISOString()
+      }));
+      return;
+    }
+    res.writeHead(200);
+    res.end(JSON.stringify({
+      status: 'success',
+      service: 'cognix-world',
+      domain: 'enterprise-signal-connectors',
+      data: connector
+    }));
     return;
   }
 

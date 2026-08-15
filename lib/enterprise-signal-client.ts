@@ -82,3 +82,36 @@ export async function simulateSignalTimelines(request: any): Promise<any | null>
     return null;
   }
 }
+
+export async function fetchExternalSignalConnectors(params: { category?: string; status?: string } = {}): Promise<any[]> {
+  try {
+    const searchParams = new URLSearchParams();
+    if (params.category) searchParams.set('category', params.category);
+    if (params.status) searchParams.set('status', params.status);
+    const qs = searchParams.toString();
+    const res = await fetch(`/api/v1/signals/connectors${qs ? `?${qs}` : ''}`, {
+      headers: { Accept: 'application/json' }
+    });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return data.data || [];
+  } catch (e: any) {
+    console.error(`[EnterpriseSignalClient] Connector discovery failed: ${e.message}`);
+    return [];
+  }
+}
+
+export async function ingestExternalSignalEnvelopes(request: any): Promise<any | null> {
+  try {
+    const res = await fetch('/api/v1/signals/connectors/ingest', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request)
+    });
+    const data = await res.json();
+    return data.data || null;
+  } catch (e: any) {
+    console.error(`[EnterpriseSignalClient] Connector ingest failed: ${e.message}`);
+    return null;
+  }
+}

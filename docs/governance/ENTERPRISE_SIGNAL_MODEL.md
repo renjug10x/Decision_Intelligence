@@ -105,7 +105,7 @@ export interface EnterpriseSignal {
 
 Every Enterprise Signal carries explicit source provenance:
 - **Synthetic Signals (Current Innovation Lab):** `source_type = 'SYNTHETIC_WORLD'`, generated deterministically by the Enterprise World domain service (`services/world/src/enterprise-signal-generator.ts`). The `packages/contracts` repository remains strictly transport-neutral and owns zero scenario-generation logic.
-- **Production Connectors (Future Enterprise):** `source_type = 'EXTERNAL_CONNECTOR'`, received via adapters from Blue Yonder, SAP IBP, E-Commerce clickstream, or WMS systems.
+- **Production Connectors (ESF-3):** `source_type` mapped from provider-neutral connector category (`PLANNING_SYSTEM`, `COMMERCE_TELEMETRY`, `FULFILMENT_SYSTEM`, or `EXTERNAL_CONNECTOR`). Inbound feeds enter as `ExternalSignalEnvelope` objects, are normalised by the ESF-3 normaliser, and emit canonical `EnterpriseSignal` records with explicit connector provenance. Vendor platforms are reference adapters only.
 
 The underlying signal contract is 100% identical between synthetic and production sources. Shared Decision State references canonical signal IDs (`sig_<id>`), storing zero duplicate signal objects.
 
@@ -121,7 +121,7 @@ ESF-2 introduces deterministic temporal signal simulation (`services/world/src/d
 - **Bounded Simulation Context:** `SignalSimulationContext` projects bounded decision state parameters (`session_id`, `decision_state_id`, `decision_state_version`, `promotion_lift`, `supplier_capacity_cap`, `selected_interventions`) into `cognix-world` via `POST /api/v1/signals/simulate`.
 - **Intervention Temporal Immutability:** Interventions become effective at a specific `effective_period` (e.g. `T-2`). Historical observations at or before `effective_period` remain strictly unchanged (`period <= effective_period`), while future observations (`period > effective_period`) deterministically reflect intervention consequences.
 - **Pure Function Simulation:** Dynamic simulation is 100% calculative and on-demand. It mutates zero state in Enterprise World, Decision State, or Telemetry.
-- **`ESF-3` — External Signal Connector Contract [PENDING]:** Transport adapters for enterprise planning (Blue Yonder / SAP IBP) and commerce telemetry.
+- **`ESF-3` — External Signal Connector Contract [COMPLETED]:** Provider-neutral `ExternalSignalEnvelope` → normalisation → canonical `EnterpriseSignal` pipeline; connector registry/discovery; reference adapters across planning, commerce, weather, events, competitive intel, operational telemetry, and demographic context. Vendor labels (e.g. Blue Yonder / SAP IBP) are reference aliases only.
 - **`ESF-4` — Signal Quality, Confidence & Provenance [PENDING]:** Signal freshness metrics, reliability scoring, and source anomaly detection.
 - **`ESF-5` — Learned Signal Behaviour [PENDING]:** Machine Learning scoring signal precursor sequences against historical memory precedents.
 

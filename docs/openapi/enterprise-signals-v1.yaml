@@ -185,6 +185,144 @@ paths:
         '404':
           description: Signal not found
 
+  /api/v1/signals/connectors:
+    get:
+      summary: Discover External Signal Connectors (ESF-3)
+      description: Lists provider-neutral connector descriptors across planning, commerce, weather, events, competitive intel, operational telemetry, and demographic context categories.
+      operationId: listExternalSignalConnectors
+      parameters:
+        - name: category
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/ExternalSignalCategory'
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [AVAILABLE, DISABLED, DEGRADED]
+      responses:
+        '200':
+          description: Connector registry snapshot
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  count:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ExternalSignalConnectorDescriptor'
+
+  /api/v1/signals/connectors/{connector_id}:
+    get:
+      summary: Look Up a Single External Signal Connector (ESF-3)
+      description: >-
+        Resolves a connector descriptor by id, including optional vendor reference aliases
+        (e.g. `vendor_blue_yonder_ref` → `conn_planning_ref_01`). Served by the Enterprise World
+        microservice only; a same-origin BFF passthrough is deferred (connector discovery via
+        `GET /api/v1/signals/connectors` covers the web surface).
+      operationId: getExternalSignalConnector
+      parameters:
+        - name: connector_id
+          in: path
+          required: true
+          schema:
+            type: string
+          example: conn_planning_ref_01
+      responses:
+        '200':
+          description: Connector descriptor
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    $ref: '#/components/schemas/ExternalSignalConnectorDescriptor'
+        '404':
+          description: Connector not found
+
+  /api/v1/signals/connectors/ingest:
+    post:
+      summary: Ingest External Signal Envelopes (ESF-3)
+      description: Accepts provider-neutral envelopes, validates connector registration, normalises into canonical EnterpriseSignal objects, and preserves provenance without vendor payload leakage.
+      operationId: ingestExternalSignals
+      parameters:
+        - name: X-Tenant-ID
+          in: header
+          required: false
+          description: >-
+            Explicit tenant scope. When supplied (via this header or a `tenant_id` query parameter)
+            it must match `tenant_id` in the request body, otherwise the request is rejected with 403.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ExternalSignalIngestRequest'
+      responses:
+        '200':
+          description: Ingest completed with one or more accepted signals
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: success
+                  data:
+                    $ref: '#/components/schemas/ExternalSignalIngestResponse'
+        '400':
+          description: All envelopes rejected or request malformed
+        '403':
+          description: Request body tenant_id does not match the explicitly scoped tenant
+
+  /api/v1/signals/connectors/ingested:
+    get:
+      summary: List Connector-Ingested Enterprise Signals
+      operationId: listIngestedExternalSignals
+      parameters:
+        - name: tenant_id
+          in: query
+          required: false
+          schema:
+            type: string
+            default: tenant_uk_retail_01
+        - name: session_id
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Tenant/session scoped connector-ingested signals
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  count:
+                    type: integer
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EnterpriseSignal'
+
 components:
   schemas:
     SimulationPeriod:
@@ -538,3 +676,190 @@ components:
         schema_version:
           type: string
           example: "1.0"
+
+    ExternalSignalCategory:
+      type: string
+      enum:
+        - PLANNING
+        - COMMERCE
+        - WEATHER
+        - EVENTS
+        - COMPETITIVE_INTEL
+        - OPERATIONAL_TELEMETRY
+        - DEMOGRAPHIC_CONTEXT
+
+    ExternalSignalConnectorDescriptor:
+      type: object
+      required:
+        - connector_id
+        - category
+        - display_name
+        - provider_id
+        - supported_signal_types
+        - status
+        - synthetic_demo
+        - adapter_version
+        - schema_version
+      properties:
+        connector_id:
+          type: string
+          example: conn_planning_ref_01
+        category:
+          $ref: '#/components/schemas/ExternalSignalCategory'
+        display_name:
+          type: string
+          example: Reference Planning Feed
+        provider_id:
+          type: string
+          description: Opaque provider label — reference adapters only; not an architectural dependency
+          example: reference_planning
+        supported_signal_types:
+          type: array
+          items:
+            type: string
+          example: [FORECAST_DIVERGENCE, CATEGORY_DEMAND_ACCELERATION]
+        status:
+          type: string
+          enum: [AVAILABLE, DISABLED, DEGRADED]
+        synthetic_demo:
+          type: boolean
+          example: true
+        adapter_version:
+          type: string
+          example: esf3_adapter_v1.0.0
+        schema_version:
+          type: string
+          example: "1.0"
+
+    ExternalSignalEnvelope:
+      type: object
+      required:
+        - envelope_id
+        - connector_id
+        - category
+        - tenant_id
+        - signal_type
+        - entity_type
+        - entity_id
+        - observed_at
+        - baseline_value
+        - observed_value
+        - unit
+        - source_system
+        - synthetic_demo
+        - schema_version
+      properties:
+        envelope_id:
+          type: string
+          example: env_planning_NW_FORECAST_DIVERGENCE
+        connector_id:
+          type: string
+          example: conn_planning_ref_01
+        category:
+          $ref: '#/components/schemas/ExternalSignalCategory'
+        tenant_id:
+          type: string
+          example: tenant_uk_retail_01
+        session_id:
+          type: string
+        domain_id:
+          type: string
+        scenario_id:
+          type: string
+        signal_type:
+          type: string
+          example: FORECAST_DIVERGENCE
+        entity_type:
+          type: string
+          example: REGION
+        entity_id:
+          type: string
+          example: North West
+        observed_at:
+          type: string
+          format: date-time
+        effective_at:
+          type: string
+          format: date-time
+        baseline_value:
+          type: number
+        observed_value:
+          type: number
+        unit:
+          type: string
+        confidence:
+          type: number
+        quality:
+          type: number
+        provider_payload_ref:
+          type: string
+          description: Opaque payload reference only — never a raw vendor body
+        source_system:
+          type: string
+          example: reference_planning_adapter
+        provenance:
+          type: object
+          additionalProperties:
+            type: string
+        synthetic_demo:
+          type: boolean
+        schema_version:
+          type: string
+
+    ExternalSignalIngestRequest:
+      type: object
+      required:
+        - tenant_id
+        - envelopes
+      properties:
+        tenant_id:
+          type: string
+          example: tenant_uk_retail_01
+        session_id:
+          type: string
+        envelopes:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ExternalSignalEnvelope'
+
+    ExternalSignalIngestResponse:
+      type: object
+      required:
+        - ingest_id
+        - tenant_id
+        - accepted_count
+        - rejected_count
+        - signals
+        - rejections
+        - timestamp
+        - schema_version
+      properties:
+        ingest_id:
+          type: string
+        tenant_id:
+          type: string
+        accepted_count:
+          type: integer
+        rejected_count:
+          type: integer
+        signals:
+          type: array
+          items:
+            $ref: '#/components/schemas/EnterpriseSignal'
+        rejections:
+          type: array
+          items:
+            type: object
+            properties:
+              envelope_id:
+                type: string
+              connector_id:
+                type: string
+              reason:
+                type: string
+        timestamp:
+          type: string
+          format: date-time
+        schema_version:
+          type: string
