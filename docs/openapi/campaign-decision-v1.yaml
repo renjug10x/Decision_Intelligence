@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
-  title: CogniX Campaign Decision Intelligence API (CDI-01)
-  description: OpenAPI 3.1 specification for Campaign Decision Canvas (CDI-01) and Counterfactual/Causal evaluation (CDI-02).
-  version: 1.1.0
+  title: CogniX Campaign Decision Intelligence API (CDI-01 / CDI-02 / CDI-03)
+  description: OpenAPI 3.1 specification for Campaign Decision Canvas (CDI-01), Counterfactual/Causal evaluation (CDI-02), and Opportunity Window / Micro-Market discovery (CDI-03).
+  version: 1.2.0
 servers:
   - url: http://localhost:3000
     description: CogniX Web BFF Gateway
@@ -164,6 +164,60 @@ paths:
           description: Combined evaluation payload
         '400':
           description: Invalid evaluation request
+        '404':
+          description: campaign_intent_id not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/opportunity-windows:
+    post:
+      summary: Evaluate Opportunity Windows (CDI-03)
+      operationId: evaluateOpportunityWindows
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpportunityDiscoveryRequest'
+      responses:
+        '200':
+          description: Ranked opportunity window candidates
+        '400':
+          description: Invalid discovery request
+        '404':
+          description: campaign_intent_id not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/micro-markets:
+    post:
+      summary: Evaluate Micro-Market Opportunity Graph (CDI-03)
+      operationId: evaluateMicroMarkets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpportunityDiscoveryRequest'
+      responses:
+        '200':
+          description: Store/cohort opportunity scores with explainable reasons
+        '400':
+          description: Invalid discovery request
+        '404':
+          description: campaign_intent_id not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/opportunity-discover:
+    post:
+      summary: Combined Opportunity Window + Micro-Market Discovery (CDI-03)
+      operationId: discoverCampaignOpportunity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpportunityDiscoveryRequest'
+      responses:
+        '200':
+          description: Combined when/where discovery payload
+        '400':
+          description: Invalid discovery request
         '404':
           description: campaign_intent_id not found, or not visible to the supplied tenant/session
 
@@ -362,6 +416,100 @@ components:
         include_signals:
           type: boolean
           default: true
+        resolved_temporal_uplift_pp:
+          type: number
+          description: Optional CDI-03 resolved temporal uplift (pp). When supplied, replaces the flat FIND_BEST_WINDOW dampener.
+        opportunity_window_id:
+          type: string
+          description: Optional CDI-03 recommended window id for provenance.
+
+    OpportunityDiscoveryRequest:
+      type: object
+      required: [tenant_id, session_id]
+      properties:
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        campaign_intent_id:
+          type: string
+        discovery_horizon_days:
+          type: number
+          default: 56
+        window_duration_days:
+          type: number
+          default: 7
+
+    OpportunityWindowEvaluation:
+      type: object
+      properties:
+        evaluation_id:
+          type: string
+        campaign_intent_id:
+          type: string
+        timing_mode:
+          $ref: '#/components/schemas/TimingMode'
+        recommended_window_id:
+          type: string
+        resolved_temporal_uplift_pp:
+          type: number
+        discovery_anchor:
+          $ref: '#/components/schemas/OpportunityDiscoveryAnchor'
+        candidates:
+          type: array
+          items:
+            type: object
+        synthetic_demo:
+          type: boolean
+
+    OpportunityDiscoveryAnchor:
+      type: object
+      description: >-
+        Seeded temporal basis of candidate generation. Candidate windows are generated from a fixed
+        anchor date so demo runs are reproducible. The anchor is a planning assumption, never live or
+        current calendar evidence, and consumers must present it as such.
+      required: [anchor_date, anchor_mode, disclosure]
+      properties:
+        anchor_date:
+          type: string
+          format: date
+        anchor_mode:
+          type: string
+          enum: [fixed_demo_anchor]
+        horizon_days:
+          type: number
+        candidate_starts_generated:
+          type: number
+        disclosure:
+          type: string
+
+    MicroMarketOpportunity:
+      type: object
+      properties:
+        evaluation_id:
+          type: string
+        campaign_intent_id:
+          type: string
+        region_scope:
+          type: string
+        stores_evaluated:
+          type: number
+        stores_included:
+          type: number
+        recommended_store_ids:
+          type: array
+          items:
+            type: string
+        stores:
+          type: array
+          items:
+            type: object
+        cohorts:
+          type: array
+          items:
+            type: object
+        synthetic_demo:
+          type: boolean
 
     DemandTrajectoryPoint:
       type: object

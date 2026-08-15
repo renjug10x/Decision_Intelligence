@@ -63,6 +63,8 @@ export async function evaluateCampaignDecisionClient(params: {
   session_id?: string;
   campaign_intent_id?: string;
   include_signals?: boolean;
+  resolved_temporal_uplift_pp?: number;
+  opportunity_window_id?: string;
 }): Promise<any | null> {
   try {
     const res = await fetch('/api/v1/campaigns/evaluate', {
@@ -72,7 +74,36 @@ export async function evaluateCampaignDecisionClient(params: {
         tenant_id: params.tenant_id || TENANT,
         session_id: params.session_id || SESSION,
         campaign_intent_id: params.campaign_intent_id,
-        include_signals: params.include_signals !== false
+        include_signals: params.include_signals !== false,
+        ...(typeof params.resolved_temporal_uplift_pp === 'number'
+          ? {
+              resolved_temporal_uplift_pp: params.resolved_temporal_uplift_pp,
+              opportunity_window_id: params.opportunity_window_id
+            }
+          : {})
+      })
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.data || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function discoverCampaignOpportunityClient(params: {
+  tenant_id?: string;
+  session_id?: string;
+  campaign_intent_id?: string;
+}): Promise<any | null> {
+  try {
+    const res = await fetch('/api/v1/campaigns/opportunity-discover', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenant_id: params.tenant_id || TENANT,
+        session_id: params.session_id || SESSION,
+        campaign_intent_id: params.campaign_intent_id
       })
     });
     if (!res.ok) return null;

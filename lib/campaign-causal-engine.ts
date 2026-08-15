@@ -168,12 +168,22 @@ function placeResponsePp(campaign: CampaignIntent): number {
   return 1.0;
 }
 
-function temporalResponsePp(campaign: CampaignIntent, timingPlaceholderExcluded: boolean): number {
+function temporalResponsePp(
+  campaign: CampaignIntent,
+  timingPlaceholderExcluded: boolean,
+  resolvedTemporalUpliftPp?: number
+): number {
+  // CDI-03 additive hook first: a resolved opportunity window replaces both the
+  // FIND_BEST_WINDOW dampener AND the timing-placeholder neutral (0.5). That is the
+  // point of window discovery — dates become known through evaluation, not canvas statement.
+  if (typeof resolvedTemporalUpliftPp === 'number' && Number.isFinite(resolvedTemporalUpliftPp)) {
+    return Number(resolvedTemporalUpliftPp.toFixed(2));
+  }
   if (timingPlaceholderExcluded) return 0.5; // neutral calendar effect only
   if (campaign.audience_market.timing_mode === 'KNOWN_DATES' && campaign.audience_market.planned_start) {
     return 1.3;
   }
-  // FIND_BEST_WINDOW — timing discovery deferred to CDI-03; modest uncertainty dampener
+  // FIND_BEST_WINDOW without CDI-03 resolution — modest uncertainty dampener
   return 0.7;
 }
 
@@ -274,7 +284,11 @@ function campaignDelta(
 
 export function evaluateCausalDemandContribution(
   campaign: CampaignIntent,
-  options?: { include_signals?: boolean }
+  options?: {
+    include_signals?: boolean;
+    resolved_temporal_uplift_pp?: number;
+    opportunity_window_id?: string;
+  }
 ): CausalDemandContribution {
   const mechanic = resolveStatedMechanic(campaign);
   const timingExcluded = mechanic.excluded_placeholders.includes('timing');
@@ -355,14 +369,22 @@ export function evaluateCausalDemandContribution(
         campaign.campaign_intent.intervention_posture === 'CONSIDER_DO_NOTHING' ||
         campaign.campaign_intent.intervention_posture === 'UNDECIDED'
           ? 0
-          : temporalResponsePp(campaign, timingExcluded),
+          : temporalResponsePp(campaign, timingExcluded, options?.resolved_temporal_uplift_pp),
       attributed:
         campaign.campaign_intent.intervention_posture !== 'CONSIDER_DO_NOTHING' &&
         campaign.campaign_intent.intervention_posture !== 'UNDECIDED',
-      rationale: timingExcluded
-        ? 'Timing placeholder excluded from causal calendar uplift; neutral dampener only.'
-        : 'Timing mode contribution (KNOWN_DATES vs FIND_BEST_WINDOW).',
-      evidence_refs: timingExcluded ? ['CDI01_TIMING_PLACEHOLDER_EXCLUDED'] : ['CDI01_TIMING_MODE']
+      rationale:
+        typeof options?.resolved_temporal_uplift_pp === 'number'
+          ? `CDI-03 resolved opportunity window${options.opportunity_window_id ? ` (${options.opportunity_window_id})` : ''} temporal uplift.`
+          : timingExcluded
+            ? 'Timing placeholder excluded from causal calendar uplift; neutral dampener only.'
+            : 'Timing mode contribution (KNOWN_DATES vs FIND_BEST_WINDOW).',
+      evidence_refs:
+        typeof options?.resolved_temporal_uplift_pp === 'number'
+          ? ['CDI03_RESOLVED_OPPORTUNITY_WINDOW']
+          : timingExcluded
+            ? ['CDI01_TIMING_PLACEHOLDER_EXCLUDED']
+            : ['CDI01_TIMING_MODE']
     },
     {
       driver_id: 'external_signal_response',
@@ -564,7 +586,11 @@ export function evaluateCampaignDecision(request: CampaignEvaluationRequest): Ca
   }
 
   const includeSignals = request.include_signals !== false;
-  const causal = evaluateCausalDemandContribution(campaign, { include_signals: includeSignals });
+  const causal = evaluateCausalDemandContribution(campaign, {
+    include_signals: includeSignals,
+    resolved_temporal_uplift_pp: request.resolved_temporal_uplift_pp,
+    opportunity_window_id: request.opportunity_window_id
+  });
   const counterfactual = evaluateCounterfactualBaseline(campaign, causal, {
     include_signals: includeSignals
   });

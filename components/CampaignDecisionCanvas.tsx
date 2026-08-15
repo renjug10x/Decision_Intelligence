@@ -24,7 +24,8 @@ import {
   fetchCurrentCampaignIntent,
   registerCampaignIntentClient,
   saveCampaignIntentDraftClient,
-  evaluateCampaignDecisionClient
+  evaluateCampaignDecisionClient,
+  discoverCampaignOpportunityClient
 } from '@/lib/campaign-intent-client';
 import { trackJourneyEvent } from '@/lib/journey-client';
 
@@ -63,7 +64,6 @@ const AREA_META: Record<
 };
 
 const FUTURE_LAYERS = [
-  { id: 'CDI-03', label: 'Opportunity Window & Micro-Market Graph' },
   { id: 'CDI-04', label: 'Decision Readiness' },
   { id: 'CDI-05+', label: 'Timeline, Frontier, Half-Life & Learning' }
 ];
@@ -77,6 +77,8 @@ export default function CampaignDecisionCanvas({
   const [error, setError] = useState<string | null>(null);
   const [evaluation, setEvaluation] = useState<any | null>(null);
   const [evaluating, setEvaluating] = useState(false);
+  const [opportunity, setOpportunity] = useState<any | null>(null);
+  const [discovering, setDiscovering] = useState(false);
 
   useEffect(() => {
     trackJourneyEvent({
@@ -96,6 +98,12 @@ export default function CampaignDecisionCanvas({
             campaign_intent_id: data.campaign_intent_id
           });
           if (evalResult) setEvaluation(evalResult);
+          const opp = await discoverCampaignOpportunityClient({
+            tenant_id: data.tenant_id,
+            session_id: data.session_id,
+            campaign_intent_id: data.campaign_intent_id
+          });
+          if (opp) setOpportunity(opp);
         }
       }
     });
@@ -192,15 +200,52 @@ export default function CampaignDecisionCanvas({
     });
     setEvaluating(false);
     if (evalResult) setEvaluation(evalResult);
+
+    setDiscovering(true);
+    const opp = await discoverCampaignOpportunityClient({
+      tenant_id: result.intent.tenant_id,
+      session_id: result.intent.session_id,
+      campaign_intent_id: result.intent.campaign_intent_id
+    });
+    setDiscovering(false);
+    if (opp) {
+      setOpportunity(opp);
+      // Re-run CDI-02 with resolved temporal uplift when FIND_BEST_WINDOW
+      if (
+        result.intent.audience_market.timing_mode === 'FIND_BEST_WINDOW' &&
+        opp.opportunity_windows?.resolved_temporal_uplift_pp != null
+      ) {
+        setEvaluating(true);
+        const resolvedEval = await evaluateCampaignDecisionClient({
+          tenant_id: result.intent.tenant_id,
+          session_id: result.intent.session_id,
+          campaign_intent_id: result.intent.campaign_intent_id,
+          resolved_temporal_uplift_pp: opp.opportunity_windows.resolved_temporal_uplift_pp,
+          opportunity_window_id: opp.opportunity_windows.recommended_window_id
+        });
+        setEvaluating(false);
+        if (resolvedEval) setEvaluation(resolvedEval);
+      }
+    }
   };
 
   const handleEvaluate = async () => {
     setEvaluating(true);
     setError(null);
+    // Only FIND_BEST_WINDOW defers its timing to CDI-03. KNOWN_DATES keeps the
+    // closed CDI-02 stated-dates semantics — both evaluate paths must agree.
+    const windowResolvable = intent.audience_market.timing_mode === 'FIND_BEST_WINDOW';
+    const resolvedPp = windowResolvable
+      ? opportunity?.opportunity_windows?.resolved_temporal_uplift_pp
+      : undefined;
+    const windowId = opportunity?.opportunity_windows?.recommended_window_id;
     const evalResult = await evaluateCampaignDecisionClient({
       tenant_id: intent.tenant_id,
       session_id: intent.session_id,
-      campaign_intent_id: intent.campaign_intent_id
+      campaign_intent_id: intent.campaign_intent_id,
+      ...(typeof resolvedPp === 'number'
+        ? { resolved_temporal_uplift_pp: resolvedPp, opportunity_window_id: windowId }
+        : {})
     });
     setEvaluating(false);
     if (!evalResult) {
@@ -208,6 +253,22 @@ export default function CampaignDecisionCanvas({
       return;
     }
     setEvaluation(evalResult);
+  };
+
+  const handleDiscoverOpportunity = async () => {
+    setDiscovering(true);
+    setError(null);
+    const opp = await discoverCampaignOpportunityClient({
+      tenant_id: intent.tenant_id,
+      session_id: intent.session_id,
+      campaign_intent_id: intent.campaign_intent_id
+    });
+    setDiscovering(false);
+    if (!opp) {
+      setError('CDI-03 opportunity discovery failed.');
+      return;
+    }
+    setOpportunity(opp);
   };
 
   const advance = () => {
@@ -885,7 +946,175 @@ export default function CampaignDecisionCanvas({
         )}
       </section>
 
-      {/* Explicit non-implementation of CDI-03+ — locked teaser only */}
+      {/* Layer 3 — CDI-03 Opportunity Window & Micro-Market */}
+      <section
+        style={{
+          marginTop: 8,
+          marginBottom: 16,
+          padding: '18px 20px',
+          borderRadius: 12,
+          border: '1px solid var(--border)',
+          background: '#FFFFFF'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+              Layer 3 · CDI-03
+            </div>
+            <h2 style={{ margin: '0 0 6px', fontSize: '1.125rem', color: 'var(--text-primary)' }}>
+              When and where should we intervene?
+            </h2>
+            <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)', maxWidth: 640 }}>
+              Deterministic opportunity windows and explainable store/cohort rankings over Enterprise World store data. Synthetic scoring factors are labelled as demo.
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={discovering || !isRegistered}
+            onClick={handleDiscoverOpportunity}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: isRegistered ? 'var(--curiosity-light)' : '#F1F5F9',
+              color: isRegistered ? 'var(--g10x-orange)' : 'var(--text-muted)',
+              fontWeight: 600,
+              fontSize: '0.75rem',
+              cursor: isRegistered ? 'pointer' : 'not-allowed',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {discovering ? 'Discovering…' : isRegistered ? 'Discover windows & markets' : 'Register intent first'}
+          </button>
+        </div>
+
+        {!isRegistered && (
+          <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Lock size={13} /> Register Campaign Intent to unlock opportunity window and micro-market discovery.
+          </div>
+        )}
+
+        {opportunity && (
+          <div style={{ display: 'grid', gap: 14, marginTop: 8 }}>
+            <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--curiosity-light)' }}>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                Recommended window ({opportunity.opportunity_windows.timing_mode})
+              </div>
+              <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                {opportunity.opportunity_windows.recommended_window.start_date}
+                {' → '}
+                {opportunity.opportunity_windows.recommended_window.end_date}
+                {' · '}
+                yield {opportunity.opportunity_windows.recommended_window.yield_score.toFixed(1)}
+                {' · '}
+                {opportunity.opportunity_windows.recommended_window.tier}
+              </div>
+              <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                Temporal uplift for CDI-02: {opportunity.opportunity_windows.resolved_temporal_uplift_pp.toFixed(2)} pp
+                {opportunity.opportunity_windows.recommended_window.inclusion_reasons?.[0]
+                  ? ` — ${opportunity.opportunity_windows.recommended_window.inclusion_reasons[0]}`
+                  : ''}
+              </div>
+              {opportunity.opportunity_windows.discovery_anchor && (
+                <div
+                  style={{
+                    marginTop: 8,
+                    paddingTop: 8,
+                    borderTop: '1px dashed var(--border)',
+                    fontSize: '0.6875rem',
+                    color: 'var(--text-muted)',
+                    display: 'flex',
+                    gap: 6,
+                    alignItems: 'flex-start'
+                  }}
+                >
+                  <Lock size={11} style={{ marginTop: 2, flexShrink: 0 }} />
+                  <span>
+                    Seeded demo calendar — candidate windows are generated from a fixed anchor of{' '}
+                    <strong>{opportunity.opportunity_windows.discovery_anchor.anchor_date}</strong> for
+                    reproducibility. These dates are a planning assumption, not live or current calendar
+                    evidence, and do not track today&apos;s date.
+                  </span>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
+                Candidate windows (top 4)
+              </div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                {opportunity.opportunity_windows.candidates.slice(0, 4).map((w: any) => (
+                  <div
+                    key={w.window_id}
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      gap: 10,
+                      padding: '8px 10px',
+                      borderRadius: 6,
+                      background: w.window_id === opportunity.opportunity_windows.recommended_window_id ? '#FFF7ED' : '#F8FAFC',
+                      border: '1px solid var(--border)',
+                      fontSize: '0.75rem'
+                    }}
+                  >
+                    <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>
+                      {w.start_date} → {w.end_date}
+                      {w.is_stated_dates ? ' (stated)' : ''}
+                    </span>
+                    <span style={{ color: 'var(--text-secondary)' }}>
+                      {w.yield_score.toFixed(1)} · {w.tier}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
+                Micro-market stores ({opportunity.micro_markets.stores_included} included of {opportunity.micro_markets.stores_evaluated})
+              </div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                {opportunity.micro_markets.stores.filter((s: any) => s.included).slice(0, 6).map((s: any) => (
+                  <div
+                    key={s.store_id}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '72px 1fr auto',
+                      gap: 8,
+                      padding: '8px 10px',
+                      borderRadius: 6,
+                      background: '#F8FAFC',
+                      border: '1px solid var(--border)',
+                      fontSize: '0.75rem'
+                    }}
+                  >
+                    <span style={{ fontWeight: 650, color: 'var(--g10x-orange)' }}>{s.tier}</span>
+                    <span style={{ color: 'var(--text-primary)' }}>
+                      {s.store_name}
+                      <span style={{ color: 'var(--text-muted)' }}> · {s.region} · {s.format}</span>
+                    </span>
+                    <span style={{ color: 'var(--text-secondary)' }}>{s.opportunity_score.toFixed(1)}</span>
+                  </div>
+                ))}
+              </div>
+              {opportunity.micro_markets.cohorts?.length > 0 && (
+                <div style={{ marginTop: 10, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                  Top cohort: {opportunity.micro_markets.cohorts[0].label} (avg {opportunity.micro_markets.cohorts[0].average_score.toFixed(1)})
+                </div>
+              )}
+              <div style={{ marginTop: 8, fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
+                Scores combine stated campaign scope (region, cohort hint) with synthetic proxies for
+                catchment density, staffing capacity and availability. Proxy factors are modelled demo
+                estimates, not observed store measurements.
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Explicit non-implementation of CDI-04+ — locked teaser only */}
       <section
         style={{
           marginTop: 8,
@@ -896,7 +1125,7 @@ export default function CampaignDecisionCanvas({
         }}
       >
         <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
-          Next decision layers (not in CDI-02)
+          Next decision layers (not in CDI-03)
         </div>
         <div style={{ display: 'grid', gap: 8 }}>
           {FUTURE_LAYERS.map(layer => (
