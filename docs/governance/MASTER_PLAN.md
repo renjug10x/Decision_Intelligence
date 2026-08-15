@@ -321,12 +321,13 @@ A transformational decision capability discovering whether, what, where, when, a
   - *Integration Dependencies:* `CDI-04` (`DecisionReadinessAssessment`).
   - *Enhancement Dependencies:* Gemini AI narrative synthesis wrapper (out of scope for core frontier; none used).
   - *Owner rulings:* U1 (ARF-A only); U4 (non-promotion presented not ranked).
-- **CDI-07A — Decision Contract & Decision Half-Life [DESIGN FROZEN]:** Immutable `DecisionContract` binding the exact decision basis by reference, digest and verbatim snapshot; explicit assumptions and reconsideration triggers; and validity assessment against `ESF-1`/`ESF-2` signals. Decision Half-Life describes how the evidential basis of a decision weakens or remains valid as assumptions and signals evolve, represented through validity states (`STABLE`, `WATCH`, `DEGRADED`, `REASSESS_REQUIRED`, `INDETERMINATE`) and evidence-triggered reassessment. Quantitative duration is unavailable until calibrated temporal evidence exists — no countdown, expiry or decay curve.
+- **CDI-07A — Decision Contract & Decision Half-Life [COMPLETED]:** Immutable `DecisionContract` binding the exact decision basis by reference, digest and verbatim snapshot; explicit assumptions and reconsideration triggers; and validity assessment against `ESF-1`/`ESF-2` signals. Decision Half-Life describes how the evidential basis of a decision weakens or remains valid as assumptions and signals evolve, represented through validity states (`STABLE`, `WATCH`, `DEGRADED`, `REASSESS_REQUIRED`, `INDETERMINATE`) and evidence-triggered reassessment. Quantitative duration is unavailable until calibrated temporal evidence exists — no countdown, expiry or decay curve.
   - *Hard Dependencies:* `CDI-01` (`CampaignIntent`), `CDI-06` (`OutcomeFrontier`).
   - *Integration Dependencies:* `WP10-C` (Shared Decision State) — reference only, via `decision_contract_ref` and an idempotent `REGISTER_DECISION_CONTRACT`.
   - *Enhancement Dependencies:* `ESF-1`/`ESF-2` signal feeds.
   - *Owner rulings:* W1 (minimal additive WP10-C reference binding); W2 (validity states, no quantitative duration); decision-basis integrity (immutable content-derived `decision_basis_digest`); both creation routes preserved, `CHOICE_REQUIRED` never silently contracts.
-  - *Design gate:* `docs/reports/COGNIX_CDI_07A_DECISION_CONTRACT_DESIGN_GATE.md`.
+  - *Evidence:* `docs/reports/COGNIX_CDI_07A_DECISION_CONTRACT_DESIGN_GATE.md` + `COGNIX_CDI_07A_DECISION_CONTRACT_REPORT.md`; ADR-034; CDI-07A 155/155 (63 ACs plus RV-1…RV-8 reconciliation regressions) with CDI-01…06 unchanged (21/36/31/49/70/93). Independently reconciled 2026-08-15 — eight defects corrected, led by a fabricated-`STABLE` path and a fabricated `WORLD_DRIVEN` signal attribution.
+  - *API note:* Validity is `POST /api/v1/campaigns/decision-contract/[id]/validity` (computation over caller context) — not a resource `GET /api/v1/campaigns/validity`.
 - **CDI-07B — Campaign Pre-Mortem & Closed Learning Loop:** Sub-slice internal evidence gates (`CDI-07B.1` Pre-Mortem Resilience, `CDI-07B.2` Prediction vs Reality Comparison, `CDI-07B.3` Enterprise Memory/Learning Integration).
   - *Hard Dependencies:* `CDI-07A` (`DecisionContract`), `WP10-D` (`cognix-learning`).
   - *Integration Dependencies:* `ESF-3` (External Signal Connectors).
@@ -337,8 +338,8 @@ A transformational decision capability discovering whether, what, where, when, a
 ### ESF-3 Disposition & Dependency Position
 - **Status:** COMPLETED (provider-neutral connector contract delivered).
 - **Role:** `ESF-3 — External Signal Connector Contract` remains provider-neutral and is NOT deleted, absorbed, or superseded. It defines connector contracts for planning, commerce, weather, events, competitive intel, operational telemetry, and demographic sources.
-- **CDI Dependency:** CDI work packages `CDI-01` through `CDI-06` use synthetic `ESF-1`/`ESF-2` signal feeds during lab development. `CDI-07B` binds production signal feeds from `ESF-3` for real-world outcome comparison.
-- **Successor:** `CDI-01`–`CDI-06` [COMPLETED]. Next CDI package: `CDI-07A` (HARD on CDI-01 + CDI-06 `OutcomeFrontier`; INTEGRATION on WP10-C; ENHANCEMENT on ESF-1/ESF-2). `ESF-4` remains parallel-eligible under separate file ownership.
+- **CDI Dependency:** CDI work packages `CDI-01` through `CDI-07A` use synthetic `ESF-1`/`ESF-2` signal feeds during lab development. `CDI-07B` binds production signal feeds from `ESF-3` for real-world outcome comparison.
+- **Successor:** `CDI-01`–`CDI-07A` [COMPLETED]. Next CDI package: `CDI-07B` (HARD on CDI-07A + WP10-D; INTEGRATION on ESF-3). `ESF-4` remains parallel-eligible under separate file ownership.
 
 ---
 

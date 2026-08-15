@@ -30,8 +30,21 @@ import {
   projectDecisionTimelineClient,
   evaluateOutcomeFrontierClient
 } from '@/lib/campaign-intent-client';
+import {
+  createDecisionContractClient,
+  assessDecisionValidityClient
+} from '@/lib/decision-contract-client';
 import { SCENARIO_ZERO_FRAMING } from '@/packages/contracts/src/campaign-frontier-model';
+import {
+  DecisionResolution,
+  NOT_A_PREDICTION_DISCLOSURE,
+  QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT
+} from '@/packages/contracts/src/campaign-decision-contract-model';
 import { trackJourneyEvent } from '@/lib/journey-client';
+import {
+  fetchCurrentDecisionState,
+  executeDecisionCommand
+} from '@/lib/decision-state-client';
 
 interface CampaignDecisionCanvasProps {
   onNavigateToExperiment?: (experimentId: string) => void;
@@ -68,8 +81,73 @@ const AREA_META: Record<
 };
 
 const FUTURE_LAYERS = [
-  { id: 'CDI-07+', label: 'Half-Life, Pre-Mortem & Learning' }
+  { id: 'CDI-07B+', label: 'Pre-Mortem & Learning' }
 ];
+
+/** Fixed demo reference instant — never Date.now() for decision semantics (C-INV-9). */
+const CANVAS_EVALUATION_TIMESTAMP = '2026-08-15T12:00:00.000Z';
+
+function formatSnapshotValue(sv: { value?: unknown; unit?: string; source_field_path?: string }): string {
+  const raw = sv?.value;
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  const unit = (sv?.unit || '').toLowerCase();
+  const path = (sv?.source_field_path || '').toLowerCase();
+  if (Number.isFinite(n)) {
+    if (unit.includes('gbp') || unit.includes('£') || path.includes('contribution') || path.includes('gbp')) {
+      return `£${n.toFixed(2)}`;
+    }
+    return n.toFixed(2);
+  }
+  return String(raw ?? '—');
+}
+
+function formatOutcomeSnapshot(snapshot: Array<{ value?: unknown; unit?: string; source_field_path?: string }> | undefined): string {
+  if (!snapshot?.length) return '0.00 / £0.00';
+  return snapshot.map(formatSnapshotValue).join(' / ');
+}
+
+/**
+ * The plays a person may resolve by hand: the frontier survivors, plus any displayed ADMISSIBLE
+ * play outside that set. A dominated Scenario 0 is never a member of `frontier_play_ids`, yet
+ * CDI-06 keeps it displayed and first-class — and "we considered it and chose not to act" is
+ * exactly the decision the human resolution route exists to record.
+ */
+function humanResolvablePlayIds(frontier: any): string[] {
+  const ids: string[] = [...(frontier?.frontier_play_ids || [])];
+  for (const p of frontier?.plays || []) {
+    if (p.admissibility !== 'ADMISSIBLE') continue;
+    if (p.play_kind !== 'DO_NOTHING') continue;
+    if (!ids.includes(p.play_id)) ids.push(p.play_id);
+  }
+  return ids.sort((a, b) => a.localeCompare(b));
+}
+
+function validityStateStyle(state: string): CSSProperties {
+  if (state === 'INDETERMINATE') {
+    return {
+      display: 'inline-block',
+      padding: '6px 12px',
+      borderRadius: 6,
+      border: '1px dashed var(--text-muted)',
+      background: '#F8FAFC',
+      color: 'var(--text-muted)',
+      fontSize: '0.8125rem',
+      fontWeight: 650,
+      letterSpacing: '0.04em'
+    };
+  }
+  return {
+    display: 'inline-block',
+    padding: '6px 12px',
+    borderRadius: 6,
+    border: '1px solid var(--border)',
+    background: 'var(--curiosity-light)',
+    color: 'var(--text-primary)',
+    fontSize: '0.8125rem',
+    fontWeight: 650,
+    letterSpacing: '0.04em'
+  };
+}
 
 /**
  * CDI-05 Layer 5 timeline chart.
@@ -229,6 +307,14 @@ export default function CampaignDecisionCanvas({
   const [evaluatingFrontier, setEvaluatingFrontier] = useState(false);
   const [frontierDrawerOpen, setFrontierDrawerOpen] = useState(false);
   const [selectedPlayId, setSelectedPlayId] = useState<string | null>(null);
+  const [evaluationTimestamp] = useState(CANVAS_EVALUATION_TIMESTAMP);
+  const [decisionContract, setDecisionContract] = useState<any | null>(null);
+  const [validityAssessment, setValidityAssessment] = useState<any | null>(null);
+  const [validityDrawerOpen, setValidityDrawerOpen] = useState(false);
+  const [registeringContract, setRegisteringContract] = useState(false);
+  const [humanResolvedBy, setHumanResolvedBy] = useState('');
+  const [humanResolutionBasis, setHumanResolutionBasis] = useState('');
+  const [humanSelectedPlayId, setHumanSelectedPlayId] = useState('');
 
   useEffect(() => {
     trackJourneyEvent({
@@ -459,6 +545,12 @@ export default function CampaignDecisionCanvas({
     setError(null);
     setFrontierDrawerOpen(false);
     setSelectedPlayId(null);
+    setDecisionContract(null);
+    setValidityAssessment(null);
+    setValidityDrawerOpen(false);
+    setHumanResolvedBy('');
+    setHumanResolutionBasis('');
+    setHumanSelectedPlayId('');
     const windowResolvable = intent.audience_market.timing_mode === 'FIND_BEST_WINDOW';
     const resolvedPp = windowResolvable
       ? opportunity?.opportunity_windows?.resolved_temporal_uplift_pp
@@ -468,6 +560,7 @@ export default function CampaignDecisionCanvas({
       tenant_id: intent.tenant_id,
       session_id: intent.session_id,
       campaign_intent_id: intent.campaign_intent_id,
+      evaluation_timestamp: evaluationTimestamp,
       ...(typeof resolvedPp === 'number'
         ? { resolved_temporal_uplift_pp: resolvedPp, opportunity_window_id: windowId }
         : {})
@@ -482,6 +575,111 @@ export default function CampaignDecisionCanvas({
     const plays = result.frontier?.plays || [];
     const scenarioZero = plays.find((p: any) => p.play_kind === 'DO_NOTHING');
     setSelectedPlayId(scenarioZero?.play_id || plays[0]?.play_id || null);
+  };
+
+  const handleRegisterDecisionContract = async () => {
+    const f = frontier?.frontier;
+    if (!f || f.frontier_status !== 'EMITTED') {
+      setError('Emit an outcome frontier before registering a decision contract.');
+      return;
+    }
+    const selection = f.selection;
+    const status = selection?.status;
+
+    let resolution: DecisionResolution;
+
+    if (status === 'SELECTED' && selection.selected_play_id) {
+      resolution = {
+        route: 'CONSTRAINT_RESOLVED',
+        selected_play_id: selection.selected_play_id,
+        selection_status: 'SELECTED',
+        selection_basis: selection.selection_basis
+      };
+    } else if (status === 'CHOICE_REQUIRED') {
+      const resolvedBy = humanResolvedBy.trim();
+      const basis = humanResolutionBasis.trim();
+      const playId = humanSelectedPlayId.trim();
+      if (!resolvedBy || !basis || !playId) {
+        setError(
+          'CHOICE_REQUIRED needs explicit human fields: resolved_by, resolution basis, and a selected survivor play.'
+        );
+        return;
+      }
+      const survivors: string[] = humanResolvablePlayIds(f);
+      if (!survivors.includes(playId)) {
+        setError('Selected play must be one of the admissible plays displayed for this decision.');
+        return;
+      }
+      resolution = {
+        route: 'HUMAN_RESOLVED',
+        selected_play_id: playId,
+        resolved_by: resolvedBy,
+        resolution_statement: basis,
+        presented_alternatives: survivors
+      };
+    } else {
+      setError('Decision is not contractable until SELECTED or human-resolved CHOICE_REQUIRED.');
+      return;
+    }
+
+    setRegisteringContract(true);
+    setError(null);
+    setMessage(null);
+
+    const created = await createDecisionContractClient({
+      tenant_id: intent.tenant_id,
+      session_id: intent.session_id,
+      frontier: f,
+      campaign_intent: intent,
+      resolution,
+      created_as_of: evaluationTimestamp
+    });
+
+    if (!created.contract) {
+      setRegisteringContract(false);
+      setError(
+        created.rejection_id
+          ? `${created.rejection_id}: ${created.error}`
+          : created.error || 'Decision contract registration failed.'
+      );
+      return;
+    }
+
+    setDecisionContract(created.contract);
+    setMessage('Decision contract registered.');
+
+    // WP10-C W1 — bind the plain-string reference into Shared Decision State. WP10-C owns the
+    // command and stores the reference only; no contract content crosses the boundary. Registering
+    // the same reference again is an idempotent no-op, so a remount or retry cannot churn state.
+    const sharedState = await fetchCurrentDecisionState(intent.session_id, intent.tenant_id);
+    if (sharedState?.decision_state_id) {
+      await executeDecisionCommand(
+        sharedState.decision_state_id,
+        'REGISTER_DECISION_CONTRACT',
+        sharedState.state_version,
+        { decision_contract_ref: created.contract.contract_id },
+        'CampaignDecisionCanvas'
+      );
+    }
+
+    const asOf = created.contract.created_as_of || evaluationTimestamp;
+    const validity = await assessDecisionValidityClient({
+      contract_id: created.contract.contract_id,
+      tenant_id: intent.tenant_id,
+      session_id: intent.session_id,
+      as_of: asOf
+    });
+    setRegisteringContract(false);
+
+    if (!validity.assessment) {
+      setError(
+        validity.rejection_id
+          ? `${validity.rejection_id}: ${validity.error}`
+          : validity.error || 'Validity assessment failed.'
+      );
+      return;
+    }
+    setValidityAssessment(validity.assessment);
   };
 
   const advance = () => {
@@ -1982,7 +2180,348 @@ export default function CampaignDecisionCanvas({
         )}
       </section>
 
-      {/* Explicit non-implementation of CDI-07+ — locked teaser only */}
+      {/* Layer 7 — CDI-07A Decision Contract & Validity */}
+      <section
+        style={{
+          marginTop: 8,
+          marginBottom: 16,
+          padding: '18px 20px',
+          borderRadius: 12,
+          border: '1px solid var(--border)',
+          background: '#FFFFFF'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+              Layer 7 · CDI-07A
+            </div>
+            <h2 style={{ margin: '0 0 6px', fontSize: '1.125rem', color: 'var(--text-primary)' }}>
+              Decision Contract & Validity
+            </h2>
+            <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)', maxWidth: 640 }}>
+              Record what was decided under declared constraints, then reassess whether the assumptions still hold.
+              No duration claim — validity is assumption evidence only.
+            </p>
+          </div>
+        </div>
+
+        {(() => {
+          const f = frontier?.frontier;
+          const selection = f?.selection;
+          const selectionStatus = selection?.status;
+          const canRegisterSelected =
+            f?.frontier_status === 'EMITTED' && selectionStatus === 'SELECTED' && Boolean(selection?.selected_play_id);
+          const canRegisterChoice = f?.frontier_status === 'EMITTED' && selectionStatus === 'CHOICE_REQUIRED';
+          const survivors: string[] = canRegisterChoice ? humanResolvablePlayIds(f) : [];
+          const survivorPlays = (f?.plays || []).filter((p: any) => survivors.includes(p.play_id));
+          const showRegister = canRegisterSelected || canRegisterChoice;
+
+          return (
+            <div style={{ display: 'grid', gap: 12 }}>
+              {!frontier?.frontier && (
+                <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Lock size={13} /> Evaluate the outcome frontier first to unlock contract registration.
+                </div>
+              )}
+
+              {f?.frontier_status === 'EMITTED' && selectionStatus === 'NO_ADMISSIBLE_PLAY' && (
+                <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
+                  No admissible play remains — a decision contract cannot be registered.
+                </div>
+              )}
+
+              {canRegisterChoice && !decisionContract && (
+                <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: '#F8FAFC', display: 'grid', gap: 10 }}>
+                  <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                    Human resolve · CHOICE_REQUIRED
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                    Explicit attribution is required — no silent contract. Name the resolver, the basis, and one survivor from the open trade-off.
+                  </p>
+                  <label style={{ display: 'grid', gap: 4 }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>resolved_by</span>
+                    <input
+                      type="text"
+                      value={humanResolvedBy}
+                      onChange={e => setHumanResolvedBy(e.target.value)}
+                      placeholder="Who is resolving this choice"
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        fontSize: '0.8125rem',
+                        color: 'var(--text-primary)',
+                        background: '#FFFFFF'
+                      }}
+                    />
+                  </label>
+                  <label style={{ display: 'grid', gap: 4 }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>resolution_basis</span>
+                    <textarea
+                      value={humanResolutionBasis}
+                      onChange={e => setHumanResolutionBasis(e.target.value)}
+                      placeholder="Why this survivor under the declared trade-off"
+                      rows={2}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        fontSize: '0.8125rem',
+                        color: 'var(--text-primary)',
+                        background: '#FFFFFF',
+                        resize: 'vertical'
+                      }}
+                    />
+                  </label>
+                  <label style={{ display: 'grid', gap: 4 }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>selected play (survivors)</span>
+                    <select
+                      value={humanSelectedPlayId}
+                      onChange={e => setHumanSelectedPlayId(e.target.value)}
+                      style={{
+                        padding: '8px 10px',
+                        borderRadius: 6,
+                        border: '1px solid var(--border)',
+                        fontSize: '0.8125rem',
+                        color: 'var(--text-primary)',
+                        background: '#FFFFFF'
+                      }}
+                    >
+                      <option value="">Select a survivor…</option>
+                      {survivorPlays.map((p: any) => (
+                        <option key={p.play_id} value={p.play_id}>
+                          {p.label} ({p.play_id})
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              )}
+
+              {showRegister && !decisionContract && (
+                <button
+                  type="button"
+                  disabled={
+                    registeringContract ||
+                    (canRegisterChoice &&
+                      (!humanResolvedBy.trim() || !humanResolutionBasis.trim() || !humanSelectedPlayId.trim()))
+                  }
+                  onClick={handleRegisterDecisionContract}
+                  style={{
+                    alignSelf: 'flex-start',
+                    padding: '8px 12px',
+                    borderRadius: 8,
+                    border: '1px solid var(--border)',
+                    background: 'var(--curiosity-light)',
+                    color: 'var(--g10x-orange)',
+                    fontWeight: 600,
+                    fontSize: '0.75rem',
+                    cursor: registeringContract ? 'wait' : 'pointer'
+                  }}
+                >
+                  {registeringContract ? 'Registering…' : 'Register decision contract'}
+                </button>
+              )}
+
+              {decisionContract && (
+                <>
+                  {/* Contract Summary */}
+                  <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--curiosity-light)' }}>
+                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
+                      Contract Summary · {decisionContract.status}
+                    </div>
+                    <div style={{ fontSize: '0.875rem', color: 'var(--text-primary)', marginBottom: 6 }}>
+                      selected_play_id: {decisionContract.resolution?.selected_play_id}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                      route: {decisionContract.resolution?.route}
+                      {decisionContract.resolution?.resolved_by
+                        ? ` · resolver: ${decisionContract.resolution.resolved_by}`
+                        : ''}
+                      {decisionContract.resolution?.selection_basis
+                        ? ` · selection_basis: ${decisionContract.resolution.selection_basis}`
+                        : ''}
+                    </div>
+                    {decisionContract.resolution?.resolution_statement && (
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
+                        resolution basis: {decisionContract.resolution.resolution_statement}
+                      </div>
+                    )}
+                    <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginBottom: 10 }}>
+                      contract_id {decisionContract.contract_id?.slice(0, 12)}… · created_as_of {decisionContract.created_as_of}
+                    </div>
+
+                    {(decisionContract.basis?.rejected_alternatives || []).length > 0 && (
+                      <div style={{ marginBottom: 10 }}>
+                        <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                          Rejected alternatives
+                        </div>
+                        {(decisionContract.basis.rejected_alternatives as any[]).map((alt: any) => (
+                          <div key={alt.play_id} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                            <strong>{alt.label || alt.play_id}</strong> · {alt.cause}
+                            {alt.dominated_by?.length ? ` · dominated_by ${alt.dominated_by.join(', ')}` : ''}
+                            {alt.elimination?.constraint_id ? ` · constraint ${alt.elimination.constraint_id}` : ''}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {decisionContract.basis?.scenario_zero && (
+                      <div style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#FFFFFF' }}>
+                        <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                          Scenario 0
+                          {decisionContract.basis.scenario_zero.was_selected ? ' · selected' : ''}
+                          {decisionContract.basis.scenario_zero.dominated ? ' · dominated (still present)' : ''}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45, marginBottom: 8 }}>
+                          {decisionContract.basis.scenario_zero.framing || SCENARIO_ZERO_FRAMING}
+                        </div>
+                        <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                          outcome_snapshot: {formatOutcomeSnapshot(decisionContract.basis.scenario_zero.outcome_snapshot)}
+                        </div>
+                        {decisionContract.basis.scenario_zero.dominated_by?.length > 0 && (
+                          <div style={{ marginTop: 4, fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
+                            dominated_by: {decisionContract.basis.scenario_zero.dominated_by.join(', ')}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Tier 1 — Compact Validity Indicator (state word only) */}
+                  {validityAssessment && (
+                    <div>
+                      <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
+                        Validity
+                      </div>
+                      <span style={validityStateStyle(validityAssessment.state)}>
+                        {validityAssessment.state}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Tier 2 — Validity Evidence drawer */}
+                  {validityAssessment && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setValidityDrawerOpen(v => !v)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          background: 'transparent',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: 'var(--g10x-orange)',
+                          alignSelf: 'flex-start'
+                        }}
+                      >
+                        <ChevronRight
+                          size={14}
+                          style={{ transform: validityDrawerOpen ? 'rotate(90deg)' : undefined }}
+                        />
+                        {validityDrawerOpen ? 'Hide' : 'Show'} validity evidence
+                      </button>
+
+                      {validityDrawerOpen && (
+                        <div style={{ display: 'grid', gap: 12 }}>
+                          <div style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#F8FAFC' }}>
+                            <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
+                              Assumptions · held_at_resolution
+                            </div>
+                            {(decisionContract.assumptions || []).map((a: any) => (
+                              <div key={a.assumption_id} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
+                                <strong>{a.assumption_id}</strong> [{a.assumption_class}] held_at_resolution={String(a.held_at_resolution)}
+                                {a.load_bearing ? ' · load-bearing' : ''}
+                              </div>
+                            ))}
+                          </div>
+
+                          <div style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#F8FAFC' }}>
+                            <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
+                              Trigger evaluations
+                            </div>
+                            {(validityAssessment.half_life_basis?.triggers_evaluated || []).map((te: any) => (
+                              <div key={te.trigger_id} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
+                                <div>
+                                  <strong>{te.trigger_id}</strong> · {te.outcome}
+                                  {te.outcome === 'FIRED' && te.observed_value !== undefined
+                                    ? ` · moved to ${String(te.observed_value)}`
+                                    : ''}
+                                </div>
+                                {te.outcome === 'UNASSESSABLE' && te.unassessable_reason && (
+                                  <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                                    UNASSESSABLE: {te.unassessable_reason}
+                                  </div>
+                                )}
+                                {te.movement_attribution && (
+                                  <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                                    movement_attribution: {te.movement_attribution}
+                                  </div>
+                                )}
+                                {te.statement && (
+                                  <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                                    {te.statement}
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                            {(validityAssessment.half_life_basis?.unassessable_assumptions || []).map((u: any) => (
+                              <div key={`ua_${u.assumption_id}`} style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                                unassessable assumption {u.assumption_id}: {u.reason}
+                              </div>
+                            ))}
+                          </div>
+
+                          <div style={{ padding: 12, borderRadius: 8, border: '1px dashed var(--border)', background: '#FFFFFF' }}>
+                            <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                              QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                              {(
+                                validityAssessment.half_life_basis?.quantitative_measure ||
+                                QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT
+                              ).field}
+                              {' — '}
+                              {(
+                                validityAssessment.half_life_basis?.quantitative_measure ||
+                                QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT
+                              ).status}
+                            </div>
+                            <div style={{ marginTop: 4, fontSize: '0.6875rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                              {(
+                                validityAssessment.half_life_basis?.quantitative_measure ||
+                                QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT
+                              ).why_required}
+                            </div>
+                          </div>
+
+                          <div style={{ padding: 12, borderRadius: 8, border: '1px dashed var(--border)', background: '#FFFFFF' }}>
+                            <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                              NOT_A_PREDICTION_DISCLOSURE
+                            </div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                              {validityAssessment.half_life_basis?.not_a_prediction_disclosure ||
+                                NOT_A_PREDICTION_DISCLOSURE}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              )}
+            </div>
+          );
+        })()}
+      </section>
+
+      {/* Explicit non-implementation of CDI-07B+ — locked teaser only */}
       <section
         style={{
           marginTop: 8,
@@ -1993,7 +2532,7 @@ export default function CampaignDecisionCanvas({
         }}
       >
         <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
-          Next decision layers (not in CDI-06)
+          Next decision layers (not in CDI-07A)
         </div>
         <div style={{ display: 'grid', gap: 8 }}>
           {FUTURE_LAYERS.map(layer => (
@@ -2008,7 +2547,7 @@ export default function CampaignDecisionCanvas({
               }}
             >
               <Lock size={13} color="var(--text-muted)" />
-              <span style={{ fontWeight: 600, color: 'var(--text-muted)', width: 64 }}>{layer.id}</span>
+              <span style={{ fontWeight: 600, color: 'var(--text-muted)', width: 72 }}>{layer.id}</span>
               {layer.label}
             </div>
           ))}

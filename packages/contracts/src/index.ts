@@ -11,6 +11,7 @@ export * from './campaign-opportunity-model';
 export * from './campaign-readiness-model';
 export * from './campaign-timeline-model';
 export * from './campaign-frontier-model';
+export * from './campaign-decision-contract-model';
 export * from './intent-fusion-model';
 export * from './learning-pattern-model';
 export * from './memory-model';

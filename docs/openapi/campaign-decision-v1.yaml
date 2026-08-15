@@ -1,12 +1,16 @@
 openapi: 3.1.0
 info:
-  title: CogniX Campaign Decision Intelligence API (CDI-01 … CDI-06)
+  title: CogniX Campaign Decision Intelligence API (CDI-01 … CDI-07A)
   description: >-
     OpenAPI 3.1 specification for Campaign Decision Canvas (CDI-01), Counterfactual/Causal
     evaluation (CDI-02), Opportunity Window / Micro-Market discovery (CDI-03),
     Decision Readiness & Resilience (CDI-04), Decision Timeline / Demand Decomposition (CDI-05),
-    and Outcome Frontier & Competing Strategies (CDI-06).
-  version: 1.5.0
+    Outcome Frontier & Competing Strategies (CDI-06), and Decision Contract & Decision Half-Life
+    (CDI-07A). Half-Life is an evidence-backed DecisionValidityState, not a duration; quantitative
+    half-life is NOT_AVAILABLE (AWAITING_AUTHORITATIVE_SOURCE). Decision contracts are immutable —
+    there is no PATCH on any decision-contract route. Validity is a POST computation at a
+    caller-supplied as_of and is never written back to the contract.
+  version: 1.6.0
 servers:
   - url: http://localhost:3000
     description: CogniX Web BFF Gateway
@@ -296,6 +300,271 @@ paths:
           description: Rejection RJ-G1 (forbidden overrides) or invalid request
         '404':
           description: campaign_intent_id not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/decision-contract:
+    post:
+      summary: Create Decision Contract (CDI-07A)
+      description: >-
+        Create an immutable DecisionContract from a supplied OutcomeFrontier and resolution.
+        Orchestration only — eligibility, basis transcription and digests live in the engine.
+        There is no PATCH on this resource; supersession is a new create that names the prior
+        ACTIVE contract in supersedes. Half-Life disclosure is NOT_A_PREDICTION (evidence-backed
+        validity states, not a duration). Quantitative half-life is NOT_AVAILABLE.
+      operationId: createDecisionContract
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractCreationRequest'
+      responses:
+        '200':
+          description: Decision contract created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  service:
+                    type: string
+                  domain:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/DecisionContract'
+                  disclosures:
+                    type: object
+                    properties:
+                      half_life:
+                        type: string
+                      snapshot:
+                        type: string
+        '400':
+          description: Rejection RJ-C1–RJ-C9 or invalid creation request
+        '404':
+          description: ContractNotFound / NotFound (tenant-scoped existence oracle avoided)
+    # No PATCH — DecisionContract is immutable (basis/resolution/assumptions/triggers).
+
+  /api/v1/campaigns/decision-contract/current:
+    get:
+      summary: Get ACTIVE Decision Contract for tenant/session (CDI-07A)
+      operationId: getCurrentDecisionContract
+      parameters:
+        - name: tenant_id
+          in: query
+          schema:
+            type: string
+            default: tenant_uk_retail_01
+        - name: session_id
+          in: query
+          schema:
+            type: string
+            default: sess_001
+      responses:
+        '200':
+          description: ACTIVE contract, or null when none exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  data:
+                    oneOf:
+                      - $ref: '#/components/schemas/DecisionContract'
+                      - type: 'null'
+
+  /api/v1/campaigns/decision-contract/{id}:
+    get:
+      summary: Get Decision Contract by id (CDI-07A)
+      description: >-
+        Tenant/session scoped read. A mismatched tenant/session is reported as 404
+        DecisionContractNotFound with no contract fields (no existence oracle).
+      operationId: getDecisionContractById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: session_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Decision contract
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/DecisionContract'
+        '400':
+          description: tenant_id or session_id not supplied
+        '404':
+          description: Not found, or not visible to the supplied tenant/session
+    # No PATCH — immutability is load-bearing (C-INV-5).
+
+  /api/v1/campaigns/decision-contract/{id}/validity:
+    post:
+      summary: Assess Decision Contract validity (CDI-07A)
+      description: >-
+        POST computation of DecisionValidityAssessment at a caller-supplied as_of.
+        Never written back to the contract store. Half-Life is an evidence-backed
+        DecisionValidityState (STABLE | WATCH | DEGRADED | REASSESS_REQUIRED | INDETERMINATE),
+        not a duration, countdown or expiry. Quantitative half-life is NOT_AVAILABLE
+        (QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT status AWAITING_AUTHORITATIVE_SOURCE).
+        This is not a GET resource read.
+      operationId: assessDecisionValidity
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, session_id, as_of]
+              properties:
+                tenant_id:
+                  type: string
+                session_id:
+                  type: string
+                as_of:
+                  type: string
+                  format: date-time
+                  description: Caller-supplied reference instant — never Date.now()
+                current_campaign_intent:
+                  $ref: '#/components/schemas/CampaignIntent'
+                current_frontier:
+                  type: object
+                  description: Current OutcomeFrontier when reassessing constraint/readiness/evidence triggers
+                current_decision_state:
+                  type: object
+                  properties:
+                    decision_state_id:
+                      type: string
+                    state_version:
+                      type: integer
+                signal_observations:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      signal_type:
+                        type: string
+                      entity_id:
+                        type: string
+                      value:
+                        type: number
+                      delta_pct:
+                        type: number
+                      decision_state_version:
+                        type: integer
+                      source_type:
+                        type: string
+                        description: >-
+                          Provenance of the observation. WORLD_DRIVEN movement attribution is
+                          returned only for EXTERNAL_CONNECTOR sources, which are independent of
+                          Shared Decision State. ESF-1/ESF-2 re-simulation is deterministic from
+                          Shared Decision State, so without this marker movement is reported as
+                          ATTRIBUTION_UNAVAILABLE rather than as world drift.
+                        enum: [EXTERNAL_CONNECTOR]
+      responses:
+        '200':
+          description: Validity assessment (not persisted)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/DecisionValidityAssessment'
+                  disclosures:
+                    type: object
+                    properties:
+                      half_life:
+                        type: string
+                        description: NOT_A_PREDICTION_DISCLOSURE
+                      quantitative_half_life:
+                        type: object
+                        description: QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT (NOT_AVAILABLE)
+                      not_a_prediction:
+                        type: string
+        '400':
+          description: Missing required fields or RJ-C* rejection
+        '404':
+          description: DecisionContractNotFound
+
+  /api/v1/campaigns/decision-contract/{id}/withdraw:
+    post:
+      summary: Withdraw ACTIVE Decision Contract (CDI-07A)
+      description: >-
+        Human withdrawal with attribution. Never auto-withdraws from a validity state.
+        Only ACTIVE contracts may be withdrawn; missing or non-active yields 404.
+      operationId: withdrawDecisionContract
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, session_id, withdrawn_by, statement, withdrawn_as_of]
+              properties:
+                tenant_id:
+                  type: string
+                session_id:
+                  type: string
+                withdrawn_by:
+                  type: string
+                statement:
+                  type: string
+                withdrawn_as_of:
+                  type: string
+                  format: date-time
+                prompted_by_assessment_id:
+                  type: string
+                  description: Optional reference to the assessment that prompted withdrawal
+      responses:
+        '200':
+          description: Withdrawn contract
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/DecisionContract'
+        '400':
+          description: Missing required withdrawal fields
+        '404':
+          description: Not found or not ACTIVE
 
 components:
   schemas:
@@ -687,6 +956,190 @@ components:
         policy_overrides:
           description: Forbidden — presence triggers RJ-G1
           nullable: true
+
+    DecisionContractStatus:
+      type: string
+      enum: [ACTIVE, SUPERSEDED, WITHDRAWN]
+      description: Lifecycle status only. No EXPIRED — validity is a separate artefact.
+
+    DecisionValidityState:
+      type: string
+      enum: [STABLE, WATCH, DEGRADED, REASSESS_REQUIRED, INDETERMINATE]
+      description: >-
+        Evidence-backed Half-Life states. Not a duration, countdown, expiry, decay curve
+        or remaining-percentage. Quantitative half-life is NOT_AVAILABLE.
+
+    DecisionResolutionRoute:
+      type: string
+      enum: [CONSTRAINT_RESOLVED, HUMAN_RESOLVED]
+
+    ContractCreationRequest:
+      type: object
+      required: [tenant_id, session_id, frontier, campaign_intent, resolution, created_as_of]
+      description: >-
+        CDI-07A creation request. Frontier and intent are supplied by the caller —
+        creation never re-runs CDI-01/CDI-06. No duration fields.
+      properties:
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        frontier:
+          type: object
+          description: EMITTED OutcomeFrontier (CDI-06)
+        campaign_intent:
+          $ref: '#/components/schemas/CampaignIntent'
+        resolution:
+          type: object
+          required: [route, selected_play_id]
+          properties:
+            route:
+              $ref: '#/components/schemas/DecisionResolutionRoute'
+            selected_play_id:
+              type: string
+            resolved_by:
+              type: string
+              description: Mandatory for HUMAN_RESOLVED — never defaulted
+            resolution_statement:
+              type: string
+            selection_status:
+              type: string
+            selection_basis:
+              type: string
+        created_as_of:
+          type: string
+          format: date-time
+          description: Caller-supplied reference instant — never an input to validity age arithmetic
+        supersedes:
+          type: object
+          description: Required when an ACTIVE contract already exists for the session
+          properties:
+            contract_id:
+              type: string
+            contract_version:
+              type: integer
+            contract_digest:
+              type: string
+            decision_basis_digest:
+              type: string
+            tenant_id:
+              type: string
+            session_id:
+              type: string
+            status:
+              $ref: '#/components/schemas/DecisionContractStatus'
+
+    DecisionContract:
+      type: object
+      description: >-
+        Immutable record of a resolved decision and its basis. No PATCH. Status may only
+        move ACTIVE → SUPERSEDED | WITHDRAWN. Half-Life is not embedded as a duration.
+      properties:
+        contract_id:
+          type: string
+        contract_version:
+          type: integer
+        status:
+          $ref: '#/components/schemas/DecisionContractStatus'
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        decision_basis_digest:
+          type: string
+        basis:
+          type: object
+          description: Bound artefact refs + transcribed snapshots (not recomputed)
+        resolution:
+          type: object
+        assumptions:
+          type: array
+          items:
+            type: object
+        triggers:
+          type: array
+          items:
+            type: object
+        unavailable_capabilities:
+          type: array
+          items:
+            type: object
+          description: Includes QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT (NOT_AVAILABLE)
+        evidence_strength_floor:
+          type: string
+        confidence_band:
+          type: string
+        calculation_mode:
+          type: string
+          enum: [deterministic_decision_contract]
+        synthetic_demo:
+          type: boolean
+        schema_version:
+          type: string
+        created_as_of:
+          type: string
+          format: date-time
+        supersedes:
+          type: object
+        superseded_by:
+          type: object
+        withdrawal:
+          type: object
+
+    DecisionValidityAssessment:
+      type: object
+      description: >-
+        Recomputed on demand at caller-supplied as_of. Never written back to the contract.
+        No duration, countdown, expiry, decay or remaining-percentage fields.
+        Quantitative half-life is NOT_AVAILABLE.
+      properties:
+        assessment_id:
+          type: string
+        contract_id:
+          type: string
+        contract_version:
+          type: integer
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        state:
+          $ref: '#/components/schemas/DecisionValidityState'
+        as_of:
+          type: string
+          format: date-time
+        half_life_basis:
+          type: object
+          description: Trigger evaluations + NOT_A_PREDICTION disclosure; not a duration
+          properties:
+            determining_trigger_id:
+              type: string
+            determining_assumption_id:
+              type: string
+            triggers_evaluated:
+              type: array
+              items:
+                type: object
+            unassessable_assumptions:
+              type: array
+              items:
+                type: object
+            not_a_prediction_disclosure:
+              type: string
+            quantitative_measure:
+              type: object
+              description: QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT — status AWAITING_AUTHORITATIVE_SOURCE
+        calculation_mode:
+          type: string
+          enum: [deterministic_decision_validity]
+        evidence_strength_floor:
+          type: string
+        confidence_band:
+          type: string
+        synthetic_demo:
+          type: boolean
+        schema_version:
+          type: string
 
     DemandTrajectoryPoint:
       type: object

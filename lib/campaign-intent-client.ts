@@ -1,8 +1,15 @@
 /**
- * Typed client helpers for CDI-01 Campaign Decision Canvas APIs.
+ * Typed client helpers for CDI-01 Campaign Decision Canvas APIs
+ * and CDI-07A Decision Contract routes.
  */
 
 import { CampaignIntent } from '../packages/contracts/src/campaign-intent-model';
+import {
+  ContractCreationRequest,
+  DecisionContract,
+  DecisionValidityAssessment
+} from '../packages/contracts/src/campaign-decision-contract-model';
+import { OutcomeFrontier } from '../packages/contracts/src/campaign-frontier-model';
 
 const TENANT = 'tenant_uk_retail_01';
 const SESSION = 'sess_001';
@@ -218,5 +225,157 @@ export async function evaluateOutcomeFrontierClient(params: {
     return data.data || null;
   } catch {
     return null;
+  }
+}
+
+export async function createDecisionContractClient(
+  request: ContractCreationRequest
+): Promise<{ contract: DecisionContract | null; error?: string; rejection_id?: string }> {
+  try {
+    const res = await fetch('/api/v1/campaigns/decision-contract', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(request)
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return {
+        contract: null,
+        error: data.message || 'Contract creation failed',
+        rejection_id: data.rejection_id
+      };
+    }
+    return { contract: data.data || null };
+  } catch (e: any) {
+    return { contract: null, error: e.message };
+  }
+}
+
+export async function getDecisionContractClient(
+  contractId: string,
+  tenantId: string = TENANT,
+  sessionId: string = SESSION
+): Promise<DecisionContract | null> {
+  try {
+    const res = await fetch(
+      `/api/v1/campaigns/decision-contract/${encodeURIComponent(contractId)}?tenant_id=${encodeURIComponent(tenantId)}&session_id=${encodeURIComponent(sessionId)}`,
+      { headers: { Accept: 'application/json' } }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.data || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function getCurrentDecisionContractClient(
+  tenantId: string = TENANT,
+  sessionId: string = SESSION
+): Promise<DecisionContract | null> {
+  try {
+    const res = await fetch(
+      `/api/v1/campaigns/decision-contract/current?tenant_id=${encodeURIComponent(tenantId)}&session_id=${encodeURIComponent(sessionId)}`,
+      { headers: { Accept: 'application/json' } }
+    );
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.data || null;
+  } catch {
+    return null;
+  }
+}
+
+export async function assessDecisionValidityClient(params: {
+  contract_id: string;
+  tenant_id?: string;
+  session_id?: string;
+  as_of: string;
+  current_campaign_intent?: CampaignIntent;
+  current_frontier?: OutcomeFrontier;
+  current_decision_state?: { decision_state_id: string; state_version: number };
+  signal_observations?: Array<{
+    signal_type: string;
+    entity_id: string;
+    value: number;
+    delta_pct: number;
+    decision_state_version: number;
+  }>;
+}): Promise<{
+  assessment: DecisionValidityAssessment | null;
+  error?: string;
+  rejection_id?: string;
+}> {
+  try {
+    const res = await fetch(
+      `/api/v1/campaigns/decision-contract/${encodeURIComponent(params.contract_id)}/validity`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenant_id: params.tenant_id || TENANT,
+          session_id: params.session_id || SESSION,
+          as_of: params.as_of,
+          ...(params.current_campaign_intent
+            ? { current_campaign_intent: params.current_campaign_intent }
+            : {}),
+          ...(params.current_frontier ? { current_frontier: params.current_frontier } : {}),
+          ...(params.current_decision_state
+            ? { current_decision_state: params.current_decision_state }
+            : {}),
+          ...(params.signal_observations
+            ? { signal_observations: params.signal_observations }
+            : {})
+        })
+      }
+    );
+    const data = await res.json();
+    if (!res.ok) {
+      return {
+        assessment: null,
+        error: data.message || 'Validity assessment failed',
+        rejection_id: data.rejection_id
+      };
+    }
+    return { assessment: data.data || null };
+  } catch (e: any) {
+    return { assessment: null, error: e.message };
+  }
+}
+
+export async function withdrawDecisionContractClient(params: {
+  contract_id: string;
+  tenant_id?: string;
+  session_id?: string;
+  withdrawn_by: string;
+  statement: string;
+  withdrawn_as_of: string;
+  prompted_by_assessment_id?: string;
+}): Promise<{ contract: DecisionContract | null; error?: string }> {
+  try {
+    const res = await fetch(
+      `/api/v1/campaigns/decision-contract/${encodeURIComponent(params.contract_id)}/withdraw`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tenant_id: params.tenant_id || TENANT,
+          session_id: params.session_id || SESSION,
+          withdrawn_by: params.withdrawn_by,
+          statement: params.statement,
+          withdrawn_as_of: params.withdrawn_as_of,
+          ...(params.prompted_by_assessment_id
+            ? { prompted_by_assessment_id: params.prompted_by_assessment_id }
+            : {})
+        })
+      }
+    );
+    const data = await res.json();
+    if (!res.ok) {
+      return { contract: null, error: data.message || 'Withdrawal failed' };
+    }
+    return { contract: data.data || null };
+  } catch (e: any) {
+    return { contract: null, error: e.message };
   }
 }
