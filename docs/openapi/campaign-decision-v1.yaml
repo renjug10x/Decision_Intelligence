@@ -1,11 +1,11 @@
 openapi: 3.1.0
 info:
-  title: CogniX Campaign Decision Intelligence API (CDI-01 / CDI-02 / CDI-03 / CDI-04)
+  title: CogniX Campaign Decision Intelligence API (CDI-01 … CDI-05)
   description: >-
     OpenAPI 3.1 specification for Campaign Decision Canvas (CDI-01), Counterfactual/Causal
-    evaluation (CDI-02), Opportunity Window / Micro-Market discovery (CDI-03), and
-    Decision Readiness & Resilience (CDI-04).
-  version: 1.3.0
+    evaluation (CDI-02), Opportunity Window / Micro-Market discovery (CDI-03),
+    Decision Readiness & Resilience (CDI-04), and Decision Timeline / Demand Decomposition (CDI-05).
+  version: 1.4.0
 servers:
   - url: http://localhost:3000
     description: CogniX Web BFF Gateway
@@ -244,6 +244,30 @@ paths:
           description: Decision readiness assessment
         '400':
           description: Rejection R1–R6 or invalid request
+        '404':
+          description: campaign_intent_id not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/timeline:
+    post:
+      summary: Decision Timeline & Demand Decomposition (CDI-05)
+      description: >-
+        Temporal rendering of a closed CDI-02 evaluation. FLAT_RATE_IDENTITY
+        allocation only — no fabricated curvature. PRE_CAMPAIGN is modelled
+        run-rate (not observed history). POST_CAMPAIGN is structurally present
+        and numerically empty. REVENUE lens is NOT_AVAILABLE pending
+        realised_unit_selling_price_gbp. Confidence is band-only on the primary surface.
+      operationId: projectDecisionTimeline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TimelineProjectionRequest'
+      responses:
+        '200':
+          description: Decision timeline projection + demand decomposition
+        '400':
+          description: Rejection RJ1–RJ5 or reconciliation failure
         '404':
           description: campaign_intent_id not found, or not visible to the supplied tenant/session
 
@@ -567,6 +591,25 @@ components:
               type: string
         threshold_overrides:
           description: Forbidden — presence triggers rejection R6
+          nullable: true
+
+    TimelineProjectionRequest:
+      type: object
+      required: [tenant_id, session_id]
+      properties:
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        campaign_intent_id:
+          type: string
+        include_signals:
+          type: boolean
+        allocation_profile_override:
+          description: Forbidden — RJ4
+          nullable: true
+        envelope_profile_override:
+          description: Forbidden — RJ4
           nullable: true
 
     DemandTrajectoryPoint:

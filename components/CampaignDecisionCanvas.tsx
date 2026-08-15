@@ -26,7 +26,8 @@ import {
   saveCampaignIntentDraftClient,
   evaluateCampaignDecisionClient,
   discoverCampaignOpportunityClient,
-  evaluateCampaignReadinessClient
+  evaluateCampaignReadinessClient,
+  projectDecisionTimelineClient
 } from '@/lib/campaign-intent-client';
 import { trackJourneyEvent } from '@/lib/journey-client';
 
@@ -65,8 +66,145 @@ const AREA_META: Record<
 };
 
 const FUTURE_LAYERS = [
-  { id: 'CDI-05+', label: 'Timeline, Frontier, Half-Life & Learning' }
+  { id: 'CDI-06+', label: 'Outcome Frontier, Half-Life & Learning' }
 ];
+
+/**
+ * CDI-05 Layer 5 timeline chart.
+ *
+ * Straight segments between allocated points only — no curve type, spline, easing,
+ * smoothing or tension anywhere in here. Under FLAT_RATE_IDENTITY the honest picture is
+ * two flat lines separated by the attributable effect, with a level shift at the phase
+ * boundary where the world moved. Any curvature drawn here would be the same fabrication
+ * as one computed in the engine.
+ *
+ * The unmodelled post-campaign region carries no line and no band: the engine publishes
+ * null components and no envelope there, and the chart must not fill that silence with a
+ * reversion or a convergence the model never asserted.
+ */
+export function TimelineChart({ projection }: { projection: any }) {
+  const W = 720;
+  const H = 190;
+  const padL = 42;
+  const padR = 12;
+  const padT = 12;
+  const padB = 26;
+
+  const cf = projection.trajectories.find((t: any) => t.kind === 'COUNTERFACTUAL');
+  const iv = projection.trajectories.find((t: any) => t.kind === 'INTERVENTION');
+  if (!cf || !iv) return null;
+
+  const total = projection.grid.points;
+  const x = (i: number) => padL + (total <= 1 ? 0 : (i / (total - 1)) * (W - padL - padR));
+
+  const bounds: number[] = [];
+  for (const t of [cf, iv]) {
+    for (const pt of t.points) if (pt.index_pct != null) bounds.push(pt.index_pct);
+    for (const ep of t.envelope.points) bounds.push(ep.lower_index_pct, ep.upper_index_pct);
+  }
+  const lo = Math.floor(Math.min(...bounds, 100) - 1);
+  const hi = Math.ceil(Math.max(...bounds, 100) + 1);
+  const y = (v: number) => padT + (1 - (v - lo) / (hi - lo || 1)) * (H - padT - padB);
+
+  // Contiguous runs of modelled points — a gap is rendered as a gap, never bridged.
+  const runsOf = (points: any[]): string[] => {
+    const runs: string[] = [];
+    let current: string[] = [];
+    for (const pt of points) {
+      if (pt.index_pct == null) {
+        if (current.length > 1) runs.push(current.join(' '));
+        current = [];
+      } else {
+        current.push(`${x(pt.period_index).toFixed(2)},${y(pt.index_pct).toFixed(2)}`);
+      }
+    }
+    if (current.length > 1) runs.push(current.join(' '));
+    return runs;
+  };
+
+  const bandOf = (envelope: any): string => {
+    const pts = [...envelope.points].sort((a: any, b: any) => a.period_index - b.period_index);
+    if (pts.length < 2) return '';
+    const upper = pts.map((ep: any) => `${x(ep.period_index).toFixed(2)},${y(ep.upper_index_pct).toFixed(2)}`);
+    const lower = pts
+      .slice()
+      .reverse()
+      .map((ep: any) => `${x(ep.period_index).toFixed(2)},${y(ep.lower_index_pct).toFixed(2)}`);
+    return [...upper, ...lower].join(' ');
+  };
+
+  const campaignIdxs = cf.points.filter((p: any) => p.phase === 'CAMPAIGN').map((p: any) => p.period_index);
+  const postIdxs = cf.points.filter((p: any) => p.phase === 'POST_CAMPAIGN').map((p: any) => p.period_index);
+  const campX0 = campaignIdxs.length ? x(campaignIdxs[0]) : padL;
+  const campX1 = campaignIdxs.length ? x(campaignIdxs[campaignIdxs.length - 1]) : padL;
+  const postX0 = postIdxs.length ? x(postIdxs[0]) : W - padR;
+
+  return (
+    <div style={{ border: '1px solid var(--border)', borderRadius: 8, background: '#FFFFFF', padding: 8 }}>
+      <svg viewBox={`0 0 ${W} ${H}`} width="100%" role="img" aria-label="Decision timeline: counterfactual and intervention trajectories with confidence envelopes">
+        <defs>
+          <pattern id="cdi05-unmodelled" width="6" height="6" patternUnits="userSpaceOnUse" patternTransform="rotate(45)">
+            <line x1="0" y1="0" x2="0" y2="6" stroke="#CBD5E1" strokeWidth="1.5" />
+          </pattern>
+        </defs>
+
+        {/* Phases are visually distinct: pre-campaign plain, campaign tinted, post-campaign hatched */}
+        <rect
+          x={campX0}
+          y={padT}
+          width={Math.max(0, (postIdxs.length ? postX0 : campX1) - campX0)}
+          height={H - padT - padB}
+          fill="#FFF7ED"
+        />
+        <rect x={postX0} y={padT} width={Math.max(0, W - padR - postX0)} height={H - padT - padB} fill="url(#cdi05-unmodelled)" opacity={0.5} />
+
+        {/* Identity reference */}
+        <line x1={padL} y1={y(100)} x2={W - padR} y2={y(100)} stroke="#E2E8F0" strokeWidth="1" strokeDasharray="3 3" />
+        <text x={4} y={y(100) + 3} fontSize="9" fill="#94A3B8">100</text>
+        <text x={4} y={y(hi) + 8} fontSize="9" fill="#94A3B8">{hi}</text>
+
+        {/* Both trajectories are enveloped — a crisp counterfactual against a fuzzy
+            intervention would bias the comparison toward "doing nothing is known" */}
+        <polygon points={bandOf(cf.envelope)} fill="#64748B" opacity={0.13} />
+        <polygon points={bandOf(iv.envelope)} fill="#F97316" opacity={0.13} />
+
+        {runsOf(cf.points).map((pts, i) => (
+          <polyline key={`cf${i}`} points={pts} fill="none" stroke="#475569" strokeWidth="1.75" strokeDasharray="5 3" />
+        ))}
+        {runsOf(iv.points).map((pts, i) => (
+          <polyline key={`iv${i}`} points={pts} fill="none" stroke="#F97316" strokeWidth="2" />
+        ))}
+
+        {/* Markers annotate the grid; they never alter a point's value */}
+        {projection.markers.map((m: any) => (
+          <line
+            key={m.marker_id}
+            x1={x(m.period_index)}
+            y1={padT}
+            x2={x(m.period_index)}
+            y2={H - padB}
+            stroke="#0F172A"
+            strokeWidth="0.75"
+            opacity={0.18}
+          />
+        ))}
+
+        <text x={padL + 2} y={H - padB + 14} fontSize="9" fill="#94A3B8">
+          {projection.grid.start_date} · pre-campaign (modelled run-rate, not observed history)
+        </text>
+        <text x={postX0 + 4} y={padT + 12} fontSize="9" fill="#64748B">
+          not modelled
+        </text>
+      </svg>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: 4 }}>
+        <span>— Intervention [DERIVED]</span>
+        <span>- - Counterfactual [DERIVED]</span>
+        <span>Shaded bands: declared horizon uncertainty [SEEDED_ASSUMPTION]</span>
+        <span>Hatched: post-campaign not modelled [MISSING]</span>
+      </div>
+    </div>
+  );
+}
 
 export default function CampaignDecisionCanvas({
   onNavigateToExperiment
@@ -82,6 +220,9 @@ export default function CampaignDecisionCanvas({
   const [readiness, setReadiness] = useState<any | null>(null);
   const [assessing, setAssessing] = useState(false);
   const [readinessExpanded, setReadinessExpanded] = useState(false);
+  const [timeline, setTimeline] = useState<any | null>(null);
+  const [projecting, setProjecting] = useState(false);
+  const [timelineTier, setTimelineTier] = useState(1);
 
   useEffect(() => {
     trackJourneyEvent({
@@ -288,6 +429,23 @@ export default function CampaignDecisionCanvas({
       return;
     }
     setReadiness(result);
+  };
+
+  const handleProjectTimeline = async () => {
+    setProjecting(true);
+    setError(null);
+    setTimelineTier(1);
+    const result = await projectDecisionTimelineClient({
+      tenant_id: intent.tenant_id,
+      session_id: intent.session_id,
+      campaign_intent_id: intent.campaign_intent_id
+    });
+    setProjecting(false);
+    if (!result) {
+      setError('CDI-05 timeline projection failed.');
+      return;
+    }
+    setTimeline(result);
   };
 
   const advance = () => {
@@ -1285,7 +1443,217 @@ export default function CampaignDecisionCanvas({
         )}
       </section>
 
-      {/* Explicit non-implementation of CDI-05+ — locked teaser only */}
+      {/* Layer 5 — CDI-05 Decision Timeline */}
+      <section
+        style={{
+          marginTop: 8,
+          marginBottom: 16,
+          padding: '18px 20px',
+          borderRadius: 12,
+          border: '1px solid var(--border)',
+          background: '#FFFFFF'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+              Layer 5 · CDI-05
+            </div>
+            <h2 style={{ margin: '0 0 6px', fontSize: '1.125rem', color: 'var(--text-primary)' }}>
+              What happens over time — and why?
+            </h2>
+            <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)', maxWidth: 640 }}>
+              Flat-rate identity timeline of the CDI-02 decision. Ambient movement is shared; only the difference is attributable. No fabricated curves.
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={projecting || !isRegistered}
+            onClick={handleProjectTimeline}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: isRegistered ? 'var(--curiosity-light)' : '#F1F5F9',
+              color: isRegistered ? 'var(--g10x-orange)' : 'var(--text-muted)',
+              fontWeight: 600,
+              fontSize: '0.75rem',
+              cursor: isRegistered ? 'pointer' : 'not-allowed',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {projecting ? 'Projecting…' : isRegistered ? 'Project timeline' : 'Register intent first'}
+          </button>
+        </div>
+
+        {!isRegistered && (
+          <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Lock size={13} /> Register Campaign Intent and run evaluation to unlock the timeline.
+          </div>
+        )}
+
+        {timeline?.projection && (
+          <div style={{ display: 'grid', gap: 12, marginTop: 8 }}>
+            {/* Tier 1 — What? */}
+            <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--curiosity-light)' }}>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                What? · Attributable effect
+              </div>
+              <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                {timeline.projection.tier1.headline}
+              </div>
+              <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                {timeline.projection.tier1.attributable_uplift_pp.toFixed(2)} pp · Δ£
+                {timeline.projection.tier1.contribution_delta_gbp.toLocaleString()} · band{' '}
+                {timeline.projection.tier1.confidence_band}
+                {timeline.projection.readiness_reference
+                  ? ` · readiness ${timeline.projection.readiness_reference.state}`
+                  : ''}
+                {timeline.projection.readiness_reference?.state === 'DO_NOT_PROCEED'
+                  ? ' — intervention trajectory shown as vetoed evidence, not a plan'
+                  : ''}
+              </div>
+              <div style={{ marginTop: 8, fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
+                Pre-campaign: modelled run-rate (not observed history). Post-campaign: not modelled.
+                Allocation: FLAT_RATE_IDENTITY. Revenue lens: not available.
+              </div>
+            </div>
+
+            {/* Timeline chart — straight segments between allocated points only */}
+            <TimelineChart projection={timeline.projection} />
+
+            {timelineTier < 2 && (
+              <button type="button" onClick={() => setTimelineTier(2)} style={{ background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, color: 'var(--g10x-orange)', textAlign: 'left' }}>
+                Why? → Show ambient vs intervention decomposition
+              </button>
+            )}
+
+            {timelineTier >= 2 && (
+              <div style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#F8FAFC' }}>
+                <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
+                  Why? · driver_class partition
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 650 }}>
+                      Ambient · {timeline.projection.decomposition.ambient_group.subtotal_pp.toFixed(2)} pp
+                    </div>
+                    <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                      {timeline.projection.decomposition.ambient_group.meaning}
+                    </div>
+                    {timeline.projection.decomposition.ambient_group.rows.map((r: any) => (
+                      <div key={r.driver_id} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        {r.label}: {r.contribution_pp} pp
+                      </div>
+                    ))}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.75rem', fontWeight: 650 }}>
+                      Intervention · {timeline.projection.decomposition.intervention_group.subtotal_pp.toFixed(2)} pp
+                    </div>
+                    <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                      {timeline.projection.decomposition.intervention_group.meaning}
+                    </div>
+                    {timeline.projection.decomposition.intervention_group.rows.map((r: any) => (
+                      <div key={r.driver_id} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                        {r.label}: {r.contribution_pp} pp{r.attributed ? '' : ' (excluded)'}
+                      </div>
+                    ))}
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>
+                      Residual: {timeline.projection.decomposition.residual_row.contribution_pp} pp
+                    </div>
+                  </div>
+                </div>
+                {timelineTier < 3 && (
+                  <button type="button" onClick={() => setTimelineTier(3)} style={{ marginTop: 10, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, color: 'var(--g10x-orange)' }}>
+                    Evidence → Show strengths & provenance
+                  </button>
+                )}
+              </div>
+            )}
+
+            {timelineTier >= 3 && (
+              <div style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#F8FAFC', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                <div style={{ fontWeight: 650, marginBottom: 6 }}>Evidence</div>
+                <div>Allocation: {timeline.projection.allocation_profile} ({timeline.projection.allocation_provenance})</div>
+                <div>Grid basis: {timeline.projection.grid.grid_basis}</div>
+                <div>Envelope basis: {timeline.projection.provenance.envelope_profile} — calibration target {timeline.projection.provenance.envelope_calibration_target}</div>
+                <div>Lenses unavailable: {timeline.projection.provenance.lenses_unavailable}</div>
+                <div>
+                  Revenue required input: realised_unit_selling_price_gbp (not RRP / not margin assumption)
+                </div>
+                <div>Placeholder fields excluded: {timeline.projection.provenance.placeholder_fields_excluded}</div>
+                <div>
+                  Provenance: counterfactual {timeline.projection.provenance.counterfactual_id} · causal{' '}
+                  {timeline.projection.provenance.causal_id} · readiness {timeline.projection.provenance.readiness_id} ·
+                  opportunity {timeline.projection.provenance.opportunity_evaluation_id} · signals{' '}
+                  {timeline.projection.provenance.signal_simulation_id}
+                </div>
+
+                {/* Verbatim upstream disclosures — no strength is ever shown without its disclosure */}
+                <div style={{ marginTop: 8, fontWeight: 650 }}>Disclosures (verbatim)</div>
+                {timeline.projection.lenses
+                  .filter((l: any) => l.disclosure)
+                  .map((l: any) => (
+                    <div key={l.lens}>
+                      [{l.strength}] {l.lens}: {l.disclosure}
+                    </div>
+                  ))}
+                {Array.from(
+                  new Map(
+                    (timeline.projection.markers || [])
+                      .filter((m: any) => m.disclosure)
+                      .map((m: any) => [m.disclosure, m])
+                  ).values()
+                ).map((m: any) => (
+                  <div key={m.marker_id}>
+                    [{m.strength}] {m.source_package}: {m.disclosure}
+                  </div>
+                ))}
+
+                {/* CDI-04 evidence refs, each with its strength (CDI-04 invariant, unchanged) */}
+                {timeline.projection.evidence_refs?.length ? (
+                  <>
+                    <div style={{ marginTop: 8, fontWeight: 650 }}>CDI-04 readiness evidence</div>
+                    {timeline.projection.evidence_refs.slice(0, 8).map((ev: any, i: number) => (
+                      <div key={`${ev.field_path}-${i}`}>
+                        [{ev.strength}] {ev.source_package} {ev.field_path}: {String(ev.value)}
+                        {ev.disclosure ? ` — ${ev.disclosure}` : ''}
+                      </div>
+                    ))}
+                  </>
+                ) : (
+                  <div style={{ marginTop: 8 }}>
+                    CDI-04 readiness evidence: NOT_AVAILABLE — no readiness assessment supplied for this projection.
+                  </div>
+                )}
+                {timelineTier < 4 && (
+                  <button type="button" onClick={() => setTimelineTier(4)} style={{ marginTop: 10, background: 'transparent', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.75rem', fontWeight: 600, color: 'var(--g10x-orange)' }}>
+                    What If? → Show readiness change triggers
+                  </button>
+                )}
+              </div>
+            )}
+
+            {timelineTier >= 4 && (
+              <div style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#F8FAFC', fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                <div style={{ fontWeight: 650, marginBottom: 6 }}>What If?</div>
+                {(timeline.projection.markers || [])
+                  .filter((m: any) => m.marker_type === 'READINESS_CONDITION' || m.marker_type === 'CHANGE_TRIGGER')
+                  .slice(0, 6)
+                  .map((m: any) => (
+                    <div key={m.marker_id}>[{m.strength}] {m.label}</div>
+                  ))}
+                {!(timeline.projection.markers || []).some(
+                  (m: any) => m.marker_type === 'READINESS_CONDITION' || m.marker_type === 'CHANGE_TRIGGER'
+                ) && <div>No readiness triggers attached — re-run CDI-04 to populate conditions.</div>}
+              </div>
+            )}
+          </div>
+        )}
+      </section>
+
+      {/* Explicit non-implementation of CDI-06+ — locked teaser only */}
       <section
         style={{
           marginTop: 8,
@@ -1296,7 +1664,7 @@ export default function CampaignDecisionCanvas({
         }}
       >
         <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
-          Next decision layers (not in CDI-04)
+          Next decision layers (not in CDI-05)
         </div>
         <div style={{ display: 'grid', gap: 8 }}>
           {FUTURE_LAYERS.map(layer => (
