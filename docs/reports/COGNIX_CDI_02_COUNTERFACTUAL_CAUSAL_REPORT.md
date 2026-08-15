@@ -174,5 +174,18 @@ Intrinsic drift present in the counterfactual · placeholder `cdi01_placeholder_
 
 **Recommended agent:** Cursor Auto Balance
 
-### Reviewer's revision
-**CDI-04 is the stronger next package.** CDI-04 is HARD-dependent on CDI-02 and is the only consumer that exercises the corrected counterfactual contract end-to-end — readiness is meaningless without a trustworthy "versus doing nothing" baseline, and the ambient/intervention split introduced here is precisely what a readiness gate must reason over. CDI-03 is parallel-eligible on frozen CDI-01 and does **not** depend on CDI-02 at all, so deferring it costs nothing, whereas leaving the freshly corrected causal contract without a downstream consumer risks the split being re-broken by the next package that touches it.
+### Reviewer's assessment — CDI-03 vs CDI-04
+
+Both HARD gates are now satisfied (CDI-03 hard-depends on CDI-01, frozen; CDI-04 hard-depends on CDI-02, delivered). The decider is the *integration* layer:
+
+| | CDI-03 | CDI-04 |
+|---|---|---|
+| Hard deps | `CDI-01` — **satisfied** | `CDI-02` — **satisfied** |
+| Integration deps | `WP10-A` (Enterprise World Store Data) — **satisfied** | `CDI-03` (`MicroMarketOpportunity`), Decision Ripple — **CDI-03 NOT satisfied** |
+| Net | Fully unblocked | Would be built against a missing integration surface |
+
+**CDI-03 is confirmed as the next package.** It is the only one with every dependency — hard *and* integration — satisfied, and it supplies the `MicroMarketOpportunity` surface CDI-04 integrates with. Taking CDI-04 first would mean stubbing that surface and reworking it later.
+
+CDI-03 also discharges a live CDI-02 deferral: `temporal_response` currently applies a flat uncertainty dampener under `FIND_BEST_WINDOW` because timing discovery is explicitly CDI-03 scope (`lib/campaign-causal-engine.ts:176`). CDI-03 replaces that placeholder with real window resolution.
+
+The one risk of deferring CDI-04 is that the newly corrected ambient/intervention split has no downstream consumer yet. Tests 21–30 are the guard against it being re-broken; CDI-03 work must not weaken them.
