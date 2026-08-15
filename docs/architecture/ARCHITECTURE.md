@@ -1,7 +1,7 @@
 # COGNIX TARGET ARCHITECTURE SPECIFICATION
 
 **Document Status:** Approved & Authoritative
-**Version:** 1.1.0
+**Version:** 1.1.1
 **Effective Date:** August 2026
 **Owner:** G10X Architecture Review Board
 
@@ -66,11 +66,14 @@ It transitions the codebase from a single-brand retail POC into a layered, modul
 - Centralized registration mechanism loading canonical experiment definitions.
 - Dynamic rendering of problem statements, provocative questions, business value, confidence metrics, and interactive scenario controls.
 
-### 3.3 Core Domain Engines (`lib/commitment-engine.ts`, `lib/ripple-engine.ts`)
-- **Commitment Propagation Engine:** Models multi-stage operational chains:
-  `Marketing → Demand → Supplier → Inventory → Fulfilment → Delivery → Customer`
-  Detects drift, calculates financial exposure, and determines broken commitment points.
-- **Decision Ripple Engine:** Evaluates 1st, 2nd, and 3rd order impacts across enterprise functions when a strategic decision parameter (e.g. promo spend +15%) is mutated.
+### 3.3 Core Domain Propagation (`packages/contracts/src/decision-state-model.ts`, `components/CommitmentIntelligence.tsx`, `components/DecisionRippleIntelligence.tsx`)
+
+> **Runtime-truth correction — 2026-08-15.** Earlier revisions of this section named `lib/commitment-engine.ts` and `lib/ripple-engine.ts`. **Neither file exists in this repository.** Commitment Propagation and Decision Ripple are *demonstration capabilities rendered in the presentation layer*, not standalone domain engines. The only deterministic cross-functional propagation in the codebase is `calculateDerivedImpacts()`. Downstream governance — including CDI-04 Campaign Decision Readiness & Resilience — is defined against that function and against `DecisionDerivedImpacts`, never against a Decision Ripple engine.
+
+- **Deterministic Derived Impact Engine (`packages/contracts/src/decision-state-model.ts:97` — `calculateDerivedImpacts()`, WP10-C):** the single authoritative, pure cross-functional propagation. From `DecisionScenarioParameters` plus applied interventions it derives `weekly_demand_units`, `supplier_capacity_units`, `commitment_gap_units`, `delivery_risk_pct`, `financial_exposure_gbp` (1st order), `dc_overtime_hours` (2nd order) and `margin_erosion_pct` (3rd order). Consumed through `lib/decision-state-store.ts` / Shared Decision State.
+- **Commitment Propagation (`components/CommitmentIntelligence.tsx`):** presentation surface for the chain `Marketing → Demand → Supplier → Inventory → Fulfilment → Delivery → Customer` — drift, financial exposure and broken commitment point. Stage figures are computed **inline in the component** over Shared Decision State parameters; there is no callable commitment engine module.
+- **Decision Ripple (`components/DecisionRippleIntelligence.tsx`):** presentation surface for 1st/2nd/3rd-order impact when a decision parameter (e.g. promo spend +15%) is mutated. Its figures are **inline component literals**, not engine output.
+- **Consumption rule (binding on downstream packages):** any capability requiring cross-functional propagation reads `DecisionDerivedImpacts` **read-only** via Shared Decision State. It must not read presentation-layer literals, must not recompute ripple arithmetic of its own, and must not write to Decision State.
 
 ### 3.4 AI & Provider Abstraction (`lib/gemini.ts`, `lib/ai-provider.ts`)
 - Isolates LLM interactions behind an abstract interface: `generateNarrative(context)`, `generateCuriosityQuestions(evidence)`.
