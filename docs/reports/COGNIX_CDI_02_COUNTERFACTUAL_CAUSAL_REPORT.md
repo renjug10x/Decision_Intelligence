@@ -152,7 +152,16 @@ Intrinsic drift present in the counterfactual · placeholder `cdi01_placeholder_
 4. Re-registration idempotency residual from CDI-01 (R5) remains outside CDI-02 scope.
 5. `calculation_mode` is a single-value literal union (`deterministic_demo_*`). Admitting a calibrated mode later is an additive union member, not a redesign — but it is a contract edit.
 6. Waste modelling is asymmetric (intervention paths get a 0.92 clearance factor with a step at index 105). Directionally intended — promotion clears stock — but uncalibrated and discontinuous. Candidate for CDI-04 readiness work.
+   - **Interim correction (2026-08-15, pre-CDI-06):** clearance is gated on `intervention_uplift_pp > 0`, never on the `PREDICTED_WITH_INTERVENTION` label. Do Nothing no longer receives fabricated waste improvement. See `COGNIX_INTERIM_CAUSAL_INTEGRITY_BUGFIX_REPORT.md`.
 7. Audience/place/temporal drivers still contribute under `CONSIDER_PROMOTION` when no mechanic is stated. Defensible (the posture *is* an intervention), and the delta stays well below a stated-mechanic case, but the semantics deserve revisiting when CDI-03 supplies real timing/micro-market resolution.
+
+### Interim causal integrity (pre-CDI-06)
+
+Discovered during CDI-06 design assessment (C2/C3):
+
+1. **ESF-2 `promotion_lift || 20`** treated explicit zero as 20% — Do Nothing seeded a promotional ambient signal world. Corrected to nullish default (`?? 20`); CDI-02 Test 21/31–33 guard it.
+2. **Label-derived waste** — corrected as residual 6 note above; CDI-02 Tests 34–36 and CDI-05 Inventory Tests 45–46 guard it.
+
 
 ---
 

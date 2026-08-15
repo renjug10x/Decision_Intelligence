@@ -929,6 +929,104 @@ function runTests() {
     'Test 19: total_predicted_uplift_pp appears nowhere on the primary surface or Tier 1'
   );
 
+  // ==================================================================
+  // Interim causal integrity — CDI-05 Inventory lens reflects D2 truth
+  // ==================================================================
+  clearCampaignIntents();
+  const dnInvDraft = createDefaultCampaignIntentDraft('tenant_uk_retail_01', 'sess_cdi05_dn_waste');
+  const dnInvCamp = registerCampaignIntent({
+    ...dnInvDraft,
+    campaign_intent: {
+      ...dnInvDraft.campaign_intent,
+      intervention_posture: 'CONSIDER_DO_NOTHING'
+    },
+    audience_market: {
+      ...dnInvDraft.audience_market,
+      timing_mode: 'KNOWN_DATES',
+      planned_start: '2026-08-20T00:00:00.000Z',
+      planned_end: '2026-08-27T00:00:00.000Z'
+    }
+  });
+  const dnInvEval = evaluateCampaignDecision({
+    tenant_id: dnInvCamp.tenant_id,
+    session_id: dnInvCamp.session_id,
+    campaign_intent_id: dnInvCamp.campaign_intent_id,
+    include_signals: true
+  });
+  const dnInvProj = projectDecisionTimeline({
+    tenant_id: dnInvCamp.tenant_id,
+    session_id: dnInvCamp.session_id,
+    campaign_intent_id: dnInvCamp.campaign_intent_id,
+    campaign_evaluation: dnInvEval,
+    include_signals: true,
+    evaluation_timestamp: '2026-08-15T12:00:00.000Z'
+  }).projection;
+  const dnInvLens = dnInvProj.lenses.find(l => l.lens === 'INVENTORY')!;
+  const dnCfWaste = dnInvEval.counterfactual.expected_without_intervention.waste_units;
+  const dnIvWaste = dnInvEval.counterfactual.predicted_with_intervention.waste_units;
+  assert(
+    dnInvEval.counterfactual.campaign_delta.waste_delta_units === 0 &&
+      dnCfWaste === dnIvWaste &&
+      dnInvLens.values
+        .filter(v => {
+          const pt = dnInvProj.trajectories[0].points.find(x => x.period_index === v.period_index);
+          return pt?.phase === 'CAMPAIGN';
+        })
+        .every(v => v.counterfactual === v.intervention && v.counterfactual === dnCfWaste),
+    'Test 45: CDI-05 Inventory lens reflects corrected Do Nothing waste (no intervention clearance)',
+    `waste_delta=${dnInvEval.counterfactual.campaign_delta.waste_delta_units} cf=${dnCfWaste} iv=${dnIvWaste}`
+  );
+
+  // Stated promotion still shows clearance on the intervention Inventory line.
+  clearCampaignIntents();
+  const promoInvDraft = createDefaultCampaignIntentDraft('tenant_uk_retail_01', 'sess_cdi05_promo_waste');
+  const promoInvCamp = registerCampaignIntent({
+    ...promoInvDraft,
+    campaign_intent: {
+      ...promoInvDraft.campaign_intent,
+      intervention_posture: 'CONSIDER_PROMOTION',
+      provisional_mechanic: '20_percent_off',
+      provisional_discount_depth: 20
+    },
+    audience_market: {
+      ...promoInvDraft.audience_market,
+      timing_mode: 'KNOWN_DATES',
+      planned_start: '2026-08-20T00:00:00.000Z',
+      planned_end: '2026-08-27T00:00:00.000Z'
+    }
+  });
+  const promoInvEval = evaluateCampaignDecision({
+    tenant_id: promoInvCamp.tenant_id,
+    session_id: promoInvCamp.session_id,
+    campaign_intent_id: promoInvCamp.campaign_intent_id,
+    include_signals: false
+  });
+  const promoInvProj = projectDecisionTimeline({
+    tenant_id: promoInvCamp.tenant_id,
+    session_id: promoInvCamp.session_id,
+    campaign_intent_id: promoInvCamp.campaign_intent_id,
+    campaign_evaluation: promoInvEval,
+    include_signals: false,
+    evaluation_timestamp: '2026-08-15T12:00:00.000Z'
+  }).projection;
+  const promoInvLens = promoInvProj.lenses.find(l => l.lens === 'INVENTORY')!;
+  assert(
+    promoInvEval.causal.intervention_uplift_pp > 0 &&
+      promoInvEval.counterfactual.campaign_delta.waste_delta_units < 0 &&
+      promoInvLens.values
+        .filter(v => {
+          const pt = promoInvProj.trajectories[0].points.find(x => x.period_index === v.period_index);
+          return pt?.phase === 'CAMPAIGN';
+        })
+        .every(
+          v =>
+            v.intervention === promoInvEval.counterfactual.predicted_with_intervention.waste_units &&
+            v.counterfactual === promoInvEval.counterfactual.expected_without_intervention.waste_units &&
+            (v.intervention as number) < (v.counterfactual as number)
+        ),
+    'Test 46: CDI-05 Inventory lens still shows intervention waste clearance for stated promotion'
+  );
+
   console.log('\n====================================================');
   console.log(`CDI-05 RESULTS: ${passed} passed, ${failed} failed`);
   console.log('====================================================');

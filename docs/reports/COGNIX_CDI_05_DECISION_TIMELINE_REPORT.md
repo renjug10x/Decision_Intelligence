@@ -188,6 +188,10 @@ Frozen upstream contracts (`campaign-intent-model`, causal, opportunity, readine
 | RR-7 | Single-value `calculation_mode` | Future calibrated modes are additive union members |
 | RR-8 | Band defaults to CDI-04’s strength-floor cap when no readiness is supplied | Applies CDI-04’s rule, defines none; a CDI-04-absent projection should be read as unframed |
 
+### Interim upstream correction (pre-CDI-06, 2026-08-15)
+
+CDI-06 design assessment defects D1/D2 were corrected upstream (ESF-2 nullish `promotion_lift`; CDI-02 waste clearance gated on `intervention_uplift_pp > 0`). CDI-05 Inventory lens Tests 45–46 prove the lens now reflects zero Do Nothing waste delta and retained promotion clearance. Full evidence: `COGNIX_INTERIM_CAUSAL_INTEGRITY_BUGFIX_REPORT.md`.
+
 **Picture risk stands.** Four of the six defects were invisible in the payload summary and visible only
 when the rendered geometry and the per-period lens values were inspected. Any future change to the
 Layer 5 surface warrants the same treatment.

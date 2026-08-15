@@ -43,7 +43,8 @@ export interface SignalSimulationContext {
     tenant_id: string;
     scenario_id: string;
     scenario_family?: string;
-    promotion_lift: number;
+    /** Explicit 0 means no promotional pressure. Omit/undefined → simulator defaults to 20. */
+    promotion_lift?: number;
     supplier_capacity_cap: number;
     forecast_horizon_days: number;
     promotion_method: string;

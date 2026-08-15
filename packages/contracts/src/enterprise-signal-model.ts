@@ -144,7 +144,8 @@ export interface SignalSimulationContext {
   tenant_id: string;
   scenario_id: string;
   scenario_family?: string;
-  promotion_lift: number;
+  /** Explicit 0 means no promotional pressure. Omit/undefined → simulator defaults to 20. */
+  promotion_lift?: number;
   supplier_capacity_cap: number;
   forecast_horizon_days: number;
   promotion_method: string;
@@ -258,7 +259,15 @@ export function validateSignalSimulationContext(context: Partial<SignalSimulatio
   if (!context.session_id) errors.push('Missing required field: session_id');
   if (!context.decision_state_id) errors.push('Missing required field: decision_state_id');
   if (typeof context.decision_state_version !== 'number') errors.push('Missing required field: decision_state_version');
-  if (typeof context.promotion_lift !== 'number') errors.push('Missing required field: promotion_lift');
+  // Absent/undefined may be defaulted by the simulator (→ 20). Explicit 0 is a valid value
+  // and must not be rejected here — callers that mean "no promotional pressure" pass 0.
+  if (
+    context.promotion_lift !== undefined &&
+    context.promotion_lift !== null &&
+    typeof context.promotion_lift !== 'number'
+  ) {
+    errors.push('Invalid field: promotion_lift must be a number when provided');
+  }
 
   return {
     valid: errors.length === 0,

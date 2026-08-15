@@ -353,7 +353,8 @@ function runTests() {
   // ---------------------------------------------------------------------------
 
   // TEST 21: Do Nothing means "no intervention", NOT "no external change".
-  // Ambient ESF-2 signal pressure must survive a do-nothing posture.
+  // Intrinsic ambient drift still moves both paths. Promotional ESF-2 pressure must NOT
+  // be seeded when stated promo depth is 0 (interim causal integrity — D1).
   clearCampaignIntents();
   const dnSig = registerCampaignIntent({
     ...createDefaultCampaignIntentDraft('tenant_uk_retail_01', 'sess_dn_signals'),
@@ -368,13 +369,17 @@ function runTests() {
   const dnSigCf = evaluateCounterfactualBaseline(dnSig, dnSigCausal, { include_signals: true });
   assert(
     dnSigDriver.driver_class === 'ambient' &&
-      dnSigDriver.contribution_pp > 0 &&
-      dnSigDriver.attributed &&
+      dnSigDriver.contribution_pp === 0 &&
       dnSigCausal.intervention_uplift_pp === 0 &&
-      dnSigCf.expected_without_intervention.volume_index_pct >
-        100 + dnSigIntrinsic.contribution_pp,
-    'Test 21: Do Nothing retains ambient external-signal movement (no intervention ≠ no external change)',
-    `signal_pp=${dnSigDriver.contribution_pp} without_idx=${dnSigCf.expected_without_intervention.volume_index_pct}`
+      dnSigIntrinsic.contribution_pp !== 0 &&
+      Math.abs(
+        dnSigCf.expected_without_intervention.volume_index_pct - (100 + dnSigIntrinsic.contribution_pp)
+      ) < 0.05 &&
+      dnSigCf.expected_without_intervention.waste_units ===
+        dnSigCf.predicted_with_intervention.waste_units &&
+      dnSigCf.campaign_delta.waste_delta_units === 0,
+    'Test 21: Do Nothing keeps intrinsic ambient movement, seeds no promotional signal world, and has zero intervention waste delta',
+    `signal_pp=${dnSigDriver.contribution_pp} without_idx=${dnSigCf.expected_without_intervention.volume_index_pct} waste_delta=${dnSigCf.campaign_delta.waste_delta_units}`
   );
 
   // TEST 22: Ambient signal movement must NOT be credited to the campaign.
@@ -548,6 +553,151 @@ function runTests() {
     validateCounterfactualBaseline(recCf).valid &&
       !validateCounterfactualBaseline(tamperedBaseline).valid,
     'Test 30: Counterfactual validator rejects a trajectory that does not reconcile to its Campaign Delta'
+  );
+
+  // ---------------------------------------------------------------------------
+  // Interim causal integrity regressions (pre-CDI-06) — D1 ambient zero / D2 waste.
+  // ---------------------------------------------------------------------------
+
+  // TEST 31: Explicit promotion_lift 0 stays 0 in ESF-2 (never coerced to 20).
+  const lift0 = simulateEnterpriseSignalTimelines({
+    context: {
+      session_id: 'sess_lift0',
+      decision_state_id: 'ds_lift0',
+      decision_state_version: 1,
+      tenant_id: 'tenant_uk_retail_01',
+      scenario_id: 'SCN-PROMO-01',
+      scenario_family: 'promotion_surge',
+      promotion_lift: 0,
+      supplier_capacity_cap: 10,
+      forecast_horizon_days: 14,
+      promotion_method: 'none',
+      campaign_scope: 'national',
+      cannibalisation_factor: 0,
+      event_boost: 'none',
+      selected_interventions: []
+    }
+  });
+  const lift20 = simulateEnterpriseSignalTimelines({
+    context: {
+      session_id: 'sess_lift20',
+      decision_state_id: 'ds_lift20',
+      decision_state_version: 1,
+      tenant_id: 'tenant_uk_retail_01',
+      scenario_id: 'SCN-PROMO-01',
+      scenario_family: 'promotion_surge',
+      promotion_lift: 20,
+      supplier_capacity_cap: 10,
+      forecast_horizon_days: 14,
+      promotion_method: '20_percent_off',
+      campaign_scope: 'national',
+      cannibalisation_factor: 0,
+      event_boost: 'none',
+      selected_interventions: []
+    }
+  });
+  const today0 = lift0.timelines[0].observations.find(o => o.period === 'Today')!;
+  const today20 = lift20.timelines[0].observations.find(o => o.period === 'Today')!;
+  assert(
+    today0.delta_pct === 0 && today20.delta_pct > 0 && today0.delta_pct !== today20.delta_pct,
+    'Test 31: Explicit promotion_lift 0 stays 0; distinct from default/20% world',
+    `delta0=${today0.delta_pct} delta20=${today20.delta_pct}`
+  );
+
+  // TEST 32: Absent promotion_lift receives the intended default (20).
+  const liftAbsent = simulateEnterpriseSignalTimelines({
+    context: {
+      session_id: 'sess_lift_abs',
+      decision_state_id: 'ds_lift_abs',
+      decision_state_version: 1,
+      tenant_id: 'tenant_uk_retail_01',
+      scenario_id: 'SCN-PROMO-01',
+      scenario_family: 'promotion_surge',
+      // promotion_lift omitted — default semantics
+      supplier_capacity_cap: 10,
+      forecast_horizon_days: 14,
+      promotion_method: '20_percent_off',
+      campaign_scope: 'national',
+      cannibalisation_factor: 0,
+      event_boost: 'none',
+      selected_interventions: []
+    } as any
+  });
+  const todayAbsent = liftAbsent.timelines[0].observations.find(o => o.period === 'Today')!;
+  assert(
+    todayAbsent.delta_pct === today20.delta_pct,
+    'Test 32: Absent promotion_lift follows intended default (same as explicit 20)',
+    `deltaAbsent=${todayAbsent.delta_pct} delta20=${today20.delta_pct}`
+  );
+
+  // TEST 33: Do Nothing does not receive promotional ambient signal uplift.
+  clearCampaignIntents();
+  const dnNoPromo = registerCampaignIntent({
+    ...createDefaultCampaignIntentDraft('tenant_uk_retail_01', 'sess_dn_nopromo'),
+    campaign_intent: {
+      ...createDefaultCampaignIntentDraft('tenant_uk_retail_01', 'sess_dn_nopromo').campaign_intent,
+      intervention_posture: 'CONSIDER_DO_NOTHING'
+    }
+  });
+  const dnNoPromoCausal = evaluateCausalDemandContribution(dnNoPromo, { include_signals: true });
+  const dnSignalPp =
+    dnNoPromoCausal.drivers.find(d => d.driver_id === 'external_signal_response')!.contribution_pp;
+  assert(
+    dnSignalPp === 0 && dnNoPromoCausal.intervention_uplift_pp === 0 && dnNoPromoCausal.reconciliation_ok,
+    'Test 33: Do Nothing does not receive promotional ambient uplift from ESF-2',
+    `signal_pp=${dnSignalPp}`
+  );
+
+  // TEST 34: Do Nothing → zero intervention-attributable waste delta (D2).
+  const dnWasteCf = evaluateCounterfactualBaseline(dnNoPromo, dnNoPromoCausal, { include_signals: true });
+  assert(
+    dnWasteCf.campaign_delta.waste_delta_units === 0 &&
+      dnWasteCf.predicted_with_intervention.waste_units ===
+        dnWasteCf.expected_without_intervention.waste_units &&
+      dnWasteCf.campaign_delta.intervention_indistinguishable_from_do_nothing,
+    'Test 34: Do Nothing produces zero intervention-attributable waste delta',
+    `waste_delta=${dnWasteCf.campaign_delta.waste_delta_units} pred=${dnWasteCf.predicted_with_intervention.waste_units} without=${dnWasteCf.expected_without_intervention.waste_units}`
+  );
+
+  // TEST 35: Non-zero intervention can still affect waste where the model supports clearance.
+  clearCampaignIntents();
+  const wastePromoDraft = createDefaultCampaignIntentDraft('tenant_uk_retail_01', 'sess_waste_promo');
+  const wastePromo = registerCampaignIntent({
+    ...wastePromoDraft,
+    campaign_intent: {
+      ...wastePromoDraft.campaign_intent,
+      intervention_posture: 'CONSIDER_PROMOTION',
+      provisional_mechanic: '20_percent_off',
+      provisional_discount_depth: 20
+    },
+    audience_market: {
+      ...wastePromoDraft.audience_market,
+      timing_mode: 'KNOWN_DATES',
+      planned_start: '2026-08-20T00:00:00.000Z',
+      planned_end: '2026-08-27T00:00:00.000Z'
+    }
+  });
+  const wastePromoCausal = evaluateCausalDemandContribution(wastePromo, { include_signals: false });
+  const wastePromoCf = evaluateCounterfactualBaseline(wastePromo, wastePromoCausal, {
+    include_signals: false
+  });
+  assert(
+    wastePromoCausal.intervention_uplift_pp > 0 &&
+      wastePromoCf.campaign_delta.waste_delta_units < 0 &&
+      wastePromoCf.predicted_with_intervention.waste_units <
+        wastePromoCf.expected_without_intervention.waste_units &&
+      wastePromoCausal.reconciliation_ok,
+    'Test 35: Stated promotion with positive intervention uplift still reduces waste vs counterfactual',
+    `interv_pp=${wastePromoCausal.intervention_uplift_pp} waste_delta=${wastePromoCf.campaign_delta.waste_delta_units}`
+  );
+
+  // TEST 36: CDI-02 attribution remains reconciled after D1/D2 corrections.
+  assert(
+    dnNoPromoCausal.reconciliation_ok &&
+      wastePromoCausal.reconciliation_ok &&
+      Math.abs(dnNoPromoCausal.reconciled_sum_pp - dnNoPromoCausal.total_predicted_uplift_pp) < 0.005 &&
+      Math.abs(wastePromoCausal.reconciled_sum_pp - wastePromoCausal.total_predicted_uplift_pp) < 0.005,
+    'Test 36: CDI-02 attribution remains reconciled (Do Nothing + stated promotion)'
   );
 
   console.log('\n====================================================');

@@ -77,8 +77,13 @@ function validateSignalSimulationContext(context) {
         errors.push('Missing required field: decision_state_id');
     if (typeof context.decision_state_version !== 'number')
         errors.push('Missing required field: decision_state_version');
-    if (typeof context.promotion_lift !== 'number')
-        errors.push('Missing required field: promotion_lift');
+    // Absent/undefined may be defaulted by the simulator (→ 20). Explicit 0 is a valid value
+    // and must not be rejected here — callers that mean "no promotional pressure" pass 0.
+    if (context.promotion_lift !== undefined &&
+        context.promotion_lift !== null &&
+        typeof context.promotion_lift !== 'number') {
+        errors.push('Invalid field: promotion_lift must be a number when provided');
+    }
     return {
         valid: errors.length === 0,
         errors

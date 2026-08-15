@@ -249,10 +249,16 @@ function buildTrajectory(
   label: DemandTrajectoryPoint['label'],
   indexPct: number,
   confidence: number,
-  unitContributionGbp: number = UNIT_CONTRIBUTION_GBP
+  unitContributionGbp: number = UNIT_CONTRIBUTION_GBP,
+  /**
+   * Intervention clearance applies only when the causal model attributes positive
+   * intervention uplift — never because the trajectory *label* says PREDICTED_*.
+   * Do Nothing at the same index as the counterfactual must share the same waste.
+   */
+  applyInterventionClearance: boolean = false
 ): DemandTrajectoryPoint {
   const volume = Math.round(BASE_WEEKLY_UNITS * (indexPct / 100));
-  const wasteFactor = label === 'PREDICTED_WITH_INTERVENTION' && indexPct > 100 ? 0.92 : 1;
+  const wasteFactor = applyInterventionClearance && indexPct > 100 ? 0.92 : 1;
   return {
     label,
     volume_units: volume,
@@ -510,11 +516,15 @@ export function evaluateCounterfactualBaseline(
   // without — without discarding the ambient movement.
   const predictedIndex = withoutIndex + causalResult.intervention_uplift_pp;
   const mechanic = resolveStatedMechanic(campaign);
+  // Waste clearance is causal, not label-derived: only positive intervention uplift may
+  // apply the 0.92 factor. Identical indices (Do Nothing) ⇒ identical waste.
+  const applyInterventionClearance = causalResult.intervention_uplift_pp > 0;
   const predicted = buildTrajectory(
     'PREDICTED_WITH_INTERVENTION',
     predictedIndex,
     posture === 'UNDECIDED' ? 72 : 88,
-    unitContributionFor(mechanic.discount_depth, mechanic.mechanic_attributed)
+    unitContributionFor(mechanic.discount_depth, mechanic.mechanic_attributed),
+    applyInterventionClearance
   );
 
   const baseline: CounterfactualBaseline = {
