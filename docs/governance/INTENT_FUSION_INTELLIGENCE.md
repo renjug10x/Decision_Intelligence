@@ -72,4 +72,21 @@ In Campaign Decision Intelligence, `CommercialIntent` evolves into a rich **`Dec
 - **Assumptions & Reconsideration Triggers:** Explicit contextual conditions (e.g. weather stability, supplier SLA headroom).
 
 ### 6.2 Decision Half-Life Signal Tracking
-Recommendations carry a **Decision Half-Life** duration (e.g. `36 hours`). Intent Fusion monitors observed Enterprise Signals (`ESF-1`/`ESF-2`). If key assumptions deviate beyond threshold limits, Intent Fusion emits a `RECOMMENDATION_AGEING` or `RE_SIMULATION_REQUIRED` signal to Shared Decision State.
+
+**Decision Half-Life describes how the evidential basis of a decision weakens or remains valid as
+assumptions and signals evolve. In the current architecture it is represented through validity
+states and evidence-triggered reassessment. Quantitative duration is unavailable until calibrated
+temporal evidence exists.**
+
+Decisions therefore carry **no** duration, countdown, expiry estimate or decay curve. Validity is
+reported as one of `STABLE`, `WATCH`, `DEGRADED`, `REASSESS_REQUIRED` or `INDETERMINATE`, derived
+from named assumptions and evidence-based triggers. `STABLE` requires positive supporting evidence;
+`INDETERMINATE` represents insufficient evidence and must never collapse into `STABLE`.
+
+Intent Fusion monitors observed Enterprise Signals (`ESF-1`/`ESF-2`) against the assumptions a
+contract declared. Signal movement may raise a reassessment state, but must never imply that the
+recommendation itself has changed, and must never supersede or withdraw a contract automatically —
+only a named person does that. Signal movement caused by a Shared Decision State parameter change is
+scenario-driven rather than world-driven and is reported as such.
+
+Authoritative semantics: `docs/reports/COGNIX_CDI_07A_DECISION_CONTRACT_DESIGN_GATE.md` §5–§7.

@@ -131,17 +131,30 @@ Journey Telemetry Records SCENARIO_CHANGED Event
 
 ---
 
-## 8. Campaign Decision Contract & Outcome Frontier Integration
+## 8. Campaign Decision Contract Integration
+
+**Ownership boundary (authoritative).** Shared Decision State stores a **reference only**. It does
+not hold, mirror, derive or interpret decision-contract content. `CDI-07A` exclusively owns
+`DecisionContract` content, assumptions, validity, triggers and Decision Half-Life semantics.
 
 ### 8.1 Active Decision Contract Binding
-Shared Decision State binds to the active `DecisionContract`:
-- `contract_ref`: Unique reference ID (`ctr_<uuid>`).
-- `selected_strategy_play`: Active frontier strategy (`growth`, `contribution`, `waste_reduction`, `balanced`).
-- `counterfactual_run_rate`: Unadjusted baseline run-rate.
-- `targeted_micro_markets`: Array of targeted store cohort IDs (`coh_nw_01`, `coh_urban_suburban`).
-- `decision_half_life`: Remaining validity duration (hours).
+Shared Decision State binds to the active `DecisionContract` through one additive optional field:
 
-### 8.2 Extended Commands
-- `SET_STRATEGY_PLAY`: Switches Pareto frontier selection.
-- `UPDATE_COUNTERFACTUAL_BASELINE`: Recalculates true incremental uplift compared to counterfactual trajectory.
-- `TRIGGER_CAMPAIGN_PREMORTEM`: Evaluates campaign resilience against failure modes in Decision Ripple.
+- `decision_contract_ref?: string` — the reference to the active contract.
+
+No frontier selection, counterfactual run-rate, micro-market cohort set, validity state or duration
+is stored on, mirrored into, or derived by Shared Decision State. A reader that needs contract
+content resolves it from the CDI-07A contract domain.
+
+### 8.2 Extended Command
+- `REGISTER_DECISION_CONTRACT`: Sets `decision_contract_ref`, following the existing
+  `REGISTER_CAMPAIGN_INTENT` pattern. Registration of the **same** `decision_contract_ref` is
+  **idempotent**: it must not increment `state_version`, must not append a `history` record, and must
+  not produce derived-impact recalculation. Only a change of reference is a state transition.
+
+`calculateDerivedImpacts` is **not** extended. A decision contract changes no scenario parameter and
+therefore no derived impact.
+
+### 8.3 Decision Half-Life
+Decision Half-Life is not a Shared Decision State concern and holds no field here. See
+`docs/reports/COGNIX_CDI_07A_DECISION_CONTRACT_DESIGN_GATE.md` §5 for its authoritative semantics.

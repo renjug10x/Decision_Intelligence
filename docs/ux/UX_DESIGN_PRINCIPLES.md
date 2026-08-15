@@ -158,6 +158,8 @@ Decision Readiness is never reduced to a static badge or generic AI text. It fol
 - **Tier 2 (Progressively Disclosed Evidence):** Interactive drawer exposing 6-dimension evaluation breakdown (*Commercial*, *Demand*, *Operational*, *Context*, *Customer*, *Strategic*) with evidence provenance.
 
 ### 5.6 Decision Half-Life UX: Compact Validity Indicator → Validity Evidence
-Decision Half-Life is never implemented as a superficial countdown timer. It follows a signal-driven pattern:
-- **Tier 1 (Compact Indicator):** Validity status (e.g. `Valid (Est. 36h remaining)` | `Re-Simulation Recommended`).
-- **Tier 2 (Progressively Disclosed Evidence):** Signal volatility drawer showing specific assumption drifts (e.g., weather shift +3.2°C, competitor price change -5%) triggering recommendation decay.
+Decision Half-Life is never implemented as a countdown timer, expiry estimate or duration. It follows an evidence-driven pattern:
+- **Tier 1 (Compact Indicator):** Validity state only — `STABLE` | `WATCH` | `DEGRADED` | `REASSESS_REQUIRED` | `INDETERMINATE`. No hours, no percentage remaining, no progress bar, no clock, no decay animation. `INDETERMINATE` means insufficient evidence and is rendered distinctly, never as a fifth severity step and never collapsed into `STABLE`.
+- **Tier 2 (Progressively Disclosed Evidence):** Assumption and trigger drawer showing each declared assumption, the value it held when the decision was resolved, and which triggers fired, did not fire, or could not be assessed — with the specific signal drifts behind any fired trigger (e.g. weather shift +3.2°C, competitor price change −5%) and whether that movement was scenario-driven or world-driven.
+
+Quantitative duration is unavailable until calibrated temporal evidence exists, and its absence is shown rather than filled. Authoritative semantics: `docs/reports/COGNIX_CDI_07A_DECISION_CONTRACT_DESIGN_GATE.md` §5.

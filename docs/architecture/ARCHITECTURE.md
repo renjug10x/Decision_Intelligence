@@ -153,6 +153,6 @@ Campaign Decision Intelligence answers five fundamental retail decision question
 9. **Multi-Objective Outcome Frontier:** Evaluates Pareto-efficient strategy trade-offs (Maximum Growth, Maximum Contribution, Maximum Waste Reduction, Balanced).
 10. **AI-Generated Competing Strategies:** Generates Growth Play, Margin-Protected Play, Waste-Reduction Play, Customer-Acquisition Play, Scenario 0 (Do Nothing), and Non-Promotion Alternatives.
 11. **Decision Contract & Intent Fusion:** Reconciles Statistical Forecast + Commercial Intent + Observed Signals + Contextual Factors + Operational Constraints $\rightarrow$ Contextualised Demand Outlook.
-12. **Decision Half-Life:** Tracks recommendation validity duration, signal volatility, and assumption sensitivity decay.
+12. **Decision Half-Life:** Describes how the evidential basis of a decision weakens or remains valid as assumptions and signals evolve. Represented through validity states (STABLE, WATCH, DEGRADED, REASSESS_REQUIRED, INDETERMINATE) and evidence-triggered reassessment. No duration, countdown, expiry or decay curve — quantitative duration is unavailable until calibrated temporal evidence exists.
 13. **Campaign Pre-Mortem:** Identifies failure modes, likelihood, impact, and resilience mitigations connected to Decision Ripple.
 14. **Closed Learning Loop:** Closes the operational loop (`Prediction → Decision → Execution → Observation → Outcome Comparison → Learning → Memory → Future Decision`).

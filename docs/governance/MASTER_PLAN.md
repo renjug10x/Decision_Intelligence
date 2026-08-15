@@ -321,10 +321,12 @@ A transformational decision capability discovering whether, what, where, when, a
   - *Integration Dependencies:* `CDI-04` (`DecisionReadinessAssessment`).
   - *Enhancement Dependencies:* Gemini AI narrative synthesis wrapper (out of scope for core frontier; none used).
   - *Owner rulings:* U1 (ARF-A only); U4 (non-promotion presented not ranked).
-- **CDI-07A — Decision Contract & Decision Half-Life:** Rich `DecisionContract` schema evolution, Decision Half-Life duration tracking, and signal volatility triggers monitoring recommendation validity against `ESF-1`/`ESF-2`/`ESF-3` signals.
+- **CDI-07A — Decision Contract & Decision Half-Life [DESIGN FROZEN]:** Immutable `DecisionContract` binding the exact decision basis by reference, digest and verbatim snapshot; explicit assumptions and reconsideration triggers; and validity assessment against `ESF-1`/`ESF-2` signals. Decision Half-Life describes how the evidential basis of a decision weakens or remains valid as assumptions and signals evolve, represented through validity states (`STABLE`, `WATCH`, `DEGRADED`, `REASSESS_REQUIRED`, `INDETERMINATE`) and evidence-triggered reassessment. Quantitative duration is unavailable until calibrated temporal evidence exists — no countdown, expiry or decay curve.
   - *Hard Dependencies:* `CDI-01` (`CampaignIntent`), `CDI-06` (`OutcomeFrontier`).
-  - *Integration Dependencies:* `WP10-C` (Shared Decision State).
+  - *Integration Dependencies:* `WP10-C` (Shared Decision State) — reference only, via `decision_contract_ref` and an idempotent `REGISTER_DECISION_CONTRACT`.
   - *Enhancement Dependencies:* `ESF-1`/`ESF-2` signal feeds.
+  - *Owner rulings:* W1 (minimal additive WP10-C reference binding); W2 (validity states, no quantitative duration); decision-basis integrity (immutable content-derived `decision_basis_digest`); both creation routes preserved, `CHOICE_REQUIRED` never silently contracts.
+  - *Design gate:* `docs/reports/COGNIX_CDI_07A_DECISION_CONTRACT_DESIGN_GATE.md`.
 - **CDI-07B — Campaign Pre-Mortem & Closed Learning Loop:** Sub-slice internal evidence gates (`CDI-07B.1` Pre-Mortem Resilience, `CDI-07B.2` Prediction vs Reality Comparison, `CDI-07B.3` Enterprise Memory/Learning Integration).
   - *Hard Dependencies:* `CDI-07A` (`DecisionContract`), `WP10-D` (`cognix-learning`).
   - *Integration Dependencies:* `ESF-3` (External Signal Connectors).

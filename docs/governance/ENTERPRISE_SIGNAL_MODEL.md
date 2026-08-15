@@ -138,9 +138,23 @@ Campaign Decision Intelligence extends the taxonomy to capture contextual signal
 - `PAYDAY_CALENDAR_EFFECT`
 - `DEMOGRAPHIC_MISSION_SHIFT`
 
-### 7.2 Decision Half-Life & Volatility Signals
-- `RECOMMENDATION_HALF_LIFE_DECAY`
-- `ASSUMPTION_SENSITIVITY_BREACH`
-- `SIGNAL_VOLATILITY_SURGE`
+### 7.2 Decision Validity & Volatility — no signal types are added
 
-Intent Fusion monitors these signals against active `DecisionContract` assumptions. If volatility triggers a threshold breach, a `RE_SIMULATION_RECOMMENDED` signal is published to `cognix-decision`.
+Three signal types were previously reserved here for `CDI-07A`: `RECOMMENDATION_HALF_LIFE_DECAY`,
+`ASSUMPTION_SENSITIVITY_BREACH` and `SIGNAL_VOLATILITY_SURGE`. `ESF-3` correctly declined to absorb
+them, and `CDI-07A` has now ruled that **none of the three is added**. `CanonicalSignalType` is not
+widened.
+
+| Reserved type | Ruling |
+| --- | --- |
+| `RECOMMENDATION_HALF_LIFE_DECAY` | Not added. It names a decay quantity that does not exist — quantitative duration is unavailable until calibrated temporal evidence exists. Adding the type would create a slot demanding to be filled |
+| `ASSUMPTION_SENSITIVITY_BREACH` | Not added. Fully expressed by a fired `CDI-07A` decision trigger on a load-bearing assumption. A second representation would be a competing taxonomy |
+| `SIGNAL_VOLATILITY_SURGE` | Not added. Volatility is expressed as a fired trigger with its movement attribution. A surge type would carry an implied magnitude with no calibration |
+
+Signal movement is instead evaluated against the assumptions an active `DecisionContract` declared,
+producing a validity state and, where warranted, a request that a person reassess. **No signal
+publishes a re-simulation instruction, and no signal supersedes or withdraws a contract
+automatically** — only a named person does that. Movement caused by a Shared Decision State
+parameter change is scenario-driven rather than world-driven and is reported as such.
+
+Authoritative semantics: `docs/reports/COGNIX_CDI_07A_DECISION_CONTRACT_DESIGN_GATE.md` §5–§7.
