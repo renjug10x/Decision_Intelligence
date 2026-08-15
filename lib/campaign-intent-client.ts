@@ -170,3 +170,53 @@ export async function projectDecisionTimelineClient(params: {
     return null;
   }
 }
+
+export async function evaluateOutcomeFrontierClient(params: {
+  tenant_id?: string;
+  session_id?: string;
+  campaign_intent_id?: string;
+  evaluation_timestamp?: string;
+  economic_tolerance?: {
+    max_contribution_sacrifice_gbp: number;
+    rationale: string;
+    declared_by: string;
+    objective_basis: string;
+  };
+  minimum_attributable_uplift_pp?: number;
+  minimum_attributable_uplift_declared_by?: string;
+  resolved_temporal_uplift_pp?: number;
+  opportunity_window_id?: string;
+}): Promise<any | null> {
+  try {
+    const res = await fetch('/api/v1/campaigns/outcome-frontier', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenant_id: params.tenant_id || TENANT,
+        session_id: params.session_id || SESSION,
+        campaign_intent_id: params.campaign_intent_id,
+        ...(params.evaluation_timestamp
+          ? { evaluation_timestamp: params.evaluation_timestamp }
+          : {}),
+        ...(params.economic_tolerance ? { economic_tolerance: params.economic_tolerance } : {}),
+        ...(typeof params.minimum_attributable_uplift_pp === 'number'
+          ? {
+              minimum_attributable_uplift_pp: params.minimum_attributable_uplift_pp,
+              minimum_attributable_uplift_declared_by: params.minimum_attributable_uplift_declared_by
+            }
+          : {}),
+        ...(typeof params.resolved_temporal_uplift_pp === 'number'
+          ? {
+              resolved_temporal_uplift_pp: params.resolved_temporal_uplift_pp,
+              opportunity_window_id: params.opportunity_window_id
+            }
+          : {})
+      })
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.data || null;
+  } catch {
+    return null;
+  }
+}

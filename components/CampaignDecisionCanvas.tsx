@@ -27,8 +27,10 @@ import {
   evaluateCampaignDecisionClient,
   discoverCampaignOpportunityClient,
   evaluateCampaignReadinessClient,
-  projectDecisionTimelineClient
+  projectDecisionTimelineClient,
+  evaluateOutcomeFrontierClient
 } from '@/lib/campaign-intent-client';
+import { SCENARIO_ZERO_FRAMING } from '@/packages/contracts/src/campaign-frontier-model';
 import { trackJourneyEvent } from '@/lib/journey-client';
 
 interface CampaignDecisionCanvasProps {
@@ -66,7 +68,7 @@ const AREA_META: Record<
 };
 
 const FUTURE_LAYERS = [
-  { id: 'CDI-06+', label: 'Outcome Frontier, Half-Life & Learning' }
+  { id: 'CDI-07+', label: 'Half-Life, Pre-Mortem & Learning' }
 ];
 
 /**
@@ -223,6 +225,10 @@ export default function CampaignDecisionCanvas({
   const [timeline, setTimeline] = useState<any | null>(null);
   const [projecting, setProjecting] = useState(false);
   const [timelineTier, setTimelineTier] = useState(1);
+  const [frontier, setFrontier] = useState<any | null>(null);
+  const [evaluatingFrontier, setEvaluatingFrontier] = useState(false);
+  const [frontierDrawerOpen, setFrontierDrawerOpen] = useState(false);
+  const [selectedPlayId, setSelectedPlayId] = useState<string | null>(null);
 
   useEffect(() => {
     trackJourneyEvent({
@@ -446,6 +452,36 @@ export default function CampaignDecisionCanvas({
       return;
     }
     setTimeline(result);
+  };
+
+  const handleEvaluateFrontier = async () => {
+    setEvaluatingFrontier(true);
+    setError(null);
+    setFrontierDrawerOpen(false);
+    setSelectedPlayId(null);
+    const windowResolvable = intent.audience_market.timing_mode === 'FIND_BEST_WINDOW';
+    const resolvedPp = windowResolvable
+      ? opportunity?.opportunity_windows?.resolved_temporal_uplift_pp
+      : undefined;
+    const windowId = opportunity?.opportunity_windows?.recommended_window_id;
+    const result = await evaluateOutcomeFrontierClient({
+      tenant_id: intent.tenant_id,
+      session_id: intent.session_id,
+      campaign_intent_id: intent.campaign_intent_id,
+      ...(typeof resolvedPp === 'number'
+        ? { resolved_temporal_uplift_pp: resolvedPp, opportunity_window_id: windowId }
+        : {})
+    });
+    setEvaluatingFrontier(false);
+    if (!result) {
+      setError('CDI-06 outcome frontier evaluation failed.');
+      return;
+    }
+    setFrontier(result);
+    setFrontierDrawerOpen(true);
+    const plays = result.frontier?.plays || [];
+    const scenarioZero = plays.find((p: any) => p.play_kind === 'DO_NOTHING');
+    setSelectedPlayId(scenarioZero?.play_id || plays[0]?.play_id || null);
   };
 
   const advance = () => {
@@ -1653,7 +1689,300 @@ export default function CampaignDecisionCanvas({
         )}
       </section>
 
-      {/* Explicit non-implementation of CDI-06+ — locked teaser only */}
+      {/* Layer 6 — CDI-06 Outcome Frontier & Competing Strategies */}
+      <section
+        style={{
+          marginTop: 8,
+          marginBottom: 16,
+          padding: '18px 20px',
+          borderRadius: 12,
+          border: '1px solid var(--border)',
+          background: '#FFFFFF'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+              Layer 6 · CDI-06
+            </div>
+            <h2 style={{ margin: '0 0 6px', fontSize: '1.125rem', color: 'var(--text-primary)' }}>
+              Outcome Frontier & Competing Strategies
+            </h2>
+            <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)', maxWidth: 640 }}>
+              Compare admissible plays on two axes only — attributable volume uplift and contribution delta.
+              ARF-A ambient frame. No ranking, weights, or utilities.
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={evaluatingFrontier || !isRegistered}
+            onClick={handleEvaluateFrontier}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: isRegistered ? 'var(--curiosity-light)' : '#F1F5F9',
+              color: isRegistered ? 'var(--g10x-orange)' : 'var(--text-muted)',
+              fontWeight: 600,
+              fontSize: '0.75rem',
+              cursor: isRegistered ? 'pointer' : 'not-allowed',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {evaluatingFrontier ? 'Evaluating…' : isRegistered ? 'Evaluate frontier' : 'Register intent first'}
+          </button>
+        </div>
+
+        {!isRegistered && (
+          <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Lock size={13} /> Register Campaign Intent to unlock outcome frontier evaluation.
+          </div>
+        )}
+
+        {frontier?.frontier && (
+          <div style={{ display: 'grid', gap: 12, marginTop: 8 }}>
+            {(() => {
+              const f = frontier.frontier;
+              const selection = f.selection;
+              const dominanceByPlay = new Map<string, string[]>(
+                (f.dominance || []).map((d: any) => [d.play_id, d.dominated_by || []])
+              );
+              const orderedPlays = [...(f.plays || [])].sort((a: any, b: any) => {
+                if (a.play_kind === 'DO_NOTHING' && b.play_kind !== 'DO_NOTHING') return -1;
+                if (b.play_kind === 'DO_NOTHING' && a.play_kind !== 'DO_NOTHING') return 1;
+                return 0;
+              });
+              const activePlay =
+                orderedPlays.find((p: any) => p.play_id === selectedPlayId) || orderedPlays[0];
+              const excludedPlays = orderedPlays.filter(
+                (p: any) => p.admissibility && p.admissibility !== 'ADMISSIBLE'
+              );
+              const unavailableDims = Array.from(
+                new Map(
+                  orderedPlays
+                    .flatMap((p: any) => p.outcomes?.unavailable || [])
+                    .map((u: any) => [u.dimension_id, u])
+                ).values()
+              );
+
+              const selectionLabel =
+                selection?.status === 'SELECTED'
+                  ? 'SELECTED'
+                  : selection?.status === 'NO_ADMISSIBLE_PLAY'
+                    ? 'NO_ADMISSIBLE_PLAY'
+                    : selection?.status === 'CHOICE_REQUIRED'
+                      ? 'CHOICE_REQUIRED'
+                      : null;
+
+              return (
+                <>
+                  <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--curiosity-light)' }}>
+                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                      Frontier · {f.frontier_status}
+                      {selectionLabel ? ` · ${selectionLabel}` : ''}
+                    </div>
+                    {f.frontier_status === 'NOT_EMITTED' ? (
+                      <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                        Frontier not emitted
+                        {f.not_emitted_reason ? ` — ${f.not_emitted_reason}` : ''}.
+                      </div>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>
+                          {(f.axes || []).map((a: any) => a.axis_id).join(' · ')}
+                          {' · '}
+                          {(f.frontier_play_ids || []).length} on frontier · {orderedPlays.length} plays
+                        </div>
+                        {selection?.status === 'CHOICE_REQUIRED' && selection.open_trade_off && (
+                          <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            Open trade-off: {selection.open_trade_off}
+                          </div>
+                        )}
+                        {selection?.status === 'SELECTED' && selection.selected_play_id && (
+                          <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            Selected under declared constraints: {selection.selected_play_id}
+                            {selection.selection_basis ? ` (${selection.selection_basis})` : ''}
+                          </div>
+                        )}
+                        {selection?.status === 'NO_ADMISSIBLE_PLAY' && (
+                          <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            No admissible play remains under declared constraints.
+                          </div>
+                        )}
+                        <div style={{ marginTop: 8, fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
+                          Ambient frame ARF-A · Scenario 0 always shown · dominated plays stay visible
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  {f.frontier_status === 'EMITTED' && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setFrontierDrawerOpen(v => !v)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          background: 'transparent',
+                          border: 'none',
+                          padding: 0,
+                          cursor: 'pointer',
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          color: 'var(--g10x-orange)'
+                        }}
+                      >
+                        <ChevronRight
+                          size={14}
+                          style={{ transform: frontierDrawerOpen ? 'rotate(90deg)' : undefined }}
+                        />
+                        {frontierDrawerOpen ? 'Hide' : 'Show'} strategy comparison
+                      </button>
+
+                      {frontierDrawerOpen && (
+                        <div style={{ display: 'grid', gap: 12 }}>
+                          {/* Play rail — Scenario 0 always first */}
+                          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                            {orderedPlays.map((play: any) => {
+                              const isActive = play.play_id === activePlay?.play_id;
+                              const dominated = (dominanceByPlay.get(play.play_id) || []).length > 0;
+                              const excluded = play.admissibility && play.admissibility !== 'ADMISSIBLE';
+                              return (
+                                <button
+                                  key={play.play_id}
+                                  type="button"
+                                  onClick={() => setSelectedPlayId(play.play_id)}
+                                  style={{
+                                    padding: '8px 10px',
+                                    borderRadius: 8,
+                                    border: isActive
+                                      ? '1px solid var(--g10x-orange)'
+                                      : '1px solid var(--border)',
+                                    background: isActive ? 'var(--curiosity-light)' : '#F8FAFC',
+                                    color: 'var(--text-primary)',
+                                    fontSize: '0.75rem',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    textAlign: 'left',
+                                    maxWidth: 220
+                                  }}
+                                >
+                                  <div>{play.label}</div>
+                                  <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', fontWeight: 500, marginTop: 2 }}>
+                                    {play.play_kind}
+                                    {play.play_kind === 'DO_NOTHING' ? ' · Scenario 0' : ''}
+                                    {dominated ? ' · dominated' : ''}
+                                    {excluded ? ' · excluded' : ''}
+                                  </div>
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          {activePlay && (
+                            <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: '#F8FAFC' }}>
+                              <div style={{ fontSize: '0.8125rem', fontWeight: 650, color: 'var(--text-primary)', marginBottom: 6 }}>
+                                {activePlay.label}
+                              </div>
+                              {activePlay.play_kind === 'DO_NOTHING' && (
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 8, lineHeight: 1.45 }}>
+                                  {SCENARIO_ZERO_FRAMING}
+                                </div>
+                              )}
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 8 }}>
+                                {(activePlay.outcomes?.axes || []).map((axis: any) => (
+                                  <div key={axis.axis_id}>
+                                    <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                                      {axis.axis_id}
+                                    </div>
+                                    <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                                      {typeof axis.value === 'number' ? axis.value.toFixed(2) : axis.value}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                              {(dominanceByPlay.get(activePlay.play_id) || []).length > 0 && (
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
+                                  dominated_by: {(dominanceByPlay.get(activePlay.play_id) || []).join(', ')}
+                                </div>
+                              )}
+                              {activePlay.admissibility && activePlay.admissibility !== 'ADMISSIBLE' && (
+                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
+                                  {activePlay.admissibility}
+                                  {activePlay.exclusion_reason ? ` — ${activePlay.exclusion_reason}` : ''}
+                                </div>
+                              )}
+                              {activePlay.economics_completeness && (
+                                <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
+                                  Economics: {activePlay.economics_completeness}
+                                  {activePlay.confidence_band ? ` · band ${activePlay.confidence_band}` : ''}
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {excludedPlays.length > 0 && (
+                            <div style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#FFFFFF' }}>
+                              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
+                                Excluded plays
+                              </div>
+                              {excludedPlays.map((play: any) => (
+                                <div key={`ex_${play.play_id}`} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                                  <strong>{play.label}</strong> · {play.admissibility}
+                                  {play.exclusion_reason ? ` — ${play.exclusion_reason}` : ''}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {unavailableDims.length > 0 && (
+                            <div style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#FFFFFF' }}>
+                              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
+                                Dimensions · NOT_AVAILABLE
+                              </div>
+                              {unavailableDims.map((dim: any) => (
+                                <div key={dim.dimension_id} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
+                                  <div>
+                                    <strong>{dim.dimension_id}</strong> · {dim.availability}
+                                  </div>
+                                  {dim.required_authoritative_input && (
+                                    <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                                      Required: {dim.required_authoritative_input.field}
+                                      {dim.required_authoritative_input.grain
+                                        ? ` (${dim.required_authoritative_input.grain})`
+                                        : ''}
+                                      {dim.required_authoritative_input.why_required
+                                        ? ` — ${dim.required_authoritative_input.why_required}`
+                                        : ''}
+                                    </div>
+                                  )}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          {selection?.eliminations?.length > 0 && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                              Constraint eliminations:{' '}
+                              {selection.eliminations
+                                .map((e: any) => `${e.play_id} by ${e.constraint_id}`)
+                                .join(' · ')}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </>
+              );
+            })()}
+          </div>
+        )}
+      </section>
+
+      {/* Explicit non-implementation of CDI-07+ — locked teaser only */}
       <section
         style={{
           marginTop: 8,
@@ -1664,7 +1993,7 @@ export default function CampaignDecisionCanvas({
         }}
       >
         <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
-          Next decision layers (not in CDI-05)
+          Next decision layers (not in CDI-06)
         </div>
         <div style={{ display: 'grid', gap: 8 }}>
           {FUTURE_LAYERS.map(layer => (

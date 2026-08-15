@@ -203,6 +203,13 @@ function buildPoints(
   });
 }
 
+/** CDI-05 decomposition builder — exported for CDI-06 reuse (no second taxonomy). */
+export function buildDemandDecompositionFromEvaluation(
+  evaluation: CampaignEvaluationResponse
+): DemandDecomposition {
+  return buildDecomposition(evaluation);
+}
+
 function buildDecomposition(evaluation: CampaignEvaluationResponse): DemandDecomposition {
   const causal = evaluation.causal;
   const rows: DecompositionRow[] = causal.drivers.map(d => ({

@@ -316,10 +316,11 @@ A transformational decision capability discovering whether, what, where, when, a
   - *Owner rulings:* U1 (`FLAT_RATE_IDENTITY`); U2 (Revenue unavailable until realised unit price); U3 (`POST_CAMPAIGN` empty); U4 (band-only confidence on primary surface).
   - *Evidence:* `docs/reports/COGNIX_CDI_05_DECISION_TIMELINE_DESIGN_GATE.md` + `COGNIX_CDI_05_DECISION_TIMELINE_REPORT.md`; ADR-032; CDI-05 68/68 with CDI-04 49/49, CDI-03 31/31, CDI-02 30/30, CDI-01 21/21 unchanged. Independently reconciled 2026-08-15 — six defects corrected (post-campaign envelope assertion, two pre-campaign lens fabrications, RJ3 artefact binding, an unfalsifiable guard, undrawn chart obligations), each with a permanent regression test.
   - *Naming note:* Artefact is `DecisionTimelineProjection` (planning/MASTER_PLAN earlier draft name `DemandTimelineProjection` superseded — docs reconciliation only).
-- **CDI-06 — Multi-Objective Outcome Frontier & AI Competing Strategies:** Pareto-efficient strategy trade-off engine and deterministic AI-generated competing plays (Scenario 0 Do-Nothing, Non-Promotion Stock Reallocation).
+- **CDI-06 — Multi-Objective Outcome Frontier & Competing Strategies [COMPLETED]:** Two-axis Pareto frontier over real CDI-02 evaluations (`OutcomeFrontier`). ARF-A `SIGNALS_EXCLUDED` only; ARF-B contracted `UNAVAILABLE`. Scenario 0 mandatory at (0, £0). Non-promotion `PRESENTED_NOT_RANKED`. Selection via declared constraints only — more than one survivor ⇒ `CHOICE_REQUIRED`. No weights, utilities, or LLM ranking.
   - *Hard Dependencies:* `CDI-02` (`CausalDemandContribution`), `CDI-05` (`DemandDecomposition`).
   - *Integration Dependencies:* `CDI-04` (`DecisionReadinessAssessment`).
-  - *Enhancement Dependencies:* Gemini AI narrative synthesis wrapper.
+  - *Enhancement Dependencies:* Gemini AI narrative synthesis wrapper (out of scope for core frontier; none used).
+  - *Owner rulings:* U1 (ARF-A only); U4 (non-promotion presented not ranked).
 - **CDI-07A — Decision Contract & Decision Half-Life:** Rich `DecisionContract` schema evolution, Decision Half-Life duration tracking, and signal volatility triggers monitoring recommendation validity against `ESF-1`/`ESF-2`/`ESF-3` signals.
   - *Hard Dependencies:* `CDI-01` (`CampaignIntent`), `CDI-06` (`OutcomeFrontier`).
   - *Integration Dependencies:* `WP10-C` (Shared Decision State).
@@ -335,7 +336,7 @@ A transformational decision capability discovering whether, what, where, when, a
 - **Status:** COMPLETED (provider-neutral connector contract delivered).
 - **Role:** `ESF-3 — External Signal Connector Contract` remains provider-neutral and is NOT deleted, absorbed, or superseded. It defines connector contracts for planning, commerce, weather, events, competitive intel, operational telemetry, and demographic sources.
 - **CDI Dependency:** CDI work packages `CDI-01` through `CDI-06` use synthetic `ESF-1`/`ESF-2` signal feeds during lab development. `CDI-07B` binds production signal feeds from `ESF-3` for real-world outcome comparison.
-- **Successor:** `CDI-01`–`CDI-05` [COMPLETED]. Next CDI package: `CDI-06` (HARD on CDI-02 + CDI-05 `DemandDecomposition`; INTEGRATION on CDI-04; ENHANCEMENT on Gemini narrative wrapper). `ESF-4` remains parallel-eligible under separate file ownership.
+- **Successor:** `CDI-01`–`CDI-06` [COMPLETED]. Next CDI package: `CDI-07A` (HARD on CDI-01 + CDI-06 `OutcomeFrontier`; INTEGRATION on WP10-C; ENHANCEMENT on ESF-1/ESF-2). `ESF-4` remains parallel-eligible under separate file ownership.
 
 ---
 

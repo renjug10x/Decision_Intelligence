@@ -1,11 +1,12 @@
 openapi: 3.1.0
 info:
-  title: CogniX Campaign Decision Intelligence API (CDI-01 … CDI-05)
+  title: CogniX Campaign Decision Intelligence API (CDI-01 … CDI-06)
   description: >-
     OpenAPI 3.1 specification for Campaign Decision Canvas (CDI-01), Counterfactual/Causal
     evaluation (CDI-02), Opportunity Window / Micro-Market discovery (CDI-03),
-    Decision Readiness & Resilience (CDI-04), and Decision Timeline / Demand Decomposition (CDI-05).
-  version: 1.4.0
+    Decision Readiness & Resilience (CDI-04), Decision Timeline / Demand Decomposition (CDI-05),
+    and Outcome Frontier & Competing Strategies (CDI-06).
+  version: 1.5.0
 servers:
   - url: http://localhost:3000
     description: CogniX Web BFF Gateway
@@ -268,6 +269,31 @@ paths:
           description: Decision timeline projection + demand decomposition
         '400':
           description: Rejection RJ1–RJ5 or reconciliation failure
+        '404':
+          description: campaign_intent_id not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/outcome-frontier:
+    post:
+      summary: Outcome Frontier & Competing Strategies (CDI-06)
+      description: >-
+        Multi-objective strategy comparison under ARF-A (SIGNALS_EXCLUDED). Exactly two
+        Pareto axes — attributable_volume_uplift_pp and contribution_delta_gbp. Generates
+        competing plays (including Scenario 0 / Do Nothing), evaluates each through CDI-02,
+        computes dominance and frontier membership, and applies declared-constraint selection
+        only. No weights, utilities, or ranking language. play_grid_override /
+        depth_grid_override / policy_overrides are forbidden (RJ-G1).
+      operationId: evaluateOutcomeFrontier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FrontierEvaluationRequest'
+      responses:
+        '200':
+          description: Outcome frontier evaluation (plays, dominance, selection)
+        '400':
+          description: Rejection RJ-G1 (forbidden overrides) or invalid request
         '404':
           description: campaign_intent_id not found, or not visible to the supplied tenant/session
 
@@ -610,6 +636,56 @@ components:
           nullable: true
         envelope_profile_override:
           description: Forbidden — RJ4
+          nullable: true
+
+    FrontierEvaluationRequest:
+      type: object
+      required: [tenant_id, session_id, campaign_intent_id]
+      description: >-
+        CDI-06 frontier evaluation request. Ambient frame is ARF-A only. Exactly two
+        admitted Pareto axes. Forbidden override fields trigger RJ-G1.
+      properties:
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        campaign_intent_id:
+          type: string
+        evaluation_timestamp:
+          type: string
+          format: date-time
+          description: Caller-supplied for deterministic readiness scoring across plays
+        economic_tolerance:
+          type: object
+          description: Owner-declared contribution sacrifice limit (declared constraint)
+          properties:
+            max_contribution_sacrifice_gbp:
+              type: number
+              minimum: 0
+            rationale:
+              type: string
+            declared_by:
+              type: string
+            objective_basis:
+              type: string
+        minimum_attributable_uplift_pp:
+          type: number
+          description: CDI-06 local declared floor; requires minimum_attributable_uplift_declared_by
+        minimum_attributable_uplift_declared_by:
+          type: string
+        resolved_temporal_uplift_pp:
+          type: number
+          description: Optional CDI-03 temporal hook applied uniformly to all plays
+        opportunity_window_id:
+          type: string
+        play_grid_override:
+          description: Forbidden — presence triggers RJ-G1
+          nullable: true
+        depth_grid_override:
+          description: Forbidden — presence triggers RJ-G1
+          nullable: true
+        policy_overrides:
+          description: Forbidden — presence triggers RJ-G1
           nullable: true
 
     DemandTrajectoryPoint:
