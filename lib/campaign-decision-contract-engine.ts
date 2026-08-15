@@ -42,7 +42,7 @@ import {
   SIGNAL_EXCLUDED_FROM_DECISION_DISCLOSURE,
   SCENARIO_DRIVEN_MOVEMENT_DISCLOSURE,
   ATTRIBUTION_UNAVAILABLE_DISCLOSURE,
-  WORLD_DRIVEN_ADMISSIBLE_SOURCE_TYPE,
+  isWorldDrivenAdmissibleSourceType,
   SNAPSHOT_AUTHORITY_DISCLOSURE,
   DECISION_BASIS_DIGEST_INPUTS,
   canonicalJson,
@@ -80,11 +80,12 @@ export interface DecisionValidityArgs {
     delta_pct: number;
     decision_state_version: number;
     /**
-     * Gate §7.4 — provenance of the observation. Only `EXTERNAL_CONNECTOR` (an ESF-3 source
-     * independent of Shared Decision State) makes a WORLD_DRIVEN claim truthful. ESF-1/ESF-2
-     * re-simulation is deterministic from Shared Decision State and never qualifies.
+     * Gate §7.4 / CDI-07B X1 — provenance of the observation. WORLD_DRIVEN requires
+     * source_type ∈ OBSERVATION_INDEPENDENT_SOURCE_TYPES and synthetic_demo !== true.
      */
     source_type?: string;
+    /** X1 — synthetic provenance can never establish WORLD_DRIVEN. */
+    synthetic_demo?: boolean;
   }>;
 }
 
@@ -1166,23 +1167,27 @@ function evaluateTrigger(
       };
     }
 
-    // Gate §7.4 Asymmetry 2. A version change is our own parameter change — SCENARIO_DRIVEN.
-    // An unchanged version alone does NOT license a WORLD_DRIVEN claim: ESF-1/ESF-2 movement is
-    // computed deterministically from Shared Decision State, so with no observation source
-    // independent of it the honest verdict is ATTRIBUTION_UNAVAILABLE. WORLD_DRIVEN is reachable
-    // only through an ESF-3 external connector, which this contract publishes as an
-    // AWAITING_AUTHORITATIVE_SOURCE capability (WORLD_DRIVEN_SIGNAL_ATTRIBUTION).
+    // Gate §7.4 Asymmetry 2 + CDI-07B X1.
+    // Synthetic test is evaluated BEFORE and independently of the source-type test.
+    // A version change is our own parameter change — SCENARIO_DRIVEN.
+    // WORLD_DRIVEN requires non-synthetic + source_type ∈ OBSERVATION_INDEPENDENT_SOURCE_TYPES.
     let attribution: TriggerEvaluation['movement_attribution'] = 'ATTRIBUTION_UNAVAILABLE';
     const contractedVersion = signalRef.contracted_decision_state_version;
     const observedVersion =
       current_decision_state?.state_version ?? obs.decision_state_version;
-    if (
+    if (obs.synthetic_demo === true) {
+      attribution = 'ATTRIBUTION_UNAVAILABLE';
+    } else if (
       current_decision_state?.state_version !== undefined ||
       obs.decision_state_version !== undefined
     ) {
       if (observedVersion !== contractedVersion) {
         attribution = 'SCENARIO_DRIVEN';
-      } else if (obs.source_type === WORLD_DRIVEN_ADMISSIBLE_SOURCE_TYPE) {
+      } else if (
+        isWorldDrivenAdmissibleSourceType(obs.source_type, {
+          synthetic_demo: obs.synthetic_demo
+        })
+      ) {
         attribution = 'WORLD_DRIVEN';
       }
     }

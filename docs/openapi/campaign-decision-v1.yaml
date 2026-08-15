@@ -1,16 +1,19 @@
 openapi: 3.1.0
 info:
-  title: CogniX Campaign Decision Intelligence API (CDI-01 … CDI-07A)
+  title: CogniX Campaign Decision Intelligence API (CDI-01 … CDI-07B)
   description: >-
     OpenAPI 3.1 specification for Campaign Decision Canvas (CDI-01), Counterfactual/Causal
     evaluation (CDI-02), Opportunity Window / Micro-Market discovery (CDI-03),
     Decision Readiness & Resilience (CDI-04), Decision Timeline / Demand Decomposition (CDI-05),
-    Outcome Frontier & Competing Strategies (CDI-06), and Decision Contract & Decision Half-Life
-    (CDI-07A). Half-Life is an evidence-backed DecisionValidityState, not a duration; quantitative
-    half-life is NOT_AVAILABLE (AWAITING_AUTHORITATIVE_SOURCE). Decision contracts are immutable —
-    there is no PATCH on any decision-contract route. Validity is a POST computation at a
-    caller-supplied as_of and is never written back to the contract.
-  version: 1.6.0
+    Outcome Frontier & Competing Strategies (CDI-06), Decision Contract & Decision Half-Life
+    (CDI-07A), and Campaign Pre-Mortem, Prediction vs Reality & Closed Learning Loop (CDI-07B).
+    Half-Life is an evidence-backed DecisionValidityState, not a duration; quantitative
+    half-life is NOT_AVAILABLE (AWAITING_AUTHORITATIVE_SOURCE). CDI-07B publishes no SUCCESS/FAILURE
+    verdict vocabulary and does not produce a quantitative Decision Half-Life. Decision contracts
+    and pre-mortems are immutable — there is no PATCH on any decision-contract route. Validity and
+    prediction comparison are POST computations at a caller-supplied as_of and are never written
+    back to the contract.
+  version: 1.7.0
 servers:
   - url: http://localhost:3000
     description: CogniX Web BFF Gateway
@@ -513,6 +516,227 @@ paths:
           description: Missing required fields or RJ-C* rejection
         '404':
           description: DecisionContractNotFound
+
+  /api/v1/campaigns/decision-contract/{id}/pre-mortem:
+    post:
+      summary: Create Campaign Pre-Mortem (CDI-07B)
+      description: >-
+        Enumerates failure modes from declared contract evidence. Immutable once created.
+        No SUCCESS/FAILURE vocabulary. Orchestration only — no PATCH.
+      operationId: createCampaignPreMortem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, session_id, as_of]
+              properties:
+                tenant_id:
+                  type: string
+                session_id:
+                  type: string
+                as_of:
+                  type: string
+                  format: date-time
+                contract_digest:
+                  type: string
+                decision_state_derived_impacts:
+                  type: object
+                  description: Optional WP10-C derived impacts (STRUCTURAL grounding only)
+      responses:
+        '200':
+          description: CampaignPreMortem created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/CampaignPreMortem'
+        '400':
+          description: RJ-P* / RJ-R* rejection
+        '404':
+          description: DecisionContractNotFound
+    get:
+      summary: Get ACTIVE pre-mortem for contract (CDI-07B)
+      operationId: getCampaignPreMortem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: session_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ACTIVE CampaignPreMortem
+        '404':
+          description: PreMortemNotFound
+
+  /api/v1/campaigns/decision-contract/{id}/prediction-comparison:
+    post:
+      summary: Compare prediction to reality (CDI-07B)
+      description: >-
+        Recomputed on demand from supplied OutcomeObservation[] at caller-supplied as_of.
+        Never stored. Verdict is WITHIN_DECLARED_ENVELOPE | OUTSIDE_DECLARED_ENVELOPE |
+        INDETERMINATE — not SUCCESS/FAILURE. Quantitative Decision Half-Life is NOT_AVAILABLE.
+      operationId: assessPredictionComparison
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, session_id, as_of, observations]
+              properties:
+                tenant_id:
+                  type: string
+                session_id:
+                  type: string
+                as_of:
+                  type: string
+                  format: date-time
+                contract_digest:
+                  type: string
+                observations:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/OutcomeObservation'
+                decision_state:
+                  type: object
+                  properties:
+                    decision_state_id:
+                      type: string
+                    state_version:
+                      type: integer
+      responses:
+        '200':
+          description: PredictionOutcomeComparison (not persisted)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PredictionOutcomeComparison'
+        '400':
+          description: RJ-P* / RJ-R* rejection
+        '404':
+          description: DecisionContractNotFound
+
+  /api/v1/campaigns/decision-contract/{id}/learning-candidate:
+    post:
+      summary: Produce learning candidate (CDI-07B)
+      description: >-
+        Evaluates LE-1..LE-8 conjunction. LearningCase created only when eligible.
+        Ineligible candidates are retained with blocked_by. No pattern write path.
+      operationId: createLearningCandidate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, session_id, as_of]
+              properties:
+                tenant_id:
+                  type: string
+                session_id:
+                  type: string
+                as_of:
+                  type: string
+                  format: date-time
+                contract_digest:
+                  type: string
+                comparison:
+                  $ref: '#/components/schemas/PredictionOutcomeComparison'
+                observations:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/OutcomeObservation'
+                register_memory:
+                  type: boolean
+                  default: false
+                pattern_refs:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: LearningCandidate stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/LearningCandidate'
+        '400':
+          description: RJ-P* / RJ-L* rejection
+        '404':
+          description: DecisionContractNotFound
+
+  /api/v1/campaigns/learning-candidates:
+    get:
+      summary: List learning candidates for tenant/session (CDI-07B)
+      operationId: listLearningCandidates
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: session_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: contract_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: LearningCandidate list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LearningCandidate'
 
   /api/v1/campaigns/decision-contract/{id}/withdraw:
     post:
@@ -1255,3 +1479,88 @@ components:
           type: array
           items:
             type: string
+
+    CampaignPreMortem:
+      type: object
+      description: CDI-07B pre-mortem — immutable, superseded never edited
+      properties:
+        pre_mortem_id:
+          type: string
+        contract_id:
+          type: string
+        contract_digest:
+          type: string
+        failure_modes:
+          type: array
+          items:
+            type: object
+        status:
+          type: string
+          enum: [ACTIVE, SUPERSEDED]
+
+    OutcomeObservation:
+      type: object
+      description: CDI-07B bound ESF-3 lineage observation for prediction comparison
+      properties:
+        observation_id:
+          type: string
+        authority:
+          type: string
+          enum: [AUTHORITATIVE_EXTERNAL, SYNTHETIC_DEMONSTRATION, SCENARIO_DERIVED, UNATTRIBUTED]
+        delta_pct:
+          type: number
+        synthetic_demo:
+          type: boolean
+
+    PredictionOutcomeComparison:
+      type: object
+      description: >-
+        CDI-07B on-demand comparison. Not stored. verdict uses WITHIN_DECLARED_ENVELOPE |
+        OUTSIDE_DECLARED_ENVELOPE | INDETERMINATE — never SUCCESS/FAILURE.
+      properties:
+        comparison_id:
+          type: string
+        verdict:
+          type: string
+          enum: [WITHIN_DECLARED_ENVELOPE, OUTSIDE_DECLARED_ENVELOPE, INDETERMINATE]
+        comparisons:
+          type: array
+          items:
+            type: object
+            properties:
+              comparability:
+                type: string
+              predicted_basis:
+                type: string
+                enum: [ATTRIBUTABLE, GROSS, MODELLED_MONETARY]
+        not_a_decision_verdict_disclosure:
+          type: string
+
+    LearningCandidate:
+      type: object
+      description: CDI-07B learning eligibility artefact — retained even when ineligible
+      properties:
+        candidate_id:
+          type: string
+        eligibility:
+          type: object
+          properties:
+            eligible:
+              type: boolean
+            conditions:
+              type: array
+              items:
+                type: object
+                properties:
+                  condition_id:
+                    type: string
+                    enum: [LE-1, LE-2, LE-3, LE-4, LE-5, LE-6, LE-7, LE-8]
+                  met:
+                    type: boolean
+        blocked_by:
+          type: array
+          items:
+            type: string
+        learning_case:
+          type: object
+          description: Present only when eligibility.eligible is true

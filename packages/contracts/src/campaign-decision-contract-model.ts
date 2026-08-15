@@ -37,8 +37,10 @@ import {
 import {
   CanonicalSignalType,
   SignalEntityType,
+  SignalSourceType,
   SimulationPeriod
 } from './enterprise-signal-model';
+import { isObservationIndependentSourceType } from './external-signal-connector-model';
 import { CampaignIntent } from './campaign-intent-model';
 
 /**
@@ -502,10 +504,24 @@ export const ATTRIBUTION_UNAVAILABLE_DISCLOSURE =
   'scenario parameters. No observation source independent of Shared Decision State was available.';
 
 /**
- * Gate §7.4 — the only provenance that makes WORLD_DRIVEN attribution truthful at any baseline.
- * ESF-3 external connectors carry it; ESF-1/ESF-2 re-simulation never does.
+ * Gate §7.4 / CDI-07B X1 — provenances that may establish WORLD_DRIVEN when non-synthetic.
+ * Prefer OBSERVATION_INDEPENDENT_SOURCE_TYPES / isWorldDrivenAdmissibleSourceType.
+ * Retained as the historical single literal for EXTERNAL_CONNECTOR-only call sites.
  */
 export const WORLD_DRIVEN_ADMISSIBLE_SOURCE_TYPE = 'EXTERNAL_CONNECTOR';
+
+/**
+ * X1 — synthetic provenance can never establish WORLD_DRIVEN. Source-type test is independent
+ * and evaluated only after synthetic is ruled out.
+ */
+export function isWorldDrivenAdmissibleSourceType(
+  sourceType: string | undefined,
+  opts?: { synthetic_demo?: boolean }
+): boolean {
+  if (opts?.synthetic_demo === true) return false;
+  if (!sourceType) return false;
+  return isObservationIndependentSourceType(sourceType as SignalSourceType);
+}
 
 /** Snapshot authority statement (gate §2.6). */
 export const SNAPSHOT_AUTHORITY_DISCLOSURE =

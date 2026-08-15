@@ -34,12 +34,35 @@ import {
   createDecisionContractClient,
   assessDecisionValidityClient
 } from '@/lib/decision-contract-client';
+import {
+  createLearningCandidateClient,
+  createPreMortemClient,
+  fetchPreMortemClient,
+  runPredictionComparisonClient
+} from '@/lib/learning-loop-client';
 import { SCENARIO_ZERO_FRAMING } from '@/packages/contracts/src/campaign-frontier-model';
 import {
   DecisionResolution,
   NOT_A_PREDICTION_DISCLOSURE,
   QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT
 } from '@/packages/contracts/src/campaign-decision-contract-model';
+import {
+  type CampaignPreMortem,
+  type ConsequenceOrder,
+  type LearningCandidate,
+  type PredictionOutcomeComparison,
+  type QuantityComparison,
+  type ResilienceEvidence,
+  DERIVED_IMPACT_SCOPE_DISCLOSURE,
+  LEARNING_ELIGIBILITY_CONDITION_IDS,
+  NOT_A_DECISION_VERDICT_DISCLOSURE,
+  OBSERVED_COUNTERFACTUAL_REQUIRED_INPUT,
+  PATTERN_PROMOTION_REQUIRED_INPUT,
+  PATTERN_TELEMETRY_DISCLOSURE,
+  QUANTITATIVE_DECISION_HALF_LIFE_REQUIRED_INPUT,
+  SINGLE_CASE_DISCLOSURE,
+  SYNTHETIC_OBSERVATION_DISCLOSURE
+} from '@/packages/contracts/src/campaign-learning-loop-model';
 import { trackJourneyEvent } from '@/lib/journey-client';
 import {
   fetchCurrentDecisionState,
@@ -80,9 +103,20 @@ const AREA_META: Record<
   }
 };
 
-const FUTURE_LAYERS = [
-  { id: 'CDI-07B+', label: 'Pre-Mortem & Learning' }
+/** Later packages only — CDI-07B is Layer 8 on this canvas. */
+const FUTURE_LAYERS: Array<{ id: string; label: string }> = [];
+
+const CONSEQUENCE_ORDER_SEQUENCE: ConsequenceOrder[] = [
+  'FIRST_ORDER',
+  'SECOND_ORDER',
+  'THIRD_ORDER'
 ];
+
+const CONSEQUENCE_ORDER_LABEL: Record<ConsequenceOrder, string> = {
+  FIRST_ORDER: 'First-order consequences',
+  SECOND_ORDER: 'Second-order consequences',
+  THIRD_ORDER: 'Third-order consequences'
+};
 
 /** Fixed demo reference instant — never Date.now() for decision semantics (C-INV-9). */
 const CANVAS_EVALUATION_TIMESTAMP = '2026-08-15T12:00:00.000Z';
@@ -120,6 +154,23 @@ function humanResolvablePlayIds(frontier: any): string[] {
     if (!ids.includes(p.play_id)) ids.push(p.play_id);
   }
   return ids.sort((a, b) => a.localeCompare(b));
+}
+
+function resilienceForFailureMode(
+  preMortem: CampaignPreMortem,
+  failureModeId: string
+): ResilienceEvidence[] {
+  return preMortem.resilience.filter(r => r.failure_mode_id === failureModeId);
+}
+
+function orderEligibilityConditions(candidate: LearningCandidate) {
+  return LEARNING_ELIGIBILITY_CONDITION_IDS.map(id =>
+    candidate.eligibility.conditions.find(c => c.condition_id === id)
+  ).filter(Boolean) as LearningCandidate['eligibility']['conditions'];
+}
+
+function comparisonIsLikeForLike(comparison: QuantityComparison): boolean {
+  return comparison.comparability === 'LIKE_FOR_LIKE';
 }
 
 function validityStateStyle(state: string): CSSProperties {
@@ -315,6 +366,13 @@ export default function CampaignDecisionCanvas({
   const [humanResolvedBy, setHumanResolvedBy] = useState('');
   const [humanResolutionBasis, setHumanResolutionBasis] = useState('');
   const [humanSelectedPlayId, setHumanSelectedPlayId] = useState('');
+  const [preMortem, setPreMortem] = useState<CampaignPreMortem | null>(null);
+  const [predictionComparison, setPredictionComparison] = useState<PredictionOutcomeComparison | null>(
+    null
+  );
+  const [learningCandidate, setLearningCandidate] = useState<LearningCandidate | null>(null);
+  const [loadingLayer8, setLoadingLayer8] = useState(false);
+  const [layer8Error, setLayer8Error] = useState<string | null>(null);
 
   useEffect(() => {
     trackJourneyEvent({
@@ -344,6 +402,113 @@ export default function CampaignDecisionCanvas({
       }
     });
   }, []);
+
+  useEffect(() => {
+    if (!intent || !decisionContract?.contract_id || !decisionContract?.contract_digest) {
+      setPreMortem(null);
+      setPredictionComparison(null);
+      setLearningCandidate(null);
+      setLayer8Error(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    (async () => {
+      setLoadingLayer8(true);
+      setLayer8Error(null);
+
+      let pm = await fetchPreMortemClient({
+        contract_id: decisionContract.contract_id,
+        tenant_id: intent.tenant_id,
+        session_id: intent.session_id
+      });
+
+      if (!pm) {
+        const created = await createPreMortemClient({
+          contract_id: decisionContract.contract_id,
+          tenant_id: intent.tenant_id,
+          session_id: intent.session_id,
+          created_as_of: evaluationTimestamp,
+          contract_digest: decisionContract.contract_digest
+        });
+        if (cancelled) return;
+        if (!created.pre_mortem) {
+          setPreMortem(null);
+          setPredictionComparison(null);
+          setLearningCandidate(null);
+          setLayer8Error(
+            created.rejection_id
+              ? `${created.rejection_id}: ${created.error}`
+              : created.error || 'Pre-mortem unavailable for this contract.'
+          );
+          setLoadingLayer8(false);
+          return;
+        }
+        pm = created.pre_mortem;
+      }
+
+      if (cancelled) return;
+      setPreMortem(pm);
+
+      const comparisonResult = await runPredictionComparisonClient({
+        contract_id: decisionContract.contract_id,
+        tenant_id: intent.tenant_id,
+        session_id: intent.session_id,
+        as_of: evaluationTimestamp,
+        contract_digest: decisionContract.contract_digest,
+        category: intent.campaign_intent.category
+      });
+
+      if (cancelled) return;
+      if (!comparisonResult.comparison) {
+        setPredictionComparison(null);
+        setLearningCandidate(null);
+        setLayer8Error(
+          comparisonResult.rejection_id
+            ? `${comparisonResult.rejection_id}: ${comparisonResult.error}`
+            : comparisonResult.error || 'Prediction comparison unavailable for this contract.'
+        );
+        setLoadingLayer8(false);
+        return;
+      }
+      setPredictionComparison(comparisonResult.comparison);
+
+      const candidateResult = await createLearningCandidateClient({
+        contract_id: decisionContract.contract_id,
+        tenant_id: intent.tenant_id,
+        session_id: intent.session_id,
+        comparison: comparisonResult.comparison,
+        comparison_id: comparisonResult.comparison.comparison_id,
+        contract_digest: decisionContract.contract_digest,
+        created_as_of: evaluationTimestamp
+      });
+
+      if (cancelled) return;
+      if (!candidateResult.candidate) {
+        setLearningCandidate(null);
+        setLayer8Error(
+          candidateResult.rejection_id
+            ? `${candidateResult.rejection_id}: ${candidateResult.error}`
+            : candidateResult.error || 'Learning candidate unavailable for this contract.'
+        );
+        setLoadingLayer8(false);
+        return;
+      }
+      setLearningCandidate(candidateResult.candidate);
+      setLoadingLayer8(false);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    intent?.tenant_id,
+    intent?.session_id,
+    decisionContract?.contract_id,
+    decisionContract?.contract_digest,
+    evaluationTimestamp
+  ]);
 
   if (!intent) {
     return (
@@ -551,6 +716,10 @@ export default function CampaignDecisionCanvas({
     setHumanResolvedBy('');
     setHumanResolutionBasis('');
     setHumanSelectedPlayId('');
+    setPreMortem(null);
+    setPredictionComparison(null);
+    setLearningCandidate(null);
+    setLayer8Error(null);
     const windowResolvable = intent.audience_market.timing_mode === 'FIND_BEST_WINDOW';
     const resolvedPp = windowResolvable
       ? opportunity?.opportunity_windows?.resolved_temporal_uplift_pp
@@ -2521,7 +2690,380 @@ export default function CampaignDecisionCanvas({
         })()}
       </section>
 
-      {/* Explicit non-implementation of CDI-07B+ — locked teaser only */}
+      {/* Layer 8 — CDI-07B Pre-Mortem, Prediction vs Reality & Closed Learning Loop */}
+      {decisionContract && (
+        <section
+          style={{
+            marginTop: 8,
+            marginBottom: 16,
+            padding: '18px 20px',
+            borderRadius: 12,
+            border: '1px solid var(--border)',
+            background: '#FFFFFF'
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+            <div>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+                Layer 8 · CDI-07B
+              </div>
+              <h2 style={{ margin: '0 0 6px', fontSize: '1.125rem', color: 'var(--text-primary)' }}>
+                Pre-Mortem, Prediction vs Reality & Learning
+              </h2>
+              <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)', maxWidth: 640 }}>
+                Enumerate declared failure modes, compare predictions against observations at the fixed reference instant,
+                and assess learning eligibility — without re-deciding or mutating the contract.
+              </p>
+            </div>
+          </div>
+
+          {loadingLayer8 && (
+            <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+              Loading pre-mortem, comparison and learning evidence…
+            </div>
+          )}
+
+          {layer8Error && !loadingLayer8 && (
+            <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 12 }}>
+              {layer8Error}
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gap: 16 }}>
+            {/* Pre-Mortem panel — grouped by consequence_order only */}
+            {preMortem && (
+              <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: '#F8FAFC' }}>
+                <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 10 }}>
+                  Pre-Mortem · {preMortem.status}
+                </div>
+
+                {preMortem.derived_impact_scope_disclosure && (
+                  <div style={{ padding: 12, borderRadius: 8, border: '1px dashed var(--border)', background: '#FFFFFF', marginBottom: 12 }}>
+                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                      DERIVED_IMPACT_SCOPE_DISCLOSURE
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                      {preMortem.derived_impact_scope_disclosure}
+                    </div>
+                  </div>
+                )}
+
+                {CONSEQUENCE_ORDER_SEQUENCE.map(order => {
+                  const modes = preMortem.failure_modes.filter(f => f.consequence_order === order);
+                  if (!modes.length) return null;
+                  return (
+                    <div key={order} style={{ marginBottom: 12 }}>
+                      <div style={{ fontSize: '0.75rem', fontWeight: 650, color: 'var(--text-primary)', marginBottom: 8 }}>
+                        {CONSEQUENCE_ORDER_LABEL[order]}
+                      </div>
+                      <div style={{ display: 'grid', gap: 10 }}>
+                        {modes.map(mode => {
+                          const resilienceRows = resilienceForFailureMode(preMortem, mode.failure_mode_id);
+                          return (
+                            <div
+                              key={mode.failure_mode_id}
+                              style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#FFFFFF' }}
+                            >
+                              <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', marginBottom: 6 }}>
+                                {mode.statement}
+                              </div>
+                              <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                                {mode.failure_mode_id} · {mode.failure_mode_class} · grounding: {mode.grounding}
+                              </div>
+                              <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                                source: {mode.source_package} · {mode.source_field_path} · contracted_value:{' '}
+                                {String(mode.contracted_value)}
+                              </div>
+                              {mode.follows_from_failure_mode_id && (
+                                <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginBottom: 4 }}>
+                                  follows_from: {mode.follows_from_failure_mode_id}
+                                </div>
+                              )}
+                              {mode.derived_impact_ref && (
+                                <div style={{ fontSize: '0.6875rem', color: 'var(--text-secondary)', lineHeight: 1.4, marginBottom: 8 }}>
+                                  {mode.derived_impact_ref.scope_disclosure || DERIVED_IMPACT_SCOPE_DISCLOSURE}
+                                </div>
+                              )}
+                              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                                Resilience
+                              </div>
+                              {resilienceRows.map(row => (
+                                <div key={row.resilience_id} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                                  {row.statement}
+                                  {row.no_known_mitigation ? (
+                                    <span style={{ display: 'block', marginTop: 2, color: 'var(--text-muted)' }}>
+                                      no known mitigation
+                                    </span>
+                                  ) : null}
+                                </div>
+                              ))}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  );
+                })}
+
+                {(preMortem.unexamined || []).length > 0 && (
+                  <div style={{ marginTop: 8 }}>
+                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                      Unexamined dimensions
+                    </div>
+                    {preMortem.unexamined.map(dim => (
+                      <div key={dim.dimension_id} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                        <strong>{dim.dimension_id}</strong> — {dim.statement} ({dim.reason})
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {(preMortem.unavailable_capabilities || []).map(cap => (
+                  <div
+                    key={cap.field}
+                    style={{ marginTop: 10, padding: 12, borderRadius: 8, border: '1px dashed var(--border)', background: '#FFFFFF' }}
+                  >
+                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>
+                      {cap.field} · {cap.status}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                      {cap.why_required}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Prediction vs Reality panel — comparability before numbers */}
+            {predictionComparison && (
+              <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--curiosity-light)' }}>
+                <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 10 }}>
+                  Prediction vs Reality · verdict {predictionComparison.verdict}
+                </div>
+
+                {(predictionComparison.observations.some(
+                  o => o.synthetic_demo || o.provenance?.synthetic_demo
+                ) ||
+                  predictionComparison.synthetic_demo) && (
+                  <div
+                    style={{
+                      marginBottom: 12,
+                      padding: '8px 10px',
+                      borderRadius: 6,
+                      border: '1px dashed var(--border)',
+                      background: '#FFFFFF',
+                      fontSize: '0.75rem',
+                      color: 'var(--text-muted)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 6
+                    }}
+                  >
+                    <Sparkles size={12} />
+                    {predictionComparison.synthetic_disclosure || SYNTHETIC_OBSERVATION_DISCLOSURE}
+                  </div>
+                )}
+
+                <div style={{ padding: 12, borderRadius: 8, border: '1px dashed var(--border)', background: '#FFFFFF', marginBottom: 12 }}>
+                  <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                    NOT_A_DECISION_VERDICT_DISCLOSURE
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                    {predictionComparison.not_a_decision_verdict_disclosure || NOT_A_DECISION_VERDICT_DISCLOSURE}
+                  </div>
+                </div>
+
+                {/* RB-2 — observation authority is re-derived by the engine, so it is shown per
+                    observation rather than left to a panel-level banner. An operator must be able
+                    to see that a number came from demonstration data at the row that carries it. */}
+                {(predictionComparison.observations || []).length > 0 && (
+                  <div style={{ display: 'grid', gap: 6, marginBottom: 12 }}>
+                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+                      observation authority
+                    </div>
+                    {predictionComparison.observations.map(observation => (
+                      <div
+                        key={observation.observation_id}
+                        style={{
+                          padding: '8px 10px',
+                          borderRadius: 6,
+                          border: '1px solid var(--border)',
+                          background: '#FFFFFF',
+                          fontSize: '0.75rem',
+                          color: 'var(--text-secondary)'
+                        }}
+                      >
+                        <span style={{ fontWeight: 650, color: 'var(--text-primary)' }}>{observation.authority}</span>
+                        {' · '}
+                        {observation.entity_type} {observation.entity_id}
+                        {' · '}
+                        {observation.external_category} via {observation.connector_id}
+                        {(observation.synthetic_demo || observation.provenance?.synthetic_demo) && (
+                          <div style={{ marginTop: 3, fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
+                            demonstration data — not a real-world outcome
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ display: 'grid', gap: 10 }}>
+                  {(predictionComparison.comparisons || []).map((comparison, idx) => (
+                    <div
+                      key={`${comparison.predicted_source_field_path}_${idx}`}
+                      style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#FFFFFF' }}
+                    >
+                      <div style={{ fontSize: '0.75rem', fontWeight: 650, color: 'var(--text-primary)', marginBottom: 6 }}>
+                        comparability: {comparison.comparability}
+                      </div>
+                      <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginBottom: 8 }}>
+                        {comparison.predicted_source_package} · {comparison.predicted_source_field_path}
+                      </div>
+                      {comparisonIsLikeForLike(comparison) && comparison.error ? (
+                        <div style={{ display: 'grid', gap: 4 }}>
+                          <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)' }}>
+                            predicted: {comparison.predicted_value} {comparison.predicted_unit} ({comparison.predicted_basis})
+                          </div>
+                          <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)' }}>
+                            observed: {comparison.observed_value} {comparison.observed_unit} ({comparison.observed_basis})
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            signed_delta: {comparison.error.signed_delta} {comparison.error.unit}
+                            {comparison.error.within_declared_envelope !== undefined
+                              ? ` · within_declared_envelope: ${String(comparison.error.within_declared_envelope)}`
+                              : ''}
+                          </div>
+                          {comparison.error.statement && (
+                            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>{comparison.error.statement}</div>
+                          )}
+                        </div>
+                      ) : (
+                        <div style={{ display: 'grid', gap: 4 }}>
+                          <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)' }}>
+                            predicted: {comparison.predicted_value} {comparison.predicted_unit} ({comparison.predicted_basis})
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            incomparable
+                            {comparison.incomparable_reason ? ` — ${comparison.incomparable_reason}` : ''}
+                          </div>
+                          {comparison.observed_value !== undefined && (
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                              observed (not differenced): {comparison.observed_value} {comparison.observed_unit || '—'}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {predictionComparison.attribution && (
+                  <div style={{ marginTop: 12, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                    attribution: {predictionComparison.attribution.attribution} — {predictionComparison.attribution.statement}
+                  </div>
+                )}
+
+                {(predictionComparison.unavailable_capabilities || []).map(cap => (
+                  <div
+                    key={cap.field}
+                    style={{ marginTop: 10, padding: 12, borderRadius: 8, border: '1px dashed var(--border)', background: '#FFFFFF' }}
+                  >
+                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>
+                      {cap.field} · {cap.enables} · {cap.status}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+                      {cap.why_required}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Learning panel — full eligibility conjunction */}
+            {learningCandidate && (
+              <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: '#F8FAFC' }}>
+                <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 10 }}>
+                  Learning · eligibility {learningCandidate.eligibility.eligible ? 'met' : 'not met'}
+                </div>
+
+                <div style={{ display: 'grid', gap: 8, marginBottom: 12 }}>
+                  {orderEligibilityConditions(learningCandidate).map(condition => (
+                    <div
+                      key={condition.condition_id}
+                      style={{ padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: '#FFFFFF' }}
+                    >
+                      <div style={{ fontSize: '0.75rem', fontWeight: 650, color: 'var(--text-primary)', marginBottom: 4 }}>
+                        {condition.condition_id} · {condition.met ? 'met' : 'unmet'}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{condition.statement}</div>
+                      {!condition.met && condition.unmet_reason && (
+                        <div style={{ marginTop: 4, fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
+                          unmet_reason: {condition.unmet_reason}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                {!learningCandidate.eligibility.eligible && learningCandidate.blocked_by.length > 0 && (
+                  <div style={{ marginBottom: 12 }}>
+                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                      blocked_by
+                    </div>
+                    {learningCandidate.blocked_by.map(item => (
+                      <div key={item} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                        {item}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {[PATTERN_PROMOTION_REQUIRED_INPUT, OBSERVED_COUNTERFACTUAL_REQUIRED_INPUT, QUANTITATIVE_DECISION_HALF_LIFE_REQUIRED_INPUT].map(
+                  cap => (
+                    <div
+                      key={cap.field}
+                      style={{ marginBottom: 10, padding: 12, borderRadius: 8, border: '1px dashed var(--border)', background: '#FFFFFF' }}
+                    >
+                      <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>
+                        {cap.field} · {cap.enables} · {cap.status}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45, marginBottom: 4 }}>
+                        {cap.why_required}
+                      </div>
+                      <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
+                        grain: {cap.grain}
+                      </div>
+                    </div>
+                  )
+                )}
+
+                {learningCandidate.eligibility.eligible && learningCandidate.learning_case && (
+                  <div style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#FFFFFF' }}>
+                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                      LearningCase · {learningCandidate.learning_case.learning_case_id}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45, marginBottom: 8 }}>
+                      {learningCandidate.learning_case.single_case_disclosure || SINGLE_CASE_DISCLOSURE}
+                    </div>
+                    {(learningCandidate.learning_case.pattern_refs || []).map(ref => (
+                      <div key={ref.pattern_id} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
+                        pattern_ref: {ref.pattern_name} ({ref.pattern_id}) — context only
+                        <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                          {ref.telemetry_disclosure || PATTERN_TELEMETRY_DISCLOSURE}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* Locked teaser for packages after CDI-07B */}
+      {FUTURE_LAYERS.length > 0 && (
       <section
         style={{
           marginTop: 8,
@@ -2532,7 +3074,7 @@ export default function CampaignDecisionCanvas({
         }}
       >
         <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
-          Next decision layers (not in CDI-07A)
+          Next decision layers
         </div>
         <div style={{ display: 'grid', gap: 8 }}>
           {FUTURE_LAYERS.map(layer => (
@@ -2571,6 +3113,7 @@ export default function CampaignDecisionCanvas({
           </button>
         )}
       </section>
+      )}
     </div>
   );
 }

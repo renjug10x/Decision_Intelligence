@@ -14,6 +14,8 @@ export interface MemoryProvenance {
   data_classification: string;
   is_synthetic_demo: boolean;
   generator?: string;
+  /** CDI-07B X2 — pairs with decision_contract_ref so the digest stays verifiable. */
+  decision_contract_digest?: string;
 }
 
 export interface EnterpriseMemoryCase {
@@ -33,6 +35,8 @@ export interface EnterpriseMemoryCase {
 
   // Reference Semantics (References objects owned by other domains)
   commercial_intent_ref?: string;         // CommercialIntent ID
+  /** CDI-07B X2 — plain contract_id reference only. No DecisionContract content. */
+  decision_contract_ref?: string;
   decision_state_ref?: MemoryDecisionStateRef;
   signal_refs: string[];                  // Array of EnterpriseSignal IDs (e.g. ['sig_ps_001'])
   simulation_ref?: string;                // Captured ESF-2 simulation evidence ID

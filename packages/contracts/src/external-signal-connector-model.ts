@@ -128,6 +128,18 @@ export function mapCategoryToSourceType(category: ExternalSignalCategory): Signa
   }
 }
 
+/**
+ * Every SignalSourceType reachable from an ESF-3 connector category — provenances independent of
+ * Shared Decision State. Derived from mapCategoryToSourceType so the two cannot drift (CDI-07B X1).
+ */
+export const OBSERVATION_INDEPENDENT_SOURCE_TYPES: readonly SignalSourceType[] = Array.from(
+  new Set(EXTERNAL_SIGNAL_CATEGORIES.map(mapCategoryToSourceType))
+).sort() as SignalSourceType[];
+
+export function isObservationIndependentSourceType(t: SignalSourceType): boolean {
+  return (OBSERVATION_INDEPENDENT_SOURCE_TYPES as readonly string[]).includes(t);
+}
+
 /** Maps connector category → default EnterpriseSignal category. */
 export function mapCategoryToSignalCategory(category: ExternalSignalCategory): SignalCategory {
   switch (category) {
