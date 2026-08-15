@@ -23,7 +23,8 @@ import {
 import {
   fetchCurrentCampaignIntent,
   registerCampaignIntentClient,
-  saveCampaignIntentDraftClient
+  saveCampaignIntentDraftClient,
+  evaluateCampaignDecisionClient
 } from '@/lib/campaign-intent-client';
 import { trackJourneyEvent } from '@/lib/journey-client';
 
@@ -62,7 +63,6 @@ const AREA_META: Record<
 };
 
 const FUTURE_LAYERS = [
-  { id: 'CDI-02', label: 'Counterfactual Baseline & Causal Demand' },
   { id: 'CDI-03', label: 'Opportunity Window & Micro-Market Graph' },
   { id: 'CDI-04', label: 'Decision Readiness' },
   { id: 'CDI-05+', label: 'Timeline, Frontier, Half-Life & Learning' }
@@ -75,6 +75,8 @@ export default function CampaignDecisionCanvas({
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [evaluation, setEvaluation] = useState<any | null>(null);
+  const [evaluating, setEvaluating] = useState(false);
 
   useEffect(() => {
     trackJourneyEvent({
@@ -84,8 +86,18 @@ export default function CampaignDecisionCanvas({
       experiment_id: 'EXP-CDI-01',
       metadata: { package: 'CDI-01' }
     });
-    fetchCurrentCampaignIntent().then(data => {
-      if (data) setIntent(data);
+    fetchCurrentCampaignIntent().then(async data => {
+      if (data) {
+        setIntent(data);
+        if (data.status === 'REGISTERED') {
+          const evalResult = await evaluateCampaignDecisionClient({
+            tenant_id: data.tenant_id,
+            session_id: data.session_id,
+            campaign_intent_id: data.campaign_intent_id
+          });
+          if (evalResult) setEvaluation(evalResult);
+        }
+      }
     });
   }, []);
 
@@ -171,6 +183,31 @@ export default function CampaignDecisionCanvas({
     setMessage(
       `Campaign Intent registered (decision state v${result.decision_state_version ?? '—'}). Downstream CDI packages can now consume this contract.`
     );
+    // Auto-run CDI-02 evaluation after registration
+    setEvaluating(true);
+    const evalResult = await evaluateCampaignDecisionClient({
+      tenant_id: result.intent.tenant_id,
+      session_id: result.intent.session_id,
+      campaign_intent_id: result.intent.campaign_intent_id
+    });
+    setEvaluating(false);
+    if (evalResult) setEvaluation(evalResult);
+  };
+
+  const handleEvaluate = async () => {
+    setEvaluating(true);
+    setError(null);
+    const evalResult = await evaluateCampaignDecisionClient({
+      tenant_id: intent.tenant_id,
+      session_id: intent.session_id,
+      campaign_intent_id: intent.campaign_intent_id
+    });
+    setEvaluating(false);
+    if (!evalResult) {
+      setError('CDI-02 evaluation failed.');
+      return;
+    }
+    setEvaluation(evalResult);
   };
 
   const advance = () => {
@@ -729,7 +766,126 @@ export default function CampaignDecisionCanvas({
         </div>
       )}
 
-      {/* Explicit non-implementation of CDI-02+ — locked teaser only */}
+      {/* Layer 2 — CDI-02 Counterfactual & Causal (unlocked after registration) */}
+      <section
+        style={{
+          marginTop: 8,
+          marginBottom: 16,
+          padding: '18px 20px',
+          borderRadius: 12,
+          border: '1px solid var(--border)',
+          background: '#FFFFFF'
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
+          <div>
+            <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
+              Layer 2 · CDI-02
+            </div>
+            <h2 style={{ margin: '0 0 6px', fontSize: '1.125rem', color: 'var(--text-primary)' }}>
+              What does CogniX predict versus doing nothing?
+            </h2>
+            <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)', maxWidth: 640 }}>
+              Current baseline → expected without intervention → predicted with intervention. Causal drivers reconcile to the predicted uplift. Placeholder mechanics are never attributed.
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={evaluating || !isRegistered}
+            onClick={handleEvaluate}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: isRegistered ? 'var(--curiosity-light)' : '#F1F5F9',
+              color: isRegistered ? 'var(--g10x-orange)' : 'var(--text-muted)',
+              fontWeight: 600,
+              fontSize: '0.75rem',
+              cursor: isRegistered ? 'pointer' : 'not-allowed',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            {evaluating ? 'Evaluating…' : isRegistered ? 'Run evaluation' : 'Register intent first'}
+          </button>
+        </div>
+
+        {!isRegistered && (
+          <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 8 }}>
+            <Lock size={13} /> Register Campaign Intent to unlock counterfactual & causal evaluation.
+          </div>
+        )}
+
+        {evaluation && (
+          <div style={{ display: 'grid', gap: 14, marginTop: 8 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 10 }}>
+              {[
+                ['Current baseline', evaluation.counterfactual.current_baseline],
+                ['Without intervention', evaluation.counterfactual.expected_without_intervention],
+                ['With intervention', evaluation.counterfactual.predicted_with_intervention]
+              ].map(([label, point]: any) => (
+                <div key={label} style={{ padding: 12, borderRadius: 8, background: '#F8FAFC', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
+                  <div style={{ fontSize: '1.125rem', fontWeight: 650, color: 'var(--text-primary)' }}>{point.volume_index_pct.toFixed(1)}%</div>
+                  <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>
+                    {point.volume_units.toLocaleString()} units · £{point.contribution_gbp.toLocaleString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: evaluation.counterfactual.campaign_delta.intervention_indistinguishable_from_do_nothing ? '#F8FAFC' : 'var(--curiosity-light)' }}>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
+                Campaign Delta (Do Nothing vs Intervention)
+              </div>
+              <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                {evaluation.counterfactual.campaign_delta.volume_delta_units >= 0 ? '+' : ''}
+                {evaluation.counterfactual.campaign_delta.volume_delta_units.toLocaleString()} units
+                {' · '}
+                {evaluation.counterfactual.campaign_delta.contribution_delta_gbp >= 0 ? '+' : ''}
+                £{evaluation.counterfactual.campaign_delta.contribution_delta_gbp.toLocaleString()}
+              </div>
+              <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                {evaluation.counterfactual.campaign_delta.intervention_indistinguishable_from_do_nothing
+                  ? 'Predicted path matches do-nothing — no intervention is attributed under this posture. Demand still moves, but not because of us.'
+                  : `Attributable to the intervention: ${evaluation.counterfactual.campaign_delta.attributable_uplift_pp.toFixed(2)} pp. Drift and external signals are excluded — they occur either way.`}
+              </div>
+            </div>
+
+            <div>
+              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
+                Causal demand contributions ({evaluation.causal.total_predicted_uplift_pp.toFixed(2)} pp vs current baseline
+                {' · '}
+                {evaluation.causal.ambient_uplift_pp.toFixed(2)} pp happens anyway
+                {' · '}
+                {evaluation.causal.intervention_uplift_pp.toFixed(2)} pp from intervening)
+              </div>
+              <div style={{ display: 'grid', gap: 6 }}>
+                {evaluation.causal.drivers.filter((d: any) => d.attributed || d.contribution_pp !== 0 || d.driver_id === 'mechanic_response').map((d: any) => (
+                  <div key={d.driver_id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: '0.8125rem', padding: '6px 0', borderBottom: '1px solid #F1F5F9' }}>
+                    <div>
+                      <span style={{ fontWeight: 600, color: d.attributed ? 'var(--text-primary)' : 'var(--text-muted)' }}>{d.label}</span>
+                      <span style={{ marginLeft: 6, fontSize: '0.625rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.04em', color: d.driver_class === 'ambient' ? 'var(--text-muted)' : 'var(--g10x-orange)' }}>
+                        {d.driver_class === 'ambient' ? 'happens anyway' : 'from intervening'}
+                      </span>
+                      <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>{d.rationale}</div>
+                    </div>
+                    <span style={{ fontWeight: 650, color: d.contribution_pp < 0 ? '#E11D48' : 'var(--text-primary)' }}>
+                      {d.contribution_pp >= 0 ? '+' : ''}{d.contribution_pp.toFixed(2)} pp
+                    </span>
+                  </div>
+                ))}
+              </div>
+              {evaluation.causal.placeholder_fields_excluded?.length > 0 && (
+                <div style={{ marginTop: 10, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                  Placeholder fields excluded from causal attribution: {evaluation.causal.placeholder_fields_excluded.join(', ')}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* Explicit non-implementation of CDI-03+ — locked teaser only */}
       <section
         style={{
           marginTop: 8,
@@ -740,7 +896,7 @@ export default function CampaignDecisionCanvas({
         }}
       >
         <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 10 }}>
-          Next decision layers (not in CDI-01)
+          Next decision layers (not in CDI-02)
         </div>
         <div style={{ display: 'grid', gap: 8 }}>
           {FUTURE_LAYERS.map(layer => (

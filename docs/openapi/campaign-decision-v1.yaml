@@ -1,8 +1,8 @@
 openapi: 3.1.0
 info:
   title: CogniX Campaign Decision Intelligence API (CDI-01)
-  description: OpenAPI 3.1 specification for Campaign Decision Canvas & Campaign Intent foundation.
-  version: 1.0.0
+  description: OpenAPI 3.1 specification for Campaign Decision Canvas (CDI-01) and Counterfactual/Causal evaluation (CDI-02).
+  version: 1.1.0
 servers:
   - url: http://localhost:3000
     description: CogniX Web BFF Gateway
@@ -112,6 +112,60 @@ paths:
           description: tenant_id not supplied
         '404':
           description: Not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/counterfactual:
+    post:
+      summary: Evaluate Counterfactual Baseline (CDI-02)
+      operationId: evaluateCounterfactualBaseline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignEvaluationRequest'
+      responses:
+        '200':
+          description: Counterfactual baseline trajectories
+        '400':
+          description: Invalid evaluation request
+        '404':
+          description: campaign_intent_id not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/evaluate-causal:
+    post:
+      summary: Evaluate Causal Demand Contribution (CDI-02)
+      operationId: evaluateCausalDemand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignEvaluationRequest'
+      responses:
+        '200':
+          description: Causal demand contributions
+        '400':
+          description: Invalid evaluation request
+        '404':
+          description: campaign_intent_id not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/evaluate:
+    post:
+      summary: Combined Counterfactual + Causal Evaluation (CDI-02)
+      operationId: evaluateCampaignDecision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignEvaluationRequest'
+      responses:
+        '200':
+          description: Combined evaluation payload
+        '400':
+          description: Invalid evaluation request
+        '404':
+          description: campaign_intent_id not found, or not visible to the supplied tenant/session
 
 components:
   schemas:
@@ -294,3 +348,132 @@ components:
         schema_version:
           type: string
           example: "1.0"
+
+    CampaignEvaluationRequest:
+      type: object
+      required: [tenant_id, session_id]
+      properties:
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        campaign_intent_id:
+          type: string
+        include_signals:
+          type: boolean
+          default: true
+
+    DemandTrajectoryPoint:
+      type: object
+      properties:
+        label:
+          type: string
+        volume_units:
+          type: number
+        volume_index_pct:
+          type: number
+        contribution_gbp:
+          type: number
+        unit_contribution_gbp:
+          type: number
+          description: >-
+            Per-unit contribution for this trajectory. Promoted units carry an eroded unit
+            contribution, so a deeper discount does not mechanically increase value.
+        waste_units:
+          type: number
+        confidence:
+          type: number
+
+    CounterfactualBaseline:
+      type: object
+      properties:
+        counterfactual_id:
+          type: string
+        campaign_intent_id:
+          type: string
+        current_baseline:
+          $ref: '#/components/schemas/DemandTrajectoryPoint'
+        expected_without_intervention:
+          $ref: '#/components/schemas/DemandTrajectoryPoint'
+        predicted_with_intervention:
+          $ref: '#/components/schemas/DemandTrajectoryPoint'
+        campaign_delta:
+          $ref: '#/components/schemas/CampaignDeltaSummary'
+        synthetic_demo:
+          type: boolean
+
+    CampaignDeltaSummary:
+      type: object
+      properties:
+        volume_delta_units:
+          type: number
+        volume_delta_pct:
+          type: number
+        contribution_delta_gbp:
+          type: number
+          description: May be negative — deep discounting erodes unit contribution faster than volume replaces it.
+        waste_delta_units:
+          type: number
+        attributable_uplift_pp:
+          type: number
+          description: >-
+            Demand caused by the intervention itself, in percentage points. Excludes ambient
+            drivers (intrinsic drift, external signals) that occur with or without the campaign.
+            This — not total_predicted_uplift_pp — is what the campaign causes.
+        intervention_indistinguishable_from_do_nothing:
+          type: boolean
+
+    CausalDemandContribution:
+      type: object
+      properties:
+        causal_id:
+          type: string
+        total_predicted_uplift_pp:
+          type: number
+          description: >-
+            Total predicted demand index movement vs CURRENT_BASELINE. Equals
+            ambient_uplift_pp + intervention_uplift_pp. NOT the campaign's effect.
+        ambient_uplift_pp:
+          type: number
+          description: Drift and external signals — happens with or without the campaign.
+        intervention_uplift_pp:
+          type: number
+          description: Demand caused by the intervention. Zero for DO_NOTHING / UNDECIDED.
+        drivers:
+          type: array
+          items:
+            $ref: '#/components/schemas/CausalDriverContribution'
+        placeholder_fields_excluded:
+          type: array
+          items:
+            type: string
+        reconciliation_ok:
+          type: boolean
+        synthetic_demo:
+          type: boolean
+
+    CausalDriverContribution:
+      type: object
+      properties:
+        driver_id:
+          type: string
+        driver_class:
+          type: string
+          enum: [ambient, intervention]
+          description: >-
+            'ambient' drivers act on the world regardless of the campaign and belong to both
+            the without-intervention and predicted paths, so they cancel out of the Campaign
+            Delta. 'intervention' drivers are the only ones the campaign is credited with.
+        label:
+          type: string
+        contribution_pp:
+          type: number
+        attributed:
+          type: boolean
+          description: When false, contribution_pp is always 0 — an excluded driver never moves demand.
+        rationale:
+          type: string
+        evidence_refs:
+          type: array
+          items:
+            type: string

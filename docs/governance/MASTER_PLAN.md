@@ -295,7 +295,7 @@ A transformational decision capability discovering whether, what, where, when, a
   - *Hard Dependencies:* `WP10-C` (Shared Decision State), `IFI-01` (Commercial Intent Store).
   - *Integration Dependencies:* None.
   - *Enhancement Dependencies:* `ESF-1`.
-- **CDI-02 — Counterfactual Baseline & Causal Campaign Engine:** Domain separation of Current Baseline vs Expected Without Intervention vs Predicted With Intervention. Causal demand engine.
+- **CDI-02 — Counterfactual Baseline & Causal Campaign Engine [COMPLETED]:** Domain separation of Current Baseline vs Expected Without Intervention vs Predicted With Intervention. Causal demand engine.
   - *Hard Dependencies:* `CDI-01` (`CampaignIntent` contract).
   - *Integration Dependencies:* `ESF-2` (Dynamic Signal Simulation).
   - *Enhancement Dependencies:* None.
@@ -330,7 +330,7 @@ A transformational decision capability discovering whether, what, where, when, a
 - **Status:** COMPLETED (provider-neutral connector contract delivered).
 - **Role:** `ESF-3 — External Signal Connector Contract` remains provider-neutral and is NOT deleted, absorbed, or superseded. It defines connector contracts for planning, commerce, weather, events, competitive intel, operational telemetry, and demographic sources.
 - **CDI Dependency:** CDI work packages `CDI-01` through `CDI-06` use synthetic `ESF-1`/`ESF-2` signal feeds during lab development. `CDI-07B` binds production signal feeds from `ESF-3` for real-world outcome comparison.
-- **Successor:** `CDI-01` [COMPLETED]. Next HARD gate on the CDI stream is `CDI-02` (and parallel-eligible `CDI-03` once the `CampaignIntent` contract remains frozen). `ESF-4` remains parallel-eligible under separate file ownership.
+- **Successor:** `CDI-01` [COMPLETED], `CDI-02` [COMPLETED]. Next CDI packages: `CDI-03` (parallel-eligible on frozen CampaignIntent) and/or `CDI-04` (HARD on CDI-02). `ESF-4` remains parallel-eligible under separate file ownership.
 
 ---
 
