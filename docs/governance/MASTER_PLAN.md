@@ -291,7 +291,7 @@ A transformational decision capability discovering whether, what, where, when, a
 - **ENHANCEMENT:** Dependency enriches intelligence/telemetry but does not block initial delivery or validation.
 
 #### CDI Work Package Specifications:
-- **CDI-01 — Campaign Decision Canvas & Intent Model:** Progressive 4-area input framework (`CampaignIntent`, `BaselineObjective`, `AudienceMarket`, `DecisionContext`).
+- **CDI-01 — Campaign Decision Canvas & Intent Model [COMPLETED]:** Progressive 4-area input framework (`CampaignIntent`, `BaselineObjective`, `AudienceMarket`, `DecisionContext`).
   - *Hard Dependencies:* `WP10-C` (Shared Decision State), `IFI-01` (Commercial Intent Store).
   - *Integration Dependencies:* None.
   - *Enhancement Dependencies:* `ESF-1`.
@@ -330,7 +330,7 @@ A transformational decision capability discovering whether, what, where, when, a
 - **Status:** COMPLETED (provider-neutral connector contract delivered).
 - **Role:** `ESF-3 — External Signal Connector Contract` remains provider-neutral and is NOT deleted, absorbed, or superseded. It defines connector contracts for planning, commerce, weather, events, competitive intel, operational telemetry, and demographic sources.
 - **CDI Dependency:** CDI work packages `CDI-01` through `CDI-06` use synthetic `ESF-1`/`ESF-2` signal feeds during lab development. `CDI-07B` binds production signal feeds from `ESF-3` for real-world outcome comparison.
-- **Successor:** Both `ESF-4` (HARD deps `ESF-2`/`ESF-3` satisfied) and `CDI-01` (HARD deps `WP10-C`/`IFI-01` satisfied) are executable. **`CDI-01` takes execution priority:** it is the single HARD gate on `CDI-02`–`CDI-07B` (seven packages), whereas `ESF-4` gates only `ESF-5`, which is additionally blocked on `WP10-D` and Phase 10F. `ESF-4` also has no consumer for its quality semantics until a decision surface exists, so it should follow `CDI-01` and be informed by it. `ESF-4` remains parallel-eligible under separate file ownership.
+- **Successor:** `CDI-01` [COMPLETED]. Next HARD gate on the CDI stream is `CDI-02` (and parallel-eligible `CDI-03` once the `CampaignIntent` contract remains frozen). `ESF-4` remains parallel-eligible under separate file ownership.
 
 ---
 

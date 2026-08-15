@@ -2,7 +2,7 @@
 import {
   Compass, HelpCircle, Layers, GitBranch, Database,
   Tag, TrendingUp, Package, Box, Settings as SettingsIcon, HelpCircle as HelpIcon,
-  LogOut, Briefcase, Store
+  LogOut, Briefcase, Store, Target
 } from 'lucide-react';
 import { useApp } from '@/lib/context';
 import { useAuth } from '@/context/AuthContext';
@@ -122,6 +122,15 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         >
           <TrendingUp size={14} color={currentPage === 'opportunity-intelligence' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
           <span>Opportunity</span>
+        </button>
+
+        <button
+          className={`nav-item ${currentPage === 'campaign-decision' ? 'active' : ''}`}
+          onClick={() => onNavigate('campaign-decision')}
+          style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
+        >
+          <Target size={14} color={currentPage === 'campaign-decision' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
+          <span>Campaign Decision</span>
         </button>
 
         {/* Solutions Section */}

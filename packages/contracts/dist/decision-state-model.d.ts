@@ -2,7 +2,7 @@
  * CogniX Shared Decision State Domain Model
  * Transport-neutral types, command registry, deterministic calculations, and schema definitions.
  */
-export type DecisionCommandType = 'SET_PROMOTION_LIFT' | 'SET_SUPPLIER_CAPACITY_CAP' | 'SET_FORECAST_HORIZON' | 'SET_PROMOTION_METHOD' | 'SET_CAMPAIGN_SCOPE' | 'SET_CANNIBALISATION_FACTOR' | 'SET_EVENT_BOOST' | 'SELECT_INTERVENTION' | 'DESELECT_INTERVENTION' | 'REGISTER_COMMERCIAL_INTENT' | 'RESET_SCENARIO';
+export type DecisionCommandType = 'SET_PROMOTION_LIFT' | 'SET_SUPPLIER_CAPACITY_CAP' | 'SET_FORECAST_HORIZON' | 'SET_PROMOTION_METHOD' | 'SET_CAMPAIGN_SCOPE' | 'SET_CANNIBALISATION_FACTOR' | 'SET_EVENT_BOOST' | 'SELECT_INTERVENTION' | 'DESELECT_INTERVENTION' | 'REGISTER_COMMERCIAL_INTENT' | 'REGISTER_CAMPAIGN_INTENT' | 'RESET_SCENARIO';
 export interface DecisionScenarioParameters {
     promotion_lift: number;
     supplier_capacity_cap: number;
@@ -46,6 +46,7 @@ export interface DecisionState {
     constraints: string[];
     selected_interventions: string[];
     commercial_intent_ref?: string;
+    campaign_intent_ref?: string;
     derived_impacts: DecisionDerivedImpacts;
     history: DecisionStateVersionRecord[];
     provenance: Record<string, string>;

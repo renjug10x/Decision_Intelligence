@@ -14,6 +14,7 @@ export type DecisionCommandType =
   | 'SELECT_INTERVENTION'
   | 'DESELECT_INTERVENTION'
   | 'REGISTER_COMMERCIAL_INTENT'
+  | 'REGISTER_CAMPAIGN_INTENT'
   | 'RESET_SCENARIO';
 
 export interface DecisionScenarioParameters {
@@ -62,6 +63,7 @@ export interface DecisionState {
   constraints: string[];
   selected_interventions: string[];
   commercial_intent_ref?: string;
+  campaign_intent_ref?: string;
   derived_impacts: DecisionDerivedImpacts;
   history: DecisionStateVersionRecord[];
   provenance: Record<string, string>;

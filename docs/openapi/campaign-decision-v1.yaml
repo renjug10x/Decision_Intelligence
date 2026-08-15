@@ -1,0 +1,296 @@
+openapi: 3.1.0
+info:
+  title: CogniX Campaign Decision Intelligence API (CDI-01)
+  description: OpenAPI 3.1 specification for Campaign Decision Canvas & Campaign Intent foundation.
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000
+    description: CogniX Web BFF Gateway
+paths:
+  /api/v1/campaigns/intent:
+    get:
+      summary: Get current session Campaign Intent (draft or registered)
+      operationId: getCampaignIntentSession
+      parameters:
+        - name: tenant_id
+          in: query
+          schema:
+            type: string
+            default: tenant_uk_retail_01
+        - name: session_id
+          in: query
+          schema:
+            type: string
+            default: sess_001
+      responses:
+        '200':
+          description: Current Campaign Intent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/CampaignIntent'
+    put:
+      summary: Save Campaign Intent draft (progressive canvas)
+      operationId: saveCampaignIntentDraft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignIntent'
+      responses:
+        '200':
+          description: Draft saved
+        '400':
+          description: Invalid draft or future CDI calculation leakage
+    post:
+      summary: Register Campaign Intent
+      description: Finalises the four-area Campaign Intent, transitions Shared Decision State, and optionally projects Commercial Intent when intervention posture considers promotion.
+      operationId: registerCampaignIntent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignIntent'
+      responses:
+        '200':
+          description: Campaign Intent registered
+        '400':
+          description: Incomplete four-area contract or validation failure
+
+  /api/v1/campaigns/intent/current:
+    get:
+      summary: Get current Campaign Intent for tenant/session
+      operationId: getCurrentCampaignIntent
+      parameters:
+        - name: tenant_id
+          in: query
+          schema:
+            type: string
+        - name: session_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current Campaign Intent
+
+  /api/v1/campaigns/intent/{id}:
+    get:
+      summary: Get Campaign Intent by ID
+      operationId: getCampaignIntentById
+      description: >
+        Campaign Intent ids are derived from tenant_id and session_id and are therefore
+        enumerable. An id alone does not authorise a read: tenant_id is mandatory and a
+        tenant mismatch is reported as 404 rather than 403 to avoid an existence oracle.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: session_id
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Campaign Intent
+        '400':
+          description: tenant_id not supplied
+        '404':
+          description: Not found, or not visible to the supplied tenant/session
+
+components:
+  schemas:
+    CampaignObjectiveType:
+      type: string
+      enum: [INVENTORY_CLEARANCE, REVENUE_ACCELERATION, MARKET_DEFENSE, LAUNCH, OTHER]
+    InterventionPosture:
+      type: string
+      enum: [UNDECIDED, CONSIDER_PROMOTION, CONSIDER_NON_PROMOTION, CONSIDER_DO_NOTHING]
+    PrimaryObjectiveMetric:
+      type: string
+      enum: [VOLUME, REVENUE, CONTRIBUTION, WASTE_REDUCTION, AVAILABILITY]
+    TimingMode:
+      type: string
+      enum: [KNOWN_DATES, FIND_BEST_WINDOW]
+    CampaignCanvasArea:
+      type: string
+      enum: [CAMPAIGN_INTENT, BASELINE_OBJECTIVE, AUDIENCE_MARKET, DECISION_CONTEXT]
+    CampaignIntentStatus:
+      type: string
+      enum: [DRAFT, REGISTERED]
+
+    CampaignIntentCore:
+      type: object
+      required: [objective_type, intervention_posture, framing_question, category, sku_scope]
+      properties:
+        objective_type:
+          $ref: '#/components/schemas/CampaignObjectiveType'
+        intervention_posture:
+          $ref: '#/components/schemas/InterventionPosture'
+        framing_question:
+          type: string
+        category:
+          type: string
+        sku_scope:
+          type: array
+          items:
+            type: string
+        provisional_mechanic:
+          type: string
+        provisional_discount_depth:
+          type: number
+
+    BaselineObjective:
+      type: object
+      required: [primary_metric, target_direction]
+      properties:
+        primary_metric:
+          $ref: '#/components/schemas/PrimaryObjectiveMetric'
+        target_direction:
+          type: string
+          enum: [INCREASE, DECREASE, PROTECT, CLEAR]
+        target_value:
+          type: number
+        target_unit:
+          type: string
+        volume_note:
+          type: string
+        revenue_note:
+          type: string
+        cost_note:
+          type: string
+        capacity_cap_note:
+          type: string
+
+    AudienceMarket:
+      type: object
+      required: [region, timing_mode]
+      properties:
+        region:
+          type: string
+        customer_segment:
+          type: string
+        channel:
+          type: string
+        store_cohort_hint:
+          type: string
+        timing_mode:
+          $ref: '#/components/schemas/TimingMode'
+        planned_start:
+          type: string
+          format: date-time
+        planned_end:
+          type: string
+          format: date-time
+
+    DecisionContextArea:
+      type: object
+      properties:
+        contextual_factor_notes:
+          type: array
+          items:
+            type: string
+        open_questions:
+          type: array
+          items:
+            type: string
+        assumptions:
+          type: array
+          items:
+            type: string
+        commercial_intent_ref:
+          type: string
+        decision_state_id:
+          type: string
+        scenario_id:
+          type: string
+        scenario_family:
+          type: string
+
+    CampaignCanvasProgress:
+      type: object
+      required: [active_area, completed_areas, ready_to_register]
+      properties:
+        active_area:
+          $ref: '#/components/schemas/CampaignCanvasArea'
+        completed_areas:
+          type: array
+          items:
+            $ref: '#/components/schemas/CampaignCanvasArea'
+        ready_to_register:
+          type: boolean
+
+    CampaignIntent:
+      type: object
+      required:
+        - campaign_intent_id
+        - tenant_id
+        - session_id
+        - status
+        - campaign_intent
+        - baseline_objective
+        - audience_market
+        - decision_context
+        - canvas_progress
+        - created_at
+        - updated_at
+        - source_system
+        - provenance
+        - synthetic_demo
+        - schema_version
+      properties:
+        campaign_intent_id:
+          type: string
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        domain_id:
+          type: string
+        status:
+          $ref: '#/components/schemas/CampaignIntentStatus'
+        campaign_intent:
+          $ref: '#/components/schemas/CampaignIntentCore'
+        baseline_objective:
+          $ref: '#/components/schemas/BaselineObjective'
+        audience_market:
+          $ref: '#/components/schemas/AudienceMarket'
+        decision_context:
+          $ref: '#/components/schemas/DecisionContextArea'
+        canvas_progress:
+          $ref: '#/components/schemas/CampaignCanvasProgress'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        registered_at:
+          type: string
+          format: date-time
+        source_system:
+          type: string
+        provenance:
+          type: object
+          additionalProperties:
+            type: string
+        synthetic_demo:
+          type: boolean
+        schema_version:
+          type: string
+          example: "1.0"

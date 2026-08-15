@@ -290,6 +290,26 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
         updatedProvenance.commercial_intent = 'registered_intent';
         break;
 
+      case 'REGISTER_CAMPAIGN_INTENT':
+        if (commandPayload.payload.campaign_intent_ref) {
+          changedFields.push('campaign_intent_ref');
+        }
+        if (typeof commandPayload.payload.promotion_lift === 'number') {
+          updatedParams.promotion_lift = commandPayload.payload.promotion_lift;
+          changedFields.push('promotion_lift');
+        }
+        if (commandPayload.payload.promotion_method) {
+          updatedParams.promotion_method = commandPayload.payload.promotion_method;
+          changedFields.push('promotion_method');
+        }
+        if (commandPayload.payload.campaign_scope) {
+          updatedParams.campaign_scope = commandPayload.payload.campaign_scope;
+          changedFields.push('campaign_scope');
+        }
+        updatedProvenance.campaign_intent = 'registered_cdi01_intent';
+        updatedProvenance.intervention_posture = String(commandPayload.payload.intervention_posture || 'UNDECIDED');
+        break;
+
       case 'RESET_SCENARIO':
         Object.assign(updatedParams, DEFAULT_SCENARIO_PARAMS);
         updatedInterventions = [];
@@ -317,6 +337,7 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
       scenario_parameters: updatedParams,
       selected_interventions: updatedInterventions,
       commercial_intent_ref: commandPayload.payload.commercial_intent_ref || currentState.commercial_intent_ref,
+      campaign_intent_ref: commandPayload.payload.campaign_intent_ref || currentState.campaign_intent_ref,
       derived_impacts: newDerivedImpacts,
       provenance: updatedProvenance,
       history: [versionRecord, ...currentState.history].slice(0, 50)

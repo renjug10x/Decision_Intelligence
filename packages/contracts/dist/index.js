@@ -21,6 +21,7 @@ __exportStar(require("./decision-state-model"), exports);
 __exportStar(require("./enterprise-signal-model"), exports);
 __exportStar(require("./external-signal-connector-model"), exports);
 __exportStar(require("./commercial-intent-model"), exports);
+__exportStar(require("./campaign-intent-model"), exports);
 __exportStar(require("./intent-fusion-model"), exports);
 __exportStar(require("./learning-pattern-model"), exports);
 __exportStar(require("./memory-model"), exports);
