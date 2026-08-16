@@ -116,6 +116,15 @@ export declare function validateDecisionContextArea(area: Partial<DecisionContex
     valid: boolean;
     errors: string[];
 };
+export declare function evaluateCanvasAreaStructural(intent: CampaignIntent): CampaignCanvasArea[];
+/**
+ * A completed area is one the user explicitly confirmed AND that is structurally valid.
+ *
+ * Registration deliberately gets no exemption here. Treating a REGISTERED intent as four
+ * reviewed stages would make the checkmarks report the status of the record rather than what
+ * the user actually reviewed, which is the one thing this signal exists to say. Registration
+ * is gated on structural completeness separately, in validateCampaignIntent.
+ */
 export declare function evaluateCanvasAreaCompletion(intent: CampaignIntent): CampaignCanvasArea[];
 export declare function deriveCanvasProgress(intent: CampaignIntent): CampaignCanvasProgress;
 export declare function validateCampaignIntent(intent: Partial<CampaignIntent>, options?: {

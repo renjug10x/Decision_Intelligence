@@ -29,6 +29,7 @@ __exportStar(require("./campaign-readiness-model"), exports);
 __exportStar(require("./campaign-timeline-model"), exports);
 __exportStar(require("./campaign-frontier-model"), exports);
 __exportStar(require("./campaign-decision-contract-model"), exports);
+__exportStar(require("./campaign-experiment-model"), exports);
 var campaign_learning_loop_model_1 = require("./campaign-learning-loop-model");
 Object.defineProperty(exports, "DERIVED_IMPACT_SCOPE_DISCLOSURE", { enumerable: true, get: function () { return campaign_learning_loop_model_1.DERIVED_IMPACT_SCOPE_DISCLOSURE; } });
 Object.defineProperty(exports, "NOT_A_DECISION_VERDICT_DISCLOSURE", { enumerable: true, get: function () { return campaign_learning_loop_model_1.NOT_A_DECISION_VERDICT_DISCLOSURE; } });

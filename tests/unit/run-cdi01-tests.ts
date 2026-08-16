@@ -7,6 +7,7 @@ import {
   assertNoFutureCdiCalculations,
   createDefaultCampaignIntentDraft,
   deriveCanvasProgress,
+  evaluateCanvasAreaStructural,
   projectCampaignIntentToCommercialIntent,
   validateCampaignIntent,
   validateCommercialIntent,
@@ -61,14 +62,16 @@ function runTests() {
   );
 
   // TEST 2: Progressive completion tracking
+  const structuralAreas = evaluateCanvasAreaStructural(draft);
   const progress = deriveCanvasProgress(draft);
   assert(
-    progress.completed_areas.includes('CAMPAIGN_INTENT') &&
-      progress.completed_areas.includes('BASELINE_OBJECTIVE') &&
-      progress.completed_areas.includes('AUDIENCE_MARKET') &&
-      progress.completed_areas.includes('DECISION_CONTEXT') &&
+    structuralAreas.includes('CAMPAIGN_INTENT') &&
+      structuralAreas.includes('BASELINE_OBJECTIVE') &&
+      structuralAreas.includes('AUDIENCE_MARKET') &&
+      structuralAreas.includes('DECISION_CONTEXT') &&
+      progress.completed_areas.length === 0 &&
       progress.ready_to_register === true,
-    'Test 2: Default draft areas are structurally complete and ready_to_register'
+    'Test 2: Default draft areas are structurally complete and ready_to_register with 0 completed_areas until confirmed'
   );
 
   // TEST 3: Required field semantics — incomplete intent rejected

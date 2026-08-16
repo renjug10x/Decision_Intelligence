@@ -1,12 +1,16 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   HelpCircle,
+  History,
+  FileText,
+  Scale,
+  Eye,
   Layers,
   Lock,
   RotateCcw,
@@ -20,8 +24,30 @@ import {
   CampaignIntent,
   CampaignIntentCore,
   DecisionContextArea,
-  deriveCanvasProgress
+  deriveCanvasProgress,
+  validateCampaignIntentCore,
+  validateBaselineObjective,
+  validateAudienceMarket,
+  validateDecisionContextArea
 } from '@/packages/contracts/src/campaign-intent-model';
+import {
+  CampaignDecisionExperiment,
+  ExperimentComparison,
+  ExecutionBrief,
+  mapReadinessStateToVerdict,
+  readinessVerdictLabel,
+  formatContributionGbp,
+  formatDemandPct
+} from '@/packages/contracts/src/campaign-experiment-model';
+import {
+  listCampaignExperimentsClient,
+  saveCampaignExperimentClient,
+  compareCampaignExperimentsClient,
+  fetchExecutionBriefClient
+} from '@/lib/campaign-experiment-client';
+import { ExperimentHistoryDrawer } from '@/components/campaign/ExperimentHistoryDrawer';
+import { ExperimentComparisonModal } from '@/components/campaign/ExperimentComparisonModal';
+import { ExecutionBriefModal } from '@/components/campaign/ExecutionBriefModal';
 import {
   fetchCurrentCampaignIntent,
   registerCampaignIntentClient,
@@ -386,6 +412,36 @@ export default function CampaignDecisionCanvas({
   const [loadingLayer8, setLoadingLayer8] = useState(false);
   const [layer8Error, setLayer8Error] = useState<string | null>(null);
 
+  // Experiment History & Comparison & Execution Brief States
+  const [experimentsList, setExperimentsList] = useState<CampaignDecisionExperiment[]>([]);
+  const [historyDrawerOpen, setHistoryDrawerOpen] = useState(false);
+  const [reviewedExperiment, setReviewedExperiment] = useState<CampaignDecisionExperiment | null>(null);
+  const [comparisonModalData, setComparisonModalData] = useState<ExperimentComparison | null>(null);
+  const [executionBriefData, setExecutionBriefData] = useState<ExecutionBrief | null>(null);
+
+  /**
+   * The experiment identity the decision currently on screen owns, or null while a new decision
+   * is being drafted. The server is the authority — it survives a browser refresh, which component
+   * state would not — but a ref mirrors it synchronously so two preservation calls fired in the
+   * same tick cannot each believe they are the first.
+   */
+  const [activeExperimentId, setActiveExperimentId] = useState<string | null>(null);
+  const activeExperimentIdRef = useRef<string | null>(null);
+  const preservingRef = useRef(false);
+
+  const rememberActiveExperimentId = (id: string | null) => {
+    activeExperimentIdRef.current = id;
+    setActiveExperimentId(id);
+  };
+
+  const refreshExperimentsList = async () => {
+    const res = await listCampaignExperimentsClient();
+    if (res?.experiments) {
+      setExperimentsList(res.experiments);
+      rememberActiveExperimentId(res.active_experiment_id ?? null);
+    }
+  };
+
   useEffect(() => {
     trackJourneyEvent({
       event_type: 'EXPERIMENT_OPENED',
@@ -394,6 +450,7 @@ export default function CampaignDecisionCanvas({
       experiment_id: 'EXP-CDI-01',
       metadata: { package: 'CDI-01' }
     });
+    refreshExperimentsList();
     fetchCurrentCampaignIntent().then(async data => {
       if (data) {
         setIntent(data);
@@ -530,25 +587,202 @@ export default function CampaignDecisionCanvas({
     );
   }
 
-  const progress = deriveCanvasProgress(intent);
-  const active = intent.canvas_progress.active_area;
-  const isRegistered = intent.status === 'REGISTERED';
+  // Historical view vs active decision
+  const isHistoricalView = !!reviewedExperiment;
+  const displayedIntent = isHistoricalView && reviewedExperiment ? reviewedExperiment.intent_snapshot : intent;
+  const displayedEvaluation = isHistoricalView && reviewedExperiment ? reviewedExperiment.evaluation_snapshot : evaluation;
+  const displayedOpportunity = isHistoricalView && reviewedExperiment ? reviewedExperiment.opportunity_snapshot : opportunity;
+  const displayedReadiness = isHistoricalView && reviewedExperiment ? reviewedExperiment.readiness_snapshot : readiness;
+  const displayedTimeline = isHistoricalView && reviewedExperiment ? reviewedExperiment.timeline_snapshot : timeline;
+  const displayedFrontier = isHistoricalView && reviewedExperiment ? reviewedExperiment.frontier_snapshot : frontier;
+  const displayedContract = isHistoricalView && reviewedExperiment ? reviewedExperiment.contract_snapshot : decisionContract;
+
+  /**
+   * What the decision on screen is called. Three honest states, and no fourth:
+   * a historical experiment under review, the live decision once it owns a preserved
+   * experiment id, and a new decision that has not earned one yet.
+   */
+  const decisionIdentityLabel =
+    isHistoricalView && reviewedExperiment
+      ? `Reviewing ${reviewedExperiment.experiment_id}`
+      : activeExperimentId
+      ? activeExperimentId
+      : 'New Decision';
+
+  const progress = deriveCanvasProgress(displayedIntent);
+  const active = displayedIntent.canvas_progress.active_area;
+  const isRegistered = displayedIntent.status === 'REGISTERED';
+  const isFieldsDisabled = isRegistered || isHistoricalView;
   const stageIndex = CAMPAIGN_CANVAS_AREA_ORDER.indexOf(active);
   const isLastStage = stageIndex === CAMPAIGN_CANVAS_AREA_ORDER.length - 1;
-  // Gate forward movement on THIS stage's own completeness, so a stage can never be
-  // skipped past while still missing the fields the contract requires.
+
+  function isAreaValid(targetIntent: CampaignIntent, area: CampaignCanvasArea): boolean {
+    if (area === 'CAMPAIGN_INTENT') return targetIntent.campaign_intent ? validateCampaignIntentCore(targetIntent.campaign_intent).valid : false;
+    if (area === 'BASELINE_OBJECTIVE') return targetIntent.baseline_objective ? validateBaselineObjective(targetIntent.baseline_objective).valid : false;
+    if (area === 'AUDIENCE_MARKET') return targetIntent.audience_market ? validateAudienceMarket(targetIntent.audience_market).valid : false;
+    if (area === 'DECISION_CONTEXT') return targetIntent.decision_context ? validateDecisionContextArea(targetIntent.decision_context).valid : false;
+    return false;
+  }
+
+  const isCurrentStageValid = isAreaValid(displayedIntent, active);
   const stageComplete = progress.completed_areas.includes(active);
 
+  // Registering confirms the stage in view, so every other stage must already be confirmed.
+  // The rail lets the user jump straight to the last stage; without this a decision could be
+  // registered — and preserved as an experiment — having reviewed nothing at all.
+  const unreviewedOtherStages = CAMPAIGN_CANVAS_AREA_ORDER.filter(
+    a => a !== active && !progress.completed_areas.includes(a)
+  );
+  const canRegisterDecision = isCurrentStageValid && unreviewedOtherStages.length === 0;
+
+  /**
+   * Preserve the decision currently being worked on as a Campaign Decision Experiment.
+   *
+   * Preservation gate: a decision earns an experiment identity once it is a registered intent
+   * that has produced an evaluated result. Before that there is no analytical result worth
+   * reviewing or comparing, and preserving the form alone would put an empty record in history.
+   *
+   * Idempotency: this runs after evaluation, opportunity, readiness, frontier and contract
+   * registration. All of those belong to ONE decision, so every call after the first carries the
+   * identity already assigned and deepens that record. Only Start New Decision releases it.
+   */
+  const preserveCurrentExperiment = async (
+    currentIntent: CampaignIntent,
+    evalData?: any,
+    oppData?: any,
+    readData?: any,
+    frontData?: any,
+    contractData?: any
+  ) => {
+    if (!currentIntent) return;
+    if (currentIntent.status !== 'REGISTERED') return;
+    if (!evalData) return;
+    if (preservingRef.current) return;
+    preservingRef.current = true;
+    // Read the engines at the field paths they actually publish. CDI-02 carries the campaign
+    // delta on the counterfactual, CDI-04 reports a readiness state, and CDI-06 exposes a
+    // selection rather than a named recommendation. Reading fields that do not exist is what
+    // silently preserved every decision as +0.0%, +£0 and "Ready".
+    const campaignDelta = evalData?.counterfactual?.campaign_delta;
+    const demandPct = campaignDelta?.attributable_uplift_pp ?? evalData?.causal?.intervention_uplift_pp ?? 0;
+    const contribGbp = campaignDelta?.contribution_delta_gbp ?? 0;
+
+    const readinessState = readData?.readiness?.state;
+    const readinessVerdict = mapReadinessStateToVerdict(readinessState);
+    const readinessSummary =
+      readData?.readiness?.headline ?? 'Operational readiness has not been assessed for this decision.';
+
+    // CDI-06 either resolves to one admissible play or leaves an open trade-off for a human.
+    // Neither state may be reported as a recommendation the engine did not make.
+    const frontierResult = frontData?.frontier;
+    const selection = frontierResult?.selection;
+    const selectedPlay = (frontierResult?.plays || []).find(
+      (p: any) => p.play_id === selection?.selected_play_id
+    );
+    const recommendation = selectedPlay?.label
+      ? selectedPlay.label
+      : !frontierResult
+      ? 'Outcome frontier not yet evaluated'
+      : selection?.status === 'CHOICE_REQUIRED'
+      ? 'Choice required — competing admissible plays'
+      : 'No admissible play selected';
+    const tradeOff =
+      selection?.open_trade_off ??
+      (frontierResult ? 'No open trade-off recorded for this frontier.' : 'Trade-off not yet evaluated.');
+
+    const expPayload: Partial<CampaignDecisionExperiment> = {
+      campaign_intent_id: currentIntent.campaign_intent_id,
+      framing_question: currentIntent.campaign_intent.framing_question,
+      objective_type: currentIntent.campaign_intent.objective_type,
+      objective_label: executiveLabel('campaign_objective', currentIntent.campaign_intent.objective_type),
+      category: currentIntent.campaign_intent.category,
+      sku_scope: currentIntent.campaign_intent.sku_scope,
+      region: currentIntent.audience_market.region,
+      audience_segment: currentIntent.audience_market.customer_segment,
+      timing_mode: currentIntent.audience_market.timing_mode,
+      planned_window: currentIntent.audience_market.planned_start && currentIntent.audience_market.planned_end
+        ? `${currentIntent.audience_market.planned_start} to ${currentIntent.audience_market.planned_end}`
+        : 'Optimal discovery window',
+      intervention_posture: currentIntent.campaign_intent.intervention_posture,
+      posture_label: executiveLabel('intervention_posture', currentIntent.campaign_intent.intervention_posture),
+      primary_metric: currentIntent.baseline_objective.primary_metric,
+      target_direction: currentIntent.baseline_objective.target_direction,
+      major_constraints: currentIntent.baseline_objective.capacity_cap_note ? [currentIntent.baseline_objective.capacity_cap_note] : [],
+      decision_recommendation: recommendation,
+      incremental_demand_pct: demandPct,
+      contribution_impact_gbp: contribGbp,
+      readiness_status: readinessVerdict,
+      readiness_summary: readinessSummary,
+      selected_strategy_id: selectedPlay?.play_id,
+      selected_strategy_name: selectedPlay?.label,
+      primary_trade_off: tradeOff,
+      evidence_posture: currentIntent.synthetic_demo ? 'Demonstration evidence basis: uncalibrated simulation data' : 'Attested counterfactual baseline',
+      technical_provenance: {
+        ...currentIntent.provenance,
+        intent_id: currentIntent.campaign_intent_id,
+        session_id: currentIntent.session_id,
+        tenant_id: currentIntent.tenant_id
+      },
+      intent_snapshot: currentIntent,
+      evaluation_snapshot: evalData,
+      opportunity_snapshot: oppData,
+      readiness_snapshot: readData,
+      frontier_snapshot: frontData,
+      contract_snapshot: contractData
+    };
+
+    try {
+      const saved = await saveCampaignExperimentClient({
+        ...expPayload,
+        // Null on the first preservation of a decision: that is what asks the server for a new
+        // identity. Every later call sends the id back so the same record is updated.
+        ...(activeExperimentIdRef.current ? { experiment_id: activeExperimentIdRef.current } : {})
+      });
+      if (saved) {
+        rememberActiveExperimentId(saved.experiment_id);
+        await refreshExperimentsList();
+      }
+    } finally {
+      preservingRef.current = false;
+    }
+  };
+
+  const invalidateDownstreamState = () => {
+    if (evaluation || opportunity || readiness || timeline || frontier) {
+      setEvaluation(null);
+      setOpportunity(null);
+      setReadiness(null);
+      setTimeline(null);
+      setFrontier(null);
+      setDecisionContract(null);
+      setValidityAssessment(null);
+      setPreMortem(null);
+      setPredictionComparison(null);
+      setLearningCandidate(null);
+    }
+  };
+
   const updateIntent = (next: CampaignIntent) => {
+    if (isHistoricalView) return;
     const withProgress = { ...next, canvas_progress: deriveCanvasProgress(next) };
     withProgress.canvas_progress.active_area = next.canvas_progress.active_area;
     setIntent(withProgress);
   };
 
-  // Registration freezes the *contract*, not the *canvas*. A registered intent stays
-  // navigable so the user can review what they committed to; the fields themselves remain
-  // read-only (disabled={isRegistered}) so no registered value can be edited in place.
   const setActiveArea = (area: CampaignCanvasArea) => {
+    if (isHistoricalView && reviewedExperiment) {
+      setReviewedExperiment({
+        ...reviewedExperiment,
+        intent_snapshot: {
+          ...reviewedExperiment.intent_snapshot,
+          canvas_progress: {
+            ...reviewedExperiment.intent_snapshot.canvas_progress,
+            active_area: area
+          }
+        }
+      });
+      return;
+    }
     updateIntent({
       ...intent,
       canvas_progress: { ...intent.canvas_progress, active_area: area }
@@ -556,6 +790,8 @@ export default function CampaignDecisionCanvas({
   };
 
   const patchCore = (patch: Partial<CampaignIntentCore>) => {
+    if (isHistoricalView) return;
+    invalidateDownstreamState();
     updateIntent({
       ...intent,
       campaign_intent: { ...intent.campaign_intent, ...patch }
@@ -563,6 +799,8 @@ export default function CampaignDecisionCanvas({
   };
 
   const patchBaseline = (patch: Partial<BaselineObjective>) => {
+    if (isHistoricalView) return;
+    invalidateDownstreamState();
     updateIntent({
       ...intent,
       baseline_objective: { ...intent.baseline_objective, ...patch }
@@ -570,6 +808,8 @@ export default function CampaignDecisionCanvas({
   };
 
   const patchAudience = (patch: Partial<AudienceMarket>) => {
+    if (isHistoricalView) return;
+    invalidateDownstreamState();
     updateIntent({
       ...intent,
       audience_market: { ...intent.audience_market, ...patch }
@@ -577,6 +817,7 @@ export default function CampaignDecisionCanvas({
   };
 
   const patchContext = (patch: Partial<DecisionContextArea>) => {
+    if (isHistoricalView) return;
     updateIntent({
       ...intent,
       decision_context: { ...intent.decision_context, ...patch }
@@ -584,6 +825,7 @@ export default function CampaignDecisionCanvas({
   };
 
   const handleSaveDraft = async () => {
+    if (isHistoricalView || !intent) return;
     setSaving(true);
     setError(null);
     setMessage(null);
@@ -598,10 +840,24 @@ export default function CampaignDecisionCanvas({
   };
 
   const handleRegister = async () => {
+    if (isHistoricalView || !intent) return;
     setSaving(true);
     setError(null);
     setMessage(null);
-    const result = await registerCampaignIntentClient(intent);
+    // Registering confirms the stage the user is on, exactly as Save & Continue does on the
+    // earlier stages. It does not retrospectively mark stages the user never reviewed — a
+    // checkmark has to mean someone looked at it.
+    const currentCompleted = intent.canvas_progress?.completed_areas || [];
+    const nextCompleted = currentCompleted.includes(active) ? currentCompleted : [...currentCompleted, active];
+    const intentToRegister: CampaignIntent = {
+      ...intent,
+      canvas_progress: {
+        ...intent.canvas_progress,
+        completed_areas: nextCompleted,
+        ready_to_register: true
+      }
+    };
+    const result = await registerCampaignIntentClient(intentToRegister);
     setSaving(false);
     if (!result.intent) {
       setError(result.error || 'Registration blocked until all four areas are complete.');
@@ -619,6 +875,7 @@ export default function CampaignDecisionCanvas({
       campaign_intent_id: result.intent.campaign_intent_id
     });
     setEvaluating(false);
+    let resolvedEvalResult = evalResult;
     if (evalResult) setEvaluation(evalResult);
 
     setDiscovering(true);
@@ -644,9 +901,15 @@ export default function CampaignDecisionCanvas({
           opportunity_window_id: opp.opportunity_windows.recommended_window_id
         });
         setEvaluating(false);
-        if (resolvedEval) setEvaluation(resolvedEval);
+        if (resolvedEval) {
+          resolvedEvalResult = resolvedEval;
+          setEvaluation(resolvedEval);
+        }
       }
     }
+
+    // Preserve this completed experiment
+    await preserveCurrentExperiment(result.intent, resolvedEvalResult, opp);
   };
 
   const handleEvaluate = async () => {
@@ -673,9 +936,11 @@ export default function CampaignDecisionCanvas({
       return;
     }
     setEvaluation(evalResult);
+    await preserveCurrentExperiment(intent, evalResult, opportunity, readiness, frontier, decisionContract);
   };
 
   const handleDiscoverOpportunity = async () => {
+    if (isHistoricalView || !intent) return;
     setDiscovering(true);
     setError(null);
     const opp = await discoverCampaignOpportunityClient({
@@ -689,9 +954,11 @@ export default function CampaignDecisionCanvas({
       return;
     }
     setOpportunity(opp);
+    await preserveCurrentExperiment(intent, evaluation, opp, readiness, frontier, decisionContract);
   };
 
   const handleAssessReadiness = async () => {
+    if (isHistoricalView || !intent) return;
     setAssessing(true);
     setError(null);
     const result = await evaluateCampaignReadinessClient({
@@ -705,9 +972,11 @@ export default function CampaignDecisionCanvas({
       return;
     }
     setReadiness(result);
+    await preserveCurrentExperiment(intent, evaluation, opportunity, result, frontier, decisionContract);
   };
 
   const handleProjectTimeline = async () => {
+    if (isHistoricalView || !intent) return;
     setProjecting(true);
     setError(null);
     setTimelineTier(1);
@@ -725,6 +994,7 @@ export default function CampaignDecisionCanvas({
   };
 
   const handleEvaluateFrontier = async () => {
+    if (isHistoricalView || !intent) return;
     setEvaluatingFrontier(true);
     setError(null);
     setFrontierDrawerOpen(false);
@@ -763,6 +1033,7 @@ export default function CampaignDecisionCanvas({
     const plays = result.frontier?.plays || [];
     const scenarioZero = plays.find((p: any) => p.play_kind === 'DO_NOTHING');
     setSelectedPlayId(scenarioZero?.play_id || plays[0]?.play_id || null);
+    await preserveCurrentExperiment(intent, evaluation, opportunity, readiness, result, decisionContract);
   };
 
   const handleRegisterDecisionContract = async () => {
@@ -834,6 +1105,7 @@ export default function CampaignDecisionCanvas({
     }
 
     setDecisionContract(created.contract);
+    await preserveCurrentExperiment(intent, evaluation, opportunity, readiness, frontier, created.contract);
     setMessage('Decision contract registered.');
 
     // WP10-C W1 — bind the plain-string reference into Shared Decision State. WP10-C owns the
@@ -890,22 +1162,33 @@ export default function CampaignDecisionCanvas({
    * it is already on the server, not only in component state.
    */
   const handleSaveAndContinue = async () => {
+    if (isHistoricalView || !intent) return;
     setSaving(true);
     setError(null);
     setMessage(null);
-    const saved = await saveCampaignIntentDraftClient(intent);
+    const currentCompleted = intent.canvas_progress?.completed_areas || [];
+    const nextCompleted = currentCompleted.includes(active) ? currentCompleted : [...currentCompleted, active];
+    const idx = CAMPAIGN_CANVAS_AREA_ORDER.indexOf(active);
+    const nextArea =
+      idx < CAMPAIGN_CANVAS_AREA_ORDER.length - 1 ? CAMPAIGN_CANVAS_AREA_ORDER[idx + 1] : active;
+
+    const intentToSave: CampaignIntent = {
+      ...intent,
+      canvas_progress: {
+        ...intent.canvas_progress,
+        completed_areas: nextCompleted,
+        active_area: nextArea,
+        ready_to_register: nextCompleted.length === 4
+      }
+    };
+
+    const saved = await saveCampaignIntentDraftClient(intentToSave);
     setSaving(false);
     if (!saved) {
       setError('Could not save this stage. Check the required fields above.');
       return;
     }
-    const idx = CAMPAIGN_CANVAS_AREA_ORDER.indexOf(active);
-    const nextArea =
-      idx < CAMPAIGN_CANVAS_AREA_ORDER.length - 1 ? CAMPAIGN_CANVAS_AREA_ORDER[idx + 1] : active;
-    updateIntent({
-      ...saved,
-      canvas_progress: { ...saved.canvas_progress, active_area: nextArea }
-    });
+    setIntent(saved);
   };
 
   const handleResetDecision = async () => {
@@ -913,8 +1196,8 @@ export default function CampaignDecisionCanvas({
       typeof window === 'undefined' ||
       window.confirm(
         isRegistered
-          ? 'Start a new decision? The registered decision, its assessment and any contract for this session will be cleared. Seeded world data and other experiments are unaffected.'
-          : 'Reset this decision? Everything entered so far for this session will be cleared. Seeded world data and other experiments are unaffected.'
+          ? 'Start a new decision? The registered decision, its assessment and any contract for this session will be cleared. Seeded world data and preserved historical experiments are unaffected.'
+          : 'Reset this decision? Everything entered so far for this session will be cleared. Seeded world data and preserved historical experiments are unaffected.'
       );
     if (!confirmed) return;
 
@@ -940,10 +1223,101 @@ export default function CampaignDecisionCanvas({
     setPreMortem(null);
     setPredictionComparison(null);
     setLearningCandidate(null);
+    setReviewedExperiment(null);
+    // Release this session's claim on the current experiment identity. The record itself stays
+    // in history; the next preserved decision earns the next number rather than reopening it.
+    preservingRef.current = false;
+    rememberActiveExperimentId(null);
     setIntent(result.intent);
     setResetting(false);
     setMessage('Decision reset. Start a new decision from Campaign Intent.');
+    await refreshExperimentsList();
     if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleOpenExecutionBriefForExperiment = async (exp: CampaignDecisionExperiment) => {
+    const brief = await fetchExecutionBriefClient(exp.experiment_id);
+    if (brief) {
+      setExecutionBriefData(brief);
+    } else {
+      setError(`Could not fetch execution brief for ${exp.experiment_id}`);
+    }
+  };
+
+  const handleOpenExecutionBrief = async () => {
+    // Resolve the brief against the decision actually on screen. Falling back to the newest
+    // entry in history would hand the user another decision's brief the moment any history
+    // exists, which is exactly the kind of silent snapshot swap this surface must not do.
+    const targetExp = isHistoricalView
+      ? reviewedExperiment
+      : activeExperimentId
+      ? experimentsList.find(e => e.experiment_id === activeExperimentId) || null
+      : null;
+    if (targetExp) {
+      await handleOpenExecutionBriefForExperiment(targetExp);
+      return;
+    }
+    if (!displayedIntent) return;
+    // Fallback brief for a decision that has not yet been preserved. It reads the same engine
+    // field paths as preservation does, so a brief and its experiment can never disagree.
+    const liveDelta = displayedEvaluation?.counterfactual?.campaign_delta;
+    const liveDemand = liveDelta?.attributable_uplift_pp ?? displayedEvaluation?.causal?.intervention_uplift_pp ?? 0;
+    const liveContrib = liveDelta?.contribution_delta_gbp ?? 0;
+    const demandFormatted = formatDemandPct(liveDemand);
+    const contribFormatted = formatContributionGbp(liveContrib);
+    const brief: ExecutionBrief = {
+      brief_id: `BRIEF-${displayedIntent.campaign_intent_id.substring(0, 14)}`,
+      // Not an experiment id: this decision has not been preserved, so it has no EXP number.
+      experiment_id: 'Current decision (not yet preserved)',
+      tenant_id: displayedIntent.tenant_id,
+      session_id: displayedIntent.session_id,
+      generated_at: new Date().toISOString(),
+      proposal: {
+        title: `${executiveLabel('campaign_objective', displayedIntent.campaign_intent.objective_type)} — ${displayedIntent.campaign_intent.category} (${displayedIntent.audience_market.region})`,
+        recommendation: `Deploy ${executiveLabel('intervention_posture', displayedIntent.campaign_intent.intervention_posture).toLowerCase()} configuration for ${displayedIntent.campaign_intent.sku_scope.join(', ')} in ${displayedIntent.audience_market.region}.`,
+        category_and_sku: `${displayedIntent.campaign_intent.category} · Scope: ${displayedIntent.campaign_intent.sku_scope.join(', ')}`,
+        region_and_window: `${displayedIntent.audience_market.region} · Optimal discovery window`
+      },
+      rationale: {
+        summary: `Optimises ${executiveLabel('campaign_objective', displayedIntent.campaign_intent.objective_type).toLowerCase()} by delivering ${demandFormatted} incremental demand and ${contribFormatted} contribution.`,
+        key_drivers: [
+          `Attributable demand uplift of ${demandFormatted} isolated from baseline counterfactual run-rate.`,
+          `Net financial contribution delta of ${contribFormatted} after cost and elasticity dynamics.`
+        ]
+      },
+      expected_impact: {
+        incremental_demand: demandFormatted,
+        contribution_impact: contribFormatted,
+        readiness_verdict: readinessVerdictLabel(mapReadinessStateToVerdict(displayedReadiness?.readiness?.state)),
+        trade_off_balance:
+          displayedFrontier?.frontier?.selection?.open_trade_off || 'Trade-off not yet evaluated.'
+      },
+      operational_scope: {
+        region: displayedIntent.audience_market.region,
+        timing: 'Optimal discovery window',
+        audience: displayedIntent.audience_market.customer_segment || 'All shoppers',
+        channel: 'Omnichannel'
+      },
+      material_constraints: displayedIntent.baseline_objective.capacity_cap_note ? [displayedIntent.baseline_objective.capacity_cap_note] : ['Capacity constraint to be monitored'],
+      decision_triggers: [
+        'Supplier capacity fluctuation > 15% triggers re-evaluation.',
+        'Market competitor price action during promotion window triggers re-evaluation.'
+      ],
+      evidence_and_trust: {
+        posture: displayedIntent.synthetic_demo ? 'Demonstration evidence basis: uncalibrated simulation data' : 'Attested counterfactual baseline',
+        synthetic_disclosure: 'Demonstration evidence basis: uncalibrated simulation data for exploration.'
+      },
+      next_step: {
+        action: 'Prepare Commitment Handoff',
+        description: 'Package commercial parameters and constraint boundaries for stakeholder alignment.',
+        execution_boundary_notice: 'CogniX has prepared this execution brief as decision guidance. No external campaign systems have been executed or modified.'
+      },
+      technical_provenance: {
+        intent_id: displayedIntent.campaign_intent_id,
+        schema_version: displayedIntent.schema_version
+      }
+    };
+    setExecutionBriefData(brief);
   };
 
   const fieldStyle: CSSProperties = {
@@ -967,81 +1341,205 @@ export default function CampaignDecisionCanvas({
   return (
     <div className="page-content animate-fade" style={{ maxWidth: 960, margin: '0 auto', paddingBottom: 64 }}>
       {/* Hero framing — curiosity first, not a control dashboard */}
-      <header style={{ marginBottom: 28 }}>
-        <div style={{ fontSize: '0.6875rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--g10x-orange)', marginBottom: 8 }}>
-          EXP-CDI-01 · Campaign Decision Intelligence
-        </div>
-        <h1 style={{ fontSize: '1.75rem', fontWeight: 650, color: 'var(--text-primary)', margin: '0 0 10px', lineHeight: 1.25 }}>
-          What if promotional decisions first asked whether to intervene at all?
-        </h1>
-        <p style={{ margin: 0, fontSize: '0.9375rem', color: 'var(--text-secondary)', maxWidth: 720, lineHeight: 1.55 }}>
-          This canvas establishes intent and constraints. Promotion is one possible lever — alongside non-promotion interventions and doing nothing. Prediction, readiness, and trade-offs arrive in later packages.
-        </p>
-        {intent.synthetic_demo && (
-          <div style={{ marginTop: 12, display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', color: 'var(--text-muted)', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 999, padding: '4px 10px' }}>
-            <Sparkles size={12} /> Synthetic demo intent · schema {intent.schema_version}
+      <header style={{ marginBottom: 24, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 20 }}>
+        <div>
+          {/*
+            Decision identity. This slot names the decision on screen and nothing else: an
+            experiment number appears here only once a real experiment record exists. CDI-01 is
+            the capability this surface implements, not an experiment instance, so it is stated
+            as a capability reference further down where it cannot be read as "experiment 1".
+          */}
+          <div style={{ fontSize: '0.6875rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--g10x-orange)', marginBottom: 8 }}>
+            {decisionIdentityLabel}
           </div>
-        )}
+          <h1 style={{ fontSize: '1.75rem', fontWeight: 650, color: 'var(--text-primary)', margin: '0 0 10px', lineHeight: 1.25 }}>
+            What if promotional decisions first asked whether to intervene at all?
+          </h1>
+          <p style={{ margin: 0, fontSize: '0.9375rem', color: 'var(--text-secondary)', maxWidth: 720, lineHeight: 1.55 }}>
+            This canvas establishes intent and constraints. Promotion is one possible lever — alongside non-promotion interventions and doing nothing. Prediction, readiness, and trade-offs arrive in later packages.
+          </p>
+          <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            {displayedIntent.synthetic_demo && (
+              <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: '0.75rem', color: 'var(--text-muted)', background: '#F8FAFC', border: '1px solid var(--border)', borderRadius: 999, padding: '4px 10px' }}>
+                <Sparkles size={12} /> Synthetic demo intent · schema {displayedIntent.schema_version}
+              </div>
+            )}
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              Capability reference CDI-01 · Campaign Decision Intelligence
+            </span>
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', alignItems: 'center', flexShrink: 0 }}>
+          <button
+            type="button"
+            onClick={() => setHistoryDrawerOpen(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: '#FFFFFF',
+              color: 'var(--text-primary)',
+              fontWeight: 600,
+              fontSize: '0.8125rem',
+              cursor: 'pointer'
+            }}
+            title="Open Experiment History"
+          >
+            <History size={14} color="var(--g10x-orange)" />
+            <span>Experiment History</span>
+            <span
+              style={{
+                fontSize: '0.6875rem',
+                fontWeight: 700,
+                background: 'var(--curiosity-light)',
+                color: 'var(--g10x-orange)',
+                padding: '2px 6px',
+                borderRadius: 999
+              }}
+            >
+              {experimentsList.length}
+            </span>
+          </button>
+
+          {(displayedEvaluation || isRegistered) && (
+            <button
+              type="button"
+              onClick={handleOpenExecutionBrief}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '8px 14px',
+                borderRadius: 8,
+                border: '1px solid var(--g10x-orange)',
+                background: 'var(--curiosity-light)',
+                color: 'var(--g10x-orange)',
+                fontWeight: 650,
+                fontSize: '0.8125rem',
+                cursor: 'pointer'
+              }}
+              title="Open Executive Execution Brief"
+            >
+              <FileText size={14} />
+              <span>Execution Brief</span>
+            </button>
+          )}
+        </div>
       </header>
 
-      {/* Progressive area rail — every stage carries an explicit status so the user never
-          has to infer where they are or what remains. Stages stay reachable after
-          registration for review; the fields inside them are read-only at that point. */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
+      {/* Historical Review Banner (when inspecting past experiment) */}
+      {isHistoricalView && reviewedExperiment && (
+        <div
+          style={{
+            background: '#FEF3C7',
+            border: '1px solid #FDE68A',
+            borderRadius: 10,
+            padding: '14px 18px',
+            marginBottom: 20,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 16
+          }}
+        >
+          <div>
+            <div style={{ fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', color: '#B45309', letterSpacing: '0.06em' }}>
+              Historical Decision Experiment
+            </div>
+            <div style={{ fontSize: '0.9375rem', fontWeight: 650, color: '#92400E', marginTop: 2 }}>
+              Reviewing {reviewedExperiment.experiment_id} · {reviewedExperiment.objective_label} ({reviewedExperiment.category}) · Preserved {new Date(reviewedExperiment.completed_at).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#A16207', marginTop: 2 }}>
+              Inputs and analytical findings are displayed in read-only mode. Active session decision is unaffected.
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+            <button
+              type="button"
+              onClick={() => handleOpenExecutionBriefForExperiment(reviewedExperiment)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '7px 12px',
+                borderRadius: 6,
+                border: '1px solid #D97706',
+                background: '#FFFFFF',
+                color: '#92400E',
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+                cursor: 'pointer'
+              }}
+            >
+              <FileText size={13} />
+              View Brief
+            </button>
+            <button
+              type="button"
+              onClick={() => setReviewedExperiment(null)}
+              style={{
+                padding: '7px 14px',
+                borderRadius: 6,
+                border: 'none',
+                background: '#D97706',
+                color: '#FFFFFF',
+                fontSize: '0.8125rem',
+                fontWeight: 650,
+                cursor: 'pointer'
+              }}
+            >
+              Return to Active Decision
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Progressive area rail — clean checkmarks and active stage indicator */}
+      <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
         {CAMPAIGN_CANVAS_AREA_ORDER.map(area => {
           const done = progress.completed_areas.includes(area);
           const selected = active === area;
-          const status: 'complete' | 'in-progress' | 'not-started' = done
-            ? 'complete'
-            : selected
-            ? 'in-progress'
-            : 'not-started';
           return (
             <button
               key={area}
               type="button"
               onClick={() => setActiveArea(area)}
-              title={
-                status === 'complete'
-                  ? `${AREA_META[area].title} — complete`
-                  : status === 'in-progress'
-                  ? `${AREA_META[area].title} — in progress`
-                  : `${AREA_META[area].title} — not started`
-              }
+              title={`${AREA_META[area].title} — ${done ? 'Reviewed' : selected ? 'Current' : 'Not reviewed'}`}
               style={{
                 display: 'flex',
                 alignItems: 'center',
                 gap: 8,
-                padding: '8px 12px',
+                padding: '8px 14px',
                 borderRadius: 8,
-                border: selected ? '1px solid var(--g10x-orange)' : '1px solid var(--border)',
+                border: selected ? '1.5px solid var(--g10x-orange)' : '1px solid var(--border)',
                 background: selected ? 'var(--curiosity-light)' : '#FFFFFF',
-                color: selected ? 'var(--g10x-orange)' : 'var(--text-secondary)',
+                color: selected ? 'var(--g10x-orange)' : done ? 'var(--text-primary)' : 'var(--text-muted)',
                 cursor: 'pointer',
                 fontSize: '0.8125rem',
-                fontWeight: 550
+                fontWeight: selected ? 650 : 500,
+                transition: 'all 0.15s ease'
               }}
             >
               {done ? (
-                <CheckCircle2 size={14} color="var(--success, #059669)" />
+                <CheckCircle2 size={15} color="var(--success, #059669)" />
               ) : (
-                <span style={{ opacity: 0.5 }}>{AREA_META[area].step}</span>
+                <span style={{ opacity: selected ? 1 : 0.45, fontWeight: 700 }}>{AREA_META[area].step}</span>
               )}
               {AREA_META[area].title}
-              <span
-                style={{
-                  fontSize: '0.625rem',
-                  fontWeight: 600,
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                  color: status === 'complete' ? 'var(--success, #059669)' : status === 'in-progress' ? 'var(--g10x-orange)' : 'var(--text-muted)'
-                }}
-              >
-                {status === 'complete' ? 'Complete' : status === 'in-progress' ? 'In progress' : 'Not started'}
-              </span>
             </button>
           );
         })}
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+          {progress.completed_areas.length} of 4 stages reviewed
+          {isRegistered ? ' · Decision registered' : ''}
+        </span>
       </div>
 
       {/* Active area panel */}
@@ -1466,16 +1964,16 @@ export default function CampaignDecisionCanvas({
           </div>
 
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
-            {!isRegistered && !stageComplete && (
+            {!isHistoricalView && !isRegistered && !isCurrentStageValid && (
               <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                 Complete the required fields to continue
               </span>
             )}
 
-            {!isRegistered && !isLastStage && (
+            {!isHistoricalView && !isRegistered && !isLastStage && (
               <button
                 type="button"
-                disabled={saving || !stageComplete}
+                disabled={saving || !isCurrentStageValid}
                 onClick={handleSaveAndContinue}
                 style={{
                   display: 'inline-flex',
@@ -1484,26 +1982,30 @@ export default function CampaignDecisionCanvas({
                   padding: '10px 16px',
                   borderRadius: 8,
                   border: 'none',
-                  background: stageComplete ? 'var(--g10x-orange)' : '#CBD5E1',
+                  background: isCurrentStageValid ? 'var(--g10x-orange)' : '#CBD5E1',
                   color: '#FFFFFF',
                   fontWeight: 600,
                   fontSize: '0.8125rem',
-                  cursor: stageComplete ? 'pointer' : 'not-allowed'
+                  cursor: isCurrentStageValid ? 'pointer' : 'not-allowed'
                 }}
               >
                 Save &amp; Continue <ChevronRight size={14} />
               </button>
             )}
 
-            {!isRegistered && isLastStage && (
+            {!isHistoricalView && !isRegistered && isLastStage && (
               <button
                 type="button"
-                disabled={saving || !progress.ready_to_register}
+                disabled={saving || !canRegisterDecision}
                 onClick={handleRegister}
                 title={
-                  progress.ready_to_register
-                    ? 'Register this decision and run the assessment'
-                    : 'All four stages must be complete before registering'
+                  !isCurrentStageValid
+                    ? 'Complete the required fields before registering'
+                    : unreviewedOtherStages.length > 0
+                    ? `Review every stage first — still to confirm: ${unreviewedOtherStages
+                        .map(a => AREA_META[a].title)
+                        .join(', ')}`
+                    : 'Confirm this stage, register the decision and run the assessment'
                 }
                 style={{
                   display: 'inline-flex',
@@ -1512,18 +2014,18 @@ export default function CampaignDecisionCanvas({
                   padding: '10px 16px',
                   borderRadius: 8,
                   border: 'none',
-                  background: progress.ready_to_register ? 'var(--g10x-orange)' : '#CBD5E1',
+                  background: canRegisterDecision ? 'var(--g10x-orange)' : '#CBD5E1',
                   color: '#FFFFFF',
                   fontWeight: 600,
                   fontSize: '0.8125rem',
-                  cursor: progress.ready_to_register ? 'pointer' : 'not-allowed'
+                  cursor: canRegisterDecision ? 'pointer' : 'not-allowed'
                 }}
               >
                 Register &amp; Evaluate Decision <ArrowRight size={14} />
               </button>
             )}
 
-            {isRegistered && !isLastStage && (
+            {(isRegistered || isHistoricalView) && !isLastStage && (
               <button
                 type="button"
                 onClick={advance}
@@ -1545,7 +2047,7 @@ export default function CampaignDecisionCanvas({
               </button>
             )}
 
-            {isRegistered && isLastStage && (
+            {(isRegistered || isHistoricalView) && isLastStage && (
               <button
                 type="button"
                 onClick={() => {
@@ -1583,7 +2085,7 @@ export default function CampaignDecisionCanvas({
           marginBottom: 16
         }}
       >
-        {!isRegistered && (
+        {!isHistoricalView && !isRegistered && (
           <button
             type="button"
             disabled={saving}
@@ -1603,32 +2105,59 @@ export default function CampaignDecisionCanvas({
           </button>
         )}
 
-        <button
-          type="button"
-          disabled={resetting}
-          onClick={handleResetDecision}
-          title="Clears this decision for your session only — seeded world data and other experiments are unaffected"
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: 6,
-            padding: '10px 14px',
-            borderRadius: 8,
-            border: '1px solid var(--border)',
-            background: '#FFFFFF',
-            color: 'var(--text-secondary)',
-            fontWeight: 600,
-            fontSize: '0.8125rem',
-            cursor: resetting ? 'wait' : 'pointer'
-          }}
-        >
-          <RotateCcw size={14} />
-          {resetting ? 'Resetting…' : isRegistered ? 'Start new decision' : 'Reset decision'}
-        </button>
+        {!isHistoricalView && (
+          <button
+            type="button"
+            disabled={resetting}
+            onClick={handleResetDecision}
+            title="Clears this decision for your session only — seeded world data and preserved historical experiments are unaffected"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '10px 14px',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: '#FFFFFF',
+              color: 'var(--text-secondary)',
+              fontWeight: 600,
+              fontSize: '0.8125rem',
+              cursor: resetting ? 'wait' : 'pointer'
+            }}
+          >
+            <RotateCcw size={14} />
+            {resetting ? 'Resetting…' : isRegistered ? 'Start new decision' : 'Reset decision'}
+          </button>
+        )}
+
+        {(displayedEvaluation || isRegistered) && (
+          <button
+            type="button"
+            onClick={handleOpenExecutionBrief}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '10px 14px',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: '#FFFFFF',
+              color: 'var(--g10x-orange)',
+              fontWeight: 600,
+              fontSize: '0.8125rem',
+              cursor: 'pointer'
+            }}
+            title="Prepare executive execution brief and commitment handoff"
+          >
+            <FileText size={14} />
+            View Execution Brief
+          </button>
+        )}
 
         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          {progress.completed_areas.length} of 4 stages complete
+          {progress.completed_areas.length} of 4 stages reviewed
           {isRegistered ? ' · Decision registered' : ''}
+          {isHistoricalView ? ' · Historical snapshot' : ''}
         </span>
       </section>
 
@@ -3454,6 +3983,52 @@ export default function CampaignDecisionCanvas({
           </button>
         )}
       </section>
+      )}
+
+      {/* Experiment History Drawer */}
+      <ExperimentHistoryDrawer
+        isOpen={historyDrawerOpen}
+        experiments={experimentsList}
+        onClose={() => setHistoryDrawerOpen(false)}
+        onReviewExperiment={exp => {
+          setReviewedExperiment(exp);
+          setHistoryDrawerOpen(false);
+          if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+        }}
+        onViewBrief={exp => {
+          handleOpenExecutionBriefForExperiment(exp);
+        }}
+        onCompareExperiments={async (expAId, expBId) => {
+          const comp = await compareCampaignExperimentsClient(expAId, expBId);
+          if (comp) {
+            setComparisonModalData(comp);
+          } else {
+            setError('Could not generate comparison for selected experiments.');
+          }
+        }}
+      />
+
+      {/* Comparison Modal */}
+      {comparisonModalData && (
+        <ExperimentComparisonModal
+          comparison={comparisonModalData}
+          onClose={() => setComparisonModalData(null)}
+          onSelectExperiment={id => {
+            const found = experimentsList.find(e => e.experiment_id === id);
+            if (found) {
+              setReviewedExperiment(found);
+              setComparisonModalData(null);
+            }
+          }}
+        />
+      )}
+
+      {/* Execution Brief Modal */}
+      {executionBriefData && (
+        <ExecutionBriefModal
+          brief={executionBriefData}
+          onClose={() => setExecutionBriefData(null)}
+        />
       )}
     </div>
   );

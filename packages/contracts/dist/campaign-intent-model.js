@@ -20,6 +20,7 @@ exports.validateCampaignIntentCore = validateCampaignIntentCore;
 exports.validateBaselineObjective = validateBaselineObjective;
 exports.validateAudienceMarket = validateAudienceMarket;
 exports.validateDecisionContextArea = validateDecisionContextArea;
+exports.evaluateCanvasAreaStructural = evaluateCanvasAreaStructural;
 exports.evaluateCanvasAreaCompletion = evaluateCanvasAreaCompletion;
 exports.deriveCanvasProgress = deriveCanvasProgress;
 exports.validateCampaignIntent = validateCampaignIntent;
@@ -165,26 +166,38 @@ function validateDecisionContextArea(area) {
     }
     return { valid: errors.length === 0, errors };
 }
+function evaluateCanvasAreaStructural(intent) {
+    const validAreas = [];
+    if (intent.campaign_intent && validateCampaignIntentCore(intent.campaign_intent).valid)
+        validAreas.push('CAMPAIGN_INTENT');
+    if (intent.baseline_objective && validateBaselineObjective(intent.baseline_objective).valid)
+        validAreas.push('BASELINE_OBJECTIVE');
+    if (intent.audience_market && validateAudienceMarket(intent.audience_market).valid)
+        validAreas.push('AUDIENCE_MARKET');
+    if (intent.decision_context && validateDecisionContextArea(intent.decision_context).valid)
+        validAreas.push('DECISION_CONTEXT');
+    return validAreas;
+}
+/**
+ * A completed area is one the user explicitly confirmed AND that is structurally valid.
+ *
+ * Registration deliberately gets no exemption here. Treating a REGISTERED intent as four
+ * reviewed stages would make the checkmarks report the status of the record rather than what
+ * the user actually reviewed, which is the one thing this signal exists to say. Registration
+ * is gated on structural completeness separately, in validateCampaignIntent.
+ */
 function evaluateCanvasAreaCompletion(intent) {
-    const completed = [];
-    if (validateCampaignIntentCore(intent.campaign_intent).valid)
-        completed.push('CAMPAIGN_INTENT');
-    if (validateBaselineObjective(intent.baseline_objective).valid)
-        completed.push('BASELINE_OBJECTIVE');
-    if (validateAudienceMarket(intent.audience_market).valid)
-        completed.push('AUDIENCE_MARKET');
-    if (validateDecisionContextArea(intent.decision_context).valid)
-        completed.push('DECISION_CONTEXT');
-    return completed;
+    const structurallyValid = evaluateCanvasAreaStructural(intent);
+    const userConfirmed = intent.canvas_progress?.completed_areas || [];
+    return userConfirmed.filter(area => structurallyValid.includes(area));
 }
 function deriveCanvasProgress(intent) {
     const completed = evaluateCanvasAreaCompletion(intent);
-    const ready = exports.CAMPAIGN_CANVAS_AREA_ORDER.every(a => completed.includes(a));
-    const firstIncomplete = exports.CAMPAIGN_CANVAS_AREA_ORDER.find(a => !completed.includes(a));
+    const structurallyComplete = evaluateCanvasAreaStructural(intent).length === exports.CAMPAIGN_CANVAS_AREA_ORDER.length;
     return {
-        active_area: intent.canvas_progress?.active_area || firstIncomplete || 'DECISION_CONTEXT',
+        active_area: intent.canvas_progress?.active_area || 'CAMPAIGN_INTENT',
         completed_areas: completed,
-        ready_to_register: ready
+        ready_to_register: structurallyComplete
     };
 }
 function validateCampaignIntent(intent, options) {
@@ -231,11 +244,10 @@ function validateCampaignIntent(intent, options) {
         errors.push('CampaignIntent must have status REGISTERED');
     }
     if (intent.status === 'REGISTERED') {
-        const progress = intent;
-        const derived = intent.campaign_intent && intent.baseline_objective && intent.audience_market && intent.decision_context
-            ? deriveCanvasProgress(progress)
-            : { ready_to_register: false };
-        if (!derived.ready_to_register) {
+        const structural = intent.campaign_intent && intent.baseline_objective && intent.audience_market && intent.decision_context
+            ? evaluateCanvasAreaStructural(intent)
+            : [];
+        if (structural.length !== exports.CAMPAIGN_CANVAS_AREA_ORDER.length) {
             errors.push('Cannot register CampaignIntent until all four canvas areas are structurally complete');
         }
     }

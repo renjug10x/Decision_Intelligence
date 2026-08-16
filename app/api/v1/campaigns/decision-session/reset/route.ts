@@ -5,6 +5,7 @@ import { decisionContractStore } from '@/lib/decision-contract-store';
 import { preMortemStore } from '@/lib/pre-mortem-store';
 import { learningCandidateStore } from '@/lib/learning-candidate-store';
 import { resetDecisionState } from '@/lib/decision-state-store';
+import { campaignExperimentStore } from '@/lib/campaign-experiment-store';
 
 /**
  * Reset the Campaign Decision workspace for ONE tenant/session.
@@ -45,6 +46,12 @@ export async function POST(request: NextRequest) {
     clearCampaignIntents(tenantId, sessionId);
     resetDecisionState(tenantId, sessionId);
 
+    // End the decision that was in progress without deleting it. Preserved experiments are
+    // history and must survive a reset; what must not survive is this session's claim on the
+    // identity, or the next preserved decision would deepen the old record instead of earning
+    // its own EXP number.
+    campaignExperimentStore.closeActiveExperiment(tenantId, sessionId);
+
     // Hand back a fresh draft so the caller lands on a genuinely clean Campaign Intent
     // rather than an empty screen it has to re-request.
     const draft = getOrCreateCampaignIntentDraft(tenantId, sessionId);
@@ -56,7 +63,7 @@ export async function POST(request: NextRequest) {
       data: draft,
       disclosures: {
         reset_scope: 'campaign_decision_session_only',
-        preserved: 'seeded world data, other sessions and other tenants are untouched'
+        preserved: 'seeded world data, historical decision experiments, other sessions and other tenants are untouched'
       }
     });
   } catch (e: any) {
