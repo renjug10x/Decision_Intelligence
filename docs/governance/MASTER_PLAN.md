@@ -334,14 +334,28 @@ A transformational decision capability discovering whether, what, where, when, a
   - *Owner rulings:* X1 (CDI-07A world-driven source admissibility corrected as a predicate change; synthetic provenance never establishes `WORLD_DRIVEN`); X2 (`decision_contract_ref` on `EnterpriseMemoryCase`, reference only); X3 (contract semantic `N > 1`, initial `N = 3` as an uncalibrated configurable demonstration policy, not statistical significance); X4 (ineligible learning candidates retained, never promoted).
   - *Evidence:* `docs/reports/COGNIX_CDI_07B_LEARNING_LOOP_DESIGN_GATE.md` + `COGNIX_CDI_07B_LEARNING_LOOP_REPORT.md`; ADR-035; CDI-07B 232/232 (55 ACs plus RB-1…RB-8 reconciliation regressions) with CDI-01…07A unchanged (21/36/31/49/70/93/155). Independently reconciled 2026-08-15 — eight defects corrected, led by a path that let a caller-supplied comparison decide its own learning eligibility and register synthetic evidence into WP10-D as a real-world precedent.
   - *Baseline truth:* no eligible `LearningCase` is producible at this baseline and no memory case is registered on the learning path. LE-3 (composite contracted grain vs single-entity observation), LE-4 (every ESF-3 connector is synthetic) and LE-7 (no declared prediction envelope) all block. The loop closes when an authoritative non-synthetic observation at the contracted grain exists; `N` is never approached and `N = 3` remains an unexercised uncalibrated demonstration policy.
+- **CDI-08 — Observation Correspondence & Prediction Envelope Foundation [DESIGN FROZEN — NEXT]:** The deterministic predicate `contract × observation → comparability`. Answers whether an observation addresses the decision that was contracted, and against what tolerance. Composite contracted grain resolved by a single observation carrying a declared composite grain key with exact token identity on every contracted dimension (LE-3); a declared prediction envelope on the CDI-07A `DecisionContract` (LE-7); metric ↔ `signal_type` correspondence against a closed declared table (R2); derived-or-refused quantity basis (R1); observation-window correspondence by exact coverage; empty grain, null window and foreign tenant/session all fail closed (R3, R6). No apportionment, no fuzzy matching, no fallback from attributable to gross, no silently missing dimension.
+  - *Hard Dependencies:* `CDI-07A` (`DecisionContract`), `CDI-07B` (`PredictionOutcomeComparison`).
+  - *Integration Dependencies:* None. **No external dependency whatsoever.**
+  - *Enhancement Dependencies:* None.
+  - *Owner rulings:* **Z1** (prediction envelope is a contract-native declaration on `DecisionContract`, additive, covered by `contract_digest`, `decision_basis_digest` untouched — verified mechanically against `computeContractDigest` / `computeDecisionBasisDigest`); **Z2** (`OUTSIDE_DECLARED_ENVELOPE` admissible on digest binding alone; `WITHIN_DECLARED_ENVELOPE` withheld until pre-declaration is witnessed by an instant the caller does not author — therefore structurally unreachable until ESF-6); **Z4** (composite grain resolves **only** by a single observation whose declared grain key equals the contracted required dimension set; a jointly-covering set of marginal observations is **refused** — marginals do not determine the joint cell, and combining them is apportionment).
+  - *Deliverables:* `PREDICTION_ENVELOPE_REQUIRED_INPUT` and `COMPOSITE_GRAIN_OBSERVATION_REQUIRED_INPUT`, closing the estate's only undeclared capability gap.
+  - *Binding constraint:* purely additive on CDI-07A; strictly narrowing on CDI-07B. No comparison that fails at `5b92dae2` may pass afterwards except the two intended unlocks (composite grain, declared envelope), each demonstrated on a case that provably could not pass before. Full re-execution of 21/36/31/49/70/93/155/232 is a gate condition.
+  - *Evidence:* `docs/reports/COGNIX_CDI_08_OBSERVATION_CORRESPONDENCE_DESIGN_GATE.md`; architecture basis `docs/reports/COGNIX_PROGRAMME_10_POST_CDI_CONSOLIDATION_ASSESSMENT.md`; ADR-036, ADR-037.
 
 ---
 
 ### ESF-3 Disposition & Dependency Position
 - **Status:** COMPLETED (provider-neutral connector contract delivered).
 - **Role:** `ESF-3 — External Signal Connector Contract` remains provider-neutral and is NOT deleted, absorbed, or superseded. It defines connector contracts for planning, commerce, weather, events, competitive intel, operational telemetry, and demographic sources.
-- **CDI Dependency:** CDI work packages `CDI-01` through `CDI-07B` use synthetic `ESF-1`/`ESF-2` / ESF-3 reference feeds during lab development. Non-synthetic connectors remain a commercial/integration question (Y3).
-- **Successor:** `CDI-01`–`CDI-07B` [COMPLETED]. Next stream work is outside this CDI package set (ESF-4 parallel-eligible; organisational learning calibration Y4). `ESF-4` remains parallel-eligible under separate file ownership.
+- **CDI Dependency:** CDI work packages `CDI-01` through `CDI-07B` use synthetic `ESF-1`/`ESF-2` / ESF-3 reference feeds during lab development.
+- **Y3 characterisation — CORRECTED (2026-08-16, consolidation assessment §3.1 / G3):** the CDI-07B design gate §13.2 recorded Y3 as "a commercial and integration question, not a design one." **That characterisation is incorrect at baseline `5b92dae2`.** Three code sites make a non-synthetic observation unrepresentable regardless of any commercial arrangement: the connector registry is a static const array of seven reference adapters all marked `synthetic_demo: true` with no registration path; ingestion hardcodes `synthetic_demo: true`; and `campaign-learning-loop-engine.ts:1097` reads `... || connector?.synthetic_demo || true`, whose trailing `|| true` makes the expression a constant. **Non-synthetic never meant purchased.** It means *attested and independent of the system that made the prediction* — a first-party CSV of realised actuals, attested at upload by a named operator at the contracted grain, is independent evidence by exactly the standard CDI-07B applies (owner ruling **Z3**, approved 2026-08-16). Y3 is therefore a bounded engineering task, not a procurement dependency.
+- **Successor:** `CDI-01`–`CDI-07B` [COMPLETED] → **`CDI-08` [DESIGN FROZEN — NEXT]** → `ESF-6 / Y3a`.
+- **Y3 split (G2):** `Y3` is superseded by **`ESF-6 / Y3a — Attested Observation Admission`** (predicate `source × context → authority`); its correspondence half is absorbed into `CDI-08` (predicate `contract × observation → comparability`). The two predicates have different signatures and are independently testable; merging them yields one work package with two truth models.
+- **ESF-4 repositioning (G4):** `ESF-4 — Signal Quality, Confidence & Provenance` moves from "parallel-eligible now" to **parallel-eligible after `ESF-6`**. Admission precedes grading — quality cannot make an inadmissible signal admissible. The provenance-classification slice (`SUPPLIED` vs `ADAPTER_DEFAULT`) moves into `ESF-6`, because authority depends on it. The 80/85 confidence/quality defaults are **not** authority and must never become authority.
+- **Y4 split (G5):** `Y4` splits into **`Y4-gov`** (immediate governance correction, outside any work package — owner ruling **Z5**, approved 2026-08-16) and **`Y4-cal`** (calibration work package, deferred behind N ≥ 3 independent eligible `LearningCase`s and the X3 gate). `Y4-gov` documentation lands with the CDI-08 freeze; its code half (`services/learning/src/learning-pattern-store.ts` — six seeded records publishing 46 claimed `historical_occurrences` and six `intervention_success_rate` figures against three distinct cited memory cases) remains **OUTSTANDING** as a separate commit.
+- **R6 disposition (G10):** tenant/session isolation is **found**, latent and unreachable at `5b92dae2`, and is recorded against `CDI-08` and `ESF-6` — never against closed CDI-07B semantics. Contract↔observation isolation is a correspondence predicate (`CDI-08`, test C0); source↔context isolation at ingestion is an admission predicate (`ESF-6`). Both are required; neither substitutes for the other.
+- **Sequencing rule, load-bearing:** R2 (metric correspondence), R3 (empty grain / null window) and R6 (isolation) are **fail-open and inert only because nothing is authoritative yet**. Authoritative observation admission is precisely the change that arms them. **`CDI-08` must therefore land before `ESF-6`** — not because it is more valuable in isolation, but because it is what makes admission safe to ship.
 
 ---
 
@@ -391,6 +405,39 @@ Every direct dependency declared in the Work Package Specification Table is expl
 | **`CDI-06`** | `CDI-02` (`CausalDemandContribution`), `CDI-05` (`DemandDecomposition`) | `CDI-04` (`DecisionReadinessAssessment`) | Generative AI Narrative Capability (Gemini wrapper) |
 | **`CDI-07A`** | `CDI-01` (`CampaignIntent`), `CDI-06` (`OutcomeFrontier`) | `WP10-C` (Shared Decision State) | `ESF-1`/`ESF-2` Signal Feeds |
 | **`CDI-07B`** | `CDI-07A` (`DecisionContract`), `WP10-D` (`cognix-learning`) | `ESF-3` (External Signal Connectors) | None |
+| **`CDI-08`** | `CDI-07A` (`DecisionContract`), `CDI-07B` (`PredictionOutcomeComparison`) | None | None |
+| **`ESF-6 / Y3a`** | `ESF-3` (Connector Contract), `CDI-08` (correspondence predicate — sequencing, see ESF-3 Disposition) | `WP10-D` (`cognix-learning`) | None |
+| **`ESF-4`** | `ESF-6` (Attested Observation Admission) | `ESF-2` (Dynamic Signal Simulation) | None |
+
+#### 3. Post-CDI-07B Execution Sequence (frozen 2026-08-16)
+
+```text
+CDI-07B [COMPLETED]
+    │
+    ├──> Y4-gov   Pattern telemetry citation correction   (governance, immediate, not a WP; Z5)
+    │
+    └──> CDI-08   Observation Correspondence & Prediction Envelope   [DESIGN FROZEN — NEXT]
+              │   removes LE-3, LE-7, R1, R2, R3, R6(correspondence half)
+              │   no external dependency
+              ▼
+         ESF-6 / Y3a   Attested Observation Admission
+              │   removes LE-4, R4, R5, R6(admission half)
+              │   first-party attested actuals — no procurement (Z3)
+              ▼
+         ── FIRST DEFENSIBLE LearningCase POSSIBLE (gross basis) ──
+              │
+              ├──> ESF-4  Signal Quality, Confidence & Provenance   (parallel-eligible)
+              ├──> Y1     Observed counterfactual design → attributable comparison
+              ├──> Y2     Per-assumption observation → the real Half-Life precursor
+              └──> N ≥ 3 independent eligible cases
+                        ├──> Y4-cal  Pattern telemetry calibration + WP10-D write path (X3 gate)
+                        └──> ML workstream  [DEFERRED — observation correspondence suggestion first]
+```
+
+**ML/deterministic boundary, restated and unchanged:** ML may rank, cluster, shortlist and suggest.
+It may never establish authority, eligibility, correspondence, comparability or a verdict. No ML
+workstream is justified until `ESF-6` has landed and attested observation volume is non-trivial —
+started earlier it would be fitted to CogniX's own simulator.
 
 #### Phase 10K — Counterfactual Learning
 Comparative outcome engine evaluating Chosen Decision vs Alternative Interventions vs Do-Nothing baseline.

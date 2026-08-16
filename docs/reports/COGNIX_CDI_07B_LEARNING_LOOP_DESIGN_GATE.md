@@ -1675,9 +1675,24 @@ pattern promotion (§6.5, §6.6).
   ceased to hold. This, not CDI-07B, is the real precursor to a quantitative Half-Life.
 - **Y3 — Non-synthetic connector procurement.** Everything downstream of **B1** is gated on it. This
   is a commercial and integration question, not a design one.
+  > **ADDENDUM — CORRECTED 2026-08-16 (governance change G3).** *This characterisation is incorrect
+  > at baseline `5b92dae2`.* Three code sites make a non-synthetic observation unrepresentable
+  > regardless of any commercial arrangement: the ESF-3 connector registry is a static const array of
+  > seven reference adapters all marked `synthetic_demo: true` with no registration path; ingestion
+  > hardcodes `synthetic_demo: true`; and `campaign-learning-loop-engine.ts:1097` reads
+  > `... || connector?.synthetic_demo || true`, whose trailing `|| true` makes the expression a
+  > constant. Procuring a vendor feed would not close LE-4. **Non-synthetic never meant purchased** —
+  > it means *attested and independent of the system that made the prediction*, so first-party
+  > attested actuals qualify (owner ruling Z3). Y3 is a bounded engineering task and is superseded by
+  > **ESF-6 / Y3a — Attested Observation Admission**, with its correspondence half absorbed into
+  > **CDI-08**. See `COGNIX_PROGRAMME_10_POST_CDI_CONSOLIDATION_ASSESSMENT.md` §3.1 / §4.2 and
+  > `COGNIX_CDI_08_OBSERVATION_CORRESPONDENCE_DESIGN_GATE.md` §1.
 - **Y4 — WP10-D telemetry calibration.** **B8** measured that patterns publish figures their own
   citations do not support. Out of CDI-07B scope, but it will block pattern promotion when X3 is taken
   up.
+  > **ADDENDUM 2026-08-16 (G5 / Z5).** Y4 splits: `Y4-gov` is an immediate governance correction
+  > outside any work package (the six seeded records' unsupported occurrence and success-rate
+  > figures); `Y4-cal` remains deferred behind N ≥ 3 eligible cases and the X3 gate.
 
 ### 13.3 No blocker found
 
