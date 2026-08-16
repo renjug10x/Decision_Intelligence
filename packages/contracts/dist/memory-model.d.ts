@@ -12,6 +12,8 @@ export interface MemoryProvenance {
     data_classification: string;
     is_synthetic_demo: boolean;
     generator?: string;
+    /** CDI-07B X2 — pairs with decision_contract_ref so the digest stays verifiable. */
+    decision_contract_digest?: string;
 }
 export interface EnterpriseMemoryCase {
     memory_id: string;
@@ -28,6 +30,8 @@ export interface EnterpriseMemoryCase {
     confidence: number;
     pattern_id?: string;
     commercial_intent_ref?: string;
+    /** CDI-07B X2 — plain contract_id reference only. No DecisionContract content. */
+    decision_contract_ref?: string;
     decision_state_ref?: MemoryDecisionStateRef;
     signal_refs: string[];
     simulation_ref?: string;

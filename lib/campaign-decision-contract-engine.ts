@@ -11,6 +11,7 @@ import {
   OutcomeFrontier,
   StrategyPlay,
   DecisionContract,
+  DeclaredPredictionEnvelope,
   DecisionContractBasis,
   DecisionResolution,
   DecisionAssumption,
@@ -207,7 +208,19 @@ function decompositionSnapshots(play: StrategyPlay): SnapshotValue[] {
       unit: 'pp',
       strength: play.evidence_strength_floor,
       restated: false as const
-    }
+    },
+    ...(play.decomposition?.reconciliation
+      ? [
+          {
+            source_field_path: 'play.decomposition.reconciliation.reconciled_sum_pp',
+            source_package: 'CDI-05' as const,
+            value: play.decomposition.reconciliation.reconciled_sum_pp,
+            unit: 'pp',
+            strength: play.evidence_strength_floor,
+            restated: false as const
+          }
+        ]
+      : [])
   ];
 }
 
@@ -380,6 +393,12 @@ function expectedSourceMap(play: StrategyPlay): Map<string, string | number | bo
     'play.decomposition.intervention_group.subtotal_pp',
     play.decomposition.intervention_group.subtotal_pp
   );
+  if (play.decomposition?.reconciliation) {
+    map.set(
+      'play.decomposition.reconciliation.reconciled_sum_pp',
+      play.decomposition.reconciliation.reconciled_sum_pp
+    );
+  }
   if (play.readiness_reference) {
     map.set('play.readiness_reference.state', play.readiness_reference.state);
     for (const veto of play.readiness_reference.vetoes || []) {
@@ -935,6 +954,7 @@ export function createDecisionContract(request: ContractCreationRequest): Decisi
     resolution,
     assumptions,
     triggers,
+    prediction_envelopes: request.prediction_envelopes ? [...request.prediction_envelopes] : [],
     unavailable_capabilities: [
       { ...QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT },
       {

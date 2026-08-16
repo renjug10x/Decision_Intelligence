@@ -79,6 +79,12 @@ export interface ExternalSignalIngestResponse {
 export declare const EXTERNAL_SIGNAL_CATEGORIES: ExternalSignalCategory[];
 /** Maps connector category → canonical SignalSourceType (provider-neutral). */
 export declare function mapCategoryToSourceType(category: ExternalSignalCategory): SignalSourceType;
+/**
+ * Every SignalSourceType reachable from an ESF-3 connector category — provenances independent of
+ * Shared Decision State. Derived from mapCategoryToSourceType so the two cannot drift (CDI-07B X1).
+ */
+export declare const OBSERVATION_INDEPENDENT_SOURCE_TYPES: readonly SignalSourceType[];
+export declare function isObservationIndependentSourceType(t: SignalSourceType): boolean;
 /** Maps connector category → default EnterpriseSignal category. */
 export declare function mapCategoryToSignalCategory(category: ExternalSignalCategory): SignalCategory;
 export declare function validateExternalSignalEnvelope(envelope: Partial<ExternalSignalEnvelope>): {

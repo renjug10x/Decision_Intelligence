@@ -13,6 +13,10 @@ export * from './campaign-timeline-model';
 export * from './campaign-frontier-model';
 export * from './campaign-decision-contract-model';
 export {
+  type GrainDimension,
+  type ObservationGrainKeyEntry,
+  type ObservationGrainKey,
+  type ObservationMeasurementDesign,
   type PreMortemStatus,
   type FailureModeClass,
   type ConsequenceOrder,
@@ -52,6 +56,9 @@ export {
   PATTERN_PROMOTION_REQUIRED_INPUT,
   OBSERVED_COUNTERFACTUAL_REQUIRED_INPUT,
   QUANTITATIVE_DECISION_HALF_LIFE_REQUIRED_INPUT,
+  PREDICTION_ENVELOPE_REQUIRED_INPUT,
+  COMPOSITE_GRAIN_OBSERVATION_REQUIRED_INPUT,
+  METRIC_CORRESPONDENT_SIGNAL_TYPES,
   LEARNING_PATTERN_PROMOTION_THRESHOLD_N,
   LEARNING_PATTERN_PROMOTION_THRESHOLD_CALIBRATION,
   LEARNING_PATTERN_PROMOTION_THRESHOLD_LABEL_UNCALIBRATED,
@@ -70,6 +77,9 @@ export {
   assertNoPatternWrite,
   assertNoWp10dTelemetryCopied,
   assertGrainResolves,
+  requiredGrainDimensions,
+  normalizeGrainToken,
+  entityCoversSingleDimension,
   observationAuthorityBlocksLikeForLike,
   validateCampaignPreMortem,
   validatePredictionOutcomeComparison,

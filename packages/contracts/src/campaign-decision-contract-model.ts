@@ -356,6 +356,51 @@ export interface DecisionValidityAssessment {
   calculation_mode: 'deterministic_decision_validity';
 }
 
+/** Local structural twin — CDI-06 R1 / CDI-07A §8.2 precedent. Avoids a module cycle:
+ *  campaign-learning-loop-model already imports this file, so QuantityBasis cannot be imported back. */
+export type ContractQuantityBasis = 'ATTRIBUTABLE' | 'GROSS' | 'MODELLED_MONETARY';
+
+/**
+ * CDI-08 / C-INV-ENV-2 — the closed, declared quantity basis of each snapshot path an envelope may
+ * adjudicate. A `SnapshotValue` carries no basis field, so the predicted basis for a path is not
+ * inferable from the snapshot; it is declared here or it is refused. Deliberately closed and
+ * deliberately small: these are the paths CDI-07B actually compares
+ * (`ATTRIBUTABLE_FIELD` / `GROSS_FIELD`) plus the two decomposition components that reconcile into
+ * the gross sum. A path absent from this table has no declared basis, so an envelope naming it can
+ * never be adjudicated and is rejected at contract creation rather than validated against a guess.
+ *
+ * Never widen this by pattern-matching a path string. Substring inference ('gross', 'monetary',
+ * 'ambient') is exactly the fuzzy correspondence the CDI-08 gate refuses everywhere else.
+ */
+export const SNAPSHOT_PATH_PREDICTED_BASIS: Readonly<Record<string, ContractQuantityBasis>> = {
+  'counterfactual.campaign_delta.attributable_uplift_pp': 'ATTRIBUTABLE',
+  'play.decomposition.reconciliation.reconciled_sum_pp': 'GROSS',
+  'play.decomposition.ambient_group.subtotal_pp': 'GROSS',
+  'play.decomposition.intervention_group.subtotal_pp': 'GROSS'
+};
+
+export interface DeclaredPredictionEnvelope {
+  envelope_id: string;
+  /** Must equal a source_field_path present in basis.outcome_snapshot or basis.decomposition_snapshot. */
+  applies_to_field_path: string;
+  /** Signed, in `unit`, relative to the predicted value. lower <= 0 <= upper is NOT required. */
+  lower: number;
+  upper: number;
+  /** Must equal the snapshot's unit at applies_to_field_path. */
+  unit: string;
+  /** Must equal the predicted basis for that path. */
+  basis: ContractQuantityBasis;
+  /** Named accountable human. Mandatory, never defaulted, never inferred from session or header. */
+  declared_by: string;
+  /** Why this tolerance. Mandatory. */
+  declaration_statement: string;
+  /** Closed single members — these are not statistical intervals and must never render as one. */
+  tolerance_kind: 'DECLARED_ACCEPTANCE_TOLERANCE';
+  derivation: 'HUMAN_DECLARED';
+  /** Z2. Only ESF-6 can raise this above NONE. */
+  pre_declaration_witness: 'NONE' | 'SERVER_REGISTRATION_RECEIPT';
+}
+
 export interface DecisionContract {
   /** Content-derived — never time-derived (C-INV-3). */
   contract_id: string;
@@ -376,6 +421,10 @@ export interface DecisionContract {
   resolution: DecisionResolution;
   assumptions: DecisionAssumption[];
   triggers: DecisionTrigger[];
+
+  /** CDI-08 / Z1. Covered by contract_digest. NOT an input to decision_basis_digest.
+   *  Never inferred from observed outcomes. Never derived from a CDI-04/CDI-05 confidence band. */
+  prediction_envelopes: DeclaredPredictionEnvelope[];
 
   supersedes?: DecisionContractReference;
   superseded_by?: DecisionContractReference;
@@ -419,6 +468,7 @@ export interface ContractCreationRequest {
   resolution: DecisionResolution;
   created_as_of: string;
   supersedes?: DecisionContractReference;
+  prediction_envelopes?: DeclaredPredictionEnvelope[];
 }
 
 /**
@@ -994,6 +1044,77 @@ export function validateDecisionContract(
   );
   if (!hasHalfLifeCapability) {
     errors.push('QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT must be published on every contract');
+  }
+
+  // CDI-08 / C-INV-ENV-1…5
+  if (!Array.isArray(c.prediction_envelopes)) {
+    errors.push('prediction_envelopes must be an array on every contract (may be empty, never absent)');
+  } else {
+    const seenPaths = new Set<string>();
+    const allSnapshots = [
+      ...(c.basis?.outcome_snapshot || []),
+      ...(c.basis?.decomposition_snapshot || [])
+    ];
+    for (const env of c.prediction_envelopes) {
+      if (!env.envelope_id || !env.envelope_id.trim()) {
+        errors.push('envelope_id is required');
+      }
+      if (!env.declared_by || !env.declared_by.trim()) {
+        errors.push('declared_by is required and cannot be empty (C-INV-ENV-4)');
+      }
+      if (!env.declaration_statement || !env.declaration_statement.trim()) {
+        errors.push('declaration_statement is required and cannot be empty (C-INV-ENV-4)');
+      }
+      if (!Number.isFinite(env.lower) || !Number.isFinite(env.upper)) {
+        errors.push('envelope lower and upper bounds must be finite numbers (C-INV-ENV-3)');
+      } else if (env.lower > env.upper) {
+        errors.push('envelope lower bound must be <= upper bound (C-INV-ENV-3)');
+      } else if (env.lower === 0 && env.upper === 0) {
+        errors.push('envelope lower and upper bounds cannot both be zero (C-INV-ENV-3)');
+      }
+      if (env.tolerance_kind !== 'DECLARED_ACCEPTANCE_TOLERANCE') {
+        errors.push("tolerance_kind must be 'DECLARED_ACCEPTANCE_TOLERANCE'");
+      }
+      if (env.derivation !== 'HUMAN_DECLARED') {
+        errors.push("derivation must be 'HUMAN_DECLARED'");
+      }
+      if (env.pre_declaration_witness !== 'NONE' && env.pre_declaration_witness !== 'SERVER_REGISTRATION_RECEIPT') {
+        errors.push("pre_declaration_witness must be 'NONE' | 'SERVER_REGISTRATION_RECEIPT'");
+      }
+      if (seenPaths.has(env.applies_to_field_path)) {
+        errors.push(
+          `At most one envelope permitted per applies_to_field_path: ${env.applies_to_field_path} (C-INV-ENV-5)`
+        );
+      }
+      seenPaths.add(env.applies_to_field_path);
+
+      const targetSnap = allSnapshots.find(s => s.source_field_path === env.applies_to_field_path);
+      if (!targetSnap) {
+        errors.push(
+          `Envelope applies_to_field_path ${env.applies_to_field_path} does not resolve to a published basis snapshot (C-INV-ENV-1)`
+        );
+      } else {
+        const snapUnit = targetSnap.unit || 'pp';
+        const envUnit = env.unit || 'pp';
+        const normSnapUnit = snapUnit === 'percent' ? 'pp' : snapUnit;
+        const normEnvUnit = envUnit === 'percent' ? 'pp' : envUnit;
+        if (normSnapUnit !== normEnvUnit) {
+          errors.push(
+            `Envelope unit ${env.unit} does not match snapshot unit ${targetSnap.unit} (C-INV-ENV-2)`
+          );
+        }
+        const expectedBasis = SNAPSHOT_PATH_PREDICTED_BASIS[targetSnap.source_field_path];
+        if (!expectedBasis) {
+          errors.push(
+            `Envelope applies_to_field_path ${env.applies_to_field_path} has no declared predicted basis in SNAPSHOT_PATH_PREDICTED_BASIS; a tolerance that cannot be adjudicated is refused (C-INV-ENV-2)`
+          );
+        } else if (env.basis !== expectedBasis) {
+          errors.push(
+            `Envelope basis ${env.basis} does not match predicted basis ${expectedBasis} (C-INV-ENV-2)`
+          );
+        }
+      }
+    }
   }
 
   return { valid: errors.length === 0, errors };

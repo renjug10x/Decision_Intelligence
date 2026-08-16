@@ -356,7 +356,7 @@ $$\text{Opportunity Intel} \longrightarrow \text{Campaign Decision Intel} \longr
 ---
 
 ### ADR-036: Prediction Envelope as a Contract-Native Declared Acceptance Tolerance (CDI-08)
-- **Status:** Approved — design frozen 2026-08-16, not yet implemented
+- **Status:** Implemented (CDI-08, 2026-08-16)
 - **Context:** `QuantityComparison.error.declared_envelope` and `within_declared_envelope` have existed since CDI-07B and nothing in the estate ever populates them, so `deriveComparisonVerdict` can reach neither `WITHIN_` nor `OUTSIDE_DECLARED_ENVELOPE` and `INDETERMINATE` is structurally guaranteed (LE-7). The question is where a tolerance originates without being inferred from the outcome it adjudicates.
 - **Decision (owner ruling Z1):** The prediction envelope is a **declared acceptance tolerance belonging to the CDI-07A `DecisionContract`**, as a contract-native declaration sibling to `assumptions` and `triggers` — `prediction_envelopes: DeclaredPredictionEnvelope[]`, top-level, never absent, may be empty. It is **covered by `contract_digest`** and **excluded from `decision_basis_digest`**. It is `HUMAN_DECLARED` with a mandatory named `declared_by` and `declaration_statement`, carries the closed single member `tolerance_kind: 'DECLARED_ACCEPTANCE_TOLERANCE'`, and **must never be presented as a statistical prediction interval**.
 - **Rejected origins:** **CDI-02** publishes no interval of any kind on `attributable_uplift_pp` — manufacturing one would require calibration evidence it does not have. **CDI-05's `TimelineConfidenceEnvelope`** is the closest artefact in the estate and the wrong one on four independent counts: wrong quantity (timeline index, not the contracted headline), wrong basis (bands a trajectory including ambient movement), self-declared uncalibrated (`synthetic_demo: true`, `calibration_target: 'Realised forecast-error dispersion by horizon'`), and circular if promoted — the dispersion that would calibrate it is produced by the very comparison the envelope adjudicates. **A detached artefact bound to `contract_id` + `contract_digest`** fails on the one property that matters: its `declared_at` would be caller-supplied, and a caller-supplied instant is a claim, not evidence.
@@ -368,7 +368,7 @@ $$\text{Opportunity Intel} \longrightarrow \text{Campaign Decision Intel} \longr
 ---
 
 ### ADR-037: The Admission / Correspondence Predicate Split as a Permanent Architectural Boundary (CDI-08 / ESF-6)
-- **Status:** Approved — design frozen 2026-08-16
+- **Status:** Implemented (CDI-08, 2026-08-16)
 - **Context:** Nine concerns were proposed for a single broadened "Authoritative Observation & Correspondence" work package. They do not share a subject, and merging them would produce one work package with two truth models whose invariants collide exactly where correctness lives.
 - **Decision:** **Admission** and **correspondence** are permanently separate predicates with different signatures.
   - **Admission — `source × context → authority`.** Asks *"is this evidence about the real world at all?"* Needs no contract. Owns connector registration and attestation, synthetic vs non-synthetic authority, provenance classification (`SUPPLIED` vs `ADAPTER_DEFAULT`), derived observation completeness, source↔context isolation at ingestion, and server-side ingestion receipts. Home: **`ESF-6 / Y3a`**.

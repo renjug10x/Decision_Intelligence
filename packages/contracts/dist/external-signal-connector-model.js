@@ -8,8 +8,9 @@
  * Vendor platforms (e.g. Blue Yonder, SAP IBP) are reference adapters only — never architectural dependencies.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.EXTERNAL_SIGNAL_CATEGORIES = void 0;
+exports.OBSERVATION_INDEPENDENT_SOURCE_TYPES = exports.EXTERNAL_SIGNAL_CATEGORIES = void 0;
 exports.mapCategoryToSourceType = mapCategoryToSourceType;
+exports.isObservationIndependentSourceType = isObservationIndependentSourceType;
 exports.mapCategoryToSignalCategory = mapCategoryToSignalCategory;
 exports.validateExternalSignalEnvelope = validateExternalSignalEnvelope;
 exports.validateExternalSignalIngestRequest = validateExternalSignalIngestRequest;
@@ -42,6 +43,14 @@ function mapCategoryToSourceType(category) {
         default:
             return 'EXTERNAL_CONNECTOR';
     }
+}
+/**
+ * Every SignalSourceType reachable from an ESF-3 connector category — provenances independent of
+ * Shared Decision State. Derived from mapCategoryToSourceType so the two cannot drift (CDI-07B X1).
+ */
+exports.OBSERVATION_INDEPENDENT_SOURCE_TYPES = Array.from(new Set(exports.EXTERNAL_SIGNAL_CATEGORIES.map(mapCategoryToSourceType))).sort();
+function isObservationIndependentSourceType(t) {
+    return exports.OBSERVATION_INDEPENDENT_SOURCE_TYPES.includes(t);
 }
 /** Maps connector category → default EnterpriseSignal category. */
 function mapCategoryToSignalCategory(category) {

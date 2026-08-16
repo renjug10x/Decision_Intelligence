@@ -14,6 +14,7 @@ import {
   ATTRIBUTION_UNAVAILABLE_DISCLOSURE,
   SCENARIO_DRIVEN_MOVEMENT_DISCLOSURE,
   computeContractDigest,
+  assertTenantSessionCoherent,
   isObservationIndependentSourceType
 } from '../packages/contracts/src/index';
 import {
@@ -27,6 +28,7 @@ import {
   QuantityBasis,
   ComparabilityVerdict,
   ComparisonVerdict,
+  PredictionError,
   OutcomeAttribution,
   ObservationCompleteness,
   LearningCandidate,
@@ -42,6 +44,9 @@ import {
   PATTERN_PROMOTION_REQUIRED_INPUT,
   OBSERVED_COUNTERFACTUAL_REQUIRED_INPUT,
   QUANTITATIVE_DECISION_HALF_LIFE_REQUIRED_INPUT,
+  PREDICTION_ENVELOPE_REQUIRED_INPUT,
+  COMPOSITE_GRAIN_OBSERVATION_REQUIRED_INPUT,
+  METRIC_CORRESPONDENT_SIGNAL_TYPES,
   canonicalJson,
   sha256Hex,
   assertNoInventedRiskPrecision,
@@ -51,10 +56,12 @@ import {
   assertErrorOnlyWhenLikeForLike,
   determineObservationAuthority,
   assertGrainResolves,
+  requiredGrainDimensions,
   validateCampaignPreMortem,
   validatePredictionOutcomeComparison,
   validateLearningCandidate
 } from '../packages/contracts/src/campaign-learning-loop-model';
+import { PrimaryObjectiveMetric } from '../packages/contracts/src/campaign-intent-model';
 import {
   ConfidenceBand,
   EvidenceStrength,
@@ -443,36 +450,153 @@ function observationContext(
   };
 }
 
-function bindObservation(
-  observations: OutcomeObservation[],
-  invariants: ComparisonSetInvariants
-): OutcomeObservation | undefined {
-  // RB-5 — binding is grain resolution, with no entity-type exemption. The former
-  // `entity_type === 'CATEGORY' ||` short-circuit bound any CATEGORY observation, including one
-  // outside the contracted window or naming an unrelated category, in preference to a
-  // genuinely resolving observation later in the array.
-  return observations.find(o => assertGrainResolves(o, invariants));
+export function deriveObservedBasis(
+  observation: OutcomeObservation
+): QuantityBasis | 'CONTROLLED_DIFFERENCE_REJECTED' | undefined {
+  if (!observation.measurement_design) return undefined;
+  if (observation.measurement_design === 'DIRECT_MEASUREMENT') return 'GROSS';
+  if (observation.measurement_design === 'MODELLED') return 'MODELLED_MONETARY';
+  if (observation.measurement_design === 'CONTROLLED_DIFFERENCE') return 'CONTROLLED_DIFFERENCE_REJECTED';
+  return undefined;
 }
 
-function evaluateComparability(
+
+
+export function evaluateComparability(
   predictedUnit: string,
   predictedBasis: QuantityBasis,
   observation: OutcomeObservation | undefined,
   context: ObservationAuthorityEvaluationContext,
-  invariants: ComparisonSetInvariants
+  invariants: ComparisonSetInvariants,
+  contractTenancy?: { tenant_id: string; session_id: string }
 ): ComparabilityVerdict {
   if (!observation) return 'OBSERVATION_ABSENT';
+
+  // C0 — Isolation
+  if (contractTenancy && !assertTenantSessionCoherent(contractTenancy, observation)) {
+    return 'TENANT_SESSION_MISMATCH';
+  }
+
+  // C1 — Authority
   if (determineObservationAuthority(observation, context) !== 'AUTHORITATIVE_EXTERNAL') {
     return 'OBSERVATION_NOT_AUTHORITATIVE';
   }
-  if (!assertGrainResolves(observation, invariants)) return 'GRAIN_MISMATCH';
+
+  // C2 — Grain declared (empty grain fails closed)
+  const required = requiredGrainDimensions(invariants);
+  if (required.length === 0) {
+    return 'GRAIN_UNDECLARED';
+  }
+
+  // C3 — Window declared (null or invalid window fails closed)
+  const { planned_start, planned_end } = invariants;
+  if (!planned_start || !planned_end) {
+    return 'WINDOW_UNDECLARED';
+  }
+  const cStart = Date.parse(planned_start);
+  const cEnd = Date.parse(planned_end);
+  if (Number.isNaN(cStart) || Number.isNaN(cEnd) || cStart > cEnd) {
+    return 'WINDOW_UNDECLARED';
+  }
+
+  // C4 — Grain correspondence (Z4)
+  if (!assertGrainResolves(observation, invariants)) {
+    return 'GRAIN_MISMATCH';
+  }
+
+  // C5 — Window correspondence (exact coverage)
+  let mStartStr = observation.measurement_window_start;
+  let mEndStr = observation.measurement_window_end;
+  if (!mStartStr && !mEndStr) {
+    mStartStr = observation.effective_at;
+    mEndStr = observation.effective_at;
+  }
+  if (!mStartStr || !mEndStr) {
+    return 'WINDOW_MISMATCH';
+  }
+  const mStart = Date.parse(mStartStr);
+  const mEnd = Date.parse(mEndStr);
+  if (Number.isNaN(mStart) || Number.isNaN(mEnd) || mStart !== cStart || mEnd !== cEnd) {
+    return 'WINDOW_MISMATCH';
+  }
+
+  // C6 — Metric correspondence
+  const primaryMetric = (invariants.primary_metric || '') as PrimaryObjectiveMetric;
+  const correspondents = METRIC_CORRESPONDENT_SIGNAL_TYPES[primaryMetric];
+  if (!correspondents || correspondents.length === 0) {
+    return 'METRIC_CORRESPONDENCE_UNDECLARED';
+  }
+  if (!correspondents.includes(observation.signal_type)) {
+    return 'METRIC_MISMATCH';
+  }
+
+  // C7 — Unit
   const observedUnit = observation.unit === 'percent' ? 'pp' : observation.unit;
   const predictedNorm = predictedUnit === 'percent' ? 'pp' : predictedUnit;
-  if (observedUnit !== predictedNorm) return 'UNIT_MISMATCH';
-  if (predictedBasis !== 'GROSS') {
-    return predictedBasis === 'ATTRIBUTABLE' ? 'NO_OBSERVED_COUNTERFACTUAL' : 'QUANTITY_BASIS_MISMATCH';
+  if (observedUnit !== predictedNorm) {
+    return 'UNIT_MISMATCH';
   }
+
+  // C8 — Quantity basis (R1 derived-or-refuse)
+  const derivedObservedBasis = deriveObservedBasis(observation);
+  if (!derivedObservedBasis) {
+    return 'QUANTITY_BASIS_UNDECLARED';
+  }
+  if (derivedObservedBasis === 'CONTROLLED_DIFFERENCE_REJECTED') {
+    return 'NO_OBSERVED_COUNTERFACTUAL';
+  }
+  if (predictedBasis === 'ATTRIBUTABLE') {
+    return 'NO_OBSERVED_COUNTERFACTUAL';
+  }
+  if (derivedObservedBasis !== predictedBasis) {
+    return 'QUANTITY_BASIS_MISMATCH';
+  }
+
   return 'LIKE_FOR_LIKE';
+}
+
+function bindObservation(
+  observations: OutcomeObservation[],
+  contract: DecisionContract
+): { observation: OutcomeObservation | undefined; candidateVerdict?: ComparabilityVerdict } {
+  const invariants = contract.basis.comparison_invariants;
+  const coherent = observations.filter(o => assertTenantSessionCoherent(contract, o));
+
+  if (coherent.length === 0) {
+    return {
+      observation: undefined,
+      candidateVerdict: observations.length > 0 ? 'TENANT_SESSION_MISMATCH' : 'OBSERVATION_ABSENT'
+    };
+  }
+
+  // C2 / C3 — declaration failures. The contract itself declared no grain or no window, so there
+  // is nothing for an observation to correspond to and NO observation is a binding candidate.
+  // Returning a candidate here would publish observed_value / observed_basis against a quantity
+  // whose grain or window was never declared — misleading hindsight, which is the primary risk
+  // this work package exists to refuse.
+  const required = requiredGrainDimensions(invariants);
+  if (required.length === 0) {
+    return { observation: undefined, candidateVerdict: 'GRAIN_UNDECLARED' };
+  }
+
+  const { planned_start, planned_end } = invariants;
+  if (!planned_start || !planned_end) {
+    return { observation: undefined, candidateVerdict: 'WINDOW_UNDECLARED' };
+  }
+  const cStart = Date.parse(planned_start);
+  const cEnd = Date.parse(planned_end);
+  if (Number.isNaN(cStart) || Number.isNaN(cEnd) || cStart > cEnd) {
+    return { observation: undefined, candidateVerdict: 'WINDOW_UNDECLARED' };
+  }
+
+  // C4 — Find observation that resolves grain
+  const grainResolving = coherent.find(o => assertGrainResolves(o, invariants));
+  if (grainResolving) {
+    return { observation: grainResolving };
+  }
+
+  // No grain-resolving observation: no observation binds
+  return { observation: undefined, candidateVerdict: 'GRAIN_MISMATCH' };
 }
 
 function buildQuantityComparison(
@@ -483,16 +607,7 @@ function buildQuantityComparison(
 ): QuantityComparison {
   const snap = snapshotByPath(contract, fieldPath);
   const invariants = contract.basis.comparison_invariants;
-  const observation = bindObservation(observations, invariants);
-  const context = observation
-    ? observationContext(observation, contract)
-    : ({
-        connector_synthetic_demo: true,
-        connector_resolves: false,
-        scenario_derived_lineage: false,
-        planned_start: invariants.planned_start,
-        comparison_invariants: invariants
-      } as ObservationAuthorityEvaluationContext);
+  const { observation, candidateVerdict } = bindObservation(observations, contract);
 
   if (!snap) {
     return {
@@ -509,8 +624,20 @@ function buildQuantityComparison(
   let comparability: ComparabilityVerdict;
   if (predictedBasis === 'ATTRIBUTABLE') {
     comparability = 'NO_OBSERVED_COUNTERFACTUAL';
+  } else if (candidateVerdict && candidateVerdict !== 'GRAIN_MISMATCH') {
+    comparability = candidateVerdict;
+  } else if (!observation) {
+    comparability = candidateVerdict || 'OBSERVATION_ABSENT';
   } else {
-    comparability = evaluateComparability(snap.unit, predictedBasis, observation, context, invariants);
+    const ctx = observationContext(observation, contract);
+    comparability = evaluateComparability(
+      snap.unit,
+      predictedBasis,
+      observation,
+      ctx,
+      invariants,
+      { tenant_id: contract.tenant_id, session_id: contract.session_id }
+    );
   }
 
   const row: QuantityComparison = {
@@ -522,32 +649,90 @@ function buildQuantityComparison(
     comparability
   };
 
-  if (observation) {
+  if (
+    observation &&
+    comparability !== 'TENANT_SESSION_MISMATCH' &&
+    comparability !== 'OBSERVATION_ABSENT' &&
+    comparability !== 'GRAIN_MISMATCH'
+  ) {
     row.observed_observation_id = observation.observation_id;
     row.observed_value = observation.delta_pct;
-    row.observed_basis = 'GROSS';
+    const derivedBasis = deriveObservedBasis(observation);
+    if (derivedBasis && derivedBasis !== 'CONTROLLED_DIFFERENCE_REJECTED') {
+      row.observed_basis = derivedBasis;
+    }
     row.observed_unit = observation.unit === 'percent' ? 'pp' : observation.unit;
   }
 
   if (comparability === 'LIKE_FOR_LIKE' && observation) {
-    row.error = {
-      signed_delta: observation.delta_pct - snap.value,
-      unit: snap.unit,
-      statement: `Observed ${observation.delta_pct}${snap.unit} against predicted ${snap.value}${snap.unit}`
-    };
+    const signedDelta = observation.delta_pct - snap.value;
+    const matchingEnvelope = contract.prediction_envelopes?.find(
+      e => e.applies_to_field_path === fieldPath
+    );
+
+    if (matchingEnvelope) {
+      const errorObj: PredictionError = {
+        signed_delta: signedDelta,
+        unit: snap.unit,
+        statement: `Observed ${observation.delta_pct}${snap.unit} against predicted ${snap.value}${snap.unit}`,
+        declared_envelope: {
+          lower: matchingEnvelope.lower,
+          upper: matchingEnvelope.upper,
+          source_field_path: matchingEnvelope.applies_to_field_path,
+          envelope_id: matchingEnvelope.envelope_id,
+          declared_by: matchingEnvelope.declared_by,
+          pre_declaration_witness: matchingEnvelope.pre_declaration_witness
+        }
+      };
+
+      const isOutside = signedDelta < matchingEnvelope.lower || signedDelta > matchingEnvelope.upper;
+      if (isOutside) {
+        errorObj.within_declared_envelope = false;
+      } else {
+        if (matchingEnvelope.pre_declaration_witness !== 'NONE') {
+          errorObj.within_declared_envelope = true;
+        } else {
+          errorObj.within_withheld_reason =
+            'Pre-declaration witness is NONE; WITHIN verdict is structurally unreachable without server-side registration receipt';
+        }
+      }
+      row.error = errorObj;
+    } else {
+      row.error = {
+        signed_delta: signedDelta,
+        unit: snap.unit,
+        statement: `Observed ${observation.delta_pct}${snap.unit} against predicted ${snap.value}${snap.unit}`
+      };
+    }
   } else {
     row.incomparable_reason =
-      comparability === 'NO_OBSERVED_COUNTERFACTUAL'
-        ? 'Attributable prediction requires an observed counterfactual series; none was declared'
+      comparability === 'TENANT_SESSION_MISMATCH'
+        ? 'Observation tenant_id or session_id does not match the contract'
         : comparability === 'OBSERVATION_NOT_AUTHORITATIVE'
-          ? `Observation authority is ${observation ? determineObservationAuthority(observation, context) : 'unknown'}`
-          : comparability === 'GRAIN_MISMATCH'
-            ? 'Observation entity does not resolve to the contracted decision grain'
-            : comparability === 'UNIT_MISMATCH'
-              ? 'Predicted and observed units differ with no declared lossless conversion'
-              : comparability === 'OBSERVATION_ABSENT'
-                ? 'No admissible observation was bound for this quantity'
-                : 'Comparison is not like-for-like';
+          ? `Observation authority is ${observation ? determineObservationAuthority(observation, observationContext(observation, contract)) : 'unknown'}`
+          : comparability === 'GRAIN_UNDECLARED'
+            ? 'Contract comparison_invariants declared no grain dimensions'
+            : comparability === 'WINDOW_UNDECLARED'
+              ? 'Contract comparison_invariants declared an absent or invalid planned window'
+              : comparability === 'GRAIN_MISMATCH'
+                ? 'Observation entity does not resolve to the contracted decision grain'
+                : comparability === 'WINDOW_MISMATCH'
+                  ? 'Observation measurement window does not correspond exactly to the contracted window'
+                  : comparability === 'METRIC_CORRESPONDENCE_UNDECLARED'
+                    ? 'Estate declares no correspondent observable signal types for this objective metric'
+                    : comparability === 'METRIC_MISMATCH'
+                      ? 'Observation signal_type does not correspond to the contracted primary objective metric'
+                      : comparability === 'UNIT_MISMATCH'
+                        ? 'Predicted and observed units differ with no declared lossless conversion'
+                        : comparability === 'QUANTITY_BASIS_UNDECLARED'
+                          ? 'Observation does not declare an admissible measurement_design'
+                          : comparability === 'NO_OBSERVED_COUNTERFACTUAL'
+                            ? 'Attributable prediction requires an observed counterfactual series; none was declared'
+                            : comparability === 'QUANTITY_BASIS_MISMATCH'
+                              ? 'Derived observation quantity basis does not match the predicted basis'
+                              : comparability === 'OBSERVATION_ABSENT'
+                                ? 'No admissible observation was bound for this quantity'
+                                : 'Comparison is not like-for-like';
   }
   return row;
 }
@@ -686,7 +871,8 @@ export function comparePredictionToReality(args: ComparePredictionArgs): Predict
   // stamped on it. That field is a claim, not evidence. Re-derive it from the ESF-3 registry and
   // the contract before it is published, compared, or read by LE-4; otherwise a caller can assert
   // AUTHORITATIVE_EXTERNAL over a synthetic reference connector and have the estate repeat it.
-  const authoredObservations: OutcomeObservation[] = observations.map(o => {
+  const coherentObservations = observations.filter(o => assertTenantSessionCoherent(contract, o));
+  const authoredObservations: OutcomeObservation[] = coherentObservations.map(o => {
     const derived = determineObservationAuthority(o, observationContext(o, contract));
     return derived === o.authority ? o : { ...o, authority: derived };
   });
@@ -715,7 +901,9 @@ export function comparePredictionToReality(args: ComparePredictionArgs): Predict
     unavailable_capabilities: [
       OBSERVED_COUNTERFACTUAL_REQUIRED_INPUT,
       PATTERN_PROMOTION_REQUIRED_INPUT,
-      QUANTITATIVE_DECISION_HALF_LIFE_REQUIRED_INPUT
+      QUANTITATIVE_DECISION_HALF_LIFE_REQUIRED_INPUT,
+      PREDICTION_ENVELOPE_REQUIRED_INPUT,
+      COMPOSITE_GRAIN_OBSERVATION_REQUIRED_INPUT
     ],
     not_a_decision_verdict_disclosure: NOT_A_DECISION_VERDICT_DISCLOSURE,
     ...(authoredObservations.some(

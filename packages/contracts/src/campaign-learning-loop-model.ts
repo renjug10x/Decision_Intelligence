@@ -16,8 +16,10 @@ import {
   SignalMovementAttribution,
   DecisionResolutionRoute,
   assertTenantSessionCoherent,
-  assertNoDurationSemantics as assertNoDurationSemanticsCdi07a
+  assertNoDurationSemantics as assertNoDurationSemanticsCdi07a,
+  DeclaredPredictionEnvelope
 } from './campaign-decision-contract-model';
+import { PrimaryObjectiveMetric } from './campaign-intent-model';
 import {
   CanonicalSignalType,
   SignalEntityType,
@@ -153,6 +155,22 @@ export interface ObservationCompleteness {
   complete: boolean;
 }
 
+export type GrainDimension = 'category' | 'region' | 'sku' | 'customer_segment';
+
+export interface ObservationGrainKeyEntry {
+  dimension: GrainDimension;
+  token: string;
+}
+
+export interface ObservationGrainKey {
+  dimensions: ObservationGrainKeyEntry[];
+}
+
+export type ObservationMeasurementDesign =
+  | 'DIRECT_MEASUREMENT'
+  | 'MODELLED'
+  | 'CONTROLLED_DIFFERENCE'; // declared, permanently rejected at this baseline
+
 export interface OutcomeObservation {
   observation_id: string;
   tenant_id: string;
@@ -175,6 +193,10 @@ export interface OutcomeObservation {
   completeness: ObservationCompleteness;
   synthetic_demo: boolean;
   schema_version: string;
+  grain_key?: ObservationGrainKey;
+  measurement_window_start?: string;
+  measurement_window_end?: string;
+  measurement_design?: ObservationMeasurementDesign;
 }
 
 // ---------------------------------------------------------------------------
@@ -190,7 +212,14 @@ export type ComparabilityVerdict =
   | 'NO_OBSERVED_COUNTERFACTUAL'
   | 'UNIT_MISMATCH'
   | 'OBSERVATION_ABSENT'
-  | 'OBSERVATION_NOT_AUTHORITATIVE';
+  | 'OBSERVATION_NOT_AUTHORITATIVE'
+  | 'TENANT_SESSION_MISMATCH'
+  | 'GRAIN_UNDECLARED'
+  | 'WINDOW_UNDECLARED'
+  | 'WINDOW_MISMATCH'
+  | 'METRIC_MISMATCH'
+  | 'METRIC_CORRESPONDENCE_UNDECLARED'
+  | 'QUANTITY_BASIS_UNDECLARED';
 
 export type ComparisonVerdict =
   | 'WITHIN_DECLARED_ENVELOPE'
@@ -200,8 +229,18 @@ export type ComparisonVerdict =
 export interface PredictionError {
   signed_delta: number;
   unit: string;
-  declared_envelope?: { lower: number; upper: number; source_field_path: string };
+  declared_envelope?: {
+    lower: number;
+    upper: number;
+    source_field_path: string;
+    envelope_id: string;
+    declared_by: string;
+    pre_declaration_witness: 'NONE' | 'SERVER_REGISTRATION_RECEIPT';
+  };
+  /** Z2: set false when the signed error falls outside. Set true ONLY when witness !== 'NONE'. */
   within_declared_envelope?: boolean;
+  /** Mandatory when the error falls inside the envelope but the witness is NONE. */
+  within_withheld_reason?: string;
   statement: string;
 }
 
@@ -333,7 +372,8 @@ export interface LearningCandidate {
 export type LearningCapability =
   | 'LEARNING_PATTERN_PROMOTION'
   | 'OBSERVED_COUNTERFACTUAL_COMPARISON'
-  | 'QUANTITATIVE_DECISION_HALF_LIFE';
+  | 'QUANTITATIVE_DECISION_HALF_LIFE'
+  | 'PRE_DECLARATION_WITNESSED_ENVELOPE';
 
 /** Local structural twin — CDI-06 R1 / CDI-07A §8.2 precedent. No upstream widening. */
 export interface LearningRequiredAuthoritativeInput {
@@ -456,6 +496,49 @@ export const QUANTITATIVE_DECISION_HALF_LIFE_REQUIRED_INPUT: LearningRequiredAut
   ],
   enables: 'QUANTITATIVE_DECISION_HALF_LIFE',
   status: 'AWAITING_AUTHORITATIVE_SOURCE'
+};
+
+export const PREDICTION_ENVELOPE_REQUIRED_INPUT: LearningRequiredAuthoritativeInput = {
+  field: 'server_side_contract_registration_receipt',
+  grain:
+    'per contract, an instant the caller does not author, comparable against a server-side observation ingestion receipt',
+  why_required:
+    'digest immutability proves the envelope was not edited; it does not prove it was declared before the outcome. created_as_of is caller-supplied (C-INV-9) and cannot serve.',
+  inadmissible_substitutes: [
+    'the observed value itself, or any envelope fitted to the series it adjudicates',
+    'a CDI-05 TimelineConfidenceEnvelope band',
+    'a CDI-04 ConfidenceBand converted to a percentage',
+    'a symmetric ±X% lab default',
+    'created_as_of, or any caller-supplied instant, read as pre-declaration',
+    'contract_digest verification read as proof of temporal precedence'
+  ],
+  enables: 'PRE_DECLARATION_WITNESSED_ENVELOPE',
+  status: 'AWAITING_AUTHORITATIVE_SOURCE'
+};
+
+export const COMPOSITE_GRAIN_OBSERVATION_REQUIRED_INPUT: LearningRequiredAuthoritativeInput = {
+  field: 'composite_grain_observation',
+  grain: 'one observation whose declared grain key equals the contracted required dimension set',
+  why_required:
+    'a contracted composite grain requires an observation whose explicit composite key matches the required dimension set exactly. Marginal observations cannot be combined without ungrounded apportionment.',
+  inadmissible_substitutes: [
+    'a jointly-covering set of marginal observations combined into a joint cell',
+    'a broader-grain observation narrowed to the contracted grain',
+    'a single SKU treated as resolving a multi-SKU sku_scope',
+    'any proportional, independence or share-based allocation across dimensions'
+  ],
+  enables: 'OBSERVED_COUNTERFACTUAL_COMPARISON',
+  status: 'AWAITING_AUTHORITATIVE_SOURCE'
+};
+
+export const METRIC_CORRESPONDENT_SIGNAL_TYPES: Readonly<
+  Record<PrimaryObjectiveMetric, readonly CanonicalSignalType[]>
+> = {
+  VOLUME: ['ORDER_VELOCITY_ACCELERATION', 'CATEGORY_DEMAND_ACCELERATION'],
+  REVENUE: [],
+  CONTRIBUTION: [],
+  WASTE_REDUCTION: [],
+  AVAILABILITY: []
 };
 
 /** Owner ruling X3 — frozen contract semantic is N > 1; initial policy value is 3. */
@@ -724,37 +807,90 @@ export function assertNoWp10dTelemetryCopied(payload: unknown): boolean {
 }
 
 /**
- * §5.4.1 — deterministic fail-closed grain resolution.
- * An observation resolves only when its (entity_type, entity_id) covers no more than the
- * contracted grain on every declared dimension and observed_at falls within the window.
+ * §5.4.1 / CDI-08 Z4 — deterministic fail-closed grain resolution.
+ * An observation resolves only when:
+ * 1. Single dimension (no grain_key): entity_type/entity_id covers exactly the single required dimension.
+ * 2. Composite grain (grain_key): exact set equality on dimensions + exact token identity on all dimensions.
  */
 export function assertGrainResolves(
   observation: OutcomeObservation,
   comparison_invariants: ComparisonSetInvariants
 ): boolean {
-  const observedAt = Date.parse(observation.observed_at);
-  if (Number.isNaN(observedAt)) return false;
-
-  const { planned_start, planned_end } = comparison_invariants;
-  if (planned_start) {
-    const start = Date.parse(planned_start);
-    if (Number.isNaN(start) || observedAt < start) return false;
-  }
-  if (planned_end) {
-    const end = Date.parse(planned_end);
-    if (Number.isNaN(end) || observedAt > end) return false;
-  }
-
   const required = requiredGrainDimensions(comparison_invariants);
-  if (required.length === 0) return true;
-  if (required.length > 1) return false;
+  if (required.length === 0) return false;
 
-  return entityCoversSingleDimension(observation, required[0], comparison_invariants);
+  if (!observation.grain_key) {
+    if (required.length !== 1) return false;
+    return entityCoversSingleDimension(observation, required[0], comparison_invariants);
+  }
+
+  // Composite key present:
+  const obsDims = observation.grain_key.dimensions;
+  if (!obsDims || !Array.isArray(obsDims) || obsDims.length === 0) return false;
+
+  // Set equality on dimensions:
+  const obsDimNames = obsDims.map(d => d.dimension);
+  if (obsDimNames.length !== required.length) return false;
+  const reqSet = new Set(required);
+  if (obsDimNames.some(d => !reqSet.has(d))) return false;
+  const obsSet = new Set(obsDimNames);
+  if (required.some(d => !obsSet.has(d))) return false;
+
+  // Exact token identity for each dimension:
+  for (const entry of obsDims) {
+    switch (entry.dimension) {
+      case 'category':
+        if (
+          !comparison_invariants.category?.trim() ||
+          normalizeGrainToken(entry.token) !== normalizeGrainToken(comparison_invariants.category)
+        ) {
+          return false;
+        }
+        break;
+      case 'region':
+        if (
+          !comparison_invariants.region?.trim() ||
+          normalizeGrainToken(entry.token) !== normalizeGrainToken(comparison_invariants.region)
+        ) {
+          return false;
+        }
+        break;
+      case 'sku': {
+        const skuScope = comparison_invariants.sku_scope || [];
+        if (skuScope.length === 0) return false;
+        const expectedSkuToken = skuScope
+          .map(normalizeGrainToken)
+          .sort()
+          .join('|');
+        const obsSkuTokens = entry.token
+          .split(/[|,\s]+/)
+          .filter(Boolean)
+          .map(normalizeGrainToken)
+          .sort()
+          .join('|');
+        if (obsSkuTokens !== expectedSkuToken) {
+          return false;
+        }
+        break;
+      }
+      case 'customer_segment':
+        if (
+          !comparison_invariants.customer_segment?.trim() ||
+          normalizeGrainToken(entry.token) !==
+            normalizeGrainToken(comparison_invariants.customer_segment)
+        ) {
+          return false;
+        }
+        break;
+      default:
+        return false;
+    }
+  }
+
+  return true;
 }
 
-type GrainDimension = 'category' | 'region' | 'sku' | 'customer_segment';
-
-function requiredGrainDimensions(invariants: ComparisonSetInvariants): GrainDimension[] {
+export function requiredGrainDimensions(invariants: ComparisonSetInvariants): GrainDimension[] {
   const dims: GrainDimension[] = [];
   if (invariants.category?.trim()) dims.push('category');
   if (invariants.region?.trim()) dims.push('region');
@@ -763,11 +899,11 @@ function requiredGrainDimensions(invariants: ComparisonSetInvariants): GrainDime
   return dims;
 }
 
-function normalizeGrainToken(value: string): string {
+export function normalizeGrainToken(value: string): string {
   return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, '_');
 }
 
-function entityCoversSingleDimension(
+export function entityCoversSingleDimension(
   observation: OutcomeObservation,
   dimension: GrainDimension,
   invariants: ComparisonSetInvariants
@@ -786,13 +922,14 @@ function entityCoversSingleDimension(
         observation.entity_type === 'REGION' &&
         normalizeGrainToken(observation.entity_id) === normalizeGrainToken(invariants.region)
       );
-    case 'sku':
+    case 'sku': {
+      // In single dimension single-entity mode:
+      if (invariants.sku_scope.length !== 1) return false;
       return (
         observation.entity_type === 'SKU' &&
-        invariants.sku_scope.some(
-          sku => normalizeGrainToken(sku) === normalizeGrainToken(observation.entity_id)
-        )
+        normalizeGrainToken(invariants.sku_scope[0]) === normalizeGrainToken(observation.entity_id)
       );
+    }
     case 'customer_segment':
       return false;
     default:
@@ -943,11 +1080,21 @@ export function validatePredictionOutcomeComparison(
     }
   }
 
-  const publishesCounterfactual = (c.unavailable_capabilities ?? []).some(
-    u => u.enables === 'OBSERVED_COUNTERFACTUAL_COMPARISON'
-  );
-  if (!publishesCounterfactual) {
+  // Required-input publication is keyed on `field`, not `enables`. `enables` is a
+  // LearningCapability and is not unique across declarations —
+  // COMPOSITE_GRAIN_OBSERVATION_REQUIRED_INPUT and OBSERVED_COUNTERFACTUAL_REQUIRED_INPUT both
+  // enable OBSERVED_COUNTERFACTUAL_COMPARISON, so keying on it lets either satisfy the other's
+  // check and opens a fail-closed validator. `field` is the declaration's identity.
+  const publishedFields = new Set((c.unavailable_capabilities ?? []).map(u => u.field));
+
+  if (!publishedFields.has(OBSERVED_COUNTERFACTUAL_REQUIRED_INPUT.field)) {
     errors.push('OBSERVED_COUNTERFACTUAL_REQUIRED_INPUT must be published on every comparison');
+  }
+  if (!publishedFields.has(PREDICTION_ENVELOPE_REQUIRED_INPUT.field)) {
+    errors.push('PREDICTION_ENVELOPE_REQUIRED_INPUT must be published on every comparison');
+  }
+  if (!publishedFields.has(COMPOSITE_GRAIN_OBSERVATION_REQUIRED_INPUT.field)) {
+    errors.push('COMPOSITE_GRAIN_OBSERVATION_REQUIRED_INPUT must be published on every comparison');
   }
 
   return { valid: errors.length === 0, errors };

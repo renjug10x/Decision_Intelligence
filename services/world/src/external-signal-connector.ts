@@ -125,6 +125,26 @@ const connectorById = new Map<string, ExternalSignalConnectorDescriptor>(
   REFERENCE_CONNECTOR_REGISTRY.map(c => [c.connector_id, c])
 );
 
+/**
+ * LAB FIXTURE ONLY — not an attestation and not the ESF-6 connector registration path.
+ *
+ * `determineObservationAuthority` reads connector resolution and `synthetic_demo` to decide
+ * AUTHORITATIVE_EXTERNAL, so an unguarded registration path would let a caller assert authority
+ * over a connector nobody attested — the exact defect ESF-6 / Y3a exists to close, and explicitly
+ * out of CDI-08 scope (gate §2). It exists so the CDI-08 suite can demonstrate the A-08 and A-20
+ * unlocks, which require an observation that clears C1.
+ *
+ * The mandatory acknowledgement literal makes the call impossible to reach accidentally and makes
+ * every call site self-declaring. Attested registration is ESF-6; this is superseded when it lands.
+ */
+export function registerExternalSignalConnector(
+  descriptor: ExternalSignalConnectorDescriptor,
+  lab_fixture_acknowledgement: 'LAB_FIXTURE_NOT_AN_ATTESTATION'
+): void {
+  if (lab_fixture_acknowledgement !== 'LAB_FIXTURE_NOT_AN_ATTESTATION') return;
+  connectorById.set(descriptor.connector_id, descriptor);
+}
+
 /** In-memory tenant-scoped store of connector-ingested signals (session-optional). */
 const ingestedByTenant = new Map<string, EnterpriseSignal[]>();
 

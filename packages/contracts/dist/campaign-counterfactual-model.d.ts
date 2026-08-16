@@ -116,6 +116,12 @@ export interface CampaignEvaluationRequest {
     /** Optional inline intent — otherwise loaded from CDI-01 store */
     campaign_intent?: CampaignIntent;
     include_signals?: boolean;
+    /**
+     * Optional CDI-03 resolved temporal uplift (pp). When supplied, replaces the flat
+     * FIND_BEST_WINDOW dampener in temporal_response. Omitted → CDI-02 default behaviour.
+     */
+    resolved_temporal_uplift_pp?: number;
+    opportunity_window_id?: string;
 }
 export interface CampaignEvaluationResponse {
     evaluation_id: string;

@@ -2,7 +2,7 @@
  * CogniX Shared Decision State Domain Model
  * Transport-neutral types, command registry, deterministic calculations, and schema definitions.
  */
-export type DecisionCommandType = 'SET_PROMOTION_LIFT' | 'SET_SUPPLIER_CAPACITY_CAP' | 'SET_FORECAST_HORIZON' | 'SET_PROMOTION_METHOD' | 'SET_CAMPAIGN_SCOPE' | 'SET_CANNIBALISATION_FACTOR' | 'SET_EVENT_BOOST' | 'SELECT_INTERVENTION' | 'DESELECT_INTERVENTION' | 'REGISTER_COMMERCIAL_INTENT' | 'REGISTER_CAMPAIGN_INTENT' | 'RESET_SCENARIO';
+export type DecisionCommandType = 'SET_PROMOTION_LIFT' | 'SET_SUPPLIER_CAPACITY_CAP' | 'SET_FORECAST_HORIZON' | 'SET_PROMOTION_METHOD' | 'SET_CAMPAIGN_SCOPE' | 'SET_CANNIBALISATION_FACTOR' | 'SET_EVENT_BOOST' | 'SELECT_INTERVENTION' | 'DESELECT_INTERVENTION' | 'REGISTER_COMMERCIAL_INTENT' | 'REGISTER_CAMPAIGN_INTENT' | 'REGISTER_DECISION_CONTRACT' | 'RESET_SCENARIO';
 export interface DecisionScenarioParameters {
     promotion_lift: number;
     supplier_capacity_cap: number;
@@ -47,6 +47,8 @@ export interface DecisionState {
     selected_interventions: string[];
     commercial_intent_ref?: string;
     campaign_intent_ref?: string;
+    /** CDI-07A W1 — plain string reference only; contract content lives in CDI-07A store. */
+    decision_contract_ref?: string;
     derived_impacts: DecisionDerivedImpacts;
     history: DecisionStateVersionRecord[];
     provenance: Record<string, string>;
