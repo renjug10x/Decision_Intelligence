@@ -12,23 +12,25 @@ export async function POST(request: NextRequest) {
     // Optional integrations — absence degrades, never blocks
     let opportunity_discovery = payload.opportunity_discovery;
     let readiness = payload.readiness;
-    if (!opportunity_discovery && payload.campaign_intent_id) {
+    if (!opportunity_discovery && (payload.campaign_intent_id || payload.campaign_intent)) {
       try {
         opportunity_discovery = discoverCampaignOpportunity({
           tenant_id: payload.tenant_id,
           session_id: payload.session_id,
-          campaign_intent_id: payload.campaign_intent_id
+          campaign_intent_id: payload.campaign_intent_id,
+          campaign_intent: payload.campaign_intent
         });
       } catch {
         /* K2-style degrade */
       }
     }
-    if (!readiness && payload.campaign_intent_id) {
+    if (!readiness && (payload.campaign_intent_id || payload.campaign_intent)) {
       try {
         const r = evaluateCampaignReadinessWithDiscovery({
           tenant_id: payload.tenant_id,
           session_id: payload.session_id,
           campaign_intent_id: payload.campaign_intent_id,
+          campaign_intent: payload.campaign_intent,
           include_signals: payload.include_signals,
           opportunity_discovery
         });

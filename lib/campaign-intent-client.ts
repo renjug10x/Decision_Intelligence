@@ -69,6 +69,7 @@ export async function evaluateCampaignDecisionClient(params: {
   tenant_id?: string;
   session_id?: string;
   campaign_intent_id?: string;
+  campaign_intent?: CampaignIntent;
   include_signals?: boolean;
   resolved_temporal_uplift_pp?: number;
   opportunity_window_id?: string;
@@ -80,7 +81,8 @@ export async function evaluateCampaignDecisionClient(params: {
       body: JSON.stringify({
         tenant_id: params.tenant_id || TENANT,
         session_id: params.session_id || SESSION,
-        campaign_intent_id: params.campaign_intent_id,
+        ...(params.campaign_intent_id ? { campaign_intent_id: params.campaign_intent_id } : {}),
+        ...(params.campaign_intent ? { campaign_intent: params.campaign_intent } : {}),
         include_signals: params.include_signals !== false,
         ...(typeof params.resolved_temporal_uplift_pp === 'number'
           ? {
@@ -102,6 +104,9 @@ export async function discoverCampaignOpportunityClient(params: {
   tenant_id?: string;
   session_id?: string;
   campaign_intent_id?: string;
+  campaign_intent?: CampaignIntent;
+  discovery_horizon_days?: number;
+  window_duration_days?: number;
 }): Promise<any | null> {
   try {
     const res = await fetch('/api/v1/campaigns/opportunity-discover', {
@@ -110,7 +115,10 @@ export async function discoverCampaignOpportunityClient(params: {
       body: JSON.stringify({
         tenant_id: params.tenant_id || TENANT,
         session_id: params.session_id || SESSION,
-        campaign_intent_id: params.campaign_intent_id
+        ...(params.campaign_intent_id ? { campaign_intent_id: params.campaign_intent_id } : {}),
+        ...(params.campaign_intent ? { campaign_intent: params.campaign_intent } : {}),
+        ...(typeof params.discovery_horizon_days === 'number' ? { discovery_horizon_days: params.discovery_horizon_days } : {}),
+        ...(typeof params.window_duration_days === 'number' ? { window_duration_days: params.window_duration_days } : {})
       })
     });
     if (!res.ok) return null;
@@ -125,6 +133,7 @@ export async function evaluateCampaignReadinessClient(params: {
   tenant_id?: string;
   session_id?: string;
   campaign_intent_id?: string;
+  campaign_intent?: CampaignIntent;
   include_signals?: boolean;
   economic_tolerance?: {
     max_contribution_sacrifice_gbp: number;
@@ -132,6 +141,7 @@ export async function evaluateCampaignReadinessClient(params: {
     declared_by: string;
     objective_basis: string;
   };
+  opportunity_discovery?: any;
 }): Promise<any | null> {
   try {
     const res = await fetch('/api/v1/campaigns/readiness', {
@@ -140,9 +150,11 @@ export async function evaluateCampaignReadinessClient(params: {
       body: JSON.stringify({
         tenant_id: params.tenant_id || TENANT,
         session_id: params.session_id || SESSION,
-        campaign_intent_id: params.campaign_intent_id,
+        ...(params.campaign_intent_id ? { campaign_intent_id: params.campaign_intent_id } : {}),
+        ...(params.campaign_intent ? { campaign_intent: params.campaign_intent } : {}),
         include_signals: params.include_signals !== false,
-        ...(params.economic_tolerance ? { economic_tolerance: params.economic_tolerance } : {})
+        ...(params.economic_tolerance ? { economic_tolerance: params.economic_tolerance } : {}),
+        ...(params.opportunity_discovery ? { opportunity_discovery: params.opportunity_discovery } : {})
       })
     });
     if (!res.ok) return null;
@@ -157,7 +169,10 @@ export async function projectDecisionTimelineClient(params: {
   tenant_id?: string;
   session_id?: string;
   campaign_intent_id?: string;
+  campaign_intent?: CampaignIntent;
   include_signals?: boolean;
+  opportunity_discovery?: any;
+  readiness?: any;
 }): Promise<any | null> {
   try {
     const res = await fetch('/api/v1/campaigns/timeline', {
@@ -166,8 +181,11 @@ export async function projectDecisionTimelineClient(params: {
       body: JSON.stringify({
         tenant_id: params.tenant_id || TENANT,
         session_id: params.session_id || SESSION,
-        campaign_intent_id: params.campaign_intent_id,
-        include_signals: params.include_signals !== false
+        ...(params.campaign_intent_id ? { campaign_intent_id: params.campaign_intent_id } : {}),
+        ...(params.campaign_intent ? { campaign_intent: params.campaign_intent } : {}),
+        include_signals: params.include_signals !== false,
+        ...(params.opportunity_discovery ? { opportunity_discovery: params.opportunity_discovery } : {}),
+        ...(params.readiness ? { readiness: params.readiness } : {})
       })
     });
     if (!res.ok) return null;
@@ -181,6 +199,7 @@ export async function projectDecisionTimelineClient(params: {
 export async function evaluateOutcomeFrontierClient(params: {
   tenant_id?: string;
   session_id?: string;
+  /** CDI-06 anchors exclusively on a server-registered intent — inline intents are not accepted. */
   campaign_intent_id?: string;
   evaluation_timestamp?: string;
   economic_tolerance?: {
@@ -201,7 +220,7 @@ export async function evaluateOutcomeFrontierClient(params: {
       body: JSON.stringify({
         tenant_id: params.tenant_id || TENANT,
         session_id: params.session_id || SESSION,
-        campaign_intent_id: params.campaign_intent_id,
+        ...(params.campaign_intent_id ? { campaign_intent_id: params.campaign_intent_id } : {}),
         ...(params.evaluation_timestamp
           ? { evaluation_timestamp: params.evaluation_timestamp }
           : {}),

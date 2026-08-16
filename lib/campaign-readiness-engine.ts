@@ -1996,7 +1996,8 @@ export function evaluateCampaignReadinessWithDiscovery(
           opportunity_discovery: discoverCampaignOpportunity({
             tenant_id: request.tenant_id,
             session_id: request.session_id,
-            campaign_intent_id: campaign.campaign_intent_id
+            campaign_intent_id: campaign.campaign_intent_id,
+            campaign_intent: campaign
           })
         };
       } catch {
