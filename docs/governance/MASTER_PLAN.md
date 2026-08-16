@@ -416,11 +416,11 @@ CDI-07B [COMPLETED]
     │
     ├──> Y4-gov   Pattern telemetry citation correction   (governance, immediate, not a WP; Z5)
     │
-    └──> CDI-08   Observation Correspondence & Prediction Envelope   [DESIGN FROZEN — NEXT]
+    └──> CDI-08   Observation Correspondence & Prediction Envelope   [COMPLETED]
               │   removes LE-3, LE-7, R1, R2, R3, R6(correspondence half)
               │   no external dependency
               ▼
-         ESF-6 / Y3a   Attested Observation Admission
+         ESF-6 / Y3a   Attested Observation Admission   [NEXT]
               │   removes LE-4, R4, R5, R6(admission half)
               │   first-party attested actuals — no procurement (Z3)
               ▼
