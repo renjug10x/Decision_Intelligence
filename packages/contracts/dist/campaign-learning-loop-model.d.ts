@@ -93,7 +93,7 @@ export interface CampaignPreMortem {
 }
 export type ObservationAuthority = 'AUTHORITATIVE_EXTERNAL' | 'SYNTHETIC_DEMONSTRATION' | 'SCENARIO_DERIVED' | 'UNATTRIBUTED';
 export interface EvidenceProvenance {
-    origin: 'ESF-3_CONNECTOR' | 'ESF-1_SIMULATION' | 'WP10-C_SCENARIO' | 'UNKNOWN';
+    origin: 'ESF-3_CONNECTOR' | 'ESF-1_SIMULATION' | 'WP10-C_SCENARIO' | 'ESF-6_ATTESTED_SOURCE' | 'UNKNOWN';
     connector_id?: string;
     envelope_id?: string;
     adapter_version?: string;
@@ -101,6 +101,11 @@ export interface EvidenceProvenance {
     metrics_supplied: boolean;
     confidence?: number;
     quality?: number;
+    /** R5 / E7 — never an authority input. */
+    confidence_provenance?: 'SUPPLIED' | 'ADAPTER_DEFAULT';
+    quality_provenance?: 'SUPPLIED' | 'ADAPTER_DEFAULT';
+    attestation_id?: string;
+    admission_receipt_id?: string;
     provider_payload_ref?: string;
     synthetic_demo: boolean;
     synthetic_disclosure?: string;
@@ -149,6 +154,9 @@ export interface OutcomeObservation {
     measurement_window_start?: string;
     measurement_window_end?: string;
     measurement_design?: ObservationMeasurementDesign;
+    /** Present => this observation was admitted through the ESF-6 attested path. */
+    admission_receipt_id?: string;
+    source_id?: string;
 }
 export type QuantityBasis = 'ATTRIBUTABLE' | 'GROSS' | 'MODELLED_MONETARY';
 export type ComparabilityVerdict = 'LIKE_FOR_LIKE' | 'GRAIN_MISMATCH' | 'QUANTITY_BASIS_MISMATCH' | 'NO_OBSERVED_COUNTERFACTUAL' | 'UNIT_MISMATCH' | 'OBSERVATION_ABSENT' | 'OBSERVATION_NOT_AUTHORITATIVE' | 'TENANT_SESSION_MISMATCH' | 'GRAIN_UNDECLARED' | 'WINDOW_UNDECLARED' | 'WINDOW_MISMATCH' | 'METRIC_MISMATCH' | 'METRIC_CORRESPONDENCE_UNDECLARED' | 'QUANTITY_BASIS_UNDECLARED';
@@ -349,14 +357,18 @@ export interface ObservationAuthorityEvaluationContext {
     scenario_derived_lineage: boolean;
     planned_start: string | null;
     comparison_invariants: ComparisonSetInvariants;
+    /** Server-verified: the admission receipt resolves and belongs to this tenant. */
+    admission_receipt_resolves?: boolean;
+    /** Server-derived from the registered source's category. Overrides any payload source_type. */
+    resolved_source_type?: SignalSourceType;
 }
 /**
  * §4.3 — seven-condition conjunction for AUTHORITATIVE_EXTERNAL.
  *
  * 1. synthetic_demo === false on the signal AND on the originating connector descriptor
  * 2. source_type ∈ OBSERVATION_INDEPENDENT_SOURCE_TYPES
- * 3. connector_id resolves in the ESF-3 registry with status AVAILABLE
- * 4. provenance.envelope_id and provenance.connector_id both present
+ * 3. connector_id resolves in the ESF-3 registry with status AVAILABLE (or ESF-6 attested source with resolving receipt)
+ * 4. provenance.envelope_id and provenance.connector_id both present (or valid attested source)
  * 5. observed_at parses and is not before contracted planned_start
  * 6. metrics_supplied === true
  * 7. entity resolves to the decision grain (assertGrainResolves)

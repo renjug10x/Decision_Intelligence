@@ -18,3 +18,4 @@ export { assertNoDurationSemantics as assertCdi07bPayloadVocabulary } from './ca
 export * from './intent-fusion-model';
 export * from './learning-pattern-model';
 export * from './memory-model';
+export * from './attested-observation-model';

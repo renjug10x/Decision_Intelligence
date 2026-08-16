@@ -293,8 +293,8 @@ function assertNoSuccessFailureVerdict(payload) {
  *
  * 1. synthetic_demo === false on the signal AND on the originating connector descriptor
  * 2. source_type ∈ OBSERVATION_INDEPENDENT_SOURCE_TYPES
- * 3. connector_id resolves in the ESF-3 registry with status AVAILABLE
- * 4. provenance.envelope_id and provenance.connector_id both present
+ * 3. connector_id resolves in the ESF-3 registry with status AVAILABLE (or ESF-6 attested source with resolving receipt)
+ * 4. provenance.envelope_id and provenance.connector_id both present (or valid attested source)
  * 5. observed_at parses and is not before contracted planned_start
  * 6. metrics_supplied === true
  * 7. entity resolves to the decision grain (assertGrainResolves)
@@ -316,17 +316,25 @@ function determineObservationAuthority(observation, context) {
         context.connector_synthetic_demo) {
         return 'SYNTHETIC_DEMONSTRATION';
     }
+    const effectiveSourceType = context.resolved_source_type ?? observation.source_type;
     if (context.scenario_derived_lineage ||
         observation.provenance.origin === 'ESF-1_SIMULATION' ||
         observation.provenance.origin === 'WP10-C_SCENARIO' ||
-        !(0, external_signal_connector_model_1.isObservationIndependentSourceType)(observation.source_type)) {
+        !(0, external_signal_connector_model_1.isObservationIndependentSourceType)(effectiveSourceType)) {
         return 'SCENARIO_DERIVED';
     }
-    if (!context.connector_resolves ||
-        context.connector_status !== 'AVAILABLE' ||
-        !observation.provenance.envelope_id ||
-        !observation.provenance.connector_id) {
-        return 'UNATTRIBUTED';
+    if (observation.provenance.origin === 'ESF-6_ATTESTED_SOURCE') {
+        if (!context.admission_receipt_resolves) {
+            return 'UNATTRIBUTED';
+        }
+    }
+    else {
+        if (!context.connector_resolves ||
+            context.connector_status !== 'AVAILABLE' ||
+            !observation.provenance.envelope_id ||
+            !observation.provenance.connector_id) {
+            return 'UNATTRIBUTED';
+        }
     }
     return 'AUTHORITATIVE_EXTERNAL';
 }

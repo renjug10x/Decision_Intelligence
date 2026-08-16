@@ -8,6 +8,7 @@ import {
   comparePredictionToReality,
   resolveContractOrReject
 } from '@/lib/campaign-learning-loop-engine';
+import { attestedObservationStore } from '@/lib/attested-observation-store';
 import { learningLoopErrorResponse } from '@/lib/learning-loop-api-errors';
 
 /** CDI-07B — recompute prediction vs reality at caller-supplied as_of. Never stored. */
@@ -21,14 +22,27 @@ export async function POST(
     const tenantId = body.tenant_id as string | undefined;
     const sessionId = body.session_id as string | undefined;
     const asOf = body.as_of as string | undefined;
-    const observations = body.observations;
+    const suppliedObservations = Array.isArray(body.observations) ? body.observations : [];
+    const observations = [...suppliedObservations];
 
-    if (!tenantId || !sessionId || !asOf || !Array.isArray(observations)) {
+    if (Array.isArray(body.observation_receipt_ids) && tenantId) {
+      for (const rcptId of body.observation_receipt_ids) {
+        const rcpt = attestedObservationStore.getReceipt(rcptId, tenantId);
+        if (rcpt && rcpt.subject_id) {
+          const obs = attestedObservationStore.getObservation(rcpt.subject_id, tenantId);
+          if (obs && !observations.some(o => o.observation_id === obs.observation_id)) {
+            observations.push(obs);
+          }
+        }
+      }
+    }
+
+    if (!tenantId || !sessionId || !asOf) {
       return NextResponse.json(
         {
           status: 'error',
           error: 'BadRequest',
-          message: 'tenant_id, session_id, as_of and observations[] are required'
+          message: 'tenant_id, session_id, and as_of are required'
         },
         { status: 400 }
       );

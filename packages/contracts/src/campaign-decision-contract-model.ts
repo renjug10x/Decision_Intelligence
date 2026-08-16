@@ -1078,8 +1078,8 @@ export function validateDecisionContract(
       if (env.derivation !== 'HUMAN_DECLARED') {
         errors.push("derivation must be 'HUMAN_DECLARED'");
       }
-      if (env.pre_declaration_witness !== 'NONE' && env.pre_declaration_witness !== 'SERVER_REGISTRATION_RECEIPT') {
-        errors.push("pre_declaration_witness must be 'NONE' | 'SERVER_REGISTRATION_RECEIPT'");
+      if (env.pre_declaration_witness !== 'NONE') {
+        errors.push("pre_declaration_witness must be 'NONE' at contract declaration; a caller cannot assert a server witness (C-INV-ENV-6)");
       }
       if (seenPaths.has(env.applies_to_field_path)) {
         errors.push(

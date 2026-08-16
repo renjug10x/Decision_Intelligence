@@ -132,7 +132,7 @@ export type ObservationAuthority =
   | 'UNATTRIBUTED';
 
 export interface EvidenceProvenance {
-  origin: 'ESF-3_CONNECTOR' | 'ESF-1_SIMULATION' | 'WP10-C_SCENARIO' | 'UNKNOWN';
+  origin: 'ESF-3_CONNECTOR' | 'ESF-1_SIMULATION' | 'WP10-C_SCENARIO' | 'ESF-6_ATTESTED_SOURCE' | 'UNKNOWN';
   connector_id?: string;
   envelope_id?: string;
   adapter_version?: string;
@@ -140,6 +140,11 @@ export interface EvidenceProvenance {
   metrics_supplied: boolean;
   confidence?: number;
   quality?: number;
+  /** R5 / E7 — never an authority input. */
+  confidence_provenance?: 'SUPPLIED' | 'ADAPTER_DEFAULT';
+  quality_provenance?: 'SUPPLIED' | 'ADAPTER_DEFAULT';
+  attestation_id?: string;
+  admission_receipt_id?: string;
   provider_payload_ref?: string;
   synthetic_demo: boolean;
   synthetic_disclosure?: string;
@@ -197,6 +202,9 @@ export interface OutcomeObservation {
   measurement_window_start?: string;
   measurement_window_end?: string;
   measurement_design?: ObservationMeasurementDesign;
+  /** Present => this observation was admitted through the ESF-6 attested path. */
+  admission_receipt_id?: string;
+  source_id?: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -713,6 +721,10 @@ export interface ObservationAuthorityEvaluationContext {
   scenario_derived_lineage: boolean;
   planned_start: string | null;
   comparison_invariants: ComparisonSetInvariants;
+  /** Server-verified: the admission receipt resolves and belongs to this tenant. */
+  admission_receipt_resolves?: boolean;
+  /** Server-derived from the registered source's category. Overrides any payload source_type. */
+  resolved_source_type?: SignalSourceType;
 }
 
 /**
@@ -720,8 +732,8 @@ export interface ObservationAuthorityEvaluationContext {
  *
  * 1. synthetic_demo === false on the signal AND on the originating connector descriptor
  * 2. source_type ∈ OBSERVATION_INDEPENDENT_SOURCE_TYPES
- * 3. connector_id resolves in the ESF-3 registry with status AVAILABLE
- * 4. provenance.envelope_id and provenance.connector_id both present
+ * 3. connector_id resolves in the ESF-3 registry with status AVAILABLE (or ESF-6 attested source with resolving receipt)
+ * 4. provenance.envelope_id and provenance.connector_id both present (or valid attested source)
  * 5. observed_at parses and is not before contracted planned_start
  * 6. metrics_supplied === true
  * 7. entity resolves to the decision grain (assertGrainResolves)
@@ -752,22 +764,32 @@ export function determineObservationAuthority(
   ) {
     return 'SYNTHETIC_DEMONSTRATION';
   }
+
+  const effectiveSourceType = context.resolved_source_type ?? observation.source_type;
   if (
     context.scenario_derived_lineage ||
     observation.provenance.origin === 'ESF-1_SIMULATION' ||
     observation.provenance.origin === 'WP10-C_SCENARIO' ||
-    !isObservationIndependentSourceType(observation.source_type)
+    !isObservationIndependentSourceType(effectiveSourceType)
   ) {
     return 'SCENARIO_DERIVED';
   }
-  if (
-    !context.connector_resolves ||
-    context.connector_status !== 'AVAILABLE' ||
-    !observation.provenance.envelope_id ||
-    !observation.provenance.connector_id
-  ) {
-    return 'UNATTRIBUTED';
+
+  if (observation.provenance.origin === 'ESF-6_ATTESTED_SOURCE') {
+    if (!context.admission_receipt_resolves) {
+      return 'UNATTRIBUTED';
+    }
+  } else {
+    if (
+      !context.connector_resolves ||
+      context.connector_status !== 'AVAILABLE' ||
+      !observation.provenance.envelope_id ||
+      !observation.provenance.connector_id
+    ) {
+      return 'UNATTRIBUTED';
+    }
   }
+
   return 'AUTHORITATIVE_EXTERNAL';
 }
 

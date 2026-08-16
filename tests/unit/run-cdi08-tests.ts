@@ -46,7 +46,7 @@ import { evaluateOutcomeFrontier } from '../../lib/campaign-frontier-engine';
 import { decisionContractStore } from '../../lib/decision-contract-store';
 import { preMortemStore } from '../../lib/pre-mortem-store';
 import { learningCandidateStore } from '../../lib/learning-candidate-store';
-import { registerExternalSignalConnector } from '../../services/world/src/external-signal-connector';
+import { attestedObservationStore } from '../../lib/attested-observation-store';
 
 const TENANT_A = 'tenant_uk_retail_01';
 const TENANT_B = 'tenant_uk_retail_02';
@@ -57,25 +57,67 @@ const START_DATE = '2026-08-22T00:00:00.000Z';
 const END_DATE = '2026-09-05T00:00:00.000Z';
 const GROSS_FIELD = 'play.decomposition.reconciliation.reconciled_sum_pp';
 
-// Register authoritative test connector
-registerExternalSignalConnector({
-  connector_id: 'conn_planning_auth_01',
-  category: 'PLANNING',
-  display_name: 'Authoritative Planning Feed',
-  provider_id: 'planning_prod',
-  supported_signal_types: [
-    'CATEGORY_DEMAND_ACCELERATION',
-    'ORDER_VELOCITY_ACCELERATION',
-    'WEATHER_TEMPERATURE_ANOMALY' as any
-  ],
-  status: 'AVAILABLE',
-  synthetic_demo: false,
-  adapter_version: 'esf3_adapter_v1.0.0',
-  schema_version: '1.0'
-}, 'LAB_FIXTURE_NOT_AN_ATTESTATION');
+let authSourceA: any;
+let authSourceB: any;
+
+function initSources() {
+  attestedObservationStore.clear();
+  const resA = attestedObservationStore.registerSource({
+    tenant_id: TENANT_A,
+    display_name: 'Authoritative Planning Feed',
+    category: 'PLANNING',
+    observation_categories: ['REALISED_COMMERCIAL_ACTUAL', 'REALISED_OPERATIONAL_ACTUAL'],
+    supported_signal_types: [
+      'CATEGORY_DEMAND_ACCELERATION',
+      'ORDER_VELOCITY_ACCELERATION',
+      'WEATHER_TEMPERATURE_ANOMALY' as any
+    ],
+    supported_grain_capabilities: [
+      { dimensions: ['category'] },
+      { dimensions: ['category', 'region'] },
+      { dimensions: ['category', 'region', 'sku', 'customer_segment'] },
+      { dimensions: ['region'] }
+    ],
+    supported_measurement_bases: ['DIRECT_MEASUREMENT', 'MODELLED'],
+    attestation: {
+      attested_by: 'cdi08.lead@retail',
+      attestation_statement: 'Authoritative production planning actuals',
+      attestation_kind: 'FIRST_PARTY_OPERATOR_ATTESTATION'
+    }
+  });
+  if (resA.ok) authSourceA = resA.source;
+
+  const resB = attestedObservationStore.registerSource({
+    tenant_id: TENANT_B,
+    display_name: 'Authoritative Planning Feed Tenant B',
+    category: 'PLANNING',
+    observation_categories: ['REALISED_COMMERCIAL_ACTUAL', 'REALISED_OPERATIONAL_ACTUAL'],
+    supported_signal_types: [
+      'CATEGORY_DEMAND_ACCELERATION',
+      'ORDER_VELOCITY_ACCELERATION',
+      'WEATHER_TEMPERATURE_ANOMALY' as any
+    ],
+    supported_grain_capabilities: [
+      { dimensions: ['category'] },
+      { dimensions: ['category', 'region'] },
+      { dimensions: ['category', 'region', 'sku', 'customer_segment'] },
+      { dimensions: ['region'] }
+    ],
+    supported_measurement_bases: ['DIRECT_MEASUREMENT', 'MODELLED'],
+    attestation: {
+      attested_by: 'cdi08.lead@retail',
+      attestation_statement: 'Authoritative production planning actuals',
+      attestation_kind: 'FIRST_PARTY_OPERATOR_ATTESTATION'
+    }
+  });
+  if (resB.ok) authSourceB = resB.source;
+}
+
+initSources();
 
 let passCount = 0;
 let failCount = 0;
+let observationCounter = 0;
 
 function assert(condition: boolean, testName: string, detail?: string) {
   if (condition) {
@@ -92,6 +134,7 @@ function clearStores() {
   preMortemStore.clear();
   learningCandidateStore.clear();
   clearCampaignIntents();
+  initSources();
 }
 
 function makeContract(
@@ -163,12 +206,29 @@ function makeObservation(
   contract: DecisionContract,
   overrides: Partial<OutcomeObservation> = {}
 ): OutcomeObservation {
+  const source = contract.tenant_id === TENANT_B ? authSourceB : authSourceA;
+  const sourceId = source?.source_id || 'asrc_planning_auth_01';
+  const attId = source?.attestation_id || 'att_planning_auth_01';
+
+  // The receipt must be issued FOR this observation: an admission receipt witnesses the
+  // observation named in its subject_id and no other. Resolve the final id (respecting any
+  // override) before issuing, or the receipt does not bind and authority fails closed.
+  const observationId = overrides.observation_id ?? `obs_cdi08_${++observationCounter}`;
+  const receipt = attestedObservationStore.issueReceipt({
+    kind: 'OBSERVATION_ADMISSION',
+    tenant_id: contract.tenant_id,
+    session_id: contract.session_id,
+    subject_id: observationId,
+    source_id: sourceId
+  });
+
   return {
-    observation_id: `obs_${Math.random().toString(36).substr(2, 9)}`,
+    observation_id: observationId,
     tenant_id: contract.tenant_id,
     session_id: contract.session_id,
     signal_id: 'sig_cdi08_01',
-    connector_id: 'conn_planning_auth_01',
+    connector_id: sourceId,
+    source_id: sourceId,
     external_category: 'PLANNING',
     signal_type: 'CATEGORY_DEMAND_ACCELERATION',
     source_type: 'PLANNING_SYSTEM',
@@ -184,11 +244,16 @@ function makeObservation(
     measurement_window_end: contract.basis.comparison_invariants.planned_end || END_DATE,
     measurement_design: 'DIRECT_MEASUREMENT',
     authority: 'AUTHORITATIVE_EXTERNAL',
+    admission_receipt_id: receipt.receipt_id,
     provenance: {
-      origin: 'ESF-3_CONNECTOR',
-      connector_id: 'conn_planning_auth_01',
+      origin: 'ESF-6_ATTESTED_SOURCE',
+      connector_id: sourceId,
       envelope_id: 'env_cdi08_01',
       metrics_supplied: true,
+      confidence_provenance: 'SUPPLIED',
+      quality_provenance: 'SUPPLIED',
+      attestation_id: attId,
+      admission_receipt_id: receipt.receipt_id,
       synthetic_demo: false
     },
     completeness: {

@@ -75,3 +75,4 @@ Object.defineProperty(exports, "assertCdi07bPayloadVocabulary", { enumerable: tr
 __exportStar(require("./intent-fusion-model"), exports);
 __exportStar(require("./learning-pattern-model"), exports);
 __exportStar(require("./memory-model"), exports);
+__exportStar(require("./attested-observation-model"), exports);

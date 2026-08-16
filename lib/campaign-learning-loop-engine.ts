@@ -79,6 +79,7 @@ import { learningCandidateStore } from './learning-candidate-store';
 import { getExternalSignalConnector } from '../services/world/src/external-signal-connector';
 import { memoryRepository } from '../services/learning/src/memory-store';
 import { learningPatternRepository } from '../services/learning/src/learning-pattern-store';
+import { attestedObservationStore } from './attested-observation-store';
 
 const SCHEMA_VERSION = '1.0';
 const ENGINE_VERSION = 'cdi07b_learning_loop_engine_v1';
@@ -437,6 +438,28 @@ function observationContext(
   observation: OutcomeObservation,
   contract: DecisionContract
 ): ObservationAuthorityEvaluationContext {
+  if (observation.provenance.origin === 'ESF-6_ATTESTED_SOURCE') {
+    const source = attestedObservationStore.getSource(
+      observation.source_id || observation.connector_id,
+      contract.tenant_id
+    );
+    // The receipt must BIND this observation — right tenant, right kind, right subject.
+    const receipt = attestedObservationStore.resolveAdmissionReceiptFor(observation, contract.tenant_id);
+    const sourceType = source ? mapCategoryToSourceType(source.category) : undefined;
+    return {
+      // Fail closed toward synthetic when the claimed source does not resolve, matching the
+      // ESF-3 branch below. An unresolvable source is not evidence of a real-world measurement.
+      connector_synthetic_demo: source?.synthetic_demo ?? true,
+      connector_status: source?.status === 'ACTIVE' ? 'AVAILABLE' : 'DISABLED',
+      connector_resolves: !!source,
+      scenario_derived_lineage: false,
+      planned_start: contract.basis.comparison_invariants.planned_start,
+      comparison_invariants: contract.basis.comparison_invariants,
+      admission_receipt_resolves: !!receipt,
+      resolved_source_type: sourceType
+    };
+  }
+
   const connector = getExternalSignalConnector(observation.connector_id);
   return {
     connector_synthetic_demo: connector?.synthetic_demo ?? true,
@@ -671,6 +694,51 @@ function buildQuantityComparison(
     );
 
     if (matchingEnvelope) {
+      // W1-W5 Witness Evaluation (fail closed to NONE)
+      // W1: A CONTRACT_REGISTRATION receipt exists for contract_id under this tenant
+      const contractReceipt = attestedObservationStore.getContractRegistrationReceipt(
+        contract.contract_id,
+        contract.tenant_id
+      );
+
+      // W2: receipt.contract_digest === computeContractDigest(contract)
+      const currentDigest = computeContractDigest(contract);
+      const digestMatches = !!contractReceipt && contractReceipt.contract_digest === currentDigest;
+
+      // W3: Every observation backing the row carries an admission_receipt_id that resolves under
+      // this tenant AND was issued for this very observation (kind + subject binding).
+      const obsReceipt = attestedObservationStore.resolveAdmissionReceiptFor(
+        observation,
+        contract.tenant_id
+      );
+      const obsReceiptResolves = !!obsReceipt;
+
+      // W4: contract_receipt.sequence < min(observation_receipt.sequence) — strict integer <
+      const sequencePrecedence = !!contractReceipt && !!obsReceipt && contractReceipt.sequence < obsReceipt.sequence;
+
+      // W5: The envelope's own pre_declaration_witness is 'NONE' as stored (C-INV-ENV-6)
+      const storedWitnessNone = matchingEnvelope.pre_declaration_witness === 'NONE';
+
+      let witnessPass = false;
+      let failingReason: string | undefined = undefined;
+
+      if (!contractReceipt) {
+        failingReason = 'W1: No CONTRACT_REGISTRATION receipt found for contract';
+      } else if (!digestMatches) {
+        failingReason = 'W2: Contract digest mismatch against registration receipt';
+      } else if (!obsReceiptResolves) {
+        failingReason = 'W3: Backing observation admission receipt does not resolve under contract tenant';
+      } else if (!sequencePrecedence) {
+        failingReason = `W4: Contract registration sequence (${contractReceipt.sequence}) is not strictly prior to observation admission sequence (${obsReceipt ? obsReceipt.sequence : 'none'})`;
+      } else if (!storedWitnessNone) {
+        failingReason = 'W5: Envelope pre_declaration_witness was not NONE as stored';
+      } else {
+        witnessPass = true;
+      }
+
+      const isOutside = signedDelta < matchingEnvelope.lower || signedDelta > matchingEnvelope.upper;
+      const derivedWitness = witnessPass ? 'SERVER_REGISTRATION_RECEIPT' : 'NONE';
+
       const errorObj: PredictionError = {
         signed_delta: signedDelta,
         unit: snap.unit,
@@ -681,19 +749,18 @@ function buildQuantityComparison(
           source_field_path: matchingEnvelope.applies_to_field_path,
           envelope_id: matchingEnvelope.envelope_id,
           declared_by: matchingEnvelope.declared_by,
-          pre_declaration_witness: matchingEnvelope.pre_declaration_witness
+          pre_declaration_witness: derivedWitness
         }
       };
 
-      const isOutside = signedDelta < matchingEnvelope.lower || signedDelta > matchingEnvelope.upper;
       if (isOutside) {
+        // Z2: Adverse error needs no witness
         errorObj.within_declared_envelope = false;
       } else {
-        if (matchingEnvelope.pre_declaration_witness !== 'NONE') {
+        if (witnessPass) {
           errorObj.within_declared_envelope = true;
         } else {
-          errorObj.within_withheld_reason =
-            'Pre-declaration witness is NONE; WITHIN verdict is structurally unreachable without server-side registration receipt';
+          errorObj.within_withheld_reason = failingReason;
         }
       }
       row.error = errorObj;
@@ -860,8 +927,15 @@ export function comparePredictionToReality(args: ComparePredictionArgs): Predict
   if (!as_of?.trim()) reject('RJ-R1', 'RJ-R1: as_of is required');
   if (contract.status === 'WITHDRAWN') reject('RJ-P3', 'RJ-P3: Contract is WITHDRAWN');
   for (const o of observations) {
-    if (!getExternalSignalConnector(o.connector_id) && o.authority !== 'UNATTRIBUTED') {
-      reject('RJ-R2', `RJ-R2: connector ${o.connector_id} failed ESF-3 lineage resolution`);
+    if (o.provenance.origin === 'ESF-6_ATTESTED_SOURCE') {
+      const src = attestedObservationStore.getSource(o.source_id || o.connector_id, contract.tenant_id);
+      if (!src && o.authority !== 'UNATTRIBUTED') {
+        reject('RJ-R2', `RJ-R2: source ${o.source_id || o.connector_id} failed ESF-6 lineage resolution`);
+      }
+    } else {
+      if (!getExternalSignalConnector(o.connector_id) && o.authority !== 'UNATTRIBUTED') {
+        reject('RJ-R2', `RJ-R2: connector ${o.connector_id} failed ESF-3 lineage resolution`);
+      }
     }
   }
 
@@ -1282,7 +1356,7 @@ export function adaptEnterpriseSignalToOutcomeObservation(input: {
 }): OutcomeObservation {
   const connector = getExternalSignalConnector(input.connector_id);
   const sourceType = mapCategoryToSourceType(input.external_category);
-  const synthetic = input.signal.synthetic_demo || connector?.synthetic_demo || true;
+  const synthetic = Boolean(input.signal.synthetic_demo || connector?.synthetic_demo || false);
   const provenance = {
     origin: 'ESF-3_CONNECTOR' as const,
     connector_id: input.connector_id,
@@ -1292,6 +1366,8 @@ export function adaptEnterpriseSignalToOutcomeObservation(input: {
     metrics_supplied: input.metrics_supplied ?? true,
     confidence: input.signal.confidence,
     quality: input.signal.quality,
+    confidence_provenance: input.signal.confidence !== undefined ? ('SUPPLIED' as const) : ('ADAPTER_DEFAULT' as const),
+    quality_provenance: input.signal.quality !== undefined ? ('SUPPLIED' as const) : ('ADAPTER_DEFAULT' as const),
     synthetic_demo: synthetic,
     ...(synthetic ? { synthetic_disclosure: SYNTHETIC_OBSERVATION_DISCLOSURE } : {})
   };
