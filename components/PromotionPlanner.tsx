@@ -18,6 +18,7 @@ import {
   evaluateCampaignReadinessClient,
   projectDecisionTimelineClient
 } from '@/lib/campaign-intent-client';
+import { TimingMode } from '@/packages/contracts/src/campaign-intent-model';
 
 import promotionsData from '@/data/promotions.json';
 import productsData from '@/data/products.json';
@@ -88,6 +89,17 @@ export default function PromotionPlanner({
   const [region, setRegion] = useState('All');
   const [duration, setDuration] = useState(14); // 7 | 14 | 30
 
+  // ── Decision Context State (Lightweight 2nd layer) ─────────────────────────
+  const [objective, setObjective] = useState('VOLUME');
+  const [timingMode, setTimingMode] = useState<TimingMode>('KNOWN_DATES');
+  const [marketStrategy, setMarketStrategy] = useState('ALL_STORES');
+
+  // ── Advanced Scenario State (Progressive disclosure) ──────────────────────
+  const [showAdvancedScenario, setShowAdvancedScenario] = useState(false);
+  const [customerSegment, setCustomerSegment] = useState('Family Shoppers');
+  const [channel, setChannel] = useState('Omnichannel');
+  const [marginFloor, setMarginFloor] = useState('15');
+
   // Progressive Curiosity UX State
   const [exploreExpanded, setExploreExpanded] = useState(false);
   const [activeLens, setActiveLens] = useState<CuriosityLens>('WHY');
@@ -157,6 +169,13 @@ export default function PromotionPlanner({
     setPromoType(op.type);
     setRegion(op.region);
     setDuration(op.duration);
+    if (op.id === 'OP001') {
+      setObjective('WASTE_MINIMISATION');
+    } else if (op.id === 'OP002') {
+      setObjective('BALANCED_GROWTH');
+    } else if (op.id === 'OP003') {
+      setObjective('MARKET_DEFENCE');
+    }
   };
 
   const getFilteredOpportunities = () => {
@@ -365,6 +384,16 @@ export default function PromotionPlanner({
     const skuName = product ? product.name : selectedSku;
     const cat = product ? product.category : 'Fresh Dairy';
 
+    const objectiveLabelMap: Record<string, string> = {
+      VOLUME: 'Volume Surge & Market Share Growth',
+      BALANCED_GROWTH: 'Balanced Revenue & Volume Growth',
+      MARGIN_PROTECTION: 'Contribution & Margin Floor Defence',
+      WASTE_MINIMISATION: 'Excess Stock & Perishables Clearance',
+      CUSTOMER_ACQUISITION: 'Basket Penetration & Trial Drive',
+      MARKET_DEFENCE: 'Competitive Price-Match Defence',
+      STRATEGIC_LAUNCH: 'New Category & Range Introduction'
+    };
+
     const intentPayload = {
       commercial_intent_id: `intent_${Math.random().toString(36).substr(2, 9)}`,
       tenant_id: 'tenant_uk_retail_01',
@@ -373,16 +402,16 @@ export default function PromotionPlanner({
       category: cat,
       sku_scope: [selectedSku],
       region: region === 'All' ? 'North West' : region,
-      customer_segment: 'Family Shoppers',
-      channel: 'Omnichannel',
+      customer_segment: customerSegment,
+      channel: channel,
       promotion_type: promoType,
       discount_depth: discountPct,
       planned_start: new Date(Date.now() + 7 * 86400000).toISOString(),
       planned_end: new Date(Date.now() + (7 + duration) * 86400000).toISOString(),
       expected_uplift: Math.round(discountPct * 1.25),
-      campaign_objective: 'Volume Surge & Market Share Growth',
-      media_support: 'Digital Banner + In-App Push Notification',
-      inventory_assumption: 'Trafford RDC safety stock buffer 3 days',
+      campaign_objective: objectiveLabelMap[objective] || 'Volume Surge & Market Share Growth',
+      media_support: channel === 'Digital / App Push' ? 'In-App Push & Digital Banners' : 'Digital Banner + In-App Push Notification',
+      inventory_assumption: 'Trafford RDC safety stock buffer 3.2 days',
       supplier_assumption: 'FreshDirect UK capped at 48,000 units/week',
       source_system: 'cognix_promotion_planner',
       source_type: 'PROMOTION_PLANNER' as const,
@@ -691,244 +720,541 @@ export default function PromotionPlanner({
       )}
 
       {/* ── 3. Configuration & Signals Feed ───────────────────────────────── */}
-      <div className="grid-2-1 mb-6" style={{ alignItems: 'start' }}>
+      <div className="grid-2-1 mb-6" style={{ alignItems: 'stretch' }}>
         {/* Simulator Controls Card */}
-        <div className="card" style={{ opacity: isLocked ? 0.7 : 1 }}>
-          <div className="card-header" style={{ paddingBottom: 10 }}>
-            <span
-              className="card-title"
-              style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.875rem' }}
-            >
-              <Tag size={15} strokeWidth={1.75} color="#0078FF" />
-              Campaign Configuration
-            </span>
-            {isLocked && <span className="badge badge-danger">Read-only</span>}
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr',
-              gap: 12,
-              marginBottom: 14
-            }}
-          >
-            <div>
-              <label
-                style={{
-                  fontSize: '0.6875rem',
-                  color: 'var(--text-muted)',
-                  fontWeight: 600,
-                  display: 'block',
-                  marginBottom: 4
-                }}
+        <div
+          className="card"
+          style={{
+            opacity: isLocked ? 0.7 : 1,
+            display: 'flex',
+            flexDirection: 'column',
+            justifyContent: 'space-between'
+          }}
+        >
+          <div>
+            <div className="card-header" style={{ paddingBottom: 10 }}>
+              <span
+                className="card-title"
+                style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.875rem' }}
               >
-                PRODUCT / SKU
-              </label>
-              <select
-                className="select w-full"
-                value={selectedSku}
-                onChange={e => setSelectedSku(e.target.value)}
-                disabled={isLocked}
-                style={{ height: 36, fontSize: '0.8125rem' }}
-              >
-                {(productsData as Product[]).map(p => (
-                  <option key={p.sku_id} value={p.sku_id}>
-                    {p.name} ({p.category})
-                  </option>
-                ))}
-              </select>
+                <Tag size={15} strokeWidth={1.75} color="#0078FF" />
+                Campaign Configuration
+              </span>
+              {isLocked && <span className="badge badge-danger">Read-only</span>}
             </div>
 
-            <div>
-              <label
-                style={{
-                  fontSize: '0.6875rem',
-                  color: 'var(--text-muted)',
-                  fontWeight: 600,
-                  display: 'block',
-                  marginBottom: 4
-                }}
-              >
-                MECHANIC
-              </label>
-              <select
-                className="select w-full"
-                value={promoType}
-                onChange={e => setPromoType(e.target.value)}
-                disabled={isLocked}
-                style={{ height: 36, fontSize: '0.8125rem' }}
-              >
-                <option value="price_cut">Price Cut (Direct Discount)</option>
-                <option value="bogof">Buy One Get One Free (BOGOF)</option>
-                <option value="bundle">Category Bundle Deal</option>
-              </select>
-            </div>
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: '1fr 1fr 1fr',
-              gap: 12,
-              marginBottom: 14
-            }}
-          >
-            <div>
-              <label
-                style={{
-                  fontSize: '0.6875rem',
-                  color: 'var(--text-muted)',
-                  fontWeight: 600,
-                  display: 'block',
-                  marginBottom: 4
-                }}
-              >
-                DISCOUNT: {discountPct}%
-              </label>
-              <input
-                type="range"
-                min="5"
-                max="50"
-                step="5"
-                value={discountPct}
-                onChange={e => handleDiscountChange(Number(e.target.value))}
-                disabled={isLocked}
-                style={{
-                  width: '100%',
-                  accentColor: 'var(--accent)',
-                  cursor: isLocked ? 'not-allowed' : 'pointer',
-                  marginTop: 6
-                }}
-              />
-            </div>
-
-            <div>
-              <label
-                style={{
-                  fontSize: '0.6875rem',
-                  color: 'var(--text-muted)',
-                  fontWeight: 600,
-                  display: 'block',
-                  marginBottom: 4
-                }}
-              >
-                REGION
-              </label>
-              <select
-                className="select w-full"
-                value={region}
-                onChange={e => setRegion(e.target.value)}
-                disabled={isLocked}
-                style={{ height: 36, fontSize: '0.8125rem' }}
-              >
-                <option value="All">All Regions (National)</option>
-                <option value="North West">North West</option>
-                <option value="South East">South East</option>
-                <option value="Midlands">Midlands</option>
-                <option value="London">London</option>
-                <option value="Scotland">Scotland</option>
-                <option value="Wales">Wales</option>
-              </select>
-            </div>
-
-            <div>
-              <label
-                style={{
-                  fontSize: '0.6875rem',
-                  color: 'var(--text-muted)',
-                  fontWeight: 600,
-                  display: 'block',
-                  marginBottom: 4
-                }}
-              >
-                DURATION
-              </label>
-              <select
-                className="select w-full"
-                value={duration}
-                onChange={e => setDuration(Number(e.target.value))}
-                disabled={isLocked}
-                style={{ height: 36, fontSize: '0.8125rem' }}
-              >
-                <option value="7">7 Days</option>
-                <option value="14">14 Days</option>
-                <option value="30">30 Days</option>
-              </select>
-            </div>
-          </div>
-
-          {intentRegisteredSuccess && (
+            {/* Primary Controls */}
             <div
               style={{
-                background: 'var(--success-light)',
-                border: '1px solid var(--success)',
-                borderRadius: 'var(--radius-sm)',
-                padding: '8px 12px',
-                marginBottom: 12,
-                fontSize: '0.75rem',
-                color: 'var(--text-primary)',
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr',
+                gap: 12,
+                marginBottom: 12
+              }}
+            >
+              <div>
+                <label
+                  style={{
+                    fontSize: '0.6875rem',
+                    color: 'var(--text-muted)',
+                    fontWeight: 600,
+                    display: 'block',
+                    marginBottom: 4
+                  }}
+                >
+                  PRODUCT / SKU
+                </label>
+                <select
+                  className="select w-full"
+                  value={selectedSku}
+                  onChange={e => setSelectedSku(e.target.value)}
+                  disabled={isLocked}
+                  style={{ height: 36, fontSize: '0.8125rem' }}
+                >
+                  {(productsData as Product[]).map(p => (
+                    <option key={p.sku_id} value={p.sku_id}>
+                      {p.name} ({p.category})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    fontSize: '0.6875rem',
+                    color: 'var(--text-muted)',
+                    fontWeight: 600,
+                    display: 'block',
+                    marginBottom: 4
+                  }}
+                >
+                  MECHANIC
+                </label>
+                <select
+                  className="select w-full"
+                  value={promoType}
+                  onChange={e => setPromoType(e.target.value)}
+                  disabled={isLocked}
+                  style={{ height: 36, fontSize: '0.8125rem' }}
+                >
+                  <option value="price_cut">Price Cut (Direct Discount)</option>
+                  <option value="bogof">Buy One Get One Free (BOGOF)</option>
+                  <option value="bundle">Category Bundle Deal</option>
+                </select>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr 1fr',
+                gap: 12,
+                marginBottom: 12
+              }}
+            >
+              <div>
+                <label
+                  style={{
+                    fontSize: '0.6875rem',
+                    color: 'var(--text-muted)',
+                    fontWeight: 600,
+                    display: 'block',
+                    marginBottom: 4
+                  }}
+                >
+                  DISCOUNT: {discountPct}%
+                </label>
+                <input
+                  type="range"
+                  min="5"
+                  max="50"
+                  step="5"
+                  value={discountPct}
+                  onChange={e => handleDiscountChange(Number(e.target.value))}
+                  disabled={isLocked}
+                  style={{
+                    width: '100%',
+                    accentColor: 'var(--accent)',
+                    cursor: isLocked ? 'not-allowed' : 'pointer',
+                    marginTop: 6
+                  }}
+                />
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    fontSize: '0.6875rem',
+                    color: 'var(--text-muted)',
+                    fontWeight: 600,
+                    display: 'block',
+                    marginBottom: 4
+                  }}
+                >
+                  REGION
+                </label>
+                <select
+                  className="select w-full"
+                  value={region}
+                  onChange={e => setRegion(e.target.value)}
+                  disabled={isLocked}
+                  style={{ height: 36, fontSize: '0.8125rem' }}
+                >
+                  <option value="All">All Regions (National)</option>
+                  <option value="North West">North West</option>
+                  <option value="South East">South East</option>
+                  <option value="Midlands">Midlands</option>
+                  <option value="London">London</option>
+                  <option value="Scotland">Scotland</option>
+                  <option value="Wales">Wales</option>
+                </select>
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    fontSize: '0.6875rem',
+                    color: 'var(--text-muted)',
+                    fontWeight: 600,
+                    display: 'block',
+                    marginBottom: 4
+                  }}
+                >
+                  DURATION
+                </label>
+                <select
+                  className="select w-full"
+                  value={duration}
+                  onChange={e => setDuration(Number(e.target.value))}
+                  disabled={isLocked}
+                  style={{ height: 36, fontSize: '0.8125rem' }}
+                >
+                  <option value="7">7 Days</option>
+                  <option value="14">14 Days</option>
+                  <option value="30">30 Days</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Decision Context (Lightweight 2nd Layer) */}
+            <div
+              style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 6
+                justifyContent: 'space-between',
+                marginTop: 10,
+                marginBottom: 8,
+                paddingTop: 10,
+                borderTop: '1px solid var(--border)'
               }}
             >
-              <CheckCircle2 size={14} color="var(--success)" />
-              <span>{intentRegisteredSuccess}</span>
+              <span
+                style={{
+                  fontSize: '0.6875rem',
+                  fontWeight: 700,
+                  color: 'var(--text-muted)',
+                  letterSpacing: '0.04em',
+                  textTransform: 'uppercase'
+                }}
+              >
+                Decision Context
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowAdvancedScenario(!showAdvancedScenario)}
+                disabled={isLocked}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--g10x-blue)',
+                  fontSize: '0.6875rem',
+                  fontWeight: 600,
+                  cursor: isLocked ? 'not-allowed' : 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 3,
+                  padding: 0
+                }}
+              >
+                <span>Advanced scenario</span>
+                <ChevronRight
+                  size={11}
+                  style={{
+                    transform: showAdvancedScenario ? 'rotate(90deg)' : 'none',
+                    transition: 'transform 0.15s ease'
+                  }}
+                />
+              </button>
             </div>
-          )}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <button
-              className="btn btn-primary"
-              onClick={handleRunSimulation}
-              disabled={isLocked || simulating}
-              style={{ justifyContent: 'center', height: 38, fontSize: '0.8125rem' }}
-            >
-              {simulating ? (
-                <>
-                  <Loader2
-                    size={14}
-                    strokeWidth={2}
-                    style={{ animation: 'spin 0.8s linear infinite' }}
-                  />
-                  <span>Evaluating…</span>
-                </>
-              ) : (
-                <>
-                  <Play size={13} strokeWidth={2} fill="currentColor" />
-                  <span>Simulate Decision</span>
-                </>
-              )}
-            </button>
-
-            <button
-              className="btn"
-              onClick={handleRegisterCommercialIntent}
-              disabled={isLocked || registeringIntent}
+            <div
               style={{
-                justifyContent: 'center',
-                height: 38,
-                background: 'var(--g10x-orange)',
-                color: '#FFFFFF',
-                border: 'none',
-                fontWeight: 600,
-                fontSize: '0.8125rem'
+                display: 'grid',
+                gridTemplateColumns: '1fr 1fr 1fr',
+                gap: 12,
+                marginBottom: 12
               }}
             >
-              {registeringIntent ? (
-                <Loader2 size={14} style={{ animation: 'spin 0.8s linear infinite' }} />
-              ) : (
-                <Tag size={13} />
-              )}
-              <span>Register Intent</span>
-            </button>
+              <div>
+                <label
+                  style={{
+                    fontSize: '0.6875rem',
+                    color: 'var(--text-muted)',
+                    fontWeight: 600,
+                    display: 'block',
+                    marginBottom: 4
+                  }}
+                >
+                  OBJECTIVE
+                </label>
+                <select
+                  className="select w-full"
+                  value={objective}
+                  onChange={e => setObjective(e.target.value)}
+                  disabled={isLocked}
+                  style={{ height: 34, fontSize: '0.75rem' }}
+                >
+                  <option value="VOLUME">Grow Volume</option>
+                  <option value="BALANCED_GROWTH">Balanced Growth</option>
+                  <option value="MARGIN_PROTECTION">Protect Contribution</option>
+                  <option value="WASTE_MINIMISATION">Clear Waste</option>
+                  <option value="CUSTOMER_ACQUISITION">Customer Acquisition</option>
+                  <option value="MARKET_DEFENCE">Market Defence</option>
+                  <option value="STRATEGIC_LAUNCH">Strategic Launch</option>
+                </select>
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    fontSize: '0.6875rem',
+                    color: 'var(--text-muted)',
+                    fontWeight: 600,
+                    display: 'block',
+                    marginBottom: 4
+                  }}
+                >
+                  TIMING
+                </label>
+                <select
+                  className="select w-full"
+                  value={timingMode}
+                  onChange={e => setTimingMode(e.target.value as TimingMode)}
+                  disabled={isLocked}
+                  style={{ height: 34, fontSize: '0.75rem' }}
+                >
+                  <option value="KNOWN_DATES">Use planned timing</option>
+                  <option value="FIND_BEST_WINDOW">Find best window</option>
+                </select>
+              </div>
+
+              <div>
+                <label
+                  style={{
+                    fontSize: '0.6875rem',
+                    color: 'var(--text-muted)',
+                    fontWeight: 600,
+                    display: 'block',
+                    marginBottom: 4
+                  }}
+                >
+                  MARKET STRATEGY
+                </label>
+                <select
+                  className="select w-full"
+                  value={marketStrategy}
+                  onChange={e => setMarketStrategy(e.target.value)}
+                  disabled={isLocked}
+                  style={{ height: 34, fontSize: '0.75rem' }}
+                >
+                  <option value="ALL_STORES">All eligible stores</option>
+                  <option value="DISCOVER_MICRO_MARKETS">Discover micro-markets</option>
+                </select>
+              </div>
+            </div>
+
+            {/*
+              Honest provenance. Objective is carried onto the registered Commercial Intent as
+              campaign_objective. Timing and Market Strategy have no governed field on
+              CommercialIntent and are not read by CDI-03 — the engine resolves timing and
+              micro-market scope from the session's own CampaignIntent. Labelling them as
+              planning context is the correction: inventing a backend enum to justify the
+              control would make the surface claim an execution that never happens.
+            */}
+            <div
+              style={{
+                fontSize: '0.625rem',
+                color: 'var(--text-muted)',
+                marginTop: -4,
+                marginBottom: 10
+              }}
+            >
+              Objective is recorded on the registered intent. Timing and Market Strategy are
+              planning context — they are not executed by the opportunity engine.
+            </div>
+
+            {/* Advanced Scenario Progressive Disclosure */}
+            {showAdvancedScenario && (
+              <div
+                style={{
+                  marginTop: 6,
+                  marginBottom: 12,
+                  padding: '10px 12px',
+                  background: 'var(--bg-base)',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--border)'
+                }}
+              >
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr 1fr',
+                    gap: 10,
+                    marginBottom: 8
+                  }}
+                >
+                  <div>
+                    <label style={{ fontSize: '0.625rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 3 }}>
+                      AUDIENCE / SEGMENT
+                    </label>
+                    <select
+                      className="select w-full"
+                      value={customerSegment}
+                      onChange={e => setCustomerSegment(e.target.value)}
+                      disabled={isLocked}
+                      style={{ height: 30, fontSize: '0.6875rem' }}
+                    >
+                      <option value="Family Shoppers">Family Shoppers</option>
+                      <option value="Budget Conscious">Budget Conscious</option>
+                      <option value="Premium Convenience">Premium Convenience</option>
+                      <option value="All Shoppers">All Shoppers</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.625rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 3 }}>
+                      CHANNEL CONTEXT
+                    </label>
+                    <select
+                      className="select w-full"
+                      value={channel}
+                      onChange={e => setChannel(e.target.value)}
+                      disabled={isLocked}
+                      style={{ height: 30, fontSize: '0.6875rem' }}
+                    >
+                      <option value="Omnichannel">Omnichannel</option>
+                      <option value="In-Store Only">In-Store Only</option>
+                      <option value="Digital / App Push">Digital / App Push</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label style={{ fontSize: '0.625rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 3 }}>
+                      MARGIN FLOOR
+                    </label>
+                    <select
+                      className="select w-full"
+                      value={marginFloor}
+                      onChange={e => setMarginFloor(e.target.value)}
+                      disabled={isLocked}
+                      style={{ height: 30, fontSize: '0.6875rem' }}
+                    >
+                      <option value="15">15% Min Gross Margin</option>
+                      <option value="10">10% Min Floor</option>
+                      <option value="20">20% Target Floor</option>
+                      <option value="0">Unconstrained</option>
+                    </select>
+                  </div>
+                </div>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: 8,
+                    fontSize: '0.625rem',
+                    color: 'var(--text-muted)',
+                    borderTop: '1px dashed var(--border)',
+                    paddingTop: 6,
+                    flexWrap: 'wrap'
+                  }}
+                >
+                  {/*
+                    Audience and Channel bind to CommercialIntent.customer_segment / .channel.
+                    Margin Floor has no governed field and is not read by CDI-04 or CDI-06
+                    economics, so it is grouped with the operational SLA chips as contextual
+                    rather than presented as an enforced constraint.
+                  */}
+                  <span>Contextual: <strong style={{ color: 'var(--text-secondary)' }}>Margin Floor (not enforced by economics)</strong></span>
+                  <span>·</span>
+                  <span><strong style={{ color: 'var(--text-secondary)' }}>Supplier SLA: 48k/wk</strong></span>
+                  <span>·</span>
+                  <span><strong style={{ color: 'var(--text-secondary)' }}>DC Buffer: 3.2d</strong></span>
+                  <span>·</span>
+                  <span><strong style={{ color: 'var(--text-secondary)' }}>Perishability: 14d max</strong></span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div>
+            {intentRegisteredSuccess && (
+              <div
+                style={{
+                  background: 'var(--success-light)',
+                  border: '1px solid var(--success)',
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '8px 12px',
+                  marginBottom: 10,
+                  fontSize: '0.75rem',
+                  color: 'var(--text-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 6
+                }}
+              >
+                <CheckCircle2 size={14} color="var(--success)" />
+                <span>{intentRegisteredSuccess}</span>
+              </div>
+            )}
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginTop: 6 }}>
+              <button
+                className="btn btn-primary"
+                onClick={handleRunSimulation}
+                disabled={isLocked || simulating}
+                style={{ justifyContent: 'center', height: 38, fontSize: '0.8125rem' }}
+              >
+                {simulating ? (
+                  <>
+                    <Loader2
+                      size={14}
+                      strokeWidth={2}
+                      style={{ animation: 'spin 0.8s linear infinite' }}
+                    />
+                    <span>Evaluating…</span>
+                  </>
+                ) : (
+                  <>
+                    <Play size={13} strokeWidth={2} fill="currentColor" />
+                    <span>Simulate Decision</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                className="btn"
+                onClick={handleRegisterCommercialIntent}
+                disabled={isLocked || registeringIntent}
+                style={{
+                  justifyContent: 'center',
+                  height: 38,
+                  background: 'var(--g10x-orange)',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  fontWeight: 600,
+                  fontSize: '0.8125rem'
+                }}
+              >
+                {registeringIntent ? (
+                  <Loader2 size={14} style={{ animation: 'spin 0.8s linear infinite' }} />
+                ) : (
+                  <Tag size={13} />
+                )}
+                <span>Register Intent</span>
+              </button>
+            </div>
           </div>
         </div>
 
         {/* Opportunity Signals Feed */}
-        <div className="card">
-          <div className="card-header" style={{ paddingBottom: 10 }}>
+        {/*
+          Equal-height is structural, not pixel-coupled.
+
+          The row is a `.grid-2-1` with `align-items: stretch`, so the row height is whatever
+          Campaign Configuration needs — including when Advanced Scenario expands it. The catch:
+          an `auto` grid row sizes to the max-content of EVERY item, so a Signals card left in
+          normal flow pushes the row taller as signals accumulate (overflow:hidden does not
+          exempt it). Taking the card out of flow with position:absolute inside a
+          position:relative cell makes it contribute no height at all: the row is driven solely
+          by Campaign Configuration, and `inset: 0` makes the card fill whatever that turns out
+          to be. The inner scroller then gets a real bounded height to scroll within.
+
+          This replaces a hard-coded maxHeight of 385/490px, which had to guess the other
+          column's rendered height — and guessed low in both states (actual 408 / 520), leaving
+          exactly the whitespace it was meant to remove.
+        */}
+        <div style={{ position: 'relative', minHeight: 0 }}>
+        <div
+          className="card"
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+            overflow: 'hidden',
+            boxSizing: 'border-box'
+          }}
+        >
+          <div className="card-header" style={{ paddingBottom: 8, flexShrink: 0 }}>
             <span
               className="card-title"
               style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.875rem' }}
@@ -938,7 +1264,19 @@ export default function PromotionPlanner({
             </span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 8,
+              overflowY: 'auto',
+              flex: 1,
+              minHeight: 0,
+              paddingRight: 4,
+              scrollbarWidth: 'thin',
+              scrollbarColor: 'rgba(0, 0, 0, 0.15) transparent'
+            }}
+          >
             {getFilteredOpportunities().map(op => {
               const isOpLocked = role !== 'exec';
               return (
@@ -946,10 +1284,11 @@ export default function PromotionPlanner({
                   key={op.id}
                   className="card"
                   style={{
-                    padding: 10,
+                    padding: '8px 10px',
                     background: 'var(--bg-elevated)',
                     border: '1px solid var(--border)',
-                    opacity: isOpLocked ? 0.6 : 1
+                    opacity: isOpLocked ? 0.6 : 1,
+                    flexShrink: 0
                   }}
                 >
                   <div
@@ -1012,6 +1351,7 @@ export default function PromotionPlanner({
               );
             })}
           </div>
+        </div>
         </div>
       </div>
 
