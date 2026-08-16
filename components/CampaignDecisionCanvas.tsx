@@ -4,10 +4,12 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import {
   ArrowRight,
   CheckCircle2,
+  ChevronLeft,
   ChevronRight,
   HelpCircle,
   Layers,
   Lock,
+  RotateCcw,
   Sparkles
 } from 'lucide-react';
 import {
@@ -28,8 +30,15 @@ import {
   discoverCampaignOpportunityClient,
   evaluateCampaignReadinessClient,
   projectDecisionTimelineClient,
-  evaluateOutcomeFrontierClient
+  evaluateOutcomeFrontierClient,
+  resetCampaignDecisionSessionClient
 } from '@/lib/campaign-intent-client';
+import {
+  DECISION_STAGE_LANGUAGE,
+  formatAxisValue,
+  label as executiveLabel,
+  phrase as executivePhrase
+} from '@/lib/campaign-decision-language';
 import {
   createDecisionContractClient,
   assessDecisionValidityClient
@@ -342,6 +351,7 @@ export default function CampaignDecisionCanvas({
 }: CampaignDecisionCanvasProps = {}) {
   const [intent, setIntent] = useState<CampaignIntent | null>(null);
   const [saving, setSaving] = useState(false);
+  const [resetting, setResetting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [evaluation, setEvaluation] = useState<any | null>(null);
@@ -357,6 +367,8 @@ export default function CampaignDecisionCanvas({
   const [frontier, setFrontier] = useState<any | null>(null);
   const [evaluatingFrontier, setEvaluatingFrontier] = useState(false);
   const [frontierDrawerOpen, setFrontierDrawerOpen] = useState(false);
+  const [excludedPlaysOpen, setExcludedPlaysOpen] = useState(false);
+  const [provenanceOpen, setProvenanceOpen] = useState(false);
   const [selectedPlayId, setSelectedPlayId] = useState<string | null>(null);
   const [evaluationTimestamp] = useState(CANVAS_EVALUATION_TIMESTAMP);
   const [decisionContract, setDecisionContract] = useState<any | null>(null);
@@ -521,6 +533,11 @@ export default function CampaignDecisionCanvas({
   const progress = deriveCanvasProgress(intent);
   const active = intent.canvas_progress.active_area;
   const isRegistered = intent.status === 'REGISTERED';
+  const stageIndex = CAMPAIGN_CANVAS_AREA_ORDER.indexOf(active);
+  const isLastStage = stageIndex === CAMPAIGN_CANVAS_AREA_ORDER.length - 1;
+  // Gate forward movement on THIS stage's own completeness, so a stage can never be
+  // skipped past while still missing the fields the contract requires.
+  const stageComplete = progress.completed_areas.includes(active);
 
   const updateIntent = (next: CampaignIntent) => {
     const withProgress = { ...next, canvas_progress: deriveCanvasProgress(next) };
@@ -528,8 +545,10 @@ export default function CampaignDecisionCanvas({
     setIntent(withProgress);
   };
 
+  // Registration freezes the *contract*, not the *canvas*. A registered intent stays
+  // navigable so the user can review what they committed to; the fields themselves remain
+  // read-only (disabled={isRegistered}) so no registered value can be edited in place.
   const setActiveArea = (area: CampaignCanvasArea) => {
-    if (isRegistered) return;
     updateIntent({
       ...intent,
       canvas_progress: { ...intent.canvas_progress, active_area: area }
@@ -858,6 +877,75 @@ export default function CampaignDecisionCanvas({
     }
   };
 
+  const goBack = () => {
+    const idx = CAMPAIGN_CANVAS_AREA_ORDER.indexOf(active);
+    if (idx > 0) {
+      setActiveArea(CAMPAIGN_CANVAS_AREA_ORDER[idx - 1]);
+    }
+  };
+
+  /**
+   * Persist the draft, then advance. Saving before advancing is what makes backward
+   * navigation safe: a field entered on stage 2 survives a trip back to stage 1 because
+   * it is already on the server, not only in component state.
+   */
+  const handleSaveAndContinue = async () => {
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+    const saved = await saveCampaignIntentDraftClient(intent);
+    setSaving(false);
+    if (!saved) {
+      setError('Could not save this stage. Check the required fields above.');
+      return;
+    }
+    const idx = CAMPAIGN_CANVAS_AREA_ORDER.indexOf(active);
+    const nextArea =
+      idx < CAMPAIGN_CANVAS_AREA_ORDER.length - 1 ? CAMPAIGN_CANVAS_AREA_ORDER[idx + 1] : active;
+    updateIntent({
+      ...saved,
+      canvas_progress: { ...saved.canvas_progress, active_area: nextArea }
+    });
+  };
+
+  const handleResetDecision = async () => {
+    const confirmed =
+      typeof window === 'undefined' ||
+      window.confirm(
+        isRegistered
+          ? 'Start a new decision? The registered decision, its assessment and any contract for this session will be cleared. Seeded world data and other experiments are unaffected.'
+          : 'Reset this decision? Everything entered so far for this session will be cleared. Seeded world data and other experiments are unaffected.'
+      );
+    if (!confirmed) return;
+
+    setResetting(true);
+    setError(null);
+    setMessage(null);
+    const result = await resetCampaignDecisionSessionClient();
+    if (!result.intent) {
+      setResetting(false);
+      setError(result.error || 'Could not reset this decision.');
+      return;
+    }
+
+    // Clear every downstream analysis slot: a new decision must never inherit the previous
+    // decision's analysis, and an empty slot is honest where a stale one would not be.
+    setEvaluation(null);
+    setOpportunity(null);
+    setReadiness(null);
+    setTimeline(null);
+    setFrontier(null);
+    setDecisionContract(null);
+    setValidityAssessment(null);
+    setPreMortem(null);
+    setPredictionComparison(null);
+    setLearningCandidate(null);
+    setIntent(result.intent);
+    setResetting(false);
+    setMessage('Decision reset. Start a new decision from Campaign Intent.');
+    if (typeof window !== 'undefined') window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   const fieldStyle: CSSProperties = {
     width: '100%',
     padding: '10px 12px',
@@ -896,17 +984,30 @@ export default function CampaignDecisionCanvas({
         )}
       </header>
 
-      {/* Progressive area rail */}
+      {/* Progressive area rail — every stage carries an explicit status so the user never
+          has to infer where they are or what remains. Stages stay reachable after
+          registration for review; the fields inside them are read-only at that point. */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
         {CAMPAIGN_CANVAS_AREA_ORDER.map(area => {
           const done = progress.completed_areas.includes(area);
           const selected = active === area;
+          const status: 'complete' | 'in-progress' | 'not-started' = done
+            ? 'complete'
+            : selected
+            ? 'in-progress'
+            : 'not-started';
           return (
             <button
               key={area}
               type="button"
               onClick={() => setActiveArea(area)}
-              disabled={isRegistered}
+              title={
+                status === 'complete'
+                  ? `${AREA_META[area].title} — complete`
+                  : status === 'in-progress'
+                  ? `${AREA_META[area].title} — in progress`
+                  : `${AREA_META[area].title} — not started`
+              }
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -916,13 +1017,28 @@ export default function CampaignDecisionCanvas({
                 border: selected ? '1px solid var(--g10x-orange)' : '1px solid var(--border)',
                 background: selected ? 'var(--curiosity-light)' : '#FFFFFF',
                 color: selected ? 'var(--g10x-orange)' : 'var(--text-secondary)',
-                cursor: isRegistered ? 'default' : 'pointer',
+                cursor: 'pointer',
                 fontSize: '0.8125rem',
                 fontWeight: 550
               }}
             >
-              {done ? <CheckCircle2 size={14} color="var(--success, #059669)" /> : <span style={{ opacity: 0.5 }}>{AREA_META[area].step}</span>}
+              {done ? (
+                <CheckCircle2 size={14} color="var(--success, #059669)" />
+              ) : (
+                <span style={{ opacity: 0.5 }}>{AREA_META[area].step}</span>
+              )}
               {AREA_META[area].title}
+              <span
+                style={{
+                  fontSize: '0.625rem',
+                  fontWeight: 600,
+                  textTransform: 'uppercase',
+                  letterSpacing: '0.04em',
+                  color: status === 'complete' ? 'var(--success, #059669)' : status === 'in-progress' ? 'var(--g10x-orange)' : 'var(--text-muted)'
+                }}
+              >
+                {status === 'complete' ? 'Complete' : status === 'in-progress' ? 'In progress' : 'Not started'}
+              </span>
             </button>
           );
         })}
@@ -1312,12 +1428,130 @@ export default function CampaignDecisionCanvas({
           </div>
         )}
 
-        {!isRegistered && (
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 20 }}>
-            {active !== 'DECISION_CONTEXT' && (
+        {/* Stage footer — the user must never have to guess the next action. Back is always
+            available; forward is an explicit, labelled action whose wording states exactly
+            what it does. On the last stage the forward action is registration itself. */}
+        <div
+          style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: 12,
+            marginTop: 20,
+            flexWrap: 'wrap'
+          }}
+        >
+          <div>
+            {stageIndex > 0 && (
+              <button
+                type="button"
+                onClick={goBack}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '10px 14px',
+                  borderRadius: 8,
+                  border: '1px solid var(--border)',
+                  background: '#FFFFFF',
+                  color: 'var(--text-secondary)',
+                  fontWeight: 600,
+                  fontSize: '0.8125rem',
+                  cursor: 'pointer'
+                }}
+              >
+                <ChevronLeft size={14} /> Back
+              </button>
+            )}
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+            {!isRegistered && !stageComplete && (
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                Complete the required fields to continue
+              </span>
+            )}
+
+            {!isRegistered && !isLastStage && (
+              <button
+                type="button"
+                disabled={saving || !stageComplete}
+                onClick={handleSaveAndContinue}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '10px 16px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: stageComplete ? 'var(--g10x-orange)' : '#CBD5E1',
+                  color: '#FFFFFF',
+                  fontWeight: 600,
+                  fontSize: '0.8125rem',
+                  cursor: stageComplete ? 'pointer' : 'not-allowed'
+                }}
+              >
+                Save &amp; Continue <ChevronRight size={14} />
+              </button>
+            )}
+
+            {!isRegistered && isLastStage && (
+              <button
+                type="button"
+                disabled={saving || !progress.ready_to_register}
+                onClick={handleRegister}
+                title={
+                  progress.ready_to_register
+                    ? 'Register this decision and run the assessment'
+                    : 'All four stages must be complete before registering'
+                }
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '10px 16px',
+                  borderRadius: 8,
+                  border: 'none',
+                  background: progress.ready_to_register ? 'var(--g10x-orange)' : '#CBD5E1',
+                  color: '#FFFFFF',
+                  fontWeight: 600,
+                  fontSize: '0.8125rem',
+                  cursor: progress.ready_to_register ? 'pointer' : 'not-allowed'
+                }}
+              >
+                Register &amp; Evaluate Decision <ArrowRight size={14} />
+              </button>
+            )}
+
+            {isRegistered && !isLastStage && (
               <button
                 type="button"
                 onClick={advance}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  padding: '10px 16px',
+                  borderRadius: 8,
+                  border: '1px solid var(--border)',
+                  background: '#FFFFFF',
+                  color: 'var(--text-secondary)',
+                  fontWeight: 600,
+                  fontSize: '0.8125rem',
+                  cursor: 'pointer'
+                }}
+              >
+                Next stage <ChevronRight size={14} />
+              </button>
+            )}
+
+            {isRegistered && isLastStage && (
+              <button
+                type="button"
+                onClick={() => {
+                  const el = document.getElementById('decision-analysis');
+                  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
                 style={{
                   display: 'inline-flex',
                   alignItems: 'center',
@@ -1332,11 +1566,11 @@ export default function CampaignDecisionCanvas({
                   cursor: 'pointer'
                 }}
               >
-                Continue <ChevronRight size={14} />
+                View decision analysis <ArrowRight size={14} />
               </button>
             )}
           </div>
-        )}
+        </div>
       </section>
 
       {/* Actions */}
@@ -1350,51 +1584,109 @@ export default function CampaignDecisionCanvas({
         }}
       >
         {!isRegistered && (
-          <>
-            <button
-              type="button"
-              disabled={saving}
-              onClick={handleSaveDraft}
-              style={{
-                padding: '10px 14px',
-                borderRadius: 8,
-                border: '1px solid var(--border)',
-                background: '#FFFFFF',
-                color: 'var(--text-secondary)',
-                fontWeight: 600,
-                fontSize: '0.8125rem',
-                cursor: 'pointer'
-              }}
-            >
-              Save draft
-            </button>
-            <button
-              type="button"
-              disabled={saving || !progress.ready_to_register}
-              onClick={handleRegister}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '10px 16px',
-                borderRadius: 8,
-                border: 'none',
-                background: progress.ready_to_register ? 'var(--g10x-orange)' : '#CBD5E1',
-                color: '#FFFFFF',
-                fontWeight: 600,
-                fontSize: '0.8125rem',
-                cursor: progress.ready_to_register ? 'pointer' : 'not-allowed'
-              }}
-            >
-              Register Campaign Intent <ArrowRight size={14} />
-            </button>
-          </>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={handleSaveDraft}
+            style={{
+              padding: '10px 14px',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: '#FFFFFF',
+              color: 'var(--text-secondary)',
+              fontWeight: 600,
+              fontSize: '0.8125rem',
+              cursor: 'pointer'
+            }}
+          >
+            Save draft
+          </button>
         )}
+
+        <button
+          type="button"
+          disabled={resetting}
+          onClick={handleResetDecision}
+          title="Clears this decision for your session only — seeded world data and other experiments are unaffected"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '10px 14px',
+            borderRadius: 8,
+            border: '1px solid var(--border)',
+            background: '#FFFFFF',
+            color: 'var(--text-secondary)',
+            fontWeight: 600,
+            fontSize: '0.8125rem',
+            cursor: resetting ? 'wait' : 'pointer'
+          }}
+        >
+          <RotateCcw size={14} />
+          {resetting ? 'Resetting…' : isRegistered ? 'Start new decision' : 'Reset decision'}
+        </button>
+
         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          {progress.completed_areas.length}/4 areas structurally complete
-          {isRegistered ? ` · Registered ${intent.registered_at}` : ''}
+          {progress.completed_areas.length} of 4 stages complete
+          {isRegistered ? ' · Decision registered' : ''}
         </span>
       </section>
+
+      {/* Technical provenance — the raw contract identifiers stay reachable for the technical
+          reader without competing with the decision for attention. */}
+      {isRegistered && (
+        <section style={{ marginBottom: 16 }}>
+          <button
+            type="button"
+            onClick={() => setProvenanceOpen(o => !o)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'transparent',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              fontSize: '0.75rem',
+              fontWeight: 600,
+              color: 'var(--g10x-orange)'
+            }}
+          >
+            <ChevronRight size={13} style={{ transform: provenanceOpen ? 'rotate(90deg)' : undefined }} />
+            How CogniX reached this conclusion
+          </button>
+          {provenanceOpen && (
+            <div
+              style={{
+                marginTop: 8,
+                padding: '12px 14px',
+                borderRadius: 8,
+                border: '1px solid var(--border)',
+                background: '#F8FAFC',
+                fontSize: '0.75rem',
+                color: 'var(--text-secondary)',
+                display: 'grid',
+                gap: 6
+              }}
+            >
+              <div>
+                Decision reference <code>{intent.campaign_intent_id}</code> · schema{' '}
+                {intent.schema_version} · registered {intent.registered_at || '—'}
+              </div>
+              <div>
+                Evidence basis: {intent.synthetic_demo ? 'seeded demonstration data' : 'attested source data'}{' '}
+                · source system <code>{intent.source_system}</code>
+              </div>
+              <div style={{ color: 'var(--text-muted)' }}>
+                Sections are produced by the governed packages CDI-02 (assessment), CDI-03 (discovery),
+                CDI-04 (readiness), CDI-05 (timeline), CDI-06 (strategy comparison), CDI-07A (decision
+                contract) and CDI-07B (pre-mortem and learning). Each section header carries its package
+                code.
+              </div>
+            </div>
+          )}
+        </section>
+      )}
 
       {message && (
         <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 8, background: '#ECFDF5', border: '1px solid #A7F3D0', color: '#065F46', fontSize: '0.8125rem' }}>
@@ -1407,27 +1699,31 @@ export default function CampaignDecisionCanvas({
         </div>
       )}
 
-      {/* Layer 2 — CDI-02 Counterfactual & Causal (unlocked after registration) */}
+      {/* Decision analysis — CDI-02 counterfactual & causal (unlocked after registration) */}
       <section
+        id="decision-analysis"
         style={{
           marginTop: 8,
           marginBottom: 16,
           padding: '18px 20px',
           borderRadius: 12,
           border: '1px solid var(--border)',
-          background: '#FFFFFF'
+          background: '#FFFFFF',
+          scrollMarginTop: 16
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-              Layer 2 · CDI-02
+              Assess{' '}<span style={{ color: 'var(--text-muted)', fontWeight: 500, letterSpacing: '0.04em' }} title="Governed package that produces this section">CDI-02</span>
             </div>
             <h2 style={{ margin: '0 0 6px', fontSize: '1.125rem', color: 'var(--text-primary)' }}>
-              What does CogniX predict versus doing nothing?
+              Is intervening worth it compared with doing nothing?
             </h2>
             <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)', maxWidth: 640 }}>
-              Current baseline → expected without intervention → predicted with intervention. Causal drivers reconcile to the predicted uplift. Placeholder mechanics are never attributed.
+              Today's run-rate, what happens if you do nothing, and what the intervention adds on top.
+              Only effects the intervention genuinely causes are credited to it — market movement that
+              would have happened anyway is never counted as campaign success.
             </p>
           </div>
           <button
@@ -1540,13 +1836,14 @@ export default function CampaignDecisionCanvas({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-              Layer 3 · CDI-03
+              Discover{' '}<span style={{ color: 'var(--text-muted)', fontWeight: 500, letterSpacing: '0.04em' }} title="Governed package that produces this section">CDI-03</span>
             </div>
             <h2 style={{ margin: '0 0 6px', fontSize: '1.125rem', color: 'var(--text-primary)' }}>
               When and where should we intervene?
             </h2>
             <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)', maxWidth: 640 }}>
-              Deterministic opportunity windows and explainable store/cohort rankings over Enterprise World store data. Synthetic scoring factors are labelled as demo.
+              Repeatable timing windows and store rankings you can interrogate factor by factor. Scoring
+              inputs in this environment are seeded demonstration data and labelled as such.
             </p>
           </div>
           <button
@@ -1708,13 +2005,15 @@ export default function CampaignDecisionCanvas({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-              Layer 4 · CDI-04
+              Validate{' '}<span style={{ color: 'var(--text-muted)', fontWeight: 500, letterSpacing: '0.04em' }} title="Governed package that produces this section">CDI-04</span>
             </div>
             <h2 style={{ margin: '0 0 6px', fontSize: '1.125rem', color: 'var(--text-primary)' }}>
               Are we ready to proceed?
             </h2>
             <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)', maxWidth: 640 }}>
-              Six independent dimensions; aggregation is a floor, never a score. Thresholds are synthetic demonstration policy and never fire vetoes.
+              Six dimensions assessed independently. The overall position takes the weakest of them —
+              a strong score elsewhere can never paper over a blocking constraint. Thresholds in this
+              environment are demonstration policy and never veto on their own.
             </p>
           </div>
           <button
@@ -1747,7 +2046,7 @@ export default function CampaignDecisionCanvas({
           <div style={{ display: 'grid', gap: 12, marginTop: 8 }}>
             <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--curiosity-light)' }}>
               <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
-                Readiness · {readiness.readiness.state}
+                Readiness · {executiveLabel('readiness_state', readiness.readiness.state)}
               </div>
               <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                 {readiness.readiness.headline}
@@ -1758,14 +2057,14 @@ export default function CampaignDecisionCanvas({
                   ? ` · index ${readiness.readiness.confidence.confidence_index}`
                   : ''}
                 {' · '}
-                strength floor {readiness.readiness.confidence.evidence_strength_floor}
+                weakest evidence {executiveLabel('evidence_strength', readiness.readiness.confidence.evidence_strength_floor)}
                 {readiness.readiness.state_caps_applied?.length
                   ? ` · caps ${readiness.readiness.state_caps_applied.join(', ')}`
                   : ''}
               </div>
               {readiness.readiness.commercial_tolerance && (
                 <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                  Commercial class {readiness.readiness.commercial_tolerance.objective_class}
+                  {executiveLabel('objective_class', readiness.readiness.commercial_tolerance.objective_class)}
                   {' · '}
                   Δ£{readiness.readiness.commercial_tolerance.contribution_delta_gbp}
                   {readiness.readiness.commercial_tolerance.tolerance_declared
@@ -1800,9 +2099,11 @@ export default function CampaignDecisionCanvas({
                 {readiness.readiness.dimensions.map((d: any) => (
                   <div key={d.dimension} style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#F8FAFC' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, marginBottom: 6 }}>
-                      <span style={{ fontSize: '0.8125rem', fontWeight: 650, color: 'var(--text-primary)' }}>{d.dimension}</span>
+                      <span style={{ fontSize: '0.8125rem', fontWeight: 650, color: 'var(--text-primary)' }}>
+                        {executiveLabel('dimension_id', d.dimension)}
+                      </span>
                       <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                        {d.state} · {d.evidence_strength_floor}
+                        {executiveLabel('dimension_state', d.state)} · {executiveLabel('evidence_strength', d.evidence_strength_floor)}
                       </span>
                     </div>
                     {d.not_evaluated_reason && (
@@ -1860,13 +2161,15 @@ export default function CampaignDecisionCanvas({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-              Layer 5 · CDI-05
+              Sequence{' '}<span style={{ color: 'var(--text-muted)', fontWeight: 500, letterSpacing: '0.04em' }} title="Governed package that produces this section">CDI-05</span>
             </div>
             <h2 style={{ margin: '0 0 6px', fontSize: '1.125rem', color: 'var(--text-primary)' }}>
               What happens over time — and why?
             </h2>
             <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)', maxWidth: 640 }}>
-              Flat-rate identity timeline of the CDI-02 decision. Ambient movement is shared; only the difference is attributable. No fabricated curves.
+              How the same decision reads across the campaign window. Market movement is shared by every
+              option, so only the difference between them is attributed to the intervention. Nothing is
+              curve-fitted to look more convincing than the underlying model supports.
             </p>
           </div>
           <button
@@ -1906,11 +2209,11 @@ export default function CampaignDecisionCanvas({
                 {timeline.projection.tier1.headline}
               </div>
               <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                {timeline.projection.tier1.attributable_uplift_pp.toFixed(2)} pp · Δ£
-                {timeline.projection.tier1.contribution_delta_gbp.toLocaleString()} · band{' '}
-                {timeline.projection.tier1.confidence_band}
+                {timeline.projection.tier1.attributable_uplift_pp.toFixed(2)} pp incremental demand · £
+                {timeline.projection.tier1.contribution_delta_gbp.toLocaleString()} contribution impact · confidence{' '}
+                {String(timeline.projection.tier1.confidence_band).toLowerCase()}
                 {timeline.projection.readiness_reference
-                  ? ` · readiness ${timeline.projection.readiness_reference.state}`
+                  ? ` · readiness ${executiveLabel('readiness_state', timeline.projection.readiness_reference.state)}`
                   : ''}
                 {timeline.projection.readiness_reference?.state === 'DO_NOT_PROCEED'
                   ? ' — intervention trajectory shown as vetoed evidence, not a plan'
@@ -2027,7 +2330,7 @@ export default function CampaignDecisionCanvas({
                   </>
                 ) : (
                   <div style={{ marginTop: 8 }}>
-                    CDI-04 readiness evidence: NOT_AVAILABLE — no readiness assessment supplied for this projection.
+                    Readiness evidence not available — no readiness assessment was supplied for this projection.
                   </div>
                 )}
                 {timelineTier < 4 && (
@@ -2070,14 +2373,15 @@ export default function CampaignDecisionCanvas({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-              Layer 6 · CDI-06
+              Compare{' '}<span style={{ color: 'var(--text-muted)', fontWeight: 500, letterSpacing: '0.04em' }} title="Governed package that produces this section">CDI-06</span>
             </div>
             <h2 style={{ margin: '0 0 6px', fontSize: '1.125rem', color: 'var(--text-primary)' }}>
-              Outcome Frontier & Competing Strategies
+              Which strategy gives the best trade-off?
             </h2>
             <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)', maxWidth: 640 }}>
-              Compare admissible plays on two axes only — attributable volume uplift and contribution delta.
-              ARF-A ambient frame. No ranking, weights, or utilities.
+              Every option is compared on the same two things that matter — incremental demand and
+              contribution impact — against an identical market backdrop. CogniX will not rank options
+              by a hidden weighting; where more than one is defensible, the choice stays yours.
             </p>
           </div>
           <button
@@ -2151,14 +2455,14 @@ export default function CampaignDecisionCanvas({
                     {f.frontier_status === 'NOT_EMITTED' ? (
                       <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                         Frontier not emitted
-                        {f.not_emitted_reason ? ` — ${f.not_emitted_reason}` : ''}.
+                        {f.not_emitted_reason ? ` — ${executiveLabel('not_emitted_reason', f.not_emitted_reason)}` : ''}.
                       </div>
                     ) : (
                       <>
                         <div style={{ fontSize: '0.875rem', color: 'var(--text-primary)' }}>
-                          {(f.axes || []).map((a: any) => a.axis_id).join(' · ')}
+                          Compared on {(f.axes || []).map((a: any) => executiveLabel('axis', a.axis_id)).join(' and ').toLowerCase()}
                           {' · '}
-                          {(f.frontier_play_ids || []).length} on frontier · {orderedPlays.length} plays
+                          {(f.frontier_play_ids || []).length} of {orderedPlays.length} options on the frontier
                         </div>
                         {selection?.status === 'CHOICE_REQUIRED' && selection.open_trade_off && (
                           <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
@@ -2177,7 +2481,7 @@ export default function CampaignDecisionCanvas({
                           </div>
                         )}
                         <div style={{ marginTop: 8, fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
-                          Ambient frame ARF-A · Scenario 0 always shown · dominated plays stay visible
+                          All options share one market backdrop · doing nothing is always shown · outperformed options stay visible
                         </div>
                       </>
                     )}
@@ -2261,58 +2565,94 @@ export default function CampaignDecisionCanvas({
                               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 8 }}>
                                 {(activePlay.outcomes?.axes || []).map((axis: any) => (
                                   <div key={axis.axis_id}>
-                                    <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                                      {axis.axis_id}
+                                    <div
+                                      style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}
+                                      title={executivePhrase('axis', axis.axis_id).detail}
+                                    >
+                                      {executiveLabel('axis', axis.axis_id)}
                                     </div>
                                     <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                                      {typeof axis.value === 'number' ? axis.value.toFixed(2) : axis.value}
+                                      {formatAxisValue(axis.axis_id, axis.value)}
                                     </div>
                                   </div>
                                 ))}
                               </div>
                               {(dominanceByPlay.get(activePlay.play_id) || []).length > 0 && (
                                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
-                                  dominated_by: {(dominanceByPlay.get(activePlay.play_id) || []).join(', ')}
+                                  Outperformed by: {(dominanceByPlay.get(activePlay.play_id) || []).join(', ')}
                                 </div>
                               )}
                               {activePlay.admissibility && activePlay.admissibility !== 'ADMISSIBLE' && (
                                 <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
-                                  {activePlay.admissibility}
-                                  {activePlay.exclusion_reason ? ` — ${activePlay.exclusion_reason}` : ''}
+                                  {executiveLabel('play_admissibility', activePlay.admissibility)}
+                                  {executivePhrase('play_admissibility', activePlay.admissibility).detail
+                                    ? ` — ${executivePhrase('play_admissibility', activePlay.admissibility).detail}`
+                                    : activePlay.exclusion_reason
+                                    ? ` — ${activePlay.exclusion_reason}`
+                                    : ''}
                                 </div>
                               )}
                               {activePlay.economics_completeness && (
                                 <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
-                                  Economics: {activePlay.economics_completeness}
-                                  {activePlay.confidence_band ? ` · band ${activePlay.confidence_band}` : ''}
+                                  {executiveLabel('economics_completeness', activePlay.economics_completeness)}
+                                  {activePlay.confidence_band ? ` · confidence ${activePlay.confidence_band.toLowerCase()}` : ''}
                                 </div>
                               )}
                             </div>
                           )}
 
+                          {/* Ruled-out options are governance, not headline: collapsed by default,
+                              never removed, with the reason for every exclusion one click away. */}
                           {excludedPlays.length > 0 && (
                             <div style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#FFFFFF' }}>
-                              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
-                                Excluded plays
-                              </div>
-                              {excludedPlays.map((play: any) => (
-                                <div key={`ex_${play.play_id}`} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
-                                  <strong>{play.label}</strong> · {play.admissibility}
-                                  {play.exclusion_reason ? ` — ${play.exclusion_reason}` : ''}
+                              <button
+                                type="button"
+                                onClick={() => setExcludedPlaysOpen(o => !o)}
+                                style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: 6,
+                                  background: 'transparent',
+                                  border: 'none',
+                                  padding: 0,
+                                  cursor: 'pointer',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 600,
+                                  color: 'var(--g10x-orange)'
+                                }}
+                              >
+                                <ChevronRight
+                                  size={13}
+                                  style={{ transform: excludedPlaysOpen ? 'rotate(90deg)' : undefined }}
+                                />
+                                {excludedPlays.length} alternative{excludedPlays.length === 1 ? '' : 's'} ruled out
+                              </button>
+                              {excludedPlaysOpen && (
+                                <div style={{ marginTop: 8 }}>
+                                  {excludedPlays.map((play: any) => (
+                                    <div key={`ex_${play.play_id}`} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
+                                      <strong>{play.label}</strong> · {executiveLabel('play_admissibility', play.admissibility)}
+                                      {executivePhrase('play_admissibility', play.admissibility).detail
+                                        ? ` — ${executivePhrase('play_admissibility', play.admissibility).detail}`
+                                        : play.exclusion_reason
+                                        ? ` — ${play.exclusion_reason}`
+                                        : ''}
+                                    </div>
+                                  ))}
                                 </div>
-                              ))}
+                              )}
                             </div>
                           )}
 
                           {unavailableDims.length > 0 && (
                             <div style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#FFFFFF' }}>
                               <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
-                                Dimensions · NOT_AVAILABLE
+                                Not measurable yet
                               </div>
                               {unavailableDims.map((dim: any) => (
                                 <div key={dim.dimension_id} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
                                   <div>
-                                    <strong>{dim.dimension_id}</strong> · {dim.availability}
+                                    <strong>{executiveLabel('axis', dim.dimension_id)}</strong> · {executiveLabel('availability', dim.availability)}
                                   </div>
                                   {dim.required_authoritative_input && (
                                     <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: 2 }}>
@@ -2332,9 +2672,9 @@ export default function CampaignDecisionCanvas({
 
                           {selection?.eliminations?.length > 0 && (
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                              Constraint eliminations:{' '}
+                              Ruled out by your declared constraints:{' '}
                               {selection.eliminations
-                                .map((e: any) => `${e.play_id} by ${e.constraint_id}`)
+                                .map((e: any) => `${e.play_id} (${e.constraint_id})`)
                                 .join(' · ')}
                             </div>
                           )}
@@ -2363,14 +2703,15 @@ export default function CampaignDecisionCanvas({
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
           <div>
             <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-              Layer 7 · CDI-07A
+              Decide{' '}<span style={{ color: 'var(--text-muted)', fontWeight: 500, letterSpacing: '0.04em' }} title="Governed package that produces this section">CDI-07A</span>
             </div>
             <h2 style={{ margin: '0 0 6px', fontSize: '1.125rem', color: 'var(--text-primary)' }}>
-              Decision Contract & Validity
+              What are we committing to — and when does it stop being true?
             </h2>
             <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)', maxWidth: 640 }}>
-              Record what was decided under declared constraints, then reassess whether the assumptions still hold.
-              No duration claim — validity is assumption evidence only.
+              Record what was decided and the assumptions it rests on, then re-check whether those
+              assumptions still hold. CogniX never claims a decision stays valid for a fixed period —
+              only whether its assumptions currently survive.
             </p>
           </div>
         </div>
@@ -2529,8 +2870,8 @@ export default function CampaignDecisionCanvas({
                         {(decisionContract.basis.rejected_alternatives as any[]).map((alt: any) => (
                           <div key={alt.play_id} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
                             <strong>{alt.label || alt.play_id}</strong> · {alt.cause}
-                            {alt.dominated_by?.length ? ` · dominated_by ${alt.dominated_by.join(', ')}` : ''}
-                            {alt.elimination?.constraint_id ? ` · constraint ${alt.elimination.constraint_id}` : ''}
+                            {alt.dominated_by?.length ? ` · outperformed by ${alt.dominated_by.join(', ')}` : ''}
+                            {alt.elimination?.constraint_id ? ` · ruled out by ${alt.elimination.constraint_id}` : ''}
                           </div>
                         ))}
                       </div>
@@ -2547,11 +2888,11 @@ export default function CampaignDecisionCanvas({
                           {decisionContract.basis.scenario_zero.framing || SCENARIO_ZERO_FRAMING}
                         </div>
                         <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                          outcome_snapshot: {formatOutcomeSnapshot(decisionContract.basis.scenario_zero.outcome_snapshot)}
+                          Outcome at decision time: {formatOutcomeSnapshot(decisionContract.basis.scenario_zero.outcome_snapshot)}
                         </div>
                         {decisionContract.basis.scenario_zero.dominated_by?.length > 0 && (
                           <div style={{ marginTop: 4, fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
-                            dominated_by: {decisionContract.basis.scenario_zero.dominated_by.join(', ')}
+                            Outperformed by: {decisionContract.basis.scenario_zero.dominated_by.join(', ')}
                           </div>
                         )}
                       </div>
@@ -2705,10 +3046,10 @@ export default function CampaignDecisionCanvas({
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, marginBottom: 12 }}>
             <div>
               <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 4 }}>
-                Layer 8 · CDI-07B
+                Learn{' '}<span style={{ color: 'var(--text-muted)', fontWeight: 500, letterSpacing: '0.04em' }} title="Governed package that produces this section">CDI-07B</span>
               </div>
               <h2 style={{ margin: '0 0 6px', fontSize: '1.125rem', color: 'var(--text-primary)' }}>
-                Pre-Mortem, Prediction vs Reality & Learning
+                What could go wrong — and what did we actually learn?
               </h2>
               <p style={{ margin: 0, fontSize: '0.8125rem', color: 'var(--text-secondary)', maxWidth: 640 }}>
                 Enumerate declared failure modes, compare predictions against observations at the fixed reference instant,

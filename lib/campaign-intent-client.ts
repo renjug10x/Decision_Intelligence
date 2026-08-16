@@ -65,6 +65,31 @@ export async function registerCampaignIntentClient(intent: CampaignIntent): Prom
   }
 }
 
+/**
+ * Reset the Campaign Decision workspace for the current tenant/session only and
+ * return the fresh draft intent. Seeded world data and other sessions are untouched.
+ */
+export async function resetCampaignDecisionSessionClient(params?: {
+  tenant_id?: string;
+  session_id?: string;
+}): Promise<{ intent: CampaignIntent | null; error?: string }> {
+  try {
+    const res = await fetch('/api/v1/campaigns/decision-session/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenant_id: params?.tenant_id || TENANT,
+        session_id: params?.session_id || SESSION
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) return { intent: null, error: data.message || 'Reset failed' };
+    return { intent: data.data || null };
+  } catch (e: any) {
+    return { intent: null, error: e.message };
+  }
+}
+
 export async function evaluateCampaignDecisionClient(params: {
   tenant_id?: string;
   session_id?: string;
