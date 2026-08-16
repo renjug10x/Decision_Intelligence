@@ -242,9 +242,9 @@ export default function CategoryIntelligence({ onNavigateToExperiment }: Categor
         </p>
 
         <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          <span>Situation Similarity: <strong style={{ color: 'var(--text-primary)' }}>87%</strong></span>
-          <span>Pattern Confidence: <strong style={{ color: 'var(--text-primary)' }}>83%</strong></span>
-          <span>Intervention Success Rate: <strong style={{ color: 'var(--success)' }}>80% (5 occurrences)</strong></span>
+          <span>Demo Similarity: <strong style={{ color: 'var(--text-primary)' }}>87%</strong></span>
+          <span>Modelled Confidence: <strong style={{ color: 'var(--text-primary)' }}>83%</strong></span>
+          <span>Demo Success Rate: <strong style={{ color: 'var(--success)' }}>80% (1 cited precedent)</strong></span>
         </div>
       </div>
 
@@ -259,14 +259,14 @@ export default function CategoryIntelligence({ onNavigateToExperiment }: Categor
           owner: 'Category Merchandising Manager',
           dependencies: ['Commercial Pricing Strategy Approval', 'EPOS Promotion Mapping Update'],
           timeHorizon: 'Next 5 Days',
-          expectedOutcome: 'Prevents £6,100 cannibalisation loss and increases category profit contribution by +4.2%.',
+          expectedOutcome: 'Prevents £6,100 cannibalisation loss and increases category profit contribution by +4.2% in demonstration simulation.',
           confidence: 83,
           patternId: 'PAT-BEH-05',
           contractStatus: 'VERIFIED',
           evidence: [
             'Standard line sales volume down -24% during premium promo week',
             'Cross-elasticity coefficient measured at 0.72 (Threshold: 0.65)',
-            '5 historical occurrences evaluated; bundle optimization protected baseline volume in 4 cases'
+            'Demo pattern precedent PAT-BEH-05 (seeded uncalibrated telemetry)'
           ]
         }}
       />

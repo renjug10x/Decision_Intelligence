@@ -131,13 +131,13 @@ export default function OpportunityIntelligence({ onNavigateToSolution }: Opport
         </div>
 
         <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 10 }}>
-          Demand acceleration (+18%) + Muller Dairy capacity headroom (+25%) + Trafford DC excess inventory. Average historical margin uplift: +6.8%.
+          Demand acceleration (+18%) + Muller Dairy capacity headroom (+25%) + Trafford DC excess inventory. Modelled demo margin uplift: +6.8%.
         </p>
 
         <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          <span>Situation Similarity: <strong style={{ color: 'var(--text-primary)' }}>89%</strong></span>
-          <span>Pattern Confidence: <strong style={{ color: 'var(--text-primary)' }}>84%</strong></span>
-          <span>Intervention Success Rate: <strong style={{ color: 'var(--success)' }}>86% (7 occurrences)</strong></span>
+          <span>Demo Similarity: <strong style={{ color: 'var(--text-primary)' }}>89%</strong></span>
+          <span>Modelled Confidence: <strong style={{ color: 'var(--text-primary)' }}>84%</strong></span>
+          <span>Demo Success Rate: <strong style={{ color: 'var(--success)' }}>86% (1 cited precedent)</strong></span>
         </div>
       </div>
 

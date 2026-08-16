@@ -548,7 +548,7 @@ export default function PromotionPlanner({
         >
           <div>
             <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Commercial Target
+              Demo Target (Assumed)
             </div>
             <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--g10x-blue)' }}>
               £1.2M Revenue Target
@@ -556,7 +556,7 @@ export default function PromotionPlanner({
           </div>
           <div>
             <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Demand Benchmark
+              Demo Demand Benchmark (Assumed)
             </div>
             <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--success)' }}>
               +22% Volume Lift
@@ -564,7 +564,7 @@ export default function PromotionPlanner({
           </div>
           <div>
             <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Supply SLA Limit
+              Demo Supply SLA Limit (Assumed)
             </div>
             <div style={{ fontSize: '1.05rem', fontWeight: 700, color: 'var(--warning)' }}>
               +10% Max Headroom
@@ -632,7 +632,7 @@ export default function PromotionPlanner({
         </div>
 
         <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: '0 0 6px 0' }}>
-          High-discount promotions (&gt;15%) when supplier lead-time variance exceeds 12% result in emergency freight margin erosion in 4 of 6 past events.
+          Deploying high-discount promotions (&gt;15%) when supplier lead-time variance exceeds 12% risks margin erosion from emergency freight penalties.
         </p>
 
         <div
@@ -643,9 +643,9 @@ export default function PromotionPlanner({
             color: 'var(--text-muted)'
           }}
         >
-          <span>Similarity: <strong style={{ color: 'var(--text-primary)' }}>91%</strong></span>
-          <span>Confidence: <strong style={{ color: 'var(--text-primary)' }}>84%</strong></span>
-          <span>Success Rate: <strong style={{ color: 'var(--success)' }}>67%</strong></span>
+          <span>Demo Similarity: <strong style={{ color: 'var(--text-primary)' }}>91%</strong></span>
+          <span>Modelled Confidence: <strong style={{ color: 'var(--text-primary)' }}>84%</strong></span>
+          <span>Demo Success Rate: <strong style={{ color: 'var(--success)' }}>67% (Uncalibrated)</strong></span>
         </div>
       </div>
 
@@ -663,14 +663,14 @@ export default function PromotionPlanner({
           owner: 'Category Commercial Lead',
           dependencies: ['Greencore Logistics Confirmation', 'Trafford DC Order Release Schedule'],
           timeHorizon: 'Next 48 Hours',
-          expectedOutcome: 'Protects £8,400 net margin and prevents emergency transport penalty charges.',
+          expectedOutcome: 'Protects £8,400 net margin and prevents emergency transport penalty charges in demonstration simulation.',
           confidence: 84,
           patternId: 'PAT-RISK-03',
           contractStatus: 'VERIFIED',
           evidence: [
-            'Greencore delivery delay variance 14.2% over rolling 14 days',
+            'Greencore delivery delay variance 14.2% over rolling 14 days (demo signal)',
             'Trafford DC stock cover 3.2 days (Threshold: 5 days)',
-            '6 historical occurrences evaluated; 4 unmitigated events caused margin erosion'
+            'Demo pattern precedent PAT-RISK-03 (seeded uncalibrated telemetry)'
           ]
         }}
       />

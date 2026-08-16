@@ -170,7 +170,20 @@ async function runTests() {
   });
   assert(!duplicateDefinitions, 'UI components do not hardcode inline full Learning Pattern objects');
 
-  console.log('\n=== SUMMARY: ALL 13 TEST CASES PASSED ===\n');
+  // 14. Y4-gov Telemetry Provenance & Citation Truth
+  console.log('\n14. Y4-gov Telemetry Provenance & Citation Truth');
+  allPatterns.forEach(p => {
+    assert(p.telemetry_provenance === 'seeded_demonstration', `Pattern ${p.pattern_id} explicitly classified as seeded_demonstration`);
+    assert(p.citation_count === p.supporting_memory_ids.length, `Pattern ${p.pattern_id} citation_count (${p.citation_count}) matches cited memories (${p.supporting_memory_ids.length})`);
+    assert(typeof p.telemetry_disclosure === 'string' && p.telemetry_disclosure.length > 0, `Pattern ${p.pattern_id} carries explicit telemetry_disclosure`);
+  });
+
+  // 15. Y4-gov Honest Wording Check (Z5)
+  console.log('\n15. Y4-gov Honest Wording Check (Z5)');
+  const commPat = learningPatternRepository.getLearningPatternById('PAT-COMM-01');
+  assert(!commPat?.description.includes('in 73% of untreated cases'), 'PAT-COMM-01 description does not state 73% as an observed finding');
+
+  console.log('\n=== SUMMARY: ALL 15 TEST CASES PASSED ===\n');
 }
 
 runTests().catch(err => {

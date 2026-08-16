@@ -255,13 +255,13 @@ export default function AvailabilityIntelligence({ onNavigateToExperiment }: Ava
         </div>
 
         <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 10 }}>
-          Activating pre-approved DC transfer from Trafford DC prevented £820K aggregate lost sales across 5 comparable stockout events.
+          Pre-approved DC transfer from Trafford DC can mitigate lost sales exposure during weekend supplier delay windows.
         </p>
 
         <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          <span>Situation Similarity: <strong style={{ color: 'var(--text-primary)' }}>92%</strong></span>
-          <span>Pattern Confidence: <strong style={{ color: 'var(--text-primary)' }}>88%</strong></span>
-          <span>Intervention Success Rate: <strong style={{ color: 'var(--success)' }}>78% (9 occurrences)</strong></span>
+          <span>Demo Similarity: <strong style={{ color: 'var(--text-primary)' }}>92%</strong></span>
+          <span>Modelled Confidence: <strong style={{ color: 'var(--text-primary)' }}>88%</strong></span>
+          <span>Demo Success Rate: <strong style={{ color: 'var(--success)' }}>78% (1 cited precedent)</strong></span>
         </div>
       </div>
 
@@ -276,14 +276,14 @@ export default function AvailabilityIntelligence({ onNavigateToExperiment }: Ava
           owner: 'Regional Supply Chain Operations',
           dependencies: ['Trafford DC Gate 2 Logistics Dispatch', 'Manchester Regional Freight Courier'],
           timeHorizon: 'Immediate (Next 4 Hours)',
-          expectedOutcome: 'Restores shelf availability across 5 stores and recovers £12,400 evening sales.',
+          expectedOutcome: 'Restores shelf availability across 5 stores and recovers £12,400 evening sales in demonstration simulation.',
           confidence: 88,
           patternId: 'PAT-INT-05',
           contractStatus: 'VERIFIED',
           evidence: [
-            'Greencore delivery failure rate 45% on Friday/Saturday',
+            'Greencore delivery failure rate 45% on Friday/Saturday (demo signal)',
             'Trafford DC stock availability confirmed via WMS API',
-            '9 historical occurrences evaluated; 78% achieved complete stock recovery'
+            'Demo pattern precedent PAT-INT-05 (seeded uncalibrated telemetry)'
           ]
         }}
       />

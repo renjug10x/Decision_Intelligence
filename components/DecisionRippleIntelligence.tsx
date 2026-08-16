@@ -147,9 +147,9 @@ export default function DecisionRippleIntelligence({ onNavigateToExperiment }: D
         </p>
 
         <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          <span>Situation Similarity: <strong style={{ color: 'var(--text-primary)' }}>88%</strong></span>
-          <span>Pattern Confidence: <strong style={{ color: 'var(--text-primary)' }}>81%</strong></span>
-          <span>Intervention Success Rate: <strong style={{ color: 'var(--success)' }}>82% (8 occurrences)</strong></span>
+          <span>Demo Similarity: <strong style={{ color: 'var(--text-primary)' }}>88%</strong></span>
+          <span>Modelled Confidence: <strong style={{ color: 'var(--text-primary)' }}>81%</strong></span>
+          <span>Demo Success Rate: <strong style={{ color: 'var(--success)' }}>82% (1 cited precedent)</strong></span>
         </div>
       </div>
 
@@ -164,14 +164,14 @@ export default function DecisionRippleIntelligence({ onNavigateToExperiment }: D
           owner: 'Head of Logistics & Operations',
           dependencies: ['Trafford DC Shift Roster Adjustment', 'Store Manager Staggered Order Release'],
           timeHorizon: 'Next 72 Hours',
-          expectedOutcome: 'Eliminates £4,200 warehouse overtime penalty and guarantees 08:00 store availability.',
+          expectedOutcome: 'Eliminates £4,200 warehouse overtime penalty and guarantees 08:00 store availability in demonstration simulation.',
           confidence: 81,
           patternId: 'PAT-RIPPLE-04',
           contractStatus: 'VERIFIED',
           evidence: [
             '1st Order: Promotional volume surge +28%',
             '2nd Order: Trafford DC weekend overtime +18 hours',
-            '3rd Order: Monday morning store delivery delay 1.8 hours (Historical 8 occurrences evaluated)'
+            '3rd Order: Monday morning store delivery delay 1.8 hours (Demo pattern precedent PAT-RIPPLE-04)'
           ]
         }}
       />

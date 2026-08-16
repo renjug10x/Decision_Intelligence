@@ -758,13 +758,13 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
         </div>
 
         <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 10 }}>
-          Concurrent demand acceleration (+18%) with Muller Dairy supply headroom (+25%) and Trafford DC inventory surplus produces average +6.8% margin lift.
+          Concurrent demand acceleration (+18%) with Muller Dairy supply headroom (+25%) and Trafford DC inventory surplus models +6.8% margin lift in demonstration scenarios.
         </p>
 
         <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          <span>Situation Similarity: <strong style={{ color: 'var(--text-primary)' }}>89%</strong></span>
-          <span>Pattern Confidence: <strong style={{ color: 'var(--text-primary)' }}>84%</strong></span>
-          <span>Intervention Success Rate: <strong style={{ color: 'var(--success)' }}>86% (7 occurrences)</strong></span>
+          <span>Demo Similarity: <strong style={{ color: 'var(--text-primary)' }}>89%</strong></span>
+          <span>Modelled Confidence: <strong style={{ color: 'var(--text-primary)' }}>84%</strong></span>
+          <span>Demo Success Rate: <strong style={{ color: 'var(--success)' }}>86% (1 cited precedent)</strong></span>
         </div>
       </div>
 
@@ -779,14 +779,14 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
           owner: 'Demand Planning & Commercial Lead',
           dependencies: ['Muller Dairy Promotional Rebate', 'Trafford DC Allocation Schedule'],
           timeHorizon: 'Next 7 Days',
-          expectedOutcome: '+£24,500 incremental revenue with +6.8% margin contribution.',
+          expectedOutcome: '+£24,500 incremental revenue with +6.8% margin contribution in demonstration simulation.',
           confidence: 86,
           patternId: 'PAT-OPP-02',
           contractStatus: 'VERIFIED',
           evidence: [
-            'GenAI forecast ensemble accuracy 91% over 14-day horizon',
+            'GenAI forecast ensemble accuracy 91% over 14-day horizon (modelled benchmark)',
             'Supplier capacity headroom confirmed via live API feed',
-            '7 historical occurrences evaluated; 86% achieved expected margin lift'
+            'Demo pattern precedent PAT-OPP-02 (seeded uncalibrated telemetry)'
           ]
         }}
       />

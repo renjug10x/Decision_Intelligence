@@ -353,7 +353,7 @@ A transformational decision capability discovering whether, what, where, when, a
 - **Successor:** `CDI-01`–`CDI-08` [COMPLETED] → `ESF-6 / Y3a`.
 - **Y3 split (G2):** `Y3` is superseded by **`ESF-6 / Y3a — Attested Observation Admission`** (predicate `source × context → authority`); its correspondence half is absorbed into `CDI-08` (predicate `contract × observation → comparability`). The two predicates have different signatures and are independently testable; merging them yields one work package with two truth models.
 - **ESF-4 repositioning (G4):** `ESF-4 — Signal Quality, Confidence & Provenance` moves from "parallel-eligible now" to **parallel-eligible after `ESF-6`**. Admission precedes grading — quality cannot make an inadmissible signal admissible. The provenance-classification slice (`SUPPLIED` vs `ADAPTER_DEFAULT`) moves into `ESF-6`, because authority depends on it. The 80/85 confidence/quality defaults are **not** authority and must never become authority.
-- **Y4 split (G5):** `Y4` splits into **`Y4-gov`** (immediate governance correction, outside any work package — owner ruling **Z5**, approved 2026-08-16) and **`Y4-cal`** (calibration work package, deferred behind N ≥ 3 independent eligible `LearningCase`s and the X3 gate). `Y4-gov` documentation lands with the CDI-08 freeze; its code half (`services/learning/src/learning-pattern-store.ts` — six seeded records publishing 46 claimed `historical_occurrences` and six `intervention_success_rate` figures against three distinct cited memory cases) remains **OUTSTANDING** as a separate commit.
+- **Y4 split (G5):** `Y4` splits into **`Y4-gov`** (immediate governance correction, outside any work package — owner ruling **Z5**, approved 2026-08-16) and **`Y4-cal`** (calibration work package, deferred behind N ≥ 3 independent eligible `LearningCase`s and the X3 gate). `Y4-gov` documentation and code correction (`services/learning/src/learning-pattern-store.ts` — six seeded records classifying telemetry as uncalibrated demonstration constants with cited memory counts and honest narrative wording) are **COMPLETED**.
 - **R6 disposition (G10):** tenant/session isolation is **found**, latent and unreachable at `5b92dae2`, and is recorded against `CDI-08` and `ESF-6` — never against closed CDI-07B semantics. Contract↔observation isolation is a correspondence predicate (`CDI-08`, test C0); source↔context isolation at ingestion is an admission predicate (`ESF-6`). Both are required; neither substitutes for the other.
 - **Sequencing rule, load-bearing:** R2 (metric correspondence), R3 (empty grain / null window) and R6 (isolation) are **fail-open and inert only because nothing is authoritative yet**. Authoritative observation admission is precisely the change that arms them. **`CDI-08` must therefore land before `ESF-6`** — not because it is more valuable in isolation, but because it is what makes admission safe to ship.
 
@@ -414,7 +414,7 @@ Every direct dependency declared in the Work Package Specification Table is expl
 ```text
 CDI-07B [COMPLETED]
     │
-    ├──> Y4-gov   Pattern telemetry citation correction   (governance, immediate, not a WP; Z5)
+    ├──> Y4-gov   Pattern telemetry citation correction   [COMPLETED] (governance, immediate, not a WP; Z5)
     │
     └──> CDI-08   Observation Correspondence & Prediction Envelope   [COMPLETED]
               │   removes LE-3, LE-7, R1, R2, R3, R6(correspondence half)

@@ -4,6 +4,7 @@
  */
 export type PatternType = 'risk' | 'opportunity' | 'intervention' | 'behaviour' | 'commitment' | 'ripple';
 export type PatternScope = 'global' | 'tenant';
+export type TelemetryProvenance = 'measured' | 'derived' | 'seeded_demonstration' | 'unavailable';
 export interface EnterpriseLearningPattern {
     pattern_id: string;
     pattern_name: string;
@@ -32,6 +33,9 @@ export interface EnterpriseLearningPattern {
     last_observed?: string;
     source_classification: string;
     synthetic_demo: boolean;
+    telemetry_provenance?: TelemetryProvenance;
+    telemetry_disclosure?: string;
+    citation_count?: number;
     schema_version: string;
 }
 export interface PatternMatchRequest {

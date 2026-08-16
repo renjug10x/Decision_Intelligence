@@ -12,7 +12,7 @@ exports.CANONICAL_LEARNING_PATTERNS = [
         pattern_name: 'Supplier Lead-Time Breach Cascade',
         pattern_type: 'commitment',
         pattern_scope: 'global',
-        description: 'Demand acceleration exceeding primary supplier delivery capability by >8% results in customer promise failure in 73% of untreated cases.',
+        description: 'Demand acceleration exceeding primary supplier delivery capability by >8% risks customer promise failure in untreated promotional events.',
         situation_signature: 'Demand surge + primary supplier on-time rate < 85% + regional stock buffer < 3 days',
         observed_signals: [
             'Demand acceleration +22%',
@@ -51,6 +51,9 @@ exports.CANONICAL_LEARNING_PATTERNS = [
         last_observed: '2026-06-04',
         source_classification: 'G10X Synthetic Demonstration Precedent',
         synthetic_demo: true,
+        telemetry_provenance: 'seeded_demonstration',
+        telemetry_disclosure: 'This pattern\'s occurrence, similarity, confidence and success-rate figures are uncalibrated demonstration constants with 1 supporting cited memory case.',
+        citation_count: 1,
         schema_version: '1.0'
     },
     {
@@ -97,6 +100,9 @@ exports.CANONICAL_LEARNING_PATTERNS = [
         last_observed: '2026-05-18',
         source_classification: 'G10X Synthetic Demonstration Precedent',
         synthetic_demo: true,
+        telemetry_provenance: 'seeded_demonstration',
+        telemetry_disclosure: 'This pattern\'s occurrence, similarity, confidence and success-rate figures are uncalibrated demonstration constants with 1 supporting cited memory case.',
+        citation_count: 1,
         schema_version: '1.0'
     },
     {
@@ -142,6 +148,9 @@ exports.CANONICAL_LEARNING_PATTERNS = [
         last_observed: '2026-02-14',
         source_classification: 'G10X Synthetic Demonstration Precedent',
         synthetic_demo: true,
+        telemetry_provenance: 'seeded_demonstration',
+        telemetry_disclosure: 'This pattern\'s occurrence, similarity, confidence and success-rate figures are uncalibrated demonstration constants with 1 supporting cited memory case.',
+        citation_count: 1,
         schema_version: '1.0'
     },
     {
@@ -187,6 +196,9 @@ exports.CANONICAL_LEARNING_PATTERNS = [
         last_observed: '2026-04-10',
         source_classification: 'G10X Synthetic Demonstration Precedent',
         synthetic_demo: true,
+        telemetry_provenance: 'seeded_demonstration',
+        telemetry_disclosure: 'This pattern\'s occurrence, similarity, confidence and success-rate figures are uncalibrated demonstration constants with 1 supporting cited memory case.',
+        citation_count: 1,
         schema_version: '1.0'
     },
     {
@@ -232,6 +244,9 @@ exports.CANONICAL_LEARNING_PATTERNS = [
         last_observed: '2026-03-29',
         source_classification: 'G10X Synthetic Demonstration Precedent',
         synthetic_demo: true,
+        telemetry_provenance: 'seeded_demonstration',
+        telemetry_disclosure: 'This pattern\'s occurrence, similarity, confidence and success-rate figures are uncalibrated demonstration constants with 1 supporting cited memory case.',
+        citation_count: 1,
         schema_version: '1.0'
     },
     {
@@ -278,6 +293,9 @@ exports.CANONICAL_LEARNING_PATTERNS = [
         last_observed: '2026-05-30',
         source_classification: 'G10X Synthetic Demonstration Precedent',
         synthetic_demo: true,
+        telemetry_provenance: 'seeded_demonstration',
+        telemetry_disclosure: 'This pattern\'s occurrence, similarity, confidence and success-rate figures are uncalibrated demonstration constants with 1 supporting cited memory case.',
+        citation_count: 1,
         schema_version: '1.0'
     }
 ];
