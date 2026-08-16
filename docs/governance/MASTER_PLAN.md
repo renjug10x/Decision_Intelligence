@@ -374,6 +374,59 @@ A transformational decision capability discovering whether, what, where, when, a
 
 ---
 
+### Core Innovation Capability — Demand Decision Frontier (DDF)
+
+The evolution of Demand & Forecast (`SOL-DEMAND-02`) from *"what demand do we forecast?"* to *"is the demand outlook changing, can the organisation capture it, how long does it have to respond, what is the economic consequence of acting or waiting, and what intervention creates the best outcome?"*
+
+Capability-family governance, canonical demand vocabulary, domain principles, the maturity model and the future conceptual entities are specified in [`DEMAND_OBSERVABILITY_MODEL.md`](DEMAND_OBSERVABILITY_MODEL.md). Reconciliation evidence, the defect register and the full acceptance criteria are in [`COGNIX_DEMAND_DECISION_FRONTIER_PLANNING_REPORT.md`](../reports/COGNIX_DEMAND_DECISION_FRONTIER_PLANNING_REPORT.md).
+
+#### `DDF-01` — Demand Decision Frontier [COMPLETED]
+
+- **Status:** Governance approved 2026-08-16. **Implemented and independently reconciled 2026-08-16.** Implementation evidence, the `D-INT` integration defect register and the `[HARD]` acceptance verdicts are in [`COGNIX_DDF_01_DEMAND_DECISION_FRONTIER_REPORT.md`](../reports/COGNIX_DDF_01_DEMAND_DECISION_FRONTIER_REPORT.md).
+- **Delivered:** `packages/contracts/src/demand-decision-frontier-model.ts`, `lib/demand-decision-frontier/demand-frontier-engine.ts`, `app/api/v1/demand-frontier/evaluate/route.ts`, the rebuilt `components/Forecasting.tsx` surface, and `tests/unit/run-ddf01-tests.ts` (56 assertions).
+- **Arithmetic spine:** every unit, percentage point and pound resolves to one denominator — the observed run rate scaled to the horizon — so that `emerging_frontier_pct − executable_frontier_pct ≡ exposed_demand_units ÷ base_demand_units` holds by construction (ADR-041 Amendment A). Supplier capacity is consumed from `DecisionDerivedImpacts` as a scale-free **ratio**, which is how the read-only rule survives a population-boundary crossing without creating a fourth capacity number.
+- **Integration pass outcome:** the first implementation closed `D-DDF-1`…`D-DDF-8` at the level of presentation; independent reconciliation found several had been **relocated rather than closed** — most materially, the `IFI-01` decomposition was engine-called with frozen inputs, the headline `pp`/units/£ figures were computed on three unrelated bases, and the simulated outcome was a hardcoded string. Fifteen defects (`D-INT-1`…`D-INT-15`) were corrected before release.
+- **Objective:** Deliver one combined decision experience — **not three dashboard widgets** — over the reasoning sequence *change → gap → urgency → consequence → intervention → outcome*.
+- **Scope (P0, and nothing else):**
+  - **P0-A — Forecast Stability Intelligence.** Whether the forecast is likely to remain materially unchanged, as distinct from whether the model is reliable. Publishes stability score, direction/trend, probability of material revision, likely revision direction and magnitude range, contributing signals and provenance. Computed from observed `EnterpriseSignal` divergence (`FORECAST_DIVERGENCE`, `CATEGORY_DEMAND_ACCELERATION`, `ORDER_VELOCITY_ACCELERATION`, `REGIONAL_DEMAND_SHIFT`), never from the `IFI-01` confidence constant. **No new signal type.** Insufficient evidence yields `INDETERMINATE`.
+  - **P0-B — Decision Gap Intelligence.** *The difference between the commercial opportunity currently emerging and the organisation's ability to capture that opportunity under its existing commitments and operational constraints.* Distinguishes baseline forecast, contextualised demand, emerging demand frontier, executable demand frontier and exposed demand, with monetary opportunity at risk, affected scope and **named ranked binding constraints**. Explicitly **not** `forecast − supplier capacity`.
+  - **Decision Window (supporting).** *The estimated period during which an intervention can still materially capture or protect the emerging opportunity before its value deteriorates or becomes unrecoverable.* Derived from a declared operational constraint; `INDETERMINATE` with no countdown where none is declared.
+  - **P0-C — Decision Regret Intelligence.** *The expected economic consequence of choosing an inferior action given the information and alternatives available at decision time.* Compares `ACT_NOW` / `WAIT` / `DO_NOTHING` from shared inputs. Not forecast-error cost.
+  - **Combined Demand Decision Frontier visualisation**, **explainable intervention recommendation**, and **intervention simulation/recomputation** where feasible within the current architecture.
+- **Non-Scope:** every `DOT` roadmap capability; any new `CanonicalSignalType` / `ExternalSignalCategory` / `SignalSourceType`; any new origin of `synthetic_demo = false`; any ML model, training or inference; any change to `CDI-01`…`CDI-08`, `ESF-6` or `WP10-C` semantics; any real external integration; any `LearningCandidate` / `LearningCase` creation; any Enterprise Memory write.
+- **Hard Dependencies:** `IFI-01` (`ContextualisedDecisionOutlook` — engine binding), `WP10-C` (`DecisionDerivedImpacts`, read-only), `ESF-1` (`EnterpriseSignal` evidence).
+- **Integration Dependencies:** `ESF-2` (Dynamic Signal Simulation — supplies the divergence over time that stability reads).
+- **Enhancement Dependencies:** `CDI-02` counterfactual semantics (reused for `DO_NOTHING`), `CDI-04` readiness gating semantics, `CDI-05` trajectory rendering precedent, `CDI-06` selection/refusal semantics.
+- **Architectural rulings:** ADR-040 (stability is a property of the evidence stream, never the model), ADR-041 (gap is engine-computed opportunity minus executable capacity, no fourth capacity number), ADR-042 (window derives from a declared constraint and is not a decay curve), ADR-043 (regret is comparative expected value over declared alternatives; "frontier" carries two qualified meanings).
+- **Binding constraint:** purely additive on `IFI-01`; read-only on `WP10-C`; no governed contract, engine or authority rule changes meaning. Existing Demand & Forecast behaviour and all Campaign/Intent/Signal/Commitment flows remain functional.
+- **Defect register the governance task records at `7ad9c2df`:** **D-DDF-1** the `IFI-01` decomposition on the demand surface is hardcoded JSX and the engine is never called — the "12pp gap" does not respond to the promotion slider; **D-DDF-2** *"91% Model Accuracy"* is an unsupported backtest claim over an unqualified engine constant; **D-DDF-3** the ARIMA/Prophet/GenAI model selector is implemented as sine/cosine factors; **D-DDF-4** supplier capacity is defined in three places and only one responds to scenario change; **D-DDF-5** Cannibalisation and Event Boost are read from Shared Decision State but never written to it; **D-DDF-6** an unsupported *"confirmed via live API feed"* evidence claim; **D-DDF-7** a *"14 to 90 Days"* horizon claim on a surface offering 7/14/30; **D-DDF-8** dark-theme chart styling on a light executive surface. D-DDF-1 is corrected **before** Decision Gap is computed, because a gap over a static panel is a caption rather than a calculation.
+- **Acceptance Criteria:** `AC-DDF-01` … `AC-DDF-37`, of which the release-blocking `[HARD]` set governs preservation, engine binding, provenance honesty, internal consistency, recomputation and build cleanliness. Full text in the planning report.
+- **Test Requirements:** semantic assertions executing real route handlers and engines; full regression green at `CDI-01`…`CDI-07B` 21/36/31/49/70/93/155/235, `CDI-08` 44, `ESF-6` 81, `ESF-2` 19, `ESF-3` 22, `IFI-01` 12, `WP10-D` 15, `WP10-B`, `WP10-C`, campaign-intelligence 133, campaign-decision-journey 96, bugfix 4/4; `tsc` clean across root, contracts, learning and world; production build clean.
+- **Exit Gate:** an executive understands, within five seconds, that the outlook is moving, that existing commitments cannot capture it, that time is limited, and what acting versus waiting costs — and can reach the evidence for each claim. **MET.** The surface leads with four cards — stability, gap, window, cost of choosing wrongly — and one recommendation bar; the evidence for every figure is one disclosure away, including the provenance class of each input.
+- **Validation at completion:** `tsc` clean across root, contracts, learning and world; 22/22 unit runners green with every recorded baseline matched exactly; `DDF-01` 56/56; production build clean; browser walkthrough at 1024/1280/1440 with no console errors and no horizontal overflow.
+
+---
+
+### Roadmap Capability Family — Demand Observability & Demand Truth (DOT)
+
+**Architectural principle:** *CogniX does not manufacture unobserved demand. It reconstructs demand from evidence, quantifies uncertainty, and preserves provenance from signal through inference to decision.*
+
+**Registered as roadmap. No `DOT` item is authorised for implementation by `DDF-01`.** Definitions, dependencies, the canonical demand vocabulary and the concept-to-home register are in [`DEMAND_OBSERVABILITY_MODEL.md`](DEMAND_OBSERVABILITY_MODEL.md) §6.
+
+- **`DOT-A` — Demand Truth Reconstruction:** `DOT-1` Latent Demand Reconstruction [P1]; `DOT-2` Demand Leakage Intelligence [P1]; `DOT-3` Customer Substitution Graph [P2]; `DOT-4` Phantom Inventory Detection [P2/P3].
+- **`DOT-B` — Demand Causality & Counterfactual Truth:** `DOT-5` Demand Cause Graph [P1]; `DOT-6` Promotion Truth Engine [P1/P2]; `DOT-7` Counterfactual Demand Twin [P3]; `DOT-8` Constraint-Induced Demand & Demand Suppression Loops [P3].
+- **`DOT-C` — Evidence, Provenance & Resolution:** `DOT-9` Demand Evidence Ledger [P2]; `DOT-10` Intent Resolution [P2]; `DOT-11` Signal Half-Life & Signal Reliability [P2].
+- **`DOT-D` — Observability Sourcing:** `DOT-12` Physical Store Demand Observability [P3].
+
+**Binding roadmap rules.**
+- `DOT-9` (Evidence Ledger) extends the `EnterpriseSignal` contract and the `ESF-6` admission path. It is **not** a parallel signal system and creates **no second origin of `synthetic_demo = false`**.
+- `DOT-10` (Intent Resolution) is a **hard prerequisite for any latent-demand quantity**. Without it, `DOT-1` may describe suppression but must not publish a unit count — `app search → shelf interaction → colleague enquiry → substitute purchase` is one intent, not four units.
+- `DOT-11` (Signal Half-Life) is parallel-eligible only **after `ESF-4`** — grading precedes weighting, exactly as admission precedes grading (G4). It is **not** `CDI-07A` Decision Half-Life and must never share an indicator with it.
+- `DOT-7` (Counterfactual Demand Twin) is blocked behind `CDI-08` correspondence and non-trivial attested observation volume; started earlier it would be fitted to CogniX's own simulator.
+- The **Demand Observability Maturity Model** (`DEMAND_OBSERVABILITY_MODEL.md` §5) adds a **Level 0 — Synthetic / modelled demonstration**, which is where the estate stands today and where all of `DDF-01` operates. Levels are capability levels, not purchase levels: a level is reached when evidence is *admitted and resolved*, not when a feed is connected.
+
+---
+
 ### ESF-3 Disposition & Dependency Position
 - **Status:** COMPLETED (provider-neutral connector contract delivered).
 - **Role:** `ESF-3 — External Signal Connector Contract` remains provider-neutral and is NOT deleted, absorbed, or superseded. It defines connector contracts for planning, commerce, weather, events, competitive intel, operational telemetry, and demographic sources.
@@ -438,6 +491,8 @@ Every direct dependency declared in the Work Package Specification Table is expl
 | **`CDI-08`** | `CDI-07A` (`DecisionContract`), `CDI-07B` (`PredictionOutcomeComparison`) | None | None |
 | **`ESF-6 / Y3a`** | `ESF-3` (Connector Contract), `CDI-08` (correspondence predicate — sequencing, see ESF-3 Disposition) | `WP10-D` (`cognix-learning`) | None |
 | **`ESF-4`** | `ESF-6` (Attested Observation Admission) | `ESF-2` (Dynamic Signal Simulation) | None |
+| **`DDF-01`** | `IFI-01` (`ContextualisedDecisionOutlook`), `WP10-C` (`DecisionDerivedImpacts`, read-only), `ESF-1` (`EnterpriseSignal`) | `ESF-2` (Dynamic Signal Simulation) | `CDI-02` (counterfactual semantics), `CDI-04` (readiness gating), `CDI-05` (trajectory rendering), `CDI-06` (selection/refusal semantics) |
+| **`DOT-1` … `DOT-12`** | `DDF-01`; per-item prerequisites in `DEMAND_OBSERVABILITY_MODEL.md` §6 (notably `DOT-9` → `DOT-1`, `DOT-10` → any latent-demand quantity, `ESF-4` → `DOT-11`) | `ESF-6` (attested admission — required for any level above Maturity Level 0) | None |
 
 #### 3. Post-CDI-07B Execution Sequence (frozen 2026-08-16)
 
@@ -464,6 +519,46 @@ CDI-07B [COMPLETED]
                         ├──> Y4-cal  Pattern telemetry calibration + WP10-D write path (X3 gate)
                         └──> ML workstream  [DEFERRED — observation correspondence suggestion first]
 ```
+
+#### 4. Demand Execution Sequence (registered 2026-08-16)
+
+```text
+IFI-01 [COMPLETED] ── ContextualisedDecisionOutlook ──┐
+WP10-C [COMPLETED] ── DecisionDerivedImpacts ─────────┤
+ESF-1/ESF-2 [COMPLETED] ── EnterpriseSignal ──────────┤
+                                                      ▼
+                              DDF-01  Demand Decision Frontier (P0)   [NEXT]
+                                 P0-A Forecast Stability
+                                 P0-B Decision Gap (+ Decision Window)
+                                 P0-C Decision Regret
+                                 combined frontier visual + simulation
+                                      │
+                                      │  corrects D-DDF-1…D-DDF-8 as a precondition,
+                                      │  not as a follow-up
+                                      ▼
+                    ── DEMAND OBSERVABILITY LEVEL 0 HONESTLY STATED ──
+                                      │
+       ┌──────────────────────────────┼──────────────────────────────┐
+       ▼                              ▼                              ▼
+  DOT-9 Evidence Ledger [P2]    DOT-5 Cause Graph [P1]      ESF-6-attested sources
+       │  (extends ESF-1 + ESF-6, no second authority)              │
+       ▼                                                            ▼
+  DOT-10 Intent Resolution [P2] ── HARD ──> DOT-1 Latent Demand quantity [P1]
+       │                                          │
+       ▼                                          ▼
+  DOT-3 Substitution Graph [P2]           DOT-2 Demand Leakage [P1]
+                                                  │
+  ESF-4 ── HARD ──> DOT-11 Signal Half-Life [P2]  ├──> DOT-4 Phantom Inventory [P2/P3]
+                                                  ├──> DOT-6 Promotion Truth [P1/P2]
+                                                  ├──> DOT-8 Suppression Loops [P3]
+                                                  ├──> DOT-7 Counterfactual Twin [P3]
+                                                  └──> DOT-12 Physical Observability [P3]
+```
+
+**Boundary, restated so it cannot be read ambiguously:** everything above the Level-0 line is `DDF-01` and
+is authorised. Everything below it is roadmap and is **not** authorised by `DDF-01`. A demand capability
+that requires attested observation, an evidence ledger or intent resolution is by definition below the
+line.
 
 **ML/deterministic boundary, restated and unchanged:** ML may rank, cluster, shortlist and suggest.
 It may never establish authority, eligibility, correspondence, comparability or a verdict. No ML

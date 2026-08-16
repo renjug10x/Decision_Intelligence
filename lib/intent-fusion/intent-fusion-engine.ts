@@ -28,12 +28,15 @@ export function evaluateIntentFusion(request: IntentFusionRequest): Contextualis
 
   // 3. Decomposition Components
   const baselineLiftPct = typeof request.baseline_forecast_lift_pct === 'number' ? request.baseline_forecast_lift_pct : 12;
-  const intentEffectPct = Math.round((intent.discount_depth || 20) * 0.35); // 20% discount depth -> +7% intent effect
+  const discountDepth = (intent && typeof intent.discount_depth === 'number') ? intent.discount_depth : 20;
+  const intentEffectPct = Math.round(discountDepth * 0.35); // 20% discount depth -> +7% intent effect
   const signalEffectPct = 3; // +3% observed search velocity & basket add signals
   const interactionAdjustmentPct = 0; // 0% for demo decomposition
 
   const contextualisedOutlookPct = baselineLiftPct + intentEffectPct + signalEffectPct + interactionAdjustmentPct; // 12 + 7 + 3 = 22%
-  const supplierCapacityCapPct = 10; // +10% max allocation headroom
+  const supplierCapacityCapPct = typeof decisionState?.scenario_parameters?.supplier_capacity_cap === 'number'
+    ? decisionState.scenario_parameters.supplier_capacity_cap
+    : 10;
   const commitmentGapPp = contextualisedOutlookPct - supplierCapacityCapPct; // 22 - 10 = 12 pp gap
 
   const now = new Date().toISOString();

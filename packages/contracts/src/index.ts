@@ -93,3 +93,4 @@ export * from './intent-fusion-model';
 export * from './learning-pattern-model';
 export * from './memory-model';
 export * from './attested-observation-model';
+export * from './demand-decision-frontier-model';

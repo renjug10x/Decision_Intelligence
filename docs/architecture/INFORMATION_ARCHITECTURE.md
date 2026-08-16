@@ -128,3 +128,52 @@ Campaign Decision Intelligence Workspace
        ├── Campaign Pre-Mortem (Failure modes, grounding, consequence order, resilience → Decision Ripple)
        └── Closed Learning Loop & Historical Analogues (Enterprise Memory & Learning Patterns)
 ```
+
+---
+
+## 6. Demand Decision Frontier Information Architecture (`DDF-01`)
+
+Demand & Forecast Intelligence (`SOL-DEMAND-02`) is a **Demonstration Solution** (Asset Type B), not an Innovation Experiment. `DDF-01` evolves that surface in place; it does not add a new navigation destination.
+
+### 6.1 Progressive disclosure layers
+
+```text
+Demand & Forecast Intelligence  (SOL-DEMAND-02)
+  │
+  ├── Layer 1: Is the outlook changing?
+  │    ├── Forecast Confidence   (model reliability — declared basis, not "model accuracy")
+  │    ├── Forecast Stability    (score + direction/trend, or INDETERMINATE)
+  │    └── Probability / direction / magnitude of material revision  [modelled]
+  │
+  ├── Layer 2: Can we capture it?  (Demand Decision Frontier)
+  │    ├── Baseline forecast          (upstream statistical expectation)
+  │    ├── Contextualised outlook     (IFI-01, engine-bound)
+  │    ├── Emerging demand frontier   (outlook + revision pressure)  [modelled]
+  │    ├── Executable demand frontier (WP10-C DecisionDerivedImpacts, read-only)
+  │    └── Decision Gap → exposed demand · opportunity at risk · ranked binding constraints
+  │
+  ├── Layer 3: How long do we have?
+  │    └── Decision Window — declared constraint + closes_at, or INDETERMINATE (no countdown)
+  │
+  ├── Layer 4: What does acting or waiting cost?
+  │    └── Decision Regret — ACT_NOW | WAIT | DO_NOTHING, shared inputs, no winner where undifferentiated
+  │
+  └── Layer 5: Test the intervention
+       ├── Explore Decision Frontier  (what changed → why → evidence → consequence → recommendation)
+       └── Simulate Intervention      (recomputes gap, regret, capturable opportunity, residual
+                                       exposure, risk state; explicit unavailable state on failure)
+```
+
+### 6.2 Conceptual entities
+
+Authorised for `DDF-01`: `ForecastStabilityAssessment`, `DemandFrontier`, `DemandDecisionGap`, `DemandDecisionWindow`, `DeclaredInterventionConstraint`, `DemandDecisionRegret`, `DemandInterventionScenario`.
+
+Recorded but **not authorised** (roadmap `DOT`): `DemandEvidenceRecord`, `ResolvedIntentCluster`, `LatentDemandEstimate`, `DemandLeakageAttribution`, `SubstitutionEdge`, `DemandCauseEdge`, `SignalReliabilityProfile`.
+
+**Extension rule.** Where an existing contract (`ContextualisedDecisionOutlook`, `DecisionDerivedImpacts`, `EnterpriseSignal`, the `CDI` artefacts) can carry a concept, it is extended. A new contract is created only where an existing one would have to lie to carry it. Speculative implementation complexity is not created for roadmap entities.
+
+### 6.3 Naming boundaries (binding — ADR-042, ADR-043)
+
+- **Demand Decision Frontier** (trajectories over time) is always written with the *Demand* qualifier. **Outcome Frontier** (`CDI-06`, Pareto over candidate configurations) keeps its own name. The existing Promotion tab *"Decision Frontier & Tension"* (`components/campaign/DecisionFrontierLens.tsx`) belongs to the `CDI-06` family and is unaffected.
+- **Decision Window** (until when may we still act) is not the `CDI-03` **Opportunity Window** (when should we act). Separate artefacts, never merged.
+- **Signal Half-Life** (`DOT-11`, roadmap) is not **Decision Half-Life** (`CDI-07A`). Never one indicator.

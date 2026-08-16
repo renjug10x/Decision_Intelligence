@@ -81,3 +81,24 @@ All implementation packages MUST strictly enforce anti-drift guardrails to preve
 - **Provider-Neutral Signal Connectors:** External signal connectors (ESF-3) are defined as provider-neutral contract adapters across planning, commerce, weather, events, competitive intel, operational telemetry, and demographic sources. Vendor platforms (e.g. Blue Yonder, SAP IBP) represent reference implementations, not hardcoded architectural dependencies.
 - **Resilience over Parallel Risk Engines:** Pre-mortem analysis MUST integrate with Decision Ripple, Enterprise Signals, and Decision Readiness rather than creating a disconnected risk engine.
 - **Intelligence Before Visualization:** No visual UI surface may precede the conceptual domain contract and calculation engine required to back it.
+- **No Literal Standing In For A Calculation:** A displayed intelligence value must be produced by the engine that owns it. A hardcoded figure that does not respond to the control beside it is a defect, not a placeholder — it is indistinguishable from a working calculation to the executive reading it.
+
+### Principle 13 — Demand Evidence & Demand Truth
+CogniX must not evolve Demand & Forecast into a denser forecasting dashboard. The governing statement is:
+
+> **CogniX does not manufacture unobserved demand. It reconstructs demand from evidence, quantifies uncertainty, and preserves provenance from signal through inference to decision.**
+
+The following apply to every demand capability, immediate (`DDF-01`) or roadmap (`DOT-1` … `DOT-12`):
+
+1. **Evidence before inference.** Inferred demand is never represented as observed fact. Provenance class travels on the datum, not on the page.
+2. **Provenance.** Material conclusions are traceable to their contributing evidence by reference.
+3. **Explicit uncertainty.** Estimated demand and decision outcomes expose uncertainty. Missing uncertainty evidence is shown as missing, never as certainty.
+4. **No fake intelligence.** No invented ML prediction, causal relationship, real-time integration or operational evidence. A deterministic calculation is described as one.
+5. **Progressive sophistication.** Deterministic and explicitly modelled calculations may evolve into learned models **without breaking contracts**. The contract is shaped for the learned version; the implementation is honest about being the deterministic one.
+6. **Signal ≠ demand.** A signal is evidence *about* demand, not a demand unit. Any conversion to units is declared and inspectable.
+7. **Sales ≠ true demand.** Observed sales are censored by availability and operational constraint.
+8. **Forecast accuracy ≠ decision quality.** Optimise for economic and operational decision outcomes. A forecast-error metric never stands in for a decision verdict — restating the `CDI-07B` rule that prediction error describes model divergence, never whether a decision was good.
+9. **Constraints can influence future demand.** Supply and availability failure alters customer behaviour and therefore future demand; a forecast that learns operational failure as demand decline is wrong.
+10. **Human-understandable reasoning.** Executives and planners must be able to reach *why* without ML knowledge.
+
+**Four demand quantities are never collapsed:** forecast demand ≠ true/latent demand ≠ executable demand ≠ economically desirable demand. Canonical vocabulary, maturity model and roadmap: [`DEMAND_OBSERVABILITY_MODEL.md`](DEMAND_OBSERVABILITY_MODEL.md).

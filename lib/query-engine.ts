@@ -455,7 +455,7 @@ export async function getForecastProjections(params: {
   category?: string;
   metric: 'revenue' | 'units' | 'waste';
   horizon: number;
-  model: 'arima' | 'prophet' | 'genai';
+  model: 'arima' | 'prophet' | 'genai' | 'baseline' | 'seasonality' | 'adaptive';
   promoLift: number;
   cannibalization: number;
   eventBoost: string;
@@ -481,23 +481,26 @@ export async function getForecastProjections(params: {
   const historyTotal = history.reduce((acc, h) => acc + h.value, 0);
   const historyAvg = historyTotal / (history.length || 1);
 
-  // 2. Generate future projections
+  // 2. Generate future projections with deterministic seasonal & trend adjustments
   const forecast = futureDates.map((date, index) => {
     const dateObj = new Date(date);
     const dayOfWeek = dateObj.getDay();
 
-    // Seasonality baseline
+    // Day-of-week seasonality baseline
     let seasonality = 1.0;
     if (dayOfWeek === 5 || dayOfWeek === 6) seasonality = 1.15;
     if (dayOfWeek === 1 || dayOfWeek === 2) seasonality = 0.88;
 
-    // Model specific variance
+    // Method-specific variance calculation (deterministic projection curves)
     let modelFactor = 1.0;
-    if (model === 'prophet') {
+    if (model === 'prophet' || model === 'seasonality') {
+      // Trend & Seasonality cyclical adjustment
       modelFactor = 1.0 + Math.sin(index * 0.8) * 0.12;
-    } else if (model === 'genai') {
+    } else if (model === 'genai' || model === 'adaptive') {
+      // Adaptive Contextualised multi-factor harmonic adjustment
       modelFactor = 1.0 + (Math.sin(index * 1.5) * 0.04) + (Math.cos(index * 2.3) * 0.02);
     } else {
+      // Statistical Moving Average Baseline (linear trend damping)
       modelFactor = 1.0 - (index * 0.005);
     }
 

@@ -156,3 +156,54 @@ Campaign Decision Intelligence answers five fundamental retail decision question
 12. **Decision Half-Life:** Describes how the evidential basis of a decision weakens or remains valid as assumptions and signals evolve. Represented through validity states (STABLE, WATCH, DEGRADED, REASSESS_REQUIRED, INDETERMINATE) and evidence-triggered reassessment. No duration, countdown, expiry or decay curve — quantitative duration is unavailable until calibrated temporal evidence exists.
 13. **Campaign Pre-Mortem:** Enumerates failure modes from evidence the estate has already declared — open readiness conditions, vetoes, constraint eliminations and load-bearing decision assumptions — with their consequence order and resilience evidence, reusing the existing Decision Ripple ordering rather than creating a parallel risk engine. No likelihood, probability, impact score or severity score is produced: the estate holds no failure-frequency history and no calibrated impact model, so a failure mode publishes what it is grounded in rather than a number.
 14. **Closed Learning Loop:** Closes the operational loop (`Prediction → Decision → Execution → Observation → Outcome Comparison → Learning → Memory → Future Decision`). A comparison is evidence only where the predicted and observed quantities share a grain and a measurement basis; where they do not, the outcome is indeterminate with the missing authoritative capability named. Prediction error describes model and outcome divergence, never whether the decision itself was good or bad.
+
+---
+
+## 7. Demand Decision Intelligence Architecture (`DDF` / `DOT`)
+
+Governance, canonical demand vocabulary, domain principles, the maturity model and the roadmap families are specified in [`DEMAND_OBSERVABILITY_MODEL.md`](../governance/DEMAND_OBSERVABILITY_MODEL.md). Architectural rulings are ADR-040 … ADR-043. Registration and sequencing are in [`MASTER_PLAN.md`](../governance/MASTER_PLAN.md).
+
+### 7.1 Runtime truth — what the Demand & Forecast surface actually computes today
+
+> **Runtime-truth statement — 2026-08-16, established by reconciliation against `7ad9c2df`.** `INTENT_FUSION_INTELLIGENCE.md` §5.2 records that `Forecasting.tsx` "displays" the `IFI-01` decomposition. It does — **as hardcoded JSX literals** (`components/Forecasting.tsx:368–418`). The component's only network call is `GET /api/data?type=forecast` (`:158`); it **never calls** `POST /api/v1/intent-fusion/evaluate`, and the only callers of `evaluateIntentFusion` are that route handler and the engine itself. The displayed `+12% / +7% / +3% / +22% / +10% / 12pp` values therefore do not move when the Promotion Lift slider moves. Supplier capacity exists in **three** independent places — the Shared Decision State parameter `supplier_capacity_cap` consumed by `calculateDerivedImpacts()`, the constant `supplierCapacityCapPct = 10` at `lib/intent-fusion/intent-fusion-engine.ts:36`, and the surface literal. Downstream governance is defined against the **engine**, never against the surface literals.
+
+The genuinely computed parts of the surface are the projection series (`getForecastProjections()` in `lib/query-engine.ts:453` via `app/api/data/route.ts:61`), the three KPI cards derived from it, the rules-driven proactive-risk list, and the Shared Decision State binding for `promotion_lift` and `forecast_horizon_days`. `DDF-01` builds on those and corrects the rest.
+
+### 7.2 Composition — no new domain engine
+
+`DDF-01` is an **evolutionary extension of existing contracts**, not a parallel demand domain:
+
+```text
+  ESF-1 / ESF-2  EnterpriseSignal (baseline, observed, delta, observed_at)
+        │  divergence over time
+        ▼
+  [ Forecast Stability ]  ── revision pressure ──┐        (ADR-040)
+                                                 ▼
+  IFI-01  ContextualisedDecisionOutlook ──> [ Emerging Demand Frontier ]
+        (engine-bound, not literal)                    │
+                                                       │      (ADR-041)
+  WP10-C  DecisionDerivedImpacts (read-only) ──> [ Executable Demand Frontier ]
+        supplier_capacity_units, commitment_gap_units,       │
+        stockout_probability_pct, financial_exposure_gbp     ▼
+                                              [ Decision Gap + exposed demand ]
+                                                       │
+  DeclaredInterventionConstraint ──> [ Decision Window ]│    (ADR-042)
+                                                       ▼
+                                        [ Decision Regret: ACT_NOW | WAIT | DO_NOTHING ]
+                                                       │    (ADR-043)
+                                                       ▼
+                              [ Recommendation ] ──> [ Intervention Simulation ] ──┐
+                                                       ▲                            │
+                                                       └──── recompute ─────────────┘
+```
+
+**Binding composition rules.**
+- **No new demand engine.** The constraint arithmetic (`calculateDerivedImpacts`) and the demand decomposition (`evaluateIntentFusion`) already exist. A new engine would fork both and drift.
+- **`ARCHITECTURE.md` §3.4 consumption rule applies unchanged:** the executable frontier reads `DecisionDerivedImpacts` **read-only** through Shared Decision State, does not recompute ripple arithmetic, and does not write to Decision State.
+- **No new signal type**, no new `ExternalSignalCategory`, no new `SignalSourceType`, and no new origin of `synthetic_demo = false` (ADR-038 stands).
+- **`DO_NOTHING` reuses the `CDI-02` counterfactual baseline semantics.** The estate does not get a second Do-Nothing.
+- **Deterministic first, learned later, without a contract break.** Contract shapes are designed for the learned version; the implementation states plainly that it is the deterministic one.
+
+### 7.3 Demand Observability boundary
+
+`DOT-1` … `DOT-12` are roadmap. The load-bearing architectural constraints are that the Demand Evidence Ledger (`DOT-9`) extends the `EnterpriseSignal` contract and the `ESF-6` admission path rather than becoming a parallel signal system, and that Intent Resolution (`DOT-10`) is a hard prerequisite for publishing any latent-demand **quantity** — several signals expressing one customer intent must not become several units of demand.

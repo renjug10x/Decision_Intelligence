@@ -1,10 +1,8 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
-  TrendingUp, Sparkles, Lock, Loader2, CheckCircle2,
-  AlertTriangle, Play, ChevronRight, Info, Calendar,
-  DollarSign, Percent, BarChart3, AlertCircle, ShieldAlert,
-  Lightbulb, RefreshCw
+  Sparkles, Loader2, CheckCircle2, AlertTriangle, ChevronRight, ChevronDown,
+  ShieldAlert, Lightbulb, Clock, Check, Sliders, Compass, Zap, RotateCcw
 } from 'lucide-react';
 import { useApp } from '@/lib/context';
 import ExecutionBriefing from '@/components/ExecutionBriefing';
@@ -14,34 +12,68 @@ import {
   LineElement, Tooltip, Legend, Filler
 } from 'chart.js';
 
-import productsData from '@/data/products.json';
 import storesData from '@/data/stores.json';
-import { fetchWorldScenario } from '@/lib/world-client';
-
 import { useDecisionState } from '@/context/DecisionStateContext';
+import { fetchCurrentScenarioSignals } from '@/lib/enterprise-signal-client';
+import { getOrCreateSessionId } from '@/lib/journey-client';
+import { evaluateDemandDecisionFrontier } from '@/lib/demand-decision-frontier/demand-frontier-engine';
+import {
+  DemandDecisionFrontierEvaluation,
+  ContextualisedDecisionOutlook,
+  EnterpriseSignal
+} from '@/packages/contracts/src/index';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
 
+const TENANT_ID = 'tenant_uk_retail_01';
+
 const fmt = {
-  currency: (v: number) => `£${v >= 1000 ? (v/1000).toFixed(1)+'K' : v.toFixed(0)}`,
-  pct:      (v: number) => `${(v*100).toFixed(1)}%`,
-  wow:      (v: number) => `${v >= 0 ? '+' : ''}${(v*100).toFixed(1)}%`,
-  int:      (v: number) => Math.round(v).toLocaleString(),
+  money: (v: number) => {
+    const abs = Math.abs(v);
+    if (abs >= 1_000_000) return `£${(v / 1_000_000).toFixed(2)}M`;
+    if (abs >= 1000) return `£${(v / 1000).toFixed(1)}K`;
+    return `£${Math.round(v).toLocaleString()}`;
+  },
+  wow: (v: number) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1)}%`,
+  int: (v: number) => Math.round(v).toLocaleString(),
+  pp: (v: number) => `${v.toFixed(1)}pp`,
 };
 
 interface ForecastResult {
   history: { date: string; value: number }[];
   forecast: { date: string; value: number }[];
-  kpi: {
-    projectedValue: number;
-    growthRate: number;
-    riskLevel: 'low' | 'medium' | 'high';
-  };
+  kpi: { projectedValue: number; growthRate: number; riskLevel: 'low' | 'medium' | 'high' };
 }
 
 interface ForecastingProps {
   onNavigateToExperiment?: (experimentId: string) => void;
 }
+
+// ── Shared visual tokens (CogniX professional light system) ──────────────────
+const C = {
+  ink: '#0F172A', body: '#334155', muted: '#64748B', faint: '#94A3B8',
+  line: '#E2E8F0', hairline: '#F1F5F9', surface: '#FFFFFF', sunken: '#F8FAFC',
+  demand: '#0284C7', capacity: '#D97706', risk: '#DC2626',
+  good: '#059669', accent: '#FF6B00', neutral: '#475569'
+};
+
+const card: React.CSSProperties = {
+  background: C.surface, border: `1px solid ${C.line}`, borderRadius: 10,
+  boxShadow: '0 1px 2px rgba(15,23,42,0.03)'
+};
+const eyebrow: React.CSSProperties = {
+  fontSize: '0.6875rem', color: C.muted, fontWeight: 700,
+  textTransform: 'uppercase', letterSpacing: '0.05em'
+};
+const provenanceChip = (text: string, tone: 'neutral' | 'warn' = 'neutral') => (
+  <span style={{
+    fontSize: '0.625rem', fontWeight: 600, letterSpacing: '0.02em',
+    color: tone === 'warn' ? '#92400E' : C.muted,
+    background: tone === 'warn' ? '#FFFBEB' : C.hairline,
+    border: `1px solid ${tone === 'warn' ? '#FDE68A' : C.line}`,
+    padding: '1px 6px', borderRadius: 4, whiteSpace: 'nowrap'
+  }}>{text}</span>
+);
 
 export default function Forecasting({ onNavigateToExperiment }: ForecastingProps = {}) {
   const { role, apiKey, selectedStore, setSelectedStore } = useApp();
@@ -54,39 +86,24 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
   useEffect(() => {
     if (role === 'store_manager') {
       const matchedStore = (storesData as any[]).find(s => s.store_id === selectedStore);
-      if (matchedStore) {
-        setStoreName(matchedStore.name);
-      }
+      if (matchedStore) setStoreName(matchedStore.name);
     }
   }, [role, selectedStore]);
 
-  // ── Enterprise World Scenario Binding ──────────────────────────────────────
-  const [worldScenario, setWorldScenario] = useState<any>(null);
-  const [worldError, setWorldError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchWorldScenario('promotion_surge')
-      .then((scenarios) => {
-        if (scenarios && scenarios.length > 0) {
-          setWorldScenario(scenarios[0]);
-        }
-      })
-      .catch((err) => {
-        console.warn('[Forecasting] Could not fetch Enterprise World scenario:', err.message);
-        setWorldError(err.message);
-      });
-  }, []);
-
-  // ── State Variables ────────────────────────────────────────────────────────
+  // ── Scenario controls ──────────────────────────────────────────────────────
   const [metric, setMetric] = useState<'revenue' | 'units' | 'waste'>('revenue');
-  const [horizon, setHorizon] = useState<7 | 14 | 30>((decisionState?.scenario_parameters.forecast_horizon_days as any) || 14);
-  const [model, setModel] = useState<'arima' | 'prophet' | 'genai'>('genai');
+  const [horizon, setHorizon] = useState<7 | 14 | 30>(
+    (decisionState?.scenario_parameters.forecast_horizon_days as any) || 14
+  );
+  const [model, setModel] = useState<'adaptive' | 'seasonality' | 'baseline'>('adaptive');
+  const [promoLift, setPromoLift] = useState(decisionState?.scenario_parameters.promotion_lift ?? 20);
+  const [cannibalization, setCannibalization] = useState(decisionState?.scenario_parameters.cannibalisation_factor ?? 0);
+  const [eventBoost, setEventBoost] = useState(decisionState?.scenario_parameters.event_boost ?? 'none');
+
   const [showBriefing, setShowBriefing] = useState(false);
-  
-  // Scenarios Sandbox adjusters synced with Shared Decision State
-  const [promoLift, setPromoLift] = useState(decisionState?.scenario_parameters.promotion_lift || 20);
-  const [cannibalization, setCannibalization] = useState(decisionState?.scenario_parameters.cannibalisation_factor || 0);
-  const [eventBoost, setEventBoost] = useState(decisionState?.scenario_parameters.event_boost || 'none');
+  const [showDeepReasoning, setShowDeepReasoning] = useState(false);
+  const [reasoningTab, setReasoningTab] = useState<'changed' | 'constrains' | 'choices'>('changed');
+  const [isSimulating, setIsSimulating] = useState(false);
 
   useEffect(() => {
     if (decisionState?.scenario_parameters) {
@@ -97,69 +114,84 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
     }
   }, [decisionState?.scenario_parameters]);
 
+  // All four scenario controls write to Shared Decision State (D-DDF-5).
   const handlePromoLiftChange = (val: number) => {
     setPromoLift(val);
     executeCommand('SET_PROMOTION_LIFT', { promotion_lift: val }, 'Forecasting.tsx');
   };
-
   const handleHorizonChange = (val: 7 | 14 | 30) => {
     setHorizon(val);
     executeCommand('SET_FORECAST_HORIZON', { forecast_horizon_days: val }, 'Forecasting.tsx');
   };
+  const handleCannibalizationChange = (val: number) => {
+    setCannibalization(val);
+    executeCommand('SET_CANNIBALISATION_FACTOR', { cannibalisation_factor: val }, 'Forecasting.tsx');
+  };
+  const handleEventBoostChange = (val: string) => {
+    setEventBoost(val);
+    executeCommand('SET_EVENT_BOOST', { event_boost: val }, 'Forecasting.tsx');
+  };
 
-  // Execution states
+  // Changing the scenario invalidates any active simulation.
+  useEffect(() => { setIsSimulating(false); }, [promoLift, cannibalization, eventBoost, horizon, model]);
+
+  // ── Execution state ────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<ForecastResult | null>(null);
+  const [demandSeries, setDemandSeries] = useState<ForecastResult | null>(null);
+  const [revenuePerUnit, setRevenuePerUnit] = useState<number | null>(null);
+  const [signals, setSignals] = useState<EnterpriseSignal[]>([]);
+  const [outlook, setOutlook] = useState<ContextualisedDecisionOutlook | null>(null);
+  const [outlookError, setOutlookError] = useState<string | null>(null);
   const [aiBrief, setAiBrief] = useState('');
-
-  // Buffer Optimization execution state
   const [optimizingBuffer, setOptimizingBuffer] = useState<string | null>(null);
   const [optimizedBuffers, setOptimizedBuffers] = useState<Record<string, boolean>>({});
 
-  // ── Fetch Forecast Projections ─────────────────────────────────────────────
+  const buildQuery = useCallback((
+    targetMetric: string, overrides?: { promoLift?: number; eventBoost?: string }
+  ) => {
+    const q = new URLSearchParams();
+    q.set('type', 'forecast');
+    q.set('metric', targetMetric);
+    q.set('horizon', String(horizon));
+    q.set('model', model === 'adaptive' ? 'genai' : model === 'seasonality' ? 'prophet' : 'arima');
+    q.set('promoLift', String(overrides?.promoLift ?? promoLift));
+    q.set('cannibalization', String(cannibalization));
+    q.set('eventBoost', String(overrides?.eventBoost ?? eventBoost));
+    if (role === 'store_manager') { q.set('role', 'store_manager'); q.set('store', selectedStore); }
+    else if (role === 'category_manager') { q.set('role', 'category_manager'); q.set('category', focusCategory); }
+    return q;
+  }, [horizon, model, promoLift, cannibalization, eventBoost, role, selectedStore, focusCategory]);
+
+  // ── Forecast + demand-frontier series ──────────────────────────────────────
   const runForecastSimulation = useCallback(async (isBufferOptimization = false, bufferId?: string) => {
     setLoading(true);
-    
-    // Scopes according to Role-based constraints
-    const query = new URLSearchParams();
-    query.set('type', 'forecast');
-    query.set('metric', metric);
-    query.set('horizon', String(horizon));
-    query.set('model', model);
-    
-    // Apply promo lift and event parameters
-    // If optimized buffer is run, override parameters to show safe stock/improved outlook
-    let activePromoLift = promoLift;
-    let activeEventBoost = eventBoost;
-    
-    if (isBufferOptimization && bufferId) {
-      if (bufferId === 'R001') {
-        // Optimize logistics to offset heatwave waste
-        activeEventBoost = 'none'; // Mitigate heatwave effect on waste
-      } else if (bufferId === 'R002') {
-        // Stock buffer to support promo demand
-        activePromoLift = Math.max(0, promoLift - 10); // Smooth demand peak
-      }
-    }
-
-    query.set('promoLift', String(activePromoLift));
-    query.set('cannibalization', String(cannibalization));
-    query.set('eventBoost', activeEventBoost);
-
-    if (role === 'store_manager') {
-      query.set('role', 'store_manager');
-      query.set('store', selectedStore);
-    } else if (role === 'category_manager') {
-      query.set('role', 'category_manager');
-      query.set('category', focusCategory);
-    }
+    const overrides = isBufferOptimization && bufferId === 'R001' ? { eventBoost: 'none' }
+      : isBufferOptimization && bufferId === 'R002' ? { promoLift: Math.max(0, promoLift - 10) }
+      : undefined;
 
     try {
-      const res = await fetch(`/api/data?${query.toString()}`);
-      const data: ForecastResult = await res.json();
-      setResult(data);
+      // The display metric drives the projection summary. The Demand Decision Frontier is a
+      // demand artefact and is always evaluated in units, whatever the display metric is.
+      const [display, units, revenue] = await Promise.all([
+        fetch(`/api/data?${buildQuery(metric, overrides).toString()}`).then(r => r.json()),
+        metric === 'units'
+          ? null
+          : fetch(`/api/data?${buildQuery('units', overrides).toString()}`).then(r => r.json()),
+        metric === 'revenue'
+          ? null
+          : fetch(`/api/data?${buildQuery('revenue', overrides).toString()}`).then(r => r.json())
+      ]);
 
-      // Generate narrative (Hybrid AI)
+      const unitsData: ForecastResult = units || display;
+      const revenueData: ForecastResult = revenue || display;
+      setResult(display);
+      setDemandSeries(unitsData);
+
+      const unitTotal = unitsData?.forecast?.reduce((a, f) => a + f.value, 0) ?? 0;
+      const revenueTotal = revenueData?.forecast?.reduce((a, f) => a + f.value, 0) ?? 0;
+      setRevenuePerUnit(unitTotal > 0 ? revenueTotal / unitTotal : null);
+
       let brief = '';
       if (apiKey) {
         try {
@@ -167,790 +199,1058 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              question: `Analyze this demand forecast projection: Scope: ${role === 'exec' ? 'National' : role === 'store_manager' ? storeName : focusCategory}, Metric: ${metric}, Horizon: ${horizon} days, Model: ${model.toUpperCase()}, Projected Total: ${data.kpi.projectedValue}, Growth Rate: ${(data.kpi.growthRate*100).toFixed(1)}%, Risk Level: ${data.kpi.riskLevel.toUpperCase()}. Explain the seasonal trend, potential OOS or waste risks, and operational feasibility in 2 sentences.`,
-              role: 'exec',
-              apiKey,
+              question: `Analyze this demand forecast projection: Scope: ${role === 'exec' ? 'National' : role === 'store_manager' ? storeName : focusCategory}, Metric: ${metric}, Horizon: ${horizon} days, Projected Total: ${display.kpi.projectedValue}, Growth Rate: ${(display.kpi.growthRate * 100).toFixed(1)}%, Risk Level: ${display.kpi.riskLevel.toUpperCase()}. Explain the seasonal trend, potential OOS or waste risks, and operational feasibility in 2 sentences.`,
+              role: 'exec', apiKey,
             }),
           });
-          const r = await aiRes.json();
-          brief = r.answer;
-        } catch {}
+          brief = (await aiRes.json()).answer;
+        } catch { /* deterministic fallback below */ }
       }
 
       if (!brief) {
-        // Deterministic highly-accurate fallback briefings
         const scopeStr = role === 'exec' ? 'National' : role === 'store_manager' ? storeName : `${focusCategory} category`;
-        const metricStr = metric === 'revenue' ? 'Revenue' : metric === 'units' ? 'Units sold' : 'Waste units';
-        const modelName = model === 'genai' ? 'GenAI Demand Predictor' : model === 'prophet' ? 'Prophet Seasonality Model' : 'ARIMA Baseline';
-
+        const metricStr = metric === 'revenue' ? 'Revenue' : metric === 'units' ? 'Units demanded' : 'Waste units';
+        const methodName = model === 'adaptive' ? 'Signal-adjusted outlook'
+          : model === 'seasonality' ? 'Trend and seasonality outlook' : 'Trend baseline';
         if (metric === 'waste') {
-          if (data.kpi.growthRate > 0.05) {
-            brief = `${modelName} projects ${scopeStr} ${metricStr} to rise by ${fmt.wow(data.kpi.growthRate)} over the next ${horizon} days. Spoilage risk is flagged as ${data.kpi.riskLevel.toUpperCase()} due to event-driven markdown lag; recommend adjusting regional automatic discount rates.`;
-          } else {
-            brief = `Waste forecasts remain stable across ${scopeStr} (+${(data.kpi.growthRate * 100).toFixed(1)}% variance). Store markdown rotations are performing as planned with minimal logistics disruptions expected.`;
-          }
+          brief = display.kpi.growthRate > 0.05
+            ? `${methodName} projects ${scopeStr} ${metricStr.toLowerCase()} rising ${fmt.wow(display.kpi.growthRate)} over ${horizon} days. Spoilage risk is ${display.kpi.riskLevel.toUpperCase()}; regional markdown rates are the available lever.`
+            : `Waste projections are stable across ${scopeStr} (${fmt.wow(display.kpi.growthRate)}). Markdown rotations are performing as planned.`;
         } else {
-          if (data.kpi.growthRate > 0.15) {
-            brief = `A significant demand expansion (+${(data.kpi.growthRate * 100).toFixed(1)}% in ${metricStr}) is forecast for ${scopeStr} driven by ${eventBoost !== 'none' ? eventBoost : 'promotional lift'}. Stockout risk is ${data.kpi.riskLevel.toUpperCase()} across 8 key lines; establish a 15% safety stock buffer at logistics hubs immediately.`;
-          } else {
-            brief = `${modelName} projects stable ${metricStr} patterns (+${(data.kpi.growthRate * 100).toFixed(1)}%) for the next ${horizon} days. Existing distribution buffers are sufficient to satisfy forecasted consumption rates.`;
-          }
+          brief = display.kpi.growthRate > 0.15
+            ? `${metricStr} is projected ${fmt.wow(display.kpi.growthRate)} for ${scopeStr} over ${horizon} days, driven by ${eventBoost !== 'none' ? eventBoost.replace('_', ' ') : 'promotional depth'}. Forecast risk is ${display.kpi.riskLevel.toUpperCase()}.`
+            : `${methodName} projects stable ${metricStr.toLowerCase()} (${fmt.wow(display.kpi.growthRate)}) for ${scopeStr} over the next ${horizon} days.`;
         }
       }
       setAiBrief(brief);
     } catch (e) {
-      console.error("Failed to load forecast", e);
+      console.error('[Forecasting] Failed to load projection', e);
+      setResult(null);
+      setDemandSeries(null);
     }
     setLoading(false);
-  }, [role, selectedStore, focusCategory, metric, horizon, model, promoLift, cannibalization, eventBoost, apiKey, storeName]);
+  }, [buildQuery, metric, apiKey, role, storeName, focusCategory, horizon, model, eventBoost, promoLift]);
 
-  // Trigger forecast on parameters change
+  useEffect(() => { runForecastSimulation(); }, [runForecastSimulation]);
+
+  // ── Observed Enterprise Signals (real references, no fabrication) ───────────
   useEffect(() => {
-    runForecastSimulation();
-  }, [metric, horizon, model, promoLift, cannibalization, eventBoost, runForecastSimulation]);
+    let cancelled = false;
+    fetchCurrentScenarioSignals(decisionState?.scenario_id || 'SCN-PROMO-01', TENANT_ID)
+      .then(s => { if (!cancelled) setSignals(s || []); })
+      .catch(() => { if (!cancelled) setSignals([]); });
+    return () => { cancelled = true; };
+  }, [decisionState?.scenario_id]);
 
-  // ── Buffer Optimization Trigger ───────────────────────────────────────────
+  // ── AC-DDF-10: Intent Fusion is bound to the governed route, not computed inline ──
+  useEffect(() => {
+    let cancelled = false;
+    const sessionId = getOrCreateSessionId();
+    fetch('/api/v1/intent-fusion/evaluate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tenant_id: TENANT_ID, session_id: sessionId, baseline_forecast_lift_pct: 12 })
+    })
+      .then(r => r.json())
+      .then(json => {
+        if (cancelled) return;
+        if (json?.status === 'success' && json.data) { setOutlook(json.data); setOutlookError(null); }
+        else { setOutlook(null); setOutlookError(json?.message || 'Intent Fusion evaluation unavailable'); }
+      })
+      .catch(err => { if (!cancelled) { setOutlook(null); setOutlookError(err.message); } });
+    return () => { cancelled = true; };
+  }, [decisionState?.state_version]);
+
   const executeBufferOptimization = async (id: string) => {
     setOptimizingBuffer(id);
-    // Simulate Looker write-back execution delay
-    await new Promise(resolve => setTimeout(resolve, 1400));
+    await new Promise(resolve => setTimeout(resolve, 1200));
     setOptimizedBuffers(prev => ({ ...prev, [id]: true }));
-    // Re-run simulation with mitigated variables
     await runForecastSimulation(true, id);
     setOptimizingBuffer(null);
   };
 
-  // ── Chart Assembly ─────────────────────────────────────────────────────────
-  const getChartData = () => {
-    if (!result) return null;
+  // ── Demand Decision Frontier evaluation ────────────────────────────────────
+  const evaluation: DemandDecisionFrontierEvaluation | null = useMemo(() => {
+    if (!demandSeries || !outlook || !decisionState?.derived_impacts) return null;
+    try {
+      return evaluateDemandDecisionFrontier({
+        tenantId: TENANT_ID,
+        sessionId: decisionState.session_id,
+        scenarioParams: decisionState.scenario_parameters,
+        derivedImpacts: decisionState.derived_impacts,
+        intentFusionOutlook: outlook,
+        enterpriseSignals: signals,
+        historySales: demandSeries.history,
+        forecastSales: demandSeries.forecast,
+        revenuePerUnitGbp: revenuePerUnit,
+        metric,
+        activeInterventionId: isSimulating ? 'SLA_FLEX_RULE_4' : null
+      });
+    } catch (e) {
+      console.error('[Forecasting] Demand Decision Frontier evaluation failed', e);
+      return null;
+    }
+  }, [demandSeries, outlook, decisionState, signals, revenuePerUnit, metric, isSimulating]);
 
-    const histLabels = result.history.map(h => h.date.slice(5));
-    const foreLabels = result.forecast.map(f => f.date.slice(5));
-    const allLabels = [...histLabels, ...foreLabels];
+  const sim = evaluation?.simulated_intervention;
+  const simActive = isSimulating && !!sim;
+  const stability = evaluation?.forecast_stability;
+  const frontier = simActive ? sim.recomputed_frontier : evaluation?.demand_frontier;
+  const gap = simActive ? sim.recomputed_gap : evaluation?.decision_gap;
+  const regret = simActive ? sim.recomputed_regret : evaluation?.decision_regret;
+  const window_ = evaluation?.decision_window;
+  const intervention = evaluation?.recommended_intervention;
 
-    const lastHistValue = result.history[result.history.length - 1]?.value || 0;
+  // A failed recomputation must never leave a previous result on screen as current (AC-DDF-29).
+  const intelligenceUnavailable = !evaluation;
+  const unavailableReason = !decisionState?.derived_impacts
+    ? 'Shared Decision State is unavailable, so executable capacity cannot be read.'
+    : !outlook
+      ? `Intent Fusion evaluation is unavailable${outlookError ? ` (${outlookError})` : ''}.`
+      : !demandSeries
+        ? 'The demand projection could not be loaded.'
+        : 'The Demand Decision Frontier could not be computed from the current inputs.';
 
-    // History dataset (ends at index 13, padded with nulls)
-    const historySeries = [...result.history.map(h => h.value)];
-    const padNulls = Array(result.forecast.length).fill(null);
-    const historyDataset = [...historySeries, ...padNulls];
+  // ── Chart ──────────────────────────────────────────────────────────────────
+  const chartObj = useMemo(() => {
+    if (!demandSeries || !frontier) return null;
+    const histLabels = demandSeries.history.map(h => h.date.slice(5));
+    const foreLabels = demandSeries.forecast.map(f => f.date.slice(5));
 
-    // Forecast dataset (starts at index 13, padded with nulls before)
-    const startNulls = Array(result.history.length - 1).fill(null);
-    const forecastDataset = [...startNulls, lastHistValue, ...result.forecast.map(f => f.value)];
+    // A day the source holds no record for is missing data, not zero demand — it is drawn as a
+    // gap so the chart never shows a phantom collapse, and the forecast is joined to the last
+    // day actually observed.
+    const observed = demandSeries.history.map(h => (h.value > 0 ? h.value : null));
+    let lastObservedIdx = -1;
+    for (let i = observed.length - 1; i >= 0; i--) {
+      if (observed[i] !== null) { lastObservedIdx = i; break; }
+    }
+    const lastHist = lastObservedIdx >= 0 ? (observed[lastObservedIdx] as number) : 0;
+    const lead = Array(Math.max(0, demandSeries.history.length - 1)).fill(null);
+    const future = frontier.trajectory.filter(t => t.emerging_demand_frontier !== null);
+    const join = (series: (number | null)[]) => [...lead, lastHist, ...series];
 
-    return {
-      labels: allLabels,
-      datasets: [
-        {
-          label: 'Historical Actual',
-          data: historyDataset,
-          borderColor: '#4A5A7A',
-          backgroundColor: 'rgba(74, 90, 122, 0.05)',
-          fill: true,
-          tension: 0.4,
-          pointRadius: 2,
-          borderWidth: 2,
+    const datasets: any[] = [
+      {
+        label: 'Actual demand',
+        data: [...observed, ...Array(demandSeries.forecast.length).fill(null)],
+        borderColor: C.neutral, backgroundColor: 'transparent', fill: false,
+        tension: 0.35, pointRadius: 0, pointHoverRadius: 4, borderWidth: 2
+      },
+      {
+        label: 'Current forecast',
+        data: join(future.map(t => t.contextualised_demand)),
+        borderColor: C.faint, backgroundColor: 'transparent', borderDash: [3, 3],
+        fill: false, tension: 0.35, pointRadius: 0, pointHoverRadius: 3, borderWidth: 1.5
+      },
+      {
+        label: 'Emerging demand',
+        data: join(future.map(t => t.emerging_demand_frontier)),
+        borderColor: C.demand,
+        // Shade demand we cannot serve as exposure, and demand we can as headroom. Filling both
+        // the same colour would render spare capacity as if it were a gap.
+        fill: {
+          target: '+1',
+          above: 'rgba(220, 38, 38, 0.10)',
+          below: 'rgba(5, 150, 105, 0.07)'
         },
-        {
-          label: 'Projected Forecast',
-          data: forecastDataset,
-          borderColor: '#0078FF',
-          backgroundColor: 'rgba(0, 120, 255, 0.06)',
-          fill: true,
-          tension: 0.4,
-          borderDash: [5, 5],
-          pointRadius: 2,
-          borderWidth: 2,
-        }
-      ]
-    };
-  };
+        tension: 0.35, pointRadius: 0, pointHoverRadius: 5, borderWidth: 2.5
+      },
+      {
+        label: 'What we can serve',
+        data: join(future.map(t => t.executable_demand_frontier)),
+        borderColor: C.capacity, backgroundColor: 'transparent', borderDash: [6, 4],
+        fill: false, tension: 0, pointRadius: 0, pointHoverRadius: 4, borderWidth: 2
+      }
+    ];
 
-  // ── Scoped Opportunity Warnings ────────────────────────────────────────────
+    if (simActive) {
+      datasets.push({
+        label: 'Modelled after intervention',
+        data: join(sim.recomputed_frontier.trajectory
+          .filter(t => t.simulated_demand_frontier !== null)
+          .map(t => t.simulated_demand_frontier as number)),
+        borderColor: C.good, backgroundColor: 'transparent', borderDash: [2, 3],
+        fill: false, tension: 0, pointRadius: 0, pointHoverRadius: 5, borderWidth: 2.5
+      });
+    }
+    return { labels: [...histLabels, ...foreLabels], datasets };
+  }, [demandSeries, frontier, simActive, sim]);
+
+  // Vertical rule at the point the Decision Window closes.
+  const frontierMarkerPlugin = useMemo(() => ({
+    id: 'ddfDecisionFrontierMarker',
+    afterDatasetsDraw(chart: any) {
+      if (!window_?.deadline_iso || window_.is_indeterminate || !demandSeries) return;
+      const deadlineDay = window_.deadline_iso.slice(0, 10);
+      const idx = demandSeries.forecast.findIndex(f => f.date >= deadlineDay);
+      if (idx < 0) return;
+      const x = chart.scales.x?.getPixelForValue(demandSeries.history.length + idx);
+      if (!Number.isFinite(x)) return;
+      const { ctx, chartArea } = chart;
+      ctx.save();
+      ctx.beginPath();
+      ctx.setLineDash([2, 3]);
+      ctx.strokeStyle = '#94A3B8';
+      ctx.lineWidth = 1;
+      ctx.moveTo(x, chartArea.top); ctx.lineTo(x, chartArea.bottom); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = '#64748B';
+      ctx.font = '600 10px system-ui, sans-serif';
+      ctx.textAlign = x > chartArea.right - 90 ? 'right' : 'left';
+      ctx.fillText('decision window closes', x > chartArea.right - 90 ? x - 5 : x + 5, chartArea.top + 11);
+      ctx.restore();
+    }
+  }), [window_, demandSeries]);
+
+  // ── Proactive risks (preserved) ────────────────────────────────────────────
   const FORECAST_RISKS = [
     {
-      id: 'R001',
-      title: 'High Spoilage Forecast',
-      scope: 'North West',
-      category: 'Chilled',
-      metric: 'waste',
+      id: 'R001', title: 'Elevated spoilage risk', scope: 'North West', category: 'Chilled',
       triggerCondition: () => eventBoost === 'heatwave' && metric === 'waste',
-      reason: 'Predicted heatwave triggers a +24% spoilage spike on dairy & chilled lines. Waste levels are forecast to exceed safety thresholds in 5 North West stores.',
-      actionLabel: 'Deploy Spoilage Markdown Buffer',
-      mitigatedMessage: 'Automatic markdown threshold increased to 30% for short shelf-life items. Waste projection minimized.'
+      reason: 'The modelled heatwave raises spoilage velocity on dairy and chilled lines beyond the safety threshold in five North West stores.',
+      actionLabel: 'Model a markdown buffer',
+      mitigatedMessage: 'Markdown threshold modelled at 30% for short shelf-life items. Waste projection recomputed.'
     },
     {
-      id: 'R002',
-      title: 'Stockout Risk Alert',
-      scope: 'London',
-      category: 'Produce',
-      metric: 'units',
+      id: 'R002', title: 'Stockout risk on key lines', scope: 'London', category: 'Produce',
       triggerCondition: () => promoLift >= 25 && metric === 'units',
-      reason: 'High promotional lift simulation exceeds existing London warehouse stock buffers. Estimated stockout probability is 42% on key SKUs.',
-      actionLabel: 'Optimize Regional Safety Stock',
-      mitigatedMessage: 'Safety stock buffers increased by 15% at London distribution hub. Stockout risk mitigated.'
+      reason: 'Promotional depth at this level exceeds the modelled London warehouse buffer on key SKUs.',
+      actionLabel: 'Model a safety stock increase',
+      mitigatedMessage: 'Safety stock modelled 15% higher at the London hub. Projection recomputed.'
     },
     {
-      id: 'R003',
-      title: 'Category Margin Leakage',
-      scope: 'All',
-      category: 'Dairy',
-      metric: 'revenue',
+      id: 'R003', title: 'Category margin leakage', scope: 'All', category: 'Dairy',
       triggerCondition: () => cannibalization >= 10,
-      reason: 'Cannibalization index exceeding 10% is forecast to compress adjacent product margins by £4.5K. Recommend adjusting cross-promotions.',
-      actionLabel: 'Rebalance Category Pricing',
-      mitigatedMessage: 'Category cross-promotions rebalanced. Projected margin leakage stabilized.'
+      reason: 'Cannibalisation above 10% compresses adjacent line margins in the modelled scenario.',
+      actionLabel: 'Model a promotion rebalance',
+      mitigatedMessage: 'Cross-promotions rebalanced in the model. Projected margin leakage recomputed.'
     }
   ];
-
   const activeRisks = FORECAST_RISKS.filter(risk => {
-    // Role filtering scopes
     if (role === 'category_manager' && risk.category !== focusCategory) return false;
-    if (role === 'store_manager' && risk.scope !== 'All' && risk.scope !== 'North West') return false; // Manchester Picadilly S001 is North West
+    if (role === 'store_manager' && risk.scope !== 'All' && risk.scope !== 'North West') return false;
     return risk.triggerCondition();
   });
 
-  const isRoleLocked = (type: 'store' | 'category', value: string) => {
-    if (role === 'store_manager' && type === 'store' && value !== selectedStore) return true;
-    if (role === 'category_manager' && type === 'category' && value !== focusCategory) return true;
-    return false;
-  };
-
-  const handleRoleLockAlert = (type: string, label: string) => {
-    alert(`Access Restricted: Looker row-level access filters (restricted_to: own_${type}) restrict your account from viewing forecasts outside your scope.`);
-  };
-
-  const chartObj = getChartData();
+  const scopeLabel = role === 'exec' ? 'National' : role === 'store_manager' ? storeName : `${focusCategory} category`;
 
   return (
-    <div className="page-content animate-fade" style={{ maxWidth: 1200, margin: '0 auto', paddingBottom: 48 }}>
+    <div className="page-content animate-fade" style={{ maxWidth: 1240, margin: '0 auto', paddingBottom: 56 }}>
 
-      {/* Five-Second Proposition Header Banner */}
-      <div style={{
-        background: '#FFFFFF',
-        border: '1px solid var(--border)',
-        borderRadius: 'var(--radius-md)',
-        padding: '20px',
-        marginBottom: 24,
-        boxShadow: 'var(--shadow-sm)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-          <div>
-            <h1 style={{ fontSize: '1.4rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-              Demand & Forecast Contextualisation
-            </h1>
+      {/* ── Header ── */}
+      <div style={{ ...card, padding: '20px 24px', marginBottom: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+          <div style={{ minWidth: 280, flex: 1 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+              <h1 style={{ fontSize: '1.375rem', fontWeight: 700, color: C.ink, letterSpacing: '-0.015em', margin: 0 }}>
+                Demand Decision Frontier
+              </h1>
+              {provenanceChip('DDF-01 · P0')}
+              {provenanceChip('Synthetic demonstration · Level 0', 'warn')}
+            </div>
+            <p style={{ fontSize: '0.8125rem', color: C.muted, margin: 0, lineHeight: 1.5, maxWidth: 620 }}>
+              What customers are trending towards, what we can actually serve, and what it costs to wait.
+            </p>
           </div>
 
-          {onNavigateToExperiment && (
-            <button
-              onClick={() => onNavigateToExperiment('EXP-COMMITMENT-01')}
-              style={{
-                padding: '5px 12px',
-                borderRadius: 'var(--radius-sm)',
-                background: 'var(--g10x-orange)',
-                color: '#FFFFFF',
-                border: 'none',
-                fontWeight: 500,
-                fontSize: '0.75rem',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6
-              }}
-            >
-              Explore Commitment Impact <ChevronRight size={14} />
-            </button>
-          )}
-        </div>
-
-        {/* Intent Fusion Contextualised Decision Outlook Panel */}
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-          gap: 12,
-          background: 'var(--bg-base)',
-          padding: '16px 20px',
-          borderRadius: 'var(--radius-md)',
-          border: '1px solid var(--border-accent)',
-          marginBottom: 16
-        }}>
-          <div>
-            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Baseline Forecast
-            </div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              +12% Volume
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: '0.6875rem', color: 'var(--g10x-orange)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Commercial Intent
-            </div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--g10x-orange)' }}>
-              +7% (20% Promo)
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: '0.6875rem', color: 'var(--g10x-blue)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Observed Signals
-            </div>
-            <div style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--g10x-blue)' }}>
-              +3% (Early Demand)
-            </div>
-          </div>
-          <div style={{ borderLeft: '2px solid var(--g10x-blue)', paddingLeft: 12 }}>
-            <div style={{ fontSize: '0.6875rem', color: 'var(--g10x-blue)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Contextualised Outlook
-            </div>
-            <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--g10x-blue)' }}>
-              +22% Demand Lift
-            </div>
-          </div>
-          <div style={{ borderLeft: '2px solid var(--danger)', paddingLeft: 12 }}>
-            <div style={{ fontSize: '0.6875rem', color: 'var(--danger)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Supplier Capacity Cap
-            </div>
-            <div style={{ fontSize: '1.3rem', fontWeight: 800, color: 'var(--danger)' }}>
-              +10% (12pp Gap)
-            </div>
-          </div>
-        </div>
-
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
-          gap: 12,
-          background: 'var(--bg-base)',
-          padding: '14px 18px',
-          borderRadius: 'var(--radius-md)',
-          border: '1px solid var(--border)'
-        }}>
-          <div>
-            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Forecast Confidence
-            </div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--success)' }}>
-              91% Model Accuracy
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Fresh Demand Trajectory
-            </div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--g10x-blue)' }}>
-              +13% Accelerating
-            </div>
-          </div>
-          <div>
-            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              Multi-Horizon Window
-            </div>
-            <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
-              14 to 90 Days
-            </div>
-          </div>
-        </div>
-
-        {/* Scoped RLS Controls */}
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap' }}>
-          {role === 'category_manager' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>Focus Category:</span>
-              <select 
-                className="select" 
-                value={focusCategory} 
-                onChange={e => setFocusCategory(e.target.value)}
-                style={{ width: 140, height: 36 }}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span style={{ fontSize: '0.75rem', color: C.muted }}>
+              <strong style={{ color: C.body }}>{scopeLabel}</strong>
+            </span>
+            {onNavigateToExperiment && (
+              <button
+                onClick={() => onNavigateToExperiment('EXP-COMMITMENT-01')}
+                style={{
+                  padding: '6px 14px', borderRadius: 6, background: C.accent, color: '#FFF',
+                  border: 'none', fontWeight: 600, fontSize: '0.75rem', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: 6
+                }}
               >
-                {['Chilled','Dairy','Produce','Bakery','Frozen','Ambient','BWS','Non-food'].map(cat => (
-                  <option key={cat} value={cat}>{cat}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {role === 'store_manager' && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>My Store:</span>
-              <select 
-                className="select" 
-                value={selectedStore} 
-                onChange={e => setSelectedStore(e.target.value)}
-                style={{ width: 180, height: 36 }}
-              >
-                {storesData.map(s => (
-                  <option key={s.store_id} value={s.store_id}>{s.name}</option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          <span className="badge badge-accent" style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-            <Calendar size={11} strokeWidth={2} color="currentColor" />
-            ML Forecast Active
-          </span>
+                Commitment impact <ChevronRight size={14} />
+              </button>
+            )}
+          </div>
         </div>
+
+        {/* Role scoping controls */}
+        {(role === 'category_manager' || role === 'store_manager') && (
+          <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 14, flexWrap: 'wrap' }}>
+            {role === 'category_manager' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: '0.8125rem', color: C.muted, fontWeight: 600 }}>Focus category</span>
+                <select className="select" value={focusCategory} onChange={e => setFocusCategory(e.target.value)}
+                  style={{ width: 140, height: 34, fontSize: '0.8125rem' }}>
+                  {['Chilled', 'Dairy', 'Produce', 'Bakery', 'Frozen', 'Ambient', 'BWS', 'Non-food'].map(c => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {role === 'store_manager' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span style={{ fontSize: '0.8125rem', color: C.muted, fontWeight: 600 }}>My store</span>
+                <select className="select" value={selectedStore} onChange={e => setSelectedStore(e.target.value)}
+                  style={{ width: 180, height: 34, fontSize: '0.8125rem' }}>
+                  {storesData.map(s => <option key={s.store_id} value={s.store_id}>{s.name}</option>)}
+                </select>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
-      {/* RLS Scope Indicators for Non-Exec Roles */}
-      {role !== 'exec' && (
-        <div className="card mb-6" style={{ borderColor: 'rgba(0, 120, 255, 0.25)', background: 'var(--accent-light)' }}>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-            <Info size={16} strokeWidth={1.75} color="var(--accent)" style={{ flexShrink: 0 }} />
-            <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', lineHeight: 1.5 }}>
-              <strong>Looker RLS Governance Policy Applied:</strong> Forecast metrics, actuals, and AI briefings are automatically restricted to your authorized scope ({role === 'store_manager' ? `Piccadilly Store` : `${focusCategory} Category`}). Cross-scope views are locked.
+      {/* ── Intelligence unavailable ── */}
+      {intelligenceUnavailable && (
+        <div style={{
+          ...card, borderColor: '#FDE68A', background: '#FFFBEB',
+          padding: '14px 18px', marginBottom: 16, display: 'flex', gap: 10, alignItems: 'flex-start'
+        }}>
+          <AlertTriangle size={16} color="#B45309" style={{ marginTop: 1, flexShrink: 0 }} />
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: '#92400E' }}>
+              Decision intelligence unavailable
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#92400E', marginTop: 2, lineHeight: 1.5 }}>
+              {unavailableReason} No previous result is shown in its place.
             </div>
           </div>
         </div>
       )}
 
-      {/* Main Grid: Adjuster Sandbox (Left) & Chart Visualizer (Right) */}
-      <div className="grid-2-1 mb-6">
-        
-        {/* Adjusters Sandbox (Simulator Form) */}
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <RefreshCw size={15} strokeWidth={1.75} color="#0078FF" style={{ animation: loading ? 'spin 1.5s linear infinite' : 'none' }} />
-              Scenario Control Sandbox
-            </span>
+      {/* ── The decision story: stability → gap → window → regret ── */}
+      {evaluation && gap && stability && regret && window_ && (
+        <>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+            gap: 12, marginBottom: 12
+          }}>
+            {/* 1. Forecast Stability */}
+            <div style={{ ...card, padding: '14px 16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <span style={eyebrow}>Forecast stability</span>
+                <span style={{
+                  fontSize: '0.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                  color: stability.stability_state === 'DETERIORATING' ? C.risk
+                    : stability.stability_state === 'WATCH' ? '#B45309'
+                    : stability.stability_state === 'STABLE' ? C.good : C.muted,
+                  background: stability.stability_state === 'DETERIORATING' ? '#FEF2F2'
+                    : stability.stability_state === 'WATCH' ? '#FFFBEB'
+                    : stability.stability_state === 'STABLE' ? '#ECFDF5' : C.hairline
+                }}>{stability.stability_state}</span>
+              </div>
+              {stability.status === 'VALID' ? (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
+                    <span style={{ fontSize: '1.5rem', fontWeight: 800, color: C.ink, letterSpacing: '-0.02em' }}>
+                      {stability.stability_score}
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: C.muted }}>
+                      revision risk {stability.revision_risk?.toLowerCase()}
+                    </span>
+                  </div>
+                  <div style={{ fontSize: '0.6875rem', color: C.muted, marginTop: 6, lineHeight: 1.45 }}>
+                    Signals point {stability.likely_revision_direction.toLowerCase()} by{' '}
+                    {stability.likely_revision_magnitude_min_pct}–{stability.likely_revision_magnitude_max_pct}%,
+                    at {stability.material_revision_probability_pct}% likelihood.
+                  </div>
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.hairline}`, fontSize: '0.625rem', color: C.faint }}>
+                    {stability.contributing_signal_refs.length} observed signal
+                    {stability.contributing_signal_refs.length === 1 ? '' : 's'} · evidence confidence {stability.evidence_confidence_pct}%
+                  </div>
+                </>
+              ) : (
+                <div style={{ fontSize: '0.75rem', color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
+                  <strong style={{ color: C.body }}>Indeterminate.</strong> {stability.indeterminate_reason}
+                </div>
+              )}
+            </div>
+
+            {/* 2. Decision Gap — the hero */}
+            <div style={{
+              ...card, padding: '14px 16px',
+              borderColor: simActive ? '#A7F3D0' : gap.exposed_demand_units > 0 ? '#FECACA' : C.line,
+              background: simActive ? '#F0FDF4' : C.surface
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <span style={{ ...eyebrow, color: simActive ? '#15803D' : C.muted }}>
+                  Decision gap {simActive && '· modelled'}
+                </span>
+                <span style={{
+                  fontSize: '0.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                  color: simActive ? '#15803D' : gap.risk_state === 'LOW' ? C.good : C.risk,
+                  background: simActive ? '#DCFCE7' : gap.risk_state === 'LOW' ? '#ECFDF5' : '#FEF2F2'
+                }}>{gap.risk_state}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
+                <span style={{
+                  fontSize: '1.5rem', fontWeight: 800, letterSpacing: '-0.02em',
+                  color: simActive ? '#15803D' : C.ink
+                }}>{fmt.pp(gap.exposed_demand_pp)}</span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: C.muted }}>
+                  {fmt.int(gap.exposed_demand_units)} units
+                </span>
+              </div>
+              <div style={{ fontSize: '0.6875rem', color: C.muted, marginTop: 6, lineHeight: 1.45 }}>
+                {fmt.money(gap.revenue_at_risk_gbp)} of revenue we cannot currently serve,
+                carrying {fmt.money(gap.margin_at_risk_gbp)} gross margin.
+              </div>
+              <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.hairline}`, display: 'flex', justifyContent: 'space-between', fontSize: '0.625rem', color: C.faint }}>
+                <span>Emerging <strong style={{ color: C.body }}>+{gap.emerging_demand_pct}%</strong></span>
+                <span>Servable <strong style={{ color: C.body }}>+{gap.executable_demand_pct}%</strong></span>
+              </div>
+            </div>
+
+            {/* 3. Decision Window */}
+            <div style={{ ...card, padding: '14px 16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <span style={eyebrow}>Decision window</span>
+                <span style={{
+                  fontSize: '0.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                  color: window_.window_state === 'OPEN' ? C.demand
+                    : window_.window_state === 'CLOSING_SOON' ? '#B45309' : C.muted,
+                  background: window_.window_state === 'OPEN' ? '#E0F2FE'
+                    : window_.window_state === 'CLOSING_SOON' ? '#FFFBEB' : C.hairline
+                }}>{window_.window_state}</span>
+              </div>
+              {window_.is_indeterminate ? (
+                <div style={{ fontSize: '0.75rem', color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
+                  <strong style={{ color: C.body }}>Indeterminate.</strong> {window_.explanation}
+                </div>
+              ) : (
+                <>
+                  <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
+                    <span style={{ fontSize: '1.5rem', fontWeight: 800, color: C.ink, letterSpacing: '-0.02em' }}>
+                      {window_.remaining_hours}h
+                    </span>
+                    <span style={{ fontSize: '0.75rem', color: C.muted }}>of scenario time</span>
+                  </div>
+                  <div style={{ fontSize: '0.6875rem', color: C.muted, marginTop: 6, lineHeight: 1.45 }}>
+                    {window_.scenario_now_display} → {window_.deadline_display}, set by the{' '}
+                    {window_.declared_constraint_name}.
+                  </div>
+                  <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.hairline}`, fontSize: '0.625rem', color: C.faint, display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <Clock size={10} /> Modelled scenario clock, not live time
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* 4. Decision Regret */}
+            <div style={{ ...card, padding: '14px 16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+                <span style={eyebrow}>Cost of choosing wrongly</span>
+                <span style={{
+                  fontSize: '0.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                  color: regret.recommended_action === 'CHOICE_REQUIRED' ? C.muted : '#6D28D9',
+                  background: regret.recommended_action === 'CHOICE_REQUIRED' ? C.hairline : '#F5F3FF'
+                }}>{regret.recommended_action.replace(/_/g, ' ')}</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
+                <span style={{ fontSize: '1.5rem', fontWeight: 800, color: C.ink, letterSpacing: '-0.02em' }}>
+                  {fmt.money(regret.alternatives.do_nothing.expected_regret_gbp)}
+                </span>
+                <span style={{ fontSize: '0.75rem', color: C.muted }}>if we hold</span>
+              </div>
+              <div style={{ fontSize: '0.6875rem', color: C.muted, marginTop: 6, lineHeight: 1.45 }}>
+                {regret.recommended_action === 'CHOICE_REQUIRED'
+                  ? 'The alternatives do not separate materially on these inputs. CogniX names no winner.'
+                  : `Waiting instead forgoes ${fmt.money(regret.alternatives.wait.expected_regret_gbp)}.`}
+              </div>
+              <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.hairline}`, fontSize: '0.625rem', color: C.faint }}>
+                Modelled expected values, not calibrated probabilities
+              </div>
+            </div>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            
-            {/* Metric & Horizon & Model selection */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <div>
-                <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                  FORECAST METRIC
-                </label>
-                <select 
-                  className="select w-full" 
-                  value={metric} 
-                  onChange={e => setMetric(e.target.value as any)}
-                  style={{ height: 38, fontSize: '0.875rem' }}
-                >
-                  <option value="revenue">Gross Revenue (£)</option>
-                  <option value="units">Units Demanded (Qty)</option>
-                  <option value="waste">Expected Waste (Qty)</option>
-                </select>
+          {/* ── Action bar ── */}
+          {intervention && (
+            <div style={{
+              ...card, padding: '14px 18px', marginBottom: 16,
+              background: simActive ? '#ECFDF5' : C.sunken,
+              borderColor: simActive ? '#A7F3D0' : C.line,
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap'
+            }}>
+              <div style={{ flex: 1, minWidth: 300 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 3, flexWrap: 'wrap' }}>
+                  <span style={{ ...eyebrow, color: simActive ? '#047857' : C.muted }}>
+                    {simActive ? 'Modelled outcome' : intervention.is_actionable ? 'CogniX recommends' : 'No action required'}
+                  </span>
+                  {simActive && provenanceChip('Simulation only — nothing ordered', 'warn')}
+                </div>
+                <div style={{ fontWeight: 700, fontSize: '0.875rem', color: C.ink }}>
+                  {simActive ? sim.outcome_statement : intervention.intervention_name}
+                </div>
+                {!simActive && (
+                  <div style={{ fontSize: '0.75rem', color: C.muted, marginTop: 3, lineHeight: 1.45 }}>
+                    {intervention.is_actionable
+                      ? `Recovers ${fmt.int(intervention.expected_units_recovered)} of ${fmt.int(gap.exposed_demand_units)} exposed units — ${fmt.money(intervention.expected_margin_recovered_gbp)} gross margin for ${fmt.money(intervention.intervention_cost_gbp)} of flex premium, leaving ${fmt.pp(intervention.residual_gap_pp)} exposed.`
+                      : intervention.gated_reason}
+                  </div>
+                )}
               </div>
 
-              <div>
-                <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                  PREDICTIVE MODEL
-                </label>
-                <select 
-                  className="select w-full" 
-                  value={model} 
-                  onChange={e => setModel(e.target.value as any)}
-                  style={{ height: 38, fontSize: '0.875rem' }}
+              {intervention.is_actionable && (
+                <button
+                  onClick={() => setIsSimulating(!isSimulating)}
+                  style={{
+                    padding: '9px 16px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                    background: simActive ? C.surface : C.ink,
+                    color: simActive ? C.body : '#FFF',
+                    boxShadow: simActive ? `inset 0 0 0 1px ${C.line}` : '0 1px 2px rgba(15,23,42,0.15)',
+                    fontSize: '0.8125rem', fontWeight: 600,
+                    display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap'
+                  }}
                 >
-                  <option value="genai">GenAI Demand Predictor (Adaptive)</option>
-                  <option value="prophet">Prophet Seasonality (ML)</option>
-                  <option value="arima">ARIMA Baseline (Statistical)</option>
-                </select>
-              </div>
+                  {simActive ? <><RotateCcw size={14} /> Reset simulation</> : <><Zap size={14} /> Simulate intervention</>}
+                </button>
+              )}
             </div>
+          )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14 }}>
-              <div>
-                <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                  FORECAST HORIZON
-                </label>
-                <select 
-                  className="select w-full" 
-                  value={horizon} 
-                  onChange={e => setHorizon(Number(e.target.value) as any)}
-                  style={{ height: 38, fontSize: '0.875rem' }}
-                >
-                  <option value="7">7 Days Out</option>
-                  <option value="14">14 Days Out</option>
-                  <option value="30">30 Days Out</option>
-                </select>
+          {/* ── Progressive disclosure ── */}
+          <div style={{ marginBottom: 16 }}>
+            <button
+              onClick={() => setShowDeepReasoning(!showDeepReasoning)}
+              style={{
+                padding: '7px 14px', borderRadius: 6, cursor: 'pointer',
+                background: showDeepReasoning ? C.ink : C.surface,
+                color: showDeepReasoning ? '#FFF' : C.body,
+                border: `1px solid ${showDeepReasoning ? C.ink : C.line}`,
+                fontSize: '0.75rem', fontWeight: 600,
+                display: 'flex', alignItems: 'center', gap: 7
+              }}
+            >
+              <Compass size={13} />
+              {showDeepReasoning ? 'Hide reasoning' : 'How CogniX reached this'}
+              {showDeepReasoning ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+            </button>
+          </div>
+
+          {showDeepReasoning && (
+            <div style={{ ...card, padding: '18px 22px', marginBottom: 20 }}>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 16, borderBottom: `1px solid ${C.line}`, paddingBottom: 12, flexWrap: 'wrap' }}>
+                {[
+                  { id: 'changed', label: 'What changed' },
+                  { id: 'constrains', label: 'What constrains us' },
+                  { id: 'choices', label: 'What the choices cost' }
+                ].map(tab => (
+                  <button key={tab.id} onClick={() => setReasoningTab(tab.id as any)}
+                    style={{
+                      padding: '6px 12px', borderRadius: 6, border: 'none', cursor: 'pointer',
+                      background: reasoningTab === tab.id ? C.demand : C.hairline,
+                      color: reasoningTab === tab.id ? '#FFF' : C.body,
+                      fontSize: '0.75rem', fontWeight: 600
+                    }}>{tab.label}</button>
+                ))}
               </div>
 
-              <div>
-                <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, display: 'block', marginBottom: 6 }}>
-                  EVENT / HOLIDAY BOOST
-                </label>
-                <select 
-                  className="select w-full" 
-                  value={eventBoost} 
-                  onChange={e => setEventBoost(e.target.value)}
-                  style={{ height: 38, fontSize: '0.875rem' }}
-                >
-                  <option value="none">No Events Expected</option>
-                  <option value="heatwave">Heatwave / Summer Spike (+25%)</option>
-                  <option value="holiday">Bank Holiday Weekend (+15%)</option>
-                  <option value="christmas">Christmas Holiday Spike (+35%)</option>
-                </select>
-              </div>
+              {reasoningTab === 'changed' && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
+                  <div style={{ background: C.sunken, padding: 14, borderRadius: 8, border: `1px solid ${C.line}` }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: C.ink, marginBottom: 8 }}>
+                      Why the outlook is moving
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: C.body, lineHeight: 1.7 }}>
+                      Intent Fusion (IFI-01) decomposes the outlook as baseline{' '}
+                      <strong>+{evaluation.intent_fusion_outlook.baseline_forecast.baseline_lift_pct}%</strong>, commercial intent{' '}
+                      <strong>+{evaluation.intent_fusion_outlook.commercial_intent.intent_effect_pct}%</strong> (
+                      {evaluation.intent_fusion_outlook.commercial_intent.discount_depth}% discount depth), observed signals{' '}
+                      <strong>+{evaluation.intent_fusion_outlook.observed_signals.observed_signal_effect_pct}%</strong>.
+                    </div>
+                    <div style={{ fontSize: '0.6875rem', color: C.faint, marginTop: 8 }}>
+                      Bound to <code>POST /api/v1/intent-fusion/evaluate</code> · Decision State v
+                      {evaluation.intent_fusion_outlook.decision_state_version}
+                    </div>
+                  </div>
+
+                  <div style={{ background: C.sunken, padding: 14, borderRadius: 8, border: `1px solid ${C.line}` }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: C.ink, marginBottom: 8 }}>
+                      Signals behind the stability score
+                    </div>
+                    {stability.status === 'VALID' ? (
+                      <ul style={{ margin: 0, paddingLeft: 16, fontSize: '0.75rem', color: C.body, lineHeight: 1.7 }}>
+                        {signals
+                          .filter(s => stability.contributing_signal_refs.includes(s.signal_id))
+                          .map(s => (
+                            <li key={s.signal_id}>
+                              <code>{s.signal_id}</code> — {s.signal_type.replace(/_/g, ' ').toLowerCase()}{' '}
+                              ({(s.delta_pct ?? 0) >= 0 ? '+' : ''}{s.delta_pct}% vs baseline)
+                            </li>
+                          ))}
+                      </ul>
+                    ) : (
+                      <div style={{ fontSize: '0.75rem', color: C.muted, lineHeight: 1.6 }}>
+                        {stability.indeterminate_reason}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ background: C.sunken, padding: 14, borderRadius: 8, border: `1px solid ${C.line}` }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: C.ink, marginBottom: 8 }}>
+                      Stability is not confidence
+                    </div>
+                    <p style={{ fontSize: '0.75rem', color: C.body, lineHeight: 1.6, margin: 0 }}>
+                      {stability.confidence_distinction_statement}
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {reasoningTab === 'constrains' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                  <div style={{ fontSize: '0.75rem', color: C.body, lineHeight: 1.6, background: C.sunken, padding: 12, borderRadius: 8, border: `1px solid ${C.line}` }}>
+                    {gap.reconciliation_evidence}
+                  </div>
+                  {gap.contributing_constraints.map(c => (
+                    <div key={c.constraint_id} style={{
+                      display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 14,
+                      padding: '10px 14px', background: C.surface, borderRadius: 6, border: `1px solid ${C.line}`
+                    }}>
+                      <div style={{ minWidth: 200 }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: C.ink }}>
+                          {c.rank}. {c.name}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: C.muted, marginTop: 2, lineHeight: 1.45 }}>
+                          {c.description}
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: C.capacity }}>
+                          {fmt.pp(c.impact_pp)} · {fmt.int(c.impact_units)} units
+                        </div>
+                        <div style={{ fontSize: '0.625rem', color: C.faint, marginTop: 2 }}>
+                          {c.provenance_basis.replace(/_/g, ' ').toLowerCase()}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  {!window_.is_indeterminate && (
+                    <div style={{ fontSize: '0.75rem', color: C.body, lineHeight: 1.6, background: C.sunken, padding: 12, borderRadius: 8, border: `1px solid ${C.line}` }}>
+                      {window_.explanation} {window_.timezone_note}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {reasoningTab === 'choices' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: 12 }}>
+                    {(['act_now', 'wait', 'do_nothing'] as const).map(key => {
+                      const alt = regret.alternatives[key];
+                      const isRec = regret.recommended_action === alt.action_type;
+                      return (
+                        <div key={key} style={{
+                          padding: 14, borderRadius: 8,
+                          background: isRec ? '#F0FDF4' : C.sunken,
+                          border: `1px solid ${isRec ? '#86EFAC' : C.line}`
+                        }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+                            <span style={{ fontWeight: 700, fontSize: '0.8125rem', color: C.ink }}>{alt.action_name}</span>
+                            {isRec && <span style={{ fontSize: '0.625rem', fontWeight: 700, color: '#15803D', background: '#DCFCE7', padding: '1px 6px', borderRadius: 4 }}>RECOMMENDED</span>}
+                          </div>
+                          <div style={{ fontSize: '0.75rem', color: C.body, lineHeight: 1.6 }}>
+                            <div><strong>Captures:</strong> {alt.what_it_captures}</div>
+                            <div style={{ marginTop: 4 }}><strong>Risks:</strong> {alt.what_it_risks}</div>
+                            <div style={{ marginTop: 4 }}><strong>Forgoes:</strong> {alt.what_it_forgoes}</div>
+                          </div>
+                          <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.line}`, display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
+                            <span style={{ color: C.muted }}>Expected value</span>
+                            <strong style={{ color: alt.expected_decision_value_gbp >= 0 ? C.good : C.risk }}>
+                              {fmt.money(alt.expected_decision_value_gbp)}
+                            </strong>
+                          </div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginTop: 4 }}>
+                            <span style={{ color: C.muted }}>Regret</span>
+                            <strong style={{ color: alt.expected_regret_gbp === 0 ? C.good : '#6D28D9' }}>
+                              {fmt.money(alt.expected_regret_gbp)}
+                            </strong>
+                          </div>
+                          {alt.feasibility_status !== 'FEASIBLE' && (
+                            <div style={{ fontSize: '0.625rem', color: '#B45309', marginTop: 6 }}>
+                              Not currently actionable: {alt.gating_reasons?.[0]}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ background: C.sunken, padding: 14, borderRadius: 8, border: `1px solid ${C.line}` }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: C.ink, marginBottom: 6 }}>
+                      The inputs all three share
+                    </div>
+                    <p style={{ fontSize: '0.75rem', color: C.body, lineHeight: 1.6, margin: '0 0 10px 0' }}>
+                      {regret.regret_definition}
+                    </p>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '6px 18px', fontSize: '0.75rem', color: C.body }}>
+                      <span>Exposed demand: <strong>{fmt.int(regret.shared_inputs_summary.exposed_demand_units)} units</strong></span>
+                      <span>Recoverable within window: <strong>{fmt.int(regret.shared_inputs_summary.capturable_units)} units</strong></span>
+                      <span>Revenue per unit: <strong>£{regret.shared_inputs_summary.revenue_per_unit_gbp.toFixed(2)}</strong></span>
+                      <span>Gross margin per unit: <strong>£{regret.shared_inputs_summary.gross_margin_per_unit_gbp.toFixed(2)}</strong></span>
+                      <span>Demand holds at: <strong>{regret.shared_inputs_summary.demand_materialises_probability_pct}%</strong></span>
+                      <span>Erosion if we wait: <strong>{regret.shared_inputs_summary.lead_time_erosion_pct}%</strong></span>
+                      <span>Flex premium: <strong>{fmt.money(regret.shared_inputs_summary.intervention_cost_gbp)}</strong></span>
+                      <span>Separation threshold: <strong>{fmt.money(regret.separation_threshold_gbp)}</strong></span>
+                    </div>
+                  </div>
+
+                  <div style={{ background: C.sunken, padding: 14, borderRadius: 8, border: `1px solid ${C.line}` }}>
+                    <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: C.ink, marginBottom: 8 }}>
+                      Where every number comes from
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {evaluation.assumptions.map(a => (
+                        <div key={a.key} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, fontSize: '0.75rem', flexWrap: 'wrap' }}>
+                          <span style={{ color: C.body, fontWeight: 600, minWidth: 170 }}>{a.label}</span>
+                          <span style={{ color: C.muted, flex: 1, minWidth: 180 }}>{a.value}</span>
+                          {provenanceChip(
+                            a.provenance_class.replace(/_/g, ' ').toLowerCase(),
+                            a.provenance_class === 'MODELLED_DEMO_ASSUMPTION' ? 'warn' : 'neutral'
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
+          )}
+        </>
+      )}
 
-            <div className="divider" style={{ margin: '4px 0' }} />
-
-            {/* Sliders */}
+      {/* ── Chart + scenario controls ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2.1fr) minmax(260px, 1fr)', gap: 16, marginBottom: 20 }}
+        className="ddf-main-grid">
+        <div style={{ ...card, padding: '16px 18px', display: 'flex', flexDirection: 'column' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 4 }}>
             <div>
-              <div className="flex justify-between" style={{ marginBottom: 6 }}>
-                <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                  PROMOTION LIFT FACTOR
-                </label>
-                <span style={{ fontSize: '0.75rem', color: 'var(--accent)', fontWeight: 700 }}>+{promoLift}%</span>
+              <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: C.ink }}>
+                What customers want, against what we can serve
               </div>
-              <input
-                type="range"
-                min="0"
-                max="50"
-                step="5"
-                value={promoLift}
-                onChange={e => handlePromoLiftChange(Number(e.target.value))}
-                style={{ width: '100%', accentColor: 'var(--accent)', cursor: 'pointer' }}
-              />
-              <span style={{ fontSize: '0.625rem', color: 'var(--text-muted)' }}>Simulate sales volume expansion due to marketing campaign depths</span>
-            </div>
-
-            <div>
-              <div className="flex justify-between" style={{ marginBottom: 6 }}>
-                <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                  CANNIBALIZATION FACTOR
-                </label>
-                <span style={{ fontSize: '0.75rem', color: 'var(--warning)', fontWeight: 700 }}>-{cannibalization}%</span>
+              <div style={{ fontSize: '0.6875rem', color: C.muted, marginTop: 2 }}>
+                Demand units over {horizon} days. The shaded band is the Decision Gap.
               </div>
-              <input
-                type="range"
-                min="0"
-                max="20"
-                step="2"
-                value={cannibalization}
-                onChange={e => setCannibalization(Number(e.target.value))}
-                style={{ width: '100%', accentColor: 'var(--warning)', cursor: 'pointer' }}
-              />
-              <span style={{ fontSize: '0.625rem', color: 'var(--text-muted)' }}>Simulate category margin drag on adjacent items</span>
             </div>
-
-          </div>
-        </div>
-
-        {/* Double-Series Visualizer Chart */}
-        <div className="card" style={{ display: 'flex', flexDirection: 'column' }}>
-          <div className="card-header">
-            <span className="card-title">Governed Demand Outlook (History & Future)</span>
+            {simActive && (
+              <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#047857', background: '#ECFDF5', border: '1px solid #A7F3D0', padding: '2px 8px', borderRadius: 12 }}>
+                Simulation active
+              </span>
+            )}
           </div>
 
-          <div style={{ flex: 1, position: 'relative', minHeight: 220 }}>
+          <div style={{ flex: 1, position: 'relative', minHeight: 300, marginTop: 10 }}>
             {loading && (
               <div style={{
-                position: 'absolute',
-                top: 0, left: 0, right: 0, bottom: 0,
-                background: 'rgba(26,34,53,0.7)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                borderRadius: 'var(--radius-lg)',
-                zIndex: 10
+                position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.82)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: 8, zIndex: 10
               }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-                  <Loader2 size={24} strokeWidth={2} className="spinner" style={{ color: 'var(--accent)' }} />
-                  <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>Calculating ML Projection...</span>
+                  <Loader2 size={22} className="spinner" style={{ color: C.demand }} />
+                  <span style={{ fontSize: '0.8125rem', color: C.body, fontWeight: 600 }}>Recomputing projection…</span>
                 </div>
               </div>
             )}
-
-            {chartObj && (
+            {chartObj ? (
               <Line
                 data={chartObj}
+                plugins={[frontierMarkerPlugin]}
                 options={{
                   responsive: true,
                   maintainAspectRatio: false,
+                  interaction: { mode: 'index', intersect: false },
                   plugins: {
                     legend: {
-                      display: true,
-                      position: 'top',
-                      labels: { color: '#8B9DC3', boxWidth: 12, boxHeight: 3, font: { size: 10 } }
+                      display: true, position: 'bottom',
+                      labels: { color: C.body, boxWidth: 14, boxHeight: 3, padding: 14, font: { size: 11, weight: 600 }, usePointStyle: false }
                     },
                     tooltip: {
-                      backgroundColor: '#1A2235',
-                      titleColor: '#F0F4FF',
-                      bodyColor: '#8B9DC3',
-                      borderColor: '#2A3550',
-                      borderWidth: 1,
+                      backgroundColor: C.ink, titleColor: '#F8FAFC', bodyColor: '#E2E8F0',
+                      borderColor: '#334155', borderWidth: 1, padding: 10,
                       callbacks: {
-                        label: (ctx) => {
+                        label: (ctx: any) => {
                           const val = ctx.raw as number;
-                          if (val === null) return '';
-                          const label = ctx.dataset.label || '';
-                          const fmtVal = metric === 'revenue' ? fmt.currency(val) : fmt.int(val);
-                          return ` ${label}: ${fmtVal}`;
+                          if (val === null || val === undefined) return '';
+                          return ` ${ctx.dataset.label}: ${fmt.int(val)} units`;
                         }
                       }
                     }
                   },
                   scales: {
-                    x: { 
-                      grid: { color: 'rgba(255,255,255,0.03)' }, 
-                      ticks: { color: '#8B9DC3', font: { size: 9 } } 
-                    },
-                    y: { 
-                      grid: { color: 'rgba(255,255,255,0.03)' }, 
-                      ticks: { 
-                        color: '#8B9DC3', 
-                        font: { size: 9 },
-                        callback: (v: any) => metric === 'revenue' ? fmt.currency(v) : fmt.int(v)
-                      } 
+                    x: { grid: { color: C.hairline }, ticks: { color: C.muted, font: { size: 10 }, maxRotation: 0, autoSkipPadding: 16 } },
+                    y: {
+                      grid: { color: C.hairline },
+                      ticks: {
+                        color: C.muted, font: { size: 10 },
+                        callback: (v: any) => v >= 1000 ? `${(v / 1000).toFixed(0)}K` : String(v)
+                      }
                     }
                   }
                 }}
               />
+            ) : !loading && (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: C.muted, fontSize: '0.8125rem' }}>
+                No projection available for the current scope.
+              </div>
             )}
           </div>
+        </div>
 
-          <div style={{ display: 'flex', gap: 12, fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: 12 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <div style={{ width: 10, height: 2, background: '#4A5A7A' }} /> Historical Actuals
-            </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-              <div style={{ width: 10, height: 2, background: '#0078FF', borderStyle: 'dashed', borderWidth: '1px' }} /> Projected Forecast
-            </span>
+        {/* Scenario controls */}
+        <div style={{ ...card, padding: '16px 18px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 12, borderBottom: `1px solid ${C.hairline}` }}>
+            <Sliders size={15} color={C.demand} />
+            <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: C.ink }}>Scenario</span>
+          </div>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, paddingTop: 14 }}>
+            <div>
+              <label style={{ ...eyebrow, display: 'block', marginBottom: 6 }}>Projection summary metric</label>
+              <select className="select w-full" value={metric} onChange={e => setMetric(e.target.value as any)}
+                style={{ height: 36, fontSize: '0.8125rem' }}>
+                <option value="revenue">Gross revenue (£)</option>
+                <option value="units">Units demanded</option>
+                <option value="waste">Expected waste</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ ...eyebrow, display: 'block', marginBottom: 6 }}>Projection method</label>
+              <select className="select w-full" value={model} onChange={e => setModel(e.target.value as any)}
+                style={{ height: 36, fontSize: '0.8125rem' }}>
+                <option value="adaptive">Signal-adjusted outlook</option>
+                <option value="seasonality">Trend and seasonality</option>
+                <option value="baseline">Trend baseline</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ ...eyebrow, display: 'block', marginBottom: 6 }}>Horizon</label>
+              <select className="select w-full" value={horizon}
+                onChange={e => handleHorizonChange(Number(e.target.value) as any)}
+                style={{ height: 36, fontSize: '0.8125rem' }}>
+                <option value="7">7 days</option>
+                <option value="14">14 days</option>
+                <option value="30">30 days</option>
+              </select>
+            </div>
+
+            <div>
+              <label style={{ ...eyebrow, display: 'block', marginBottom: 6 }}>Event or holiday</label>
+              <select className="select w-full" value={eventBoost} onChange={e => handleEventBoostChange(e.target.value)}
+                style={{ height: 36, fontSize: '0.8125rem' }}>
+                <option value="none">None expected</option>
+                <option value="heatwave">Heatwave / summer spike</option>
+                <option value="holiday">Bank holiday weekend</option>
+                <option value="christmas">Christmas spike</option>
+              </select>
+            </div>
+
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <label style={eyebrow}>Promotion depth</label>
+                <span style={{ fontSize: '0.75rem', color: C.demand, fontWeight: 700 }}>+{promoLift}%</span>
+              </div>
+              <input type="range" min="0" max="50" step="5" value={promoLift}
+                onChange={e => handlePromoLiftChange(Number(e.target.value))}
+                style={{ width: '100%', accentColor: C.demand, cursor: 'pointer' }} />
+            </div>
+
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <label style={eyebrow}>Cannibalisation</label>
+                <span style={{ fontSize: '0.75rem', color: C.capacity, fontWeight: 700 }}>−{cannibalization}%</span>
+              </div>
+              <input type="range" min="0" max="20" step="2" value={cannibalization}
+                onChange={e => handleCannibalizationChange(Number(e.target.value))}
+                style={{ width: '100%', accentColor: C.capacity, cursor: 'pointer' }} />
+            </div>
+
+            {decisionState && (
+              <div style={{ fontSize: '0.6875rem', color: C.faint, paddingTop: 10, borderTop: `1px solid ${C.hairline}`, lineHeight: 1.6 }}>
+                Supplier allocation cap <strong style={{ color: C.body }}>+{decisionState.scenario_parameters.supplier_capacity_cap}%</strong>{' '}
+                read from Shared Decision State v{decisionState.state_version}. Not editable here.
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Enterprise Learning Pattern Card */}
-      <div style={{
-        background: '#FFFFFF',
-        border: '1px solid var(--border)',
-        borderLeft: '4px solid var(--g10x-orange)',
-        borderRadius: 'var(--radius-md)',
-        padding: '16px 20px',
-        marginBottom: 24,
-        boxShadow: 'var(--shadow-sm)'
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)', background: 'rgba(255,107,0,0.08)', padding: '2px 8px', borderRadius: 4 }}>
-              Enterprise Learning Pattern Recognized
-            </span>
-            <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-              Regional Demand Surge & Supplier Headroom (PAT-OPP-02)
-            </span>
+      {/* ── Projection summary (preserved KPIs) ── */}
+      {result && (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginBottom: 20 }}>
+          <div style={{ ...card, padding: '16px 20px' }}>
+            <div style={eyebrow}>Projected total ({horizon} days)</div>
+            <div style={{ fontSize: '1.625rem', fontWeight: 800, color: C.ink, marginTop: 4, letterSpacing: '-0.02em' }}>
+              {metric === 'revenue' ? fmt.money(result.kpi.projectedValue) : fmt.int(result.kpi.projectedValue)}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: C.muted, marginTop: 2 }}>
+              {metric === 'revenue' ? 'Gross revenue' : metric === 'units' ? 'Units demanded' : 'Waste units'} across the horizon
+            </div>
           </div>
 
-          <button
-            onClick={() => setShowBriefing(true)}
-            style={{
-              padding: '4px 10px',
-              borderRadius: 'var(--radius-sm)',
-              background: '#FFFFFF',
-              border: '1px solid var(--border)',
-              color: 'var(--g10x-orange)',
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 4
-            }}
-          >
-            Generate Execution Briefing <ChevronRight size={13} />
-          </button>
-        </div>
+          <div style={{ ...card, padding: '16px 20px' }}>
+            <div style={eyebrow}>Period growth rate</div>
+            <div style={{
+              fontSize: '1.625rem', fontWeight: 800, marginTop: 4, letterSpacing: '-0.02em',
+              color: result.kpi.growthRate >= 0 ? C.good : C.risk
+            }}>{fmt.wow(result.kpi.growthRate)}</div>
+            <div style={{ fontSize: '0.75rem', color: C.muted, marginTop: 2 }}>
+              Projected daily average vs the observed run rate
+            </div>
+          </div>
 
-        <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 10 }}>
-          Concurrent demand acceleration (+18%) with Muller Dairy supply headroom (+25%) and Trafford DC inventory surplus models +6.8% margin lift in demonstration scenarios.
-        </p>
-
-        <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          <span>Demo Similarity: <strong style={{ color: 'var(--text-primary)' }}>89%</strong></span>
-          <span>Modelled Confidence: <strong style={{ color: 'var(--text-primary)' }}>84%</strong></span>
-          <span>Demo Success Rate: <strong style={{ color: 'var(--success)' }}>86% (1 cited precedent)</strong></span>
+          <div style={{ ...card, padding: '16px 20px' }}>
+            <div style={eyebrow}>Forecast risk index</div>
+            <div style={{
+              fontSize: '1.625rem', fontWeight: 800, marginTop: 4, letterSpacing: '-0.02em', textTransform: 'uppercase',
+              color: result.kpi.riskLevel === 'high' ? C.risk : result.kpi.riskLevel === 'medium' ? C.capacity : C.good
+            }}>{result.kpi.riskLevel}</div>
+            <div style={{ fontSize: '0.75rem', color: C.muted, marginTop: 2 }}>
+              Based on projection variance and volume limits
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* ── Learning pattern ── */}
+      {evaluation && gap && (
+        <div style={{ ...card, borderLeft: `4px solid ${C.accent}`, padding: '16px 20px', marginBottom: 20 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+              {provenanceChip('Demonstration pattern')}
+              <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: C.ink }}>
+                Regional demand surge with supplier headroom (PAT-OPP-02)
+              </span>
+            </div>
+            <button onClick={() => setShowBriefing(true)}
+              style={{
+                padding: '5px 12px', borderRadius: 6, background: C.surface,
+                border: `1px solid ${C.line}`, color: C.accent, fontSize: '0.75rem',
+                fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4
+              }}>
+              Execution briefing <ChevronRight size={13} />
+            </button>
+          </div>
+          <p style={{ fontSize: '0.8125rem', color: C.body, margin: 0, lineHeight: 1.55 }}>
+            This scenario matches a seeded demonstration precedent: demand accelerating into a capped
+            supplier allocation, where a contractual flex notice recovers part of the exposure. It cites
+            one demonstration precedent and carries no calibrated success rate.
+          </p>
+        </div>
+      )}
 
       <ExecutionBriefing
         isOpen={showBriefing}
         onClose={() => setShowBriefing(false)}
         briefing={{
-          title: 'Demand Planning Execution Briefing — Dairy & Chilled',
-          situation: 'Dairy demand trajectory is accelerating +18% into week 24 while Muller Dairy capacity headroom remains unutilized (+25%).',
-          whyNow: 'Trafford DC holds 1,400 surplus units approaching optimal shelf-life window.',
-          recommendedAction: 'Deploy 15% regional promotional feature across 12 North West stores supported by Muller Dairy headroom.',
+          title: 'Demand planning execution briefing',
+          situation: gap
+            ? `Emerging demand is running ${fmt.pp(gap.exposed_demand_pp)} above what current commitments can serve — ${fmt.int(gap.exposed_demand_units)} units, ${fmt.money(gap.revenue_at_risk_gbp)} of revenue.`
+            : 'Decision intelligence is unavailable for the current scope.',
+          whyNow: window_ && !window_.is_indeterminate
+            ? `The ${window_.declared_constraint_name} closes at ${window_.deadline_display} — ${window_.remaining_hours}h from scenario time ${window_.scenario_now_display}.`
+            : 'No declared operational deadline is available, so no window is claimed.',
+          recommendedAction: intervention?.is_actionable
+            ? intervention.intervention_name
+            : 'No capacity intervention is required under the current scenario.',
           owner: 'Demand Planning & Commercial Lead',
-          dependencies: ['Muller Dairy Promotional Rebate', 'Trafford DC Allocation Schedule'],
-          timeHorizon: 'Next 7 Days',
-          expectedOutcome: '+£24,500 incremental revenue with +6.8% margin contribution in demonstration simulation.',
-          confidence: 86,
+          dependencies: ['FreshDirect volume flex notice (modelled)', 'Trafford DC allocation schedule (modelled)'],
+          timeHorizon: `Next ${horizon} days`,
+          expectedOutcome: intervention?.is_actionable
+            ? `Modelled recovery of ${fmt.int(intervention.expected_units_recovered)} units — ${fmt.money(intervention.expected_margin_recovered_gbp)} gross margin for ${fmt.money(intervention.intervention_cost_gbp)} of flex premium.`
+            : 'No modelled recovery required.',
+          confidence: stability?.evidence_confidence_pct ?? 0,
           patternId: 'PAT-OPP-02',
           contractStatus: 'VERIFIED',
           evidence: [
-            'GenAI forecast ensemble accuracy 91% over 14-day horizon (modelled benchmark)',
-            'Supplier capacity headroom confirmed via live API feed',
-            'Demo pattern precedent PAT-OPP-02 (seeded uncalibrated telemetry)'
+            ...(intervention?.evidence_basis ?? []),
+            `Shared Decision State v${decisionState?.state_version ?? 0} consumed read-only.`
           ]
         }}
       />
 
-      {/* Projections KPI Summary Cards */}
-      {result && (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 16, marginBottom: 24 }}>
-          
-          <div className="card" style={{ padding: '16px 20px', background: 'var(--gradient-card)', border: '1px solid var(--border-strong)' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
-              Projected Total ({horizon} Days)
-            </div>
-            <div style={{ fontSize: '1.75rem', fontWeight: 800, color: 'var(--text-primary)', marginTop: 6, letterSpacing: '-0.02em' }}>
-              {metric === 'revenue' ? fmt.currency(result.kpi.projectedValue) : fmt.int(result.kpi.projectedValue)}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-              Sum of values in forecast horizon
-            </div>
-          </div>
-
-          <div className="card" style={{ padding: '16px 20px', background: 'var(--gradient-card)', border: '1px solid var(--border-strong)' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
-              Period Growth Rate
-            </div>
-            <div style={{ 
-              fontSize: '1.75rem', 
-              fontWeight: 800, 
-              color: result.kpi.growthRate >= 0 ? 'var(--success)' : 'var(--danger)', 
-              marginTop: 6,
-              letterSpacing: '-0.02em',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 6
-            }}>
-              {fmt.wow(result.kpi.growthRate)}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-              Projected avg vs historical avg (14d)
-            </div>
-          </div>
-
-          <div className="card" style={{ padding: '16px 20px', background: 'var(--gradient-card)', border: '1px solid var(--border-strong)' }}>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase' }}>
-              Forecast Risk Index
-            </div>
-            <div style={{ 
-              fontSize: '1.75rem', 
-              fontWeight: 800, 
-              color: result.kpi.riskLevel === 'high' ? 'var(--danger)' : result.kpi.riskLevel === 'medium' ? 'var(--warning)' : 'var(--success)', 
-              marginTop: 6,
-              letterSpacing: '-0.02em',
-              textTransform: 'uppercase'
-            }}>
-              {result.kpi.riskLevel}
-            </div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-              Based on variance and volume limits
-            </div>
-          </div>
-
-        </div>
-      )}
-
-      {/* AI Briefing & Risks Section */}
+      {/* ── Diagnostics & proactive risks ── */}
       <div className="grid-2-1 mb-6">
-        
-        {/* AI Briefing Card */}
         {result && (
-          <div className="card" style={{ borderColor: 'var(--border-accent)' }}>
-            <div className="card-header">
+          <div style={{ ...card, padding: '16px 20px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, paddingBottom: 10, borderBottom: `1px solid ${C.hairline}` }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div className="ai-orb">
-                  <Sparkles size={13} strokeWidth={1.75} color="white" />
-                </div>
+                <div className="ai-orb"><Sparkles size={13} strokeWidth={2} color="white" /></div>
                 <div>
-                  <div style={{ fontWeight: 700, fontSize: '0.9375rem' }}>AI Forecast Diagnostics</div>
-                  <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                    Gemini Predictor · Horizon: {horizon}d · Target: {role === 'exec' ? 'National' : storeName}
+                  <div style={{ fontWeight: 700, fontSize: '0.9375rem', color: C.ink }}>Forecast diagnostics</div>
+                  <div style={{ fontSize: '0.6875rem', color: C.muted }}>
+                    {apiKey ? 'Narrated summary' : 'Deterministic summary'} · {horizon}d · {scopeLabel}
                   </div>
                 </div>
               </div>
-              <span className="badge badge-accent">Governed</span>
+              {provenanceChip(apiKey ? 'narrated' : 'deterministic')}
             </div>
-
-            <p style={{ fontSize: '0.9375rem', lineHeight: 1.7, color: 'var(--text-secondary)', margin: 0 }}>
-              {aiBrief}
-            </p>
+            <p style={{ fontSize: '0.875rem', lineHeight: 1.65, color: C.body, margin: '12px 0 0 0' }}>{aiBrief}</p>
           </div>
         )}
 
-        {/* Forecast Proactive Warnings (Buffer Optimizers) */}
-        <div className="card">
-          <div className="card-header">
-            <span className="card-title" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-              <ShieldAlert size={15} strokeWidth={1.75} color="var(--danger)" />
-              Proactive Forecast Risks
-            </span>
+        <div style={{ ...card, padding: '16px 20px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, paddingBottom: 10, borderBottom: `1px solid ${C.hairline}` }}>
+            <ShieldAlert size={15} color={C.risk} />
+            <span style={{ fontSize: '0.9375rem', fontWeight: 700, color: C.ink }}>Proactive risks</span>
           </div>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingTop: 12 }}>
             {activeRisks.length === 0 ? (
-              <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: '16px', background: 'var(--success-light)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(16, 185, 129, 0.15)' }}>
-                <CheckCircle2 size={16} strokeWidth={2} color="#10B981" />
-                <span style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
-                  No high-risk forecast anomalies found in current scenario parameters.
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center', padding: 14, background: '#ECFDF5', borderRadius: 8, border: '1px solid #A7F3D0' }}>
+                <CheckCircle2 size={16} color={C.good} />
+                <span style={{ fontSize: '0.8125rem', color: '#065F46' }}>
+                  No high-risk anomalies in the current scenario parameters.
                 </span>
               </div>
-            ) : (
-              activeRisks.map(risk => {
-                const isOptimized = optimizedBuffers[risk.id];
-                return (
-                  <div 
-                    key={risk.id}
-                    className="card"
-                    style={{
-                      padding: 14,
-                      background: isOptimized ? 'var(--success-light)' : 'var(--bg-elevated)',
-                      border: '1px solid',
-                      borderColor: isOptimized ? 'rgba(16, 185, 129, 0.25)' : 'var(--border)',
-                      borderRadius: 'var(--radius-md)'
-                    }}
-                  >
-                    <div className="flex items-center justify-between" style={{ marginBottom: 6 }}>
-                      <span style={{ fontWeight: 700, fontSize: '0.8125rem', color: 'var(--text-primary)' }}>{risk.title}</span>
-                      <span className={`badge ${isOptimized ? 'badge-success' : 'badge-danger'}`} style={{ fontSize: '0.625rem' }}>
-                        {isOptimized ? 'Optimized' : 'High Risk'}
-                      </span>
-                    </div>
-
-                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.5, marginBottom: 12 }}>
-                      {isOptimized ? risk.mitigatedMessage : risk.reason}
-                    </p>
-
-                    {!isOptimized && (
-                      <div className="flex justify-end">
-                        <button
-                          className="btn btn-primary btn-sm animate-scale"
-                          onClick={() => executeBufferOptimization(risk.id)}
-                          disabled={optimizingBuffer === risk.id}
-                          style={{ height: 28, fontSize: '0.6875rem', gap: 4 }}
-                        >
-                          {optimizingBuffer === risk.id ? (
-                            <>
-                              <Loader2 size={10} strokeWidth={2} style={{ animation: 'spin 0.8s linear infinite' }} />
-                              <span>Optimizing buffer...</span>
-                            </>
-                          ) : (
-                            <>
-                              <Lightbulb size={11} strokeWidth={2} color="white" />
-                              <span>{risk.actionLabel}</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    )}
+            ) : activeRisks.map(risk => {
+              const isOptimized = optimizedBuffers[risk.id];
+              return (
+                <div key={risk.id} style={{
+                  padding: 12, borderRadius: 8,
+                  background: isOptimized ? '#ECFDF5' : C.sunken,
+                  border: `1px solid ${isOptimized ? '#A7F3D0' : C.line}`
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 5 }}>
+                    <span style={{ fontWeight: 700, fontSize: '0.8125rem', color: C.ink }}>{risk.title}</span>
+                    <span style={{
+                      fontSize: '0.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                      color: isOptimized ? '#065F46' : '#991B1B',
+                      background: isOptimized ? '#D1FAE5' : '#FEE2E2'
+                    }}>{isOptimized ? 'Modelled' : 'At risk'}</span>
                   </div>
-                );
-              })
-            )}
+                  <p style={{ fontSize: '0.75rem', color: C.body, lineHeight: 1.5, margin: '0 0 10px 0' }}>
+                    {isOptimized ? risk.mitigatedMessage : risk.reason}
+                  </p>
+                  {!isOptimized && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                      <button onClick={() => executeBufferOptimization(risk.id)}
+                        disabled={optimizingBuffer === risk.id}
+                        style={{
+                          height: 28, fontSize: '0.6875rem', gap: 5, background: C.demand, color: '#FFF',
+                          border: 'none', borderRadius: 4, padding: '0 10px', cursor: 'pointer',
+                          display: 'flex', alignItems: 'center', fontWeight: 600
+                        }}>
+                        {optimizingBuffer === risk.id
+                          ? <><Loader2 size={10} style={{ animation: 'spin 0.8s linear infinite' }} /> Recomputing…</>
+                          : <><Lightbulb size={11} color="white" /> {risk.actionLabel}</>}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
-
       </div>
 
+      <style>{`
+        @media (max-width: 1100px) {
+          .ddf-main-grid { grid-template-columns: 1fr !important; }
+        }
+      `}</style>
     </div>
   );
 }

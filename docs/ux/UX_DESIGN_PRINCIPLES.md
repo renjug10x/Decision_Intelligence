@@ -163,3 +163,39 @@ Decision Half-Life is never implemented as a countdown timer, expiry estimate or
 - **Tier 2 (Progressively Disclosed Evidence):** Assumption and trigger drawer showing each declared assumption, the value it held when the decision was resolved, and which triggers fired, did not fire, or could not be assessed — with the specific signal drifts behind any fired trigger (e.g. weather shift +3.2°C, competitor price change −5%) and whether that movement was scenario-driven or world-driven.
 
 Quantitative duration is unavailable until calibrated temporal evidence exists, and its absence is shown rather than filled. Authoritative semantics: `docs/reports/COGNIX_CDI_07A_DECISION_CONTRACT_DESIGN_GATE.md` §5.
+
+---
+
+## 6. Demand Decision Frontier UX (`DDF-01`)
+
+Demand & Forecast must **not** become a dense planning dashboard. It remains executive-grade: light, professional, curiosity-led, progressively disclosed, evidence-driven, low in card and container density, and understandable without ML knowledge.
+
+### 6.1 The reasoning must be visible in the visual hierarchy
+```text
+change  →  gap  →  urgency  →  consequence  →  intervention  →  outcome
+```
+Read as: *something is changing* (Forecast Stability) → *our commitments may not capture it* (Decision Gap) → *there is limited time* (Decision Window) → *waiting or choosing wrongly has a cost* (Decision Regret) → *CogniX evaluates an intervention* → *the frontier is recomputed*.
+
+The three capabilities are **one experience**, never three unrelated widgets. The five-second rule and the 40–60 word ceiling (§3) apply unchanged.
+
+### 6.2 Progressive disclosure — two entry actions
+- **`Explore Decision Frontier`** — progressively discloses what changed, why CogniX believes it changed, what evidence contributed, emerging demand, executable capacity, Decision Gap, Decision Window, economic consequences, the recommended intervention, the expected outcome, and confidence/evidence.
+- **`Simulate Intervention`** — recomputes Decision Gap, Decision Regret, capturable opportunity, residual exposure and risk state. **A failed recomputation renders an explicit unavailable state; a previous result is never left on screen as current.**
+
+Both follow the established `What? → Why? → Evidence → What If?` pattern (§5.2) rather than introducing a new interaction grammar.
+
+### 6.3 Demand Decision Frontier visualisation
+The forecast chart evolves from a passive historical/forecast line into a **decision visual**, showing where supported:
+1. current / base forecast trajectory
+2. emerging demand trajectory
+3. executable / committed trajectory
+4. a visual area representing the **Decision Gap**
+5. the **decision-frontier marker** where the Decision Window closes
+6. the post-intervention trajectory while simulation is active
+
+Rules: the graph must make the commercial situation legible **in seconds** and without a legend lookup. Only trajectories the estate can actually support are drawn — an unsupported trajectory is omitted, never dashed in as an implication. The chart obeys the §1.2 light semantic palette (Red for gap/exposure, Orange for opportunity, Green for protection); the current dark-theme chart styling on this light surface is a defect to correct. **No charting library decision is mandated** — Chart.js via `react-chartjs-2` is already the repository's established choice and remains it.
+
+### 6.4 Two-tier honesty patterns
+- **Forecast Confidence vs Forecast Stability (Tier 1):** presented as two distinct readings with distinct labels, never merged into one "trust" number and never captioned as *model accuracy* absent a backtest. `INDETERMINATE` stability is rendered distinctly and never collapsed into a favourable score.
+- **Decision Window (Tier 1):** a duration renders **only** where a constraint is declared, and the declared constraint is named on disclosure. With none declared the state is `INDETERMINATE` and **no countdown, clock, progress bar or decay animation is drawn**. Modelled demo deadlines are visibly labelled as modelled. The Decision Window must **never** share an indicator with, be labelled as, or substitute for `CDI-07A` Decision Half-Life validity (§5.6) — that prohibition is unchanged and is not relaxed by this section.
+- **Decision Regret (Tier 1 → Tier 2):** `ACT_NOW` / `WAIT` / `DO_NOTHING` as comparable alternatives with visible trade-offs — never an opaque single-number optimisation. Where they do not separate materially, CogniX says so and **names no winner**; where readiness evidence would gate an option, it is shown as *not currently actionable* rather than recommended.
