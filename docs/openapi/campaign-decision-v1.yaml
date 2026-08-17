@@ -1,0 +1,1566 @@
+openapi: 3.1.0
+info:
+  title: CogniX Campaign Decision Intelligence API (CDI-01 … CDI-07B)
+  description: >-
+    OpenAPI 3.1 specification for Campaign Decision Canvas (CDI-01), Counterfactual/Causal
+    evaluation (CDI-02), Opportunity Window / Micro-Market discovery (CDI-03),
+    Decision Readiness & Resilience (CDI-04), Decision Timeline / Demand Decomposition (CDI-05),
+    Outcome Frontier & Competing Strategies (CDI-06), Decision Contract & Decision Half-Life
+    (CDI-07A), and Campaign Pre-Mortem, Prediction vs Reality & Closed Learning Loop (CDI-07B).
+    Half-Life is an evidence-backed DecisionValidityState, not a duration; quantitative
+    half-life is NOT_AVAILABLE (AWAITING_AUTHORITATIVE_SOURCE). CDI-07B publishes no SUCCESS/FAILURE
+    verdict vocabulary and does not produce a quantitative Decision Half-Life. Decision contracts
+    and pre-mortems are immutable — there is no PATCH on any decision-contract route. Validity and
+    prediction comparison are POST computations at a caller-supplied as_of and are never written
+    back to the contract.
+  version: 1.7.0
+servers:
+  - url: http://localhost:3000
+    description: CogniX Web BFF Gateway
+paths:
+  /api/v1/campaigns/intent:
+    get:
+      summary: Get current session Campaign Intent (draft or registered)
+      operationId: getCampaignIntentSession
+      parameters:
+        - name: tenant_id
+          in: query
+          schema:
+            type: string
+            default: tenant_uk_retail_01
+        - name: session_id
+          in: query
+          schema:
+            type: string
+            default: sess_001
+      responses:
+        '200':
+          description: Current Campaign Intent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/CampaignIntent'
+    put:
+      summary: Save Campaign Intent draft (progressive canvas)
+      operationId: saveCampaignIntentDraft
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignIntent'
+      responses:
+        '200':
+          description: Draft saved
+        '400':
+          description: Invalid draft or future CDI calculation leakage
+    post:
+      summary: Register Campaign Intent
+      description: Finalises the four-area Campaign Intent, transitions Shared Decision State, and optionally projects Commercial Intent when intervention posture considers promotion.
+      operationId: registerCampaignIntent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignIntent'
+      responses:
+        '200':
+          description: Campaign Intent registered
+        '400':
+          description: Incomplete four-area contract or validation failure
+
+  /api/v1/campaigns/intent/current:
+    get:
+      summary: Get current Campaign Intent for tenant/session
+      operationId: getCurrentCampaignIntent
+      parameters:
+        - name: tenant_id
+          in: query
+          schema:
+            type: string
+        - name: session_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current Campaign Intent
+
+  /api/v1/campaigns/intent/{id}:
+    get:
+      summary: Get Campaign Intent by ID
+      operationId: getCampaignIntentById
+      description: >
+        Campaign Intent ids are derived from tenant_id and session_id and are therefore
+        enumerable. An id alone does not authorise a read: tenant_id is mandatory and a
+        tenant mismatch is reported as 404 rather than 403 to avoid an existence oracle.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: session_id
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Campaign Intent
+        '400':
+          description: tenant_id not supplied
+        '404':
+          description: Not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/counterfactual:
+    post:
+      summary: Evaluate Counterfactual Baseline (CDI-02)
+      operationId: evaluateCounterfactualBaseline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignEvaluationRequest'
+      responses:
+        '200':
+          description: Counterfactual baseline trajectories
+        '400':
+          description: Invalid evaluation request
+        '404':
+          description: campaign_intent_id not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/evaluate-causal:
+    post:
+      summary: Evaluate Causal Demand Contribution (CDI-02)
+      operationId: evaluateCausalDemand
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignEvaluationRequest'
+      responses:
+        '200':
+          description: Causal demand contributions
+        '400':
+          description: Invalid evaluation request
+        '404':
+          description: campaign_intent_id not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/evaluate:
+    post:
+      summary: Combined Counterfactual + Causal Evaluation (CDI-02)
+      operationId: evaluateCampaignDecision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CampaignEvaluationRequest'
+      responses:
+        '200':
+          description: Combined evaluation payload
+        '400':
+          description: Invalid evaluation request
+        '404':
+          description: campaign_intent_id not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/opportunity-windows:
+    post:
+      summary: Evaluate Opportunity Windows (CDI-03)
+      operationId: evaluateOpportunityWindows
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpportunityDiscoveryRequest'
+      responses:
+        '200':
+          description: Ranked opportunity window candidates
+        '400':
+          description: Invalid discovery request
+        '404':
+          description: campaign_intent_id not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/micro-markets:
+    post:
+      summary: Evaluate Micro-Market Opportunity Graph (CDI-03)
+      operationId: evaluateMicroMarkets
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpportunityDiscoveryRequest'
+      responses:
+        '200':
+          description: Store/cohort opportunity scores with explainable reasons
+        '400':
+          description: Invalid discovery request
+        '404':
+          description: campaign_intent_id not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/opportunity-discover:
+    post:
+      summary: Combined Opportunity Window + Micro-Market Discovery (CDI-03)
+      operationId: discoverCampaignOpportunity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OpportunityDiscoveryRequest'
+      responses:
+        '200':
+          description: Combined when/where discovery payload
+        '400':
+          description: Invalid discovery request
+        '404':
+          description: campaign_intent_id not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/readiness:
+    post:
+      summary: Campaign Decision Readiness & Resilience (CDI-04)
+      description: >-
+        Six-dimension non-compensatory readiness lattice. Thresholds are
+        synthetic_demonstration_policy and never fire vetoes. Decision Ripple
+        evidence is read-only DecisionDerivedImpacts references. CDI-03 discovery
+        anchors are SEEDED_ASSUMPTION, not live calendar evidence.
+      operationId: evaluateCampaignReadiness
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReadinessEvaluationRequest'
+      responses:
+        '200':
+          description: Decision readiness assessment
+        '400':
+          description: Rejection R1–R6 or invalid request
+        '404':
+          description: campaign_intent_id not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/timeline:
+    post:
+      summary: Decision Timeline & Demand Decomposition (CDI-05)
+      description: >-
+        Temporal rendering of a closed CDI-02 evaluation. FLAT_RATE_IDENTITY
+        allocation only — no fabricated curvature. PRE_CAMPAIGN is modelled
+        run-rate (not observed history). POST_CAMPAIGN is structurally present
+        and numerically empty. REVENUE lens is NOT_AVAILABLE pending
+        realised_unit_selling_price_gbp. Confidence is band-only on the primary surface.
+      operationId: projectDecisionTimeline
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TimelineProjectionRequest'
+      responses:
+        '200':
+          description: Decision timeline projection + demand decomposition
+        '400':
+          description: Rejection RJ1–RJ5 or reconciliation failure
+        '404':
+          description: campaign_intent_id not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/outcome-frontier:
+    post:
+      summary: Outcome Frontier & Competing Strategies (CDI-06)
+      description: >-
+        Multi-objective strategy comparison under ARF-A (SIGNALS_EXCLUDED). Exactly two
+        Pareto axes — attributable_volume_uplift_pp and contribution_delta_gbp. Generates
+        competing plays (including Scenario 0 / Do Nothing), evaluates each through CDI-02,
+        computes dominance and frontier membership, and applies declared-constraint selection
+        only. No weights, utilities, or ranking language. play_grid_override /
+        depth_grid_override / policy_overrides are forbidden (RJ-G1).
+      operationId: evaluateOutcomeFrontier
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FrontierEvaluationRequest'
+      responses:
+        '200':
+          description: Outcome frontier evaluation (plays, dominance, selection)
+        '400':
+          description: Rejection RJ-G1 (forbidden overrides) or invalid request
+        '404':
+          description: campaign_intent_id not found, or not visible to the supplied tenant/session
+
+  /api/v1/campaigns/decision-contract:
+    post:
+      summary: Create Decision Contract (CDI-07A)
+      description: >-
+        Create an immutable DecisionContract from a supplied OutcomeFrontier and resolution.
+        Orchestration only — eligibility, basis transcription and digests live in the engine.
+        There is no PATCH on this resource; supersession is a new create that names the prior
+        ACTIVE contract in supersedes. Half-Life disclosure is NOT_A_PREDICTION (evidence-backed
+        validity states, not a duration). Quantitative half-life is NOT_AVAILABLE.
+      operationId: createDecisionContract
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContractCreationRequest'
+      responses:
+        '200':
+          description: Decision contract created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  service:
+                    type: string
+                  domain:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/DecisionContract'
+                  disclosures:
+                    type: object
+                    properties:
+                      half_life:
+                        type: string
+                      snapshot:
+                        type: string
+        '400':
+          description: Rejection RJ-C1–RJ-C9 or invalid creation request
+        '404':
+          description: ContractNotFound / NotFound (tenant-scoped existence oracle avoided)
+    # No PATCH — DecisionContract is immutable (basis/resolution/assumptions/triggers).
+
+  /api/v1/campaigns/decision-contract/current:
+    get:
+      summary: Get ACTIVE Decision Contract for tenant/session (CDI-07A)
+      operationId: getCurrentDecisionContract
+      parameters:
+        - name: tenant_id
+          in: query
+          schema:
+            type: string
+            default: tenant_uk_retail_01
+        - name: session_id
+          in: query
+          schema:
+            type: string
+            default: sess_001
+      responses:
+        '200':
+          description: ACTIVE contract, or null when none exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  data:
+                    oneOf:
+                      - $ref: '#/components/schemas/DecisionContract'
+                      - type: 'null'
+
+  /api/v1/campaigns/decision-contract/{id}:
+    get:
+      summary: Get Decision Contract by id (CDI-07A)
+      description: >-
+        Tenant/session scoped read. A mismatched tenant/session is reported as 404
+        DecisionContractNotFound with no contract fields (no existence oracle).
+      operationId: getDecisionContractById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: session_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Decision contract
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/DecisionContract'
+        '400':
+          description: tenant_id or session_id not supplied
+        '404':
+          description: Not found, or not visible to the supplied tenant/session
+    # No PATCH — immutability is load-bearing (C-INV-5).
+
+  /api/v1/campaigns/decision-contract/{id}/validity:
+    post:
+      summary: Assess Decision Contract validity (CDI-07A)
+      description: >-
+        POST computation of DecisionValidityAssessment at a caller-supplied as_of.
+        Never written back to the contract store. Half-Life is an evidence-backed
+        DecisionValidityState (STABLE | WATCH | DEGRADED | REASSESS_REQUIRED | INDETERMINATE),
+        not a duration, countdown or expiry. Quantitative half-life is NOT_AVAILABLE
+        (QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT status AWAITING_AUTHORITATIVE_SOURCE).
+        This is not a GET resource read.
+      operationId: assessDecisionValidity
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, session_id, as_of]
+              properties:
+                tenant_id:
+                  type: string
+                session_id:
+                  type: string
+                as_of:
+                  type: string
+                  format: date-time
+                  description: Caller-supplied reference instant — never Date.now()
+                current_campaign_intent:
+                  $ref: '#/components/schemas/CampaignIntent'
+                current_frontier:
+                  type: object
+                  description: Current OutcomeFrontier when reassessing constraint/readiness/evidence triggers
+                current_decision_state:
+                  type: object
+                  properties:
+                    decision_state_id:
+                      type: string
+                    state_version:
+                      type: integer
+                signal_observations:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      signal_type:
+                        type: string
+                      entity_id:
+                        type: string
+                      value:
+                        type: number
+                      delta_pct:
+                        type: number
+                      decision_state_version:
+                        type: integer
+                      source_type:
+                        type: string
+                        description: >-
+                          Provenance of the observation. WORLD_DRIVEN movement attribution is
+                          returned only for EXTERNAL_CONNECTOR sources, which are independent of
+                          Shared Decision State. ESF-1/ESF-2 re-simulation is deterministic from
+                          Shared Decision State, so without this marker movement is reported as
+                          ATTRIBUTION_UNAVAILABLE rather than as world drift.
+                        enum: [EXTERNAL_CONNECTOR]
+      responses:
+        '200':
+          description: Validity assessment (not persisted)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/DecisionValidityAssessment'
+                  disclosures:
+                    type: object
+                    properties:
+                      half_life:
+                        type: string
+                        description: NOT_A_PREDICTION_DISCLOSURE
+                      quantitative_half_life:
+                        type: object
+                        description: QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT (NOT_AVAILABLE)
+                      not_a_prediction:
+                        type: string
+        '400':
+          description: Missing required fields or RJ-C* rejection
+        '404':
+          description: DecisionContractNotFound
+
+  /api/v1/campaigns/decision-contract/{id}/pre-mortem:
+    post:
+      summary: Create Campaign Pre-Mortem (CDI-07B)
+      description: >-
+        Enumerates failure modes from declared contract evidence. Immutable once created.
+        No SUCCESS/FAILURE vocabulary. Orchestration only — no PATCH.
+      operationId: createCampaignPreMortem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, session_id, as_of]
+              properties:
+                tenant_id:
+                  type: string
+                session_id:
+                  type: string
+                as_of:
+                  type: string
+                  format: date-time
+                contract_digest:
+                  type: string
+                decision_state_derived_impacts:
+                  type: object
+                  description: Optional WP10-C derived impacts (STRUCTURAL grounding only)
+      responses:
+        '200':
+          description: CampaignPreMortem created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/CampaignPreMortem'
+        '400':
+          description: RJ-P* / RJ-R* rejection
+        '404':
+          description: DecisionContractNotFound
+    get:
+      summary: Get ACTIVE pre-mortem for contract (CDI-07B)
+      operationId: getCampaignPreMortem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: session_id
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ACTIVE CampaignPreMortem
+        '404':
+          description: PreMortemNotFound
+
+  /api/v1/campaigns/decision-contract/{id}/prediction-comparison:
+    post:
+      summary: Compare prediction to reality (CDI-07B)
+      description: >-
+        Recomputed on demand from supplied OutcomeObservation[] at caller-supplied as_of.
+        Never stored. Verdict is WITHIN_DECLARED_ENVELOPE | OUTSIDE_DECLARED_ENVELOPE |
+        INDETERMINATE — not SUCCESS/FAILURE. Quantitative Decision Half-Life is NOT_AVAILABLE.
+      operationId: assessPredictionComparison
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, session_id, as_of, observations]
+              properties:
+                tenant_id:
+                  type: string
+                session_id:
+                  type: string
+                as_of:
+                  type: string
+                  format: date-time
+                contract_digest:
+                  type: string
+                observations:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/OutcomeObservation'
+                decision_state:
+                  type: object
+                  properties:
+                    decision_state_id:
+                      type: string
+                    state_version:
+                      type: integer
+      responses:
+        '200':
+          description: PredictionOutcomeComparison (not persisted)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/PredictionOutcomeComparison'
+        '400':
+          description: RJ-P* / RJ-R* rejection
+        '404':
+          description: DecisionContractNotFound
+
+  /api/v1/campaigns/decision-contract/{id}/learning-candidate:
+    post:
+      summary: Produce learning candidate (CDI-07B)
+      description: >-
+        Evaluates LE-1..LE-8 conjunction. LearningCase created only when eligible.
+        Ineligible candidates are retained with blocked_by. No pattern write path.
+      operationId: createLearningCandidate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, session_id, as_of]
+              properties:
+                tenant_id:
+                  type: string
+                session_id:
+                  type: string
+                as_of:
+                  type: string
+                  format: date-time
+                contract_digest:
+                  type: string
+                comparison:
+                  $ref: '#/components/schemas/PredictionOutcomeComparison'
+                observations:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/OutcomeObservation'
+                register_memory:
+                  type: boolean
+                  default: false
+                pattern_refs:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '200':
+          description: LearningCandidate stored
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/LearningCandidate'
+        '400':
+          description: RJ-P* / RJ-L* rejection
+        '404':
+          description: DecisionContractNotFound
+
+  /api/v1/campaigns/learning-candidates:
+    get:
+      summary: List learning candidates for tenant/session (CDI-07B)
+      operationId: listLearningCandidates
+      parameters:
+        - name: tenant_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: session_id
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: contract_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: LearningCandidate list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/LearningCandidate'
+
+  /api/v1/campaigns/decision-contract/{id}/withdraw:
+    post:
+      summary: Withdraw ACTIVE Decision Contract (CDI-07A)
+      description: >-
+        Human withdrawal with attribution. Never auto-withdraws from a validity state.
+        Only ACTIVE contracts may be withdrawn; missing or non-active yields 404.
+      operationId: withdrawDecisionContract
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [tenant_id, session_id, withdrawn_by, statement, withdrawn_as_of]
+              properties:
+                tenant_id:
+                  type: string
+                session_id:
+                  type: string
+                withdrawn_by:
+                  type: string
+                statement:
+                  type: string
+                withdrawn_as_of:
+                  type: string
+                  format: date-time
+                prompted_by_assessment_id:
+                  type: string
+                  description: Optional reference to the assessment that prompted withdrawal
+      responses:
+        '200':
+          description: Withdrawn contract
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                  data:
+                    $ref: '#/components/schemas/DecisionContract'
+        '400':
+          description: Missing required withdrawal fields
+        '404':
+          description: Not found or not ACTIVE
+
+components:
+  schemas:
+    CampaignObjectiveType:
+      type: string
+      enum: [INVENTORY_CLEARANCE, REVENUE_ACCELERATION, MARKET_DEFENSE, LAUNCH, OTHER]
+    InterventionPosture:
+      type: string
+      enum: [UNDECIDED, CONSIDER_PROMOTION, CONSIDER_NON_PROMOTION, CONSIDER_DO_NOTHING]
+    PrimaryObjectiveMetric:
+      type: string
+      enum: [VOLUME, REVENUE, CONTRIBUTION, WASTE_REDUCTION, AVAILABILITY]
+    TimingMode:
+      type: string
+      enum: [KNOWN_DATES, FIND_BEST_WINDOW]
+    CampaignCanvasArea:
+      type: string
+      enum: [CAMPAIGN_INTENT, BASELINE_OBJECTIVE, AUDIENCE_MARKET, DECISION_CONTEXT]
+    CampaignIntentStatus:
+      type: string
+      enum: [DRAFT, REGISTERED]
+
+    CampaignIntentCore:
+      type: object
+      required: [objective_type, intervention_posture, framing_question, category, sku_scope]
+      properties:
+        objective_type:
+          $ref: '#/components/schemas/CampaignObjectiveType'
+        intervention_posture:
+          $ref: '#/components/schemas/InterventionPosture'
+        framing_question:
+          type: string
+        category:
+          type: string
+        sku_scope:
+          type: array
+          items:
+            type: string
+        provisional_mechanic:
+          type: string
+        provisional_discount_depth:
+          type: number
+
+    BaselineObjective:
+      type: object
+      required: [primary_metric, target_direction]
+      properties:
+        primary_metric:
+          $ref: '#/components/schemas/PrimaryObjectiveMetric'
+        target_direction:
+          type: string
+          enum: [INCREASE, DECREASE, PROTECT, CLEAR]
+        target_value:
+          type: number
+        target_unit:
+          type: string
+        volume_note:
+          type: string
+        revenue_note:
+          type: string
+        cost_note:
+          type: string
+        capacity_cap_note:
+          type: string
+
+    AudienceMarket:
+      type: object
+      required: [region, timing_mode]
+      properties:
+        region:
+          type: string
+        customer_segment:
+          type: string
+        channel:
+          type: string
+        store_cohort_hint:
+          type: string
+        timing_mode:
+          $ref: '#/components/schemas/TimingMode'
+        planned_start:
+          type: string
+          format: date-time
+        planned_end:
+          type: string
+          format: date-time
+
+    DecisionContextArea:
+      type: object
+      properties:
+        contextual_factor_notes:
+          type: array
+          items:
+            type: string
+        open_questions:
+          type: array
+          items:
+            type: string
+        assumptions:
+          type: array
+          items:
+            type: string
+        commercial_intent_ref:
+          type: string
+        decision_state_id:
+          type: string
+        scenario_id:
+          type: string
+        scenario_family:
+          type: string
+
+    CampaignCanvasProgress:
+      type: object
+      required: [active_area, completed_areas, ready_to_register]
+      properties:
+        active_area:
+          $ref: '#/components/schemas/CampaignCanvasArea'
+        completed_areas:
+          type: array
+          items:
+            $ref: '#/components/schemas/CampaignCanvasArea'
+        ready_to_register:
+          type: boolean
+
+    CampaignIntent:
+      type: object
+      required:
+        - campaign_intent_id
+        - tenant_id
+        - session_id
+        - status
+        - campaign_intent
+        - baseline_objective
+        - audience_market
+        - decision_context
+        - canvas_progress
+        - created_at
+        - updated_at
+        - source_system
+        - provenance
+        - synthetic_demo
+        - schema_version
+      properties:
+        campaign_intent_id:
+          type: string
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        domain_id:
+          type: string
+        status:
+          $ref: '#/components/schemas/CampaignIntentStatus'
+        campaign_intent:
+          $ref: '#/components/schemas/CampaignIntentCore'
+        baseline_objective:
+          $ref: '#/components/schemas/BaselineObjective'
+        audience_market:
+          $ref: '#/components/schemas/AudienceMarket'
+        decision_context:
+          $ref: '#/components/schemas/DecisionContextArea'
+        canvas_progress:
+          $ref: '#/components/schemas/CampaignCanvasProgress'
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        registered_at:
+          type: string
+          format: date-time
+        source_system:
+          type: string
+        provenance:
+          type: object
+          additionalProperties:
+            type: string
+        synthetic_demo:
+          type: boolean
+        schema_version:
+          type: string
+          example: "1.0"
+
+    CampaignEvaluationRequest:
+      type: object
+      required: [tenant_id, session_id]
+      properties:
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        campaign_intent_id:
+          type: string
+        include_signals:
+          type: boolean
+          default: true
+        resolved_temporal_uplift_pp:
+          type: number
+          description: Optional CDI-03 resolved temporal uplift (pp). When supplied, replaces the flat FIND_BEST_WINDOW dampener.
+        opportunity_window_id:
+          type: string
+          description: Optional CDI-03 recommended window id for provenance.
+
+    OpportunityDiscoveryRequest:
+      type: object
+      required: [tenant_id, session_id]
+      properties:
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        campaign_intent_id:
+          type: string
+        discovery_horizon_days:
+          type: number
+          default: 56
+        window_duration_days:
+          type: number
+          default: 7
+
+    OpportunityWindowEvaluation:
+      type: object
+      properties:
+        evaluation_id:
+          type: string
+        campaign_intent_id:
+          type: string
+        timing_mode:
+          $ref: '#/components/schemas/TimingMode'
+        recommended_window_id:
+          type: string
+        resolved_temporal_uplift_pp:
+          type: number
+        discovery_anchor:
+          $ref: '#/components/schemas/OpportunityDiscoveryAnchor'
+        candidates:
+          type: array
+          items:
+            type: object
+        synthetic_demo:
+          type: boolean
+
+    OpportunityDiscoveryAnchor:
+      type: object
+      description: >-
+        Seeded temporal basis of candidate generation. Candidate windows are generated from a fixed
+        anchor date so demo runs are reproducible. The anchor is a planning assumption, never live or
+        current calendar evidence, and consumers must present it as such.
+      required: [anchor_date, anchor_mode, disclosure]
+      properties:
+        anchor_date:
+          type: string
+          format: date
+        anchor_mode:
+          type: string
+          enum: [fixed_demo_anchor]
+        horizon_days:
+          type: number
+        candidate_starts_generated:
+          type: number
+        disclosure:
+          type: string
+
+    MicroMarketOpportunity:
+      type: object
+      properties:
+        evaluation_id:
+          type: string
+        campaign_intent_id:
+          type: string
+        region_scope:
+          type: string
+        stores_evaluated:
+          type: number
+        stores_included:
+          type: number
+        recommended_store_ids:
+          type: array
+          items:
+            type: string
+        stores:
+          type: array
+          items:
+            type: object
+        cohorts:
+          type: array
+          items:
+            type: object
+        synthetic_demo:
+          type: boolean
+
+    ReadinessEvaluationRequest:
+      type: object
+      required: [tenant_id, session_id]
+      properties:
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        campaign_intent_id:
+          type: string
+        include_signals:
+          type: boolean
+          default: true
+        economic_tolerance:
+          type: object
+          description: >-
+            Owner-declared contribution sacrifice limit for VALUE_TRADE objectives only.
+            Illegal on VALUE_CREATION (rejection R5). Strength DECLARED_INPUT — never OBSERVED.
+          properties:
+            max_contribution_sacrifice_gbp:
+              type: number
+              minimum: 0
+            rationale:
+              type: string
+            declared_by:
+              type: string
+            objective_basis:
+              type: string
+        threshold_overrides:
+          description: Forbidden — presence triggers rejection R6
+          nullable: true
+
+    TimelineProjectionRequest:
+      type: object
+      required: [tenant_id, session_id]
+      properties:
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        campaign_intent_id:
+          type: string
+        include_signals:
+          type: boolean
+        allocation_profile_override:
+          description: Forbidden — RJ4
+          nullable: true
+        envelope_profile_override:
+          description: Forbidden — RJ4
+          nullable: true
+
+    FrontierEvaluationRequest:
+      type: object
+      required: [tenant_id, session_id, campaign_intent_id]
+      description: >-
+        CDI-06 frontier evaluation request. Ambient frame is ARF-A only. Exactly two
+        admitted Pareto axes. Forbidden override fields trigger RJ-G1.
+      properties:
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        campaign_intent_id:
+          type: string
+        evaluation_timestamp:
+          type: string
+          format: date-time
+          description: Caller-supplied for deterministic readiness scoring across plays
+        economic_tolerance:
+          type: object
+          description: Owner-declared contribution sacrifice limit (declared constraint)
+          properties:
+            max_contribution_sacrifice_gbp:
+              type: number
+              minimum: 0
+            rationale:
+              type: string
+            declared_by:
+              type: string
+            objective_basis:
+              type: string
+        minimum_attributable_uplift_pp:
+          type: number
+          description: CDI-06 local declared floor; requires minimum_attributable_uplift_declared_by
+        minimum_attributable_uplift_declared_by:
+          type: string
+        resolved_temporal_uplift_pp:
+          type: number
+          description: Optional CDI-03 temporal hook applied uniformly to all plays
+        opportunity_window_id:
+          type: string
+        play_grid_override:
+          description: Forbidden — presence triggers RJ-G1
+          nullable: true
+        depth_grid_override:
+          description: Forbidden — presence triggers RJ-G1
+          nullable: true
+        policy_overrides:
+          description: Forbidden — presence triggers RJ-G1
+          nullable: true
+
+    DecisionContractStatus:
+      type: string
+      enum: [ACTIVE, SUPERSEDED, WITHDRAWN]
+      description: Lifecycle status only. No EXPIRED — validity is a separate artefact.
+
+    DecisionValidityState:
+      type: string
+      enum: [STABLE, WATCH, DEGRADED, REASSESS_REQUIRED, INDETERMINATE]
+      description: >-
+        Evidence-backed Half-Life states. Not a duration, countdown, expiry, decay curve
+        or remaining-percentage. Quantitative half-life is NOT_AVAILABLE.
+
+    DecisionResolutionRoute:
+      type: string
+      enum: [CONSTRAINT_RESOLVED, HUMAN_RESOLVED]
+
+    ContractCreationRequest:
+      type: object
+      required: [tenant_id, session_id, frontier, campaign_intent, resolution, created_as_of]
+      description: >-
+        CDI-07A creation request. Frontier and intent are supplied by the caller —
+        creation never re-runs CDI-01/CDI-06. No duration fields.
+      properties:
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        frontier:
+          type: object
+          description: EMITTED OutcomeFrontier (CDI-06)
+        campaign_intent:
+          $ref: '#/components/schemas/CampaignIntent'
+        resolution:
+          type: object
+          required: [route, selected_play_id]
+          properties:
+            route:
+              $ref: '#/components/schemas/DecisionResolutionRoute'
+            selected_play_id:
+              type: string
+            resolved_by:
+              type: string
+              description: Mandatory for HUMAN_RESOLVED — never defaulted
+            resolution_statement:
+              type: string
+            selection_status:
+              type: string
+            selection_basis:
+              type: string
+        created_as_of:
+          type: string
+          format: date-time
+          description: Caller-supplied reference instant — never an input to validity age arithmetic
+        supersedes:
+          type: object
+          description: Required when an ACTIVE contract already exists for the session
+          properties:
+            contract_id:
+              type: string
+            contract_version:
+              type: integer
+            contract_digest:
+              type: string
+            decision_basis_digest:
+              type: string
+            tenant_id:
+              type: string
+            session_id:
+              type: string
+            status:
+              $ref: '#/components/schemas/DecisionContractStatus'
+
+    DecisionContract:
+      type: object
+      description: >-
+        Immutable record of a resolved decision and its basis. No PATCH. Status may only
+        move ACTIVE → SUPERSEDED | WITHDRAWN. Half-Life is not embedded as a duration.
+      properties:
+        contract_id:
+          type: string
+        contract_version:
+          type: integer
+        status:
+          $ref: '#/components/schemas/DecisionContractStatus'
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        decision_basis_digest:
+          type: string
+        basis:
+          type: object
+          description: Bound artefact refs + transcribed snapshots (not recomputed)
+        resolution:
+          type: object
+        assumptions:
+          type: array
+          items:
+            type: object
+        triggers:
+          type: array
+          items:
+            type: object
+        unavailable_capabilities:
+          type: array
+          items:
+            type: object
+          description: Includes QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT (NOT_AVAILABLE)
+        evidence_strength_floor:
+          type: string
+        confidence_band:
+          type: string
+        calculation_mode:
+          type: string
+          enum: [deterministic_decision_contract]
+        synthetic_demo:
+          type: boolean
+        schema_version:
+          type: string
+        created_as_of:
+          type: string
+          format: date-time
+        supersedes:
+          type: object
+        superseded_by:
+          type: object
+        withdrawal:
+          type: object
+
+    DecisionValidityAssessment:
+      type: object
+      description: >-
+        Recomputed on demand at caller-supplied as_of. Never written back to the contract.
+        No duration, countdown, expiry, decay or remaining-percentage fields.
+        Quantitative half-life is NOT_AVAILABLE.
+      properties:
+        assessment_id:
+          type: string
+        contract_id:
+          type: string
+        contract_version:
+          type: integer
+        tenant_id:
+          type: string
+        session_id:
+          type: string
+        state:
+          $ref: '#/components/schemas/DecisionValidityState'
+        as_of:
+          type: string
+          format: date-time
+        half_life_basis:
+          type: object
+          description: Trigger evaluations + NOT_A_PREDICTION disclosure; not a duration
+          properties:
+            determining_trigger_id:
+              type: string
+            determining_assumption_id:
+              type: string
+            triggers_evaluated:
+              type: array
+              items:
+                type: object
+            unassessable_assumptions:
+              type: array
+              items:
+                type: object
+            not_a_prediction_disclosure:
+              type: string
+            quantitative_measure:
+              type: object
+              description: QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT — status AWAITING_AUTHORITATIVE_SOURCE
+        calculation_mode:
+          type: string
+          enum: [deterministic_decision_validity]
+        evidence_strength_floor:
+          type: string
+        confidence_band:
+          type: string
+        synthetic_demo:
+          type: boolean
+        schema_version:
+          type: string
+
+    DemandTrajectoryPoint:
+      type: object
+      properties:
+        label:
+          type: string
+        volume_units:
+          type: number
+        volume_index_pct:
+          type: number
+        contribution_gbp:
+          type: number
+        unit_contribution_gbp:
+          type: number
+          description: >-
+            Per-unit contribution for this trajectory. Promoted units carry an eroded unit
+            contribution, so a deeper discount does not mechanically increase value.
+        waste_units:
+          type: number
+        confidence:
+          type: number
+
+    CounterfactualBaseline:
+      type: object
+      properties:
+        counterfactual_id:
+          type: string
+        campaign_intent_id:
+          type: string
+        current_baseline:
+          $ref: '#/components/schemas/DemandTrajectoryPoint'
+        expected_without_intervention:
+          $ref: '#/components/schemas/DemandTrajectoryPoint'
+        predicted_with_intervention:
+          $ref: '#/components/schemas/DemandTrajectoryPoint'
+        campaign_delta:
+          $ref: '#/components/schemas/CampaignDeltaSummary'
+        synthetic_demo:
+          type: boolean
+
+    CampaignDeltaSummary:
+      type: object
+      properties:
+        volume_delta_units:
+          type: number
+        volume_delta_pct:
+          type: number
+        contribution_delta_gbp:
+          type: number
+          description: May be negative — deep discounting erodes unit contribution faster than volume replaces it.
+        waste_delta_units:
+          type: number
+        attributable_uplift_pp:
+          type: number
+          description: >-
+            Demand caused by the intervention itself, in percentage points. Excludes ambient
+            drivers (intrinsic drift, external signals) that occur with or without the campaign.
+            This — not total_predicted_uplift_pp — is what the campaign causes.
+        intervention_indistinguishable_from_do_nothing:
+          type: boolean
+
+    CausalDemandContribution:
+      type: object
+      properties:
+        causal_id:
+          type: string
+        total_predicted_uplift_pp:
+          type: number
+          description: >-
+            Total predicted demand index movement vs CURRENT_BASELINE. Equals
+            ambient_uplift_pp + intervention_uplift_pp. NOT the campaign's effect.
+        ambient_uplift_pp:
+          type: number
+          description: Drift and external signals — happens with or without the campaign.
+        intervention_uplift_pp:
+          type: number
+          description: Demand caused by the intervention. Zero for DO_NOTHING / UNDECIDED.
+        drivers:
+          type: array
+          items:
+            $ref: '#/components/schemas/CausalDriverContribution'
+        placeholder_fields_excluded:
+          type: array
+          items:
+            type: string
+        reconciliation_ok:
+          type: boolean
+        synthetic_demo:
+          type: boolean
+
+    CausalDriverContribution:
+      type: object
+      properties:
+        driver_id:
+          type: string
+        driver_class:
+          type: string
+          enum: [ambient, intervention]
+          description: >-
+            'ambient' drivers act on the world regardless of the campaign and belong to both
+            the without-intervention and predicted paths, so they cancel out of the Campaign
+            Delta. 'intervention' drivers are the only ones the campaign is credited with.
+        label:
+          type: string
+        contribution_pp:
+          type: number
+        attributed:
+          type: boolean
+          description: When false, contribution_pp is always 0 — an excluded driver never moves demand.
+        rationale:
+          type: string
+        evidence_refs:
+          type: array
+          items:
+            type: string
+
+    CampaignPreMortem:
+      type: object
+      description: CDI-07B pre-mortem — immutable, superseded never edited
+      properties:
+        pre_mortem_id:
+          type: string
+        contract_id:
+          type: string
+        contract_digest:
+          type: string
+        failure_modes:
+          type: array
+          items:
+            type: object
+        status:
+          type: string
+          enum: [ACTIVE, SUPERSEDED]
+
+    OutcomeObservation:
+      type: object
+      description: CDI-07B bound ESF-3 lineage observation for prediction comparison
+      properties:
+        observation_id:
+          type: string
+        authority:
+          type: string
+          enum: [AUTHORITATIVE_EXTERNAL, SYNTHETIC_DEMONSTRATION, SCENARIO_DERIVED, UNATTRIBUTED]
+        delta_pct:
+          type: number
+        synthetic_demo:
+          type: boolean
+
+    PredictionOutcomeComparison:
+      type: object
+      description: >-
+        CDI-07B on-demand comparison. Not stored. verdict uses WITHIN_DECLARED_ENVELOPE |
+        OUTSIDE_DECLARED_ENVELOPE | INDETERMINATE — never SUCCESS/FAILURE.
+      properties:
+        comparison_id:
+          type: string
+        verdict:
+          type: string
+          enum: [WITHIN_DECLARED_ENVELOPE, OUTSIDE_DECLARED_ENVELOPE, INDETERMINATE]
+        comparisons:
+          type: array
+          items:
+            type: object
+            properties:
+              comparability:
+                type: string
+              predicted_basis:
+                type: string
+                enum: [ATTRIBUTABLE, GROSS, MODELLED_MONETARY]
+        not_a_decision_verdict_disclosure:
+          type: string
+
+    LearningCandidate:
+      type: object
+      description: CDI-07B learning eligibility artefact — retained even when ineligible
+      properties:
+        candidate_id:
+          type: string
+        eligibility:
+          type: object
+          properties:
+            eligible:
+              type: boolean
+            conditions:
+              type: array
+              items:
+                type: object
+                properties:
+                  condition_id:
+                    type: string
+                    enum: [LE-1, LE-2, LE-3, LE-4, LE-5, LE-6, LE-7, LE-8]
+                  met:
+                    type: boolean
+        blocked_by:
+          type: array
+          items:
+            type: string
+        learning_case:
+          type: object
+          description: Present only when eligibility.eligible is true

@@ -1,9 +1,9 @@
 # ORGANISATIONAL LEARNING INTELLIGENCE & ENTERPRISE LEARNING PATTERNS
 
-**Document Status:** Authoritative & Approved  
-**Version:** 1.0.0  
-**Effective Date:** August 2026  
-**Owner:** G10X Enterprise Innovation Lab Architecture Group  
+**Document Status:** Approved & Authoritative
+**Version:** 1.1.0
+**Effective Date:** August 2026
+**Owner:** G10X Enterprise Innovation Lab Architecture Group
 
 ---
 
@@ -113,3 +113,82 @@ Actual Outcome (Delivery SLA Maintained, Zero Stockout)
 Enterprise Memory & Learning Pattern (Refines Precursor Pattern Confidence)
 ```
 This enables CogniX to recognise structural precursor patterns weeks before customer demand or operational breaches materialise.
+
+---
+
+## 8. Closed Learning Loop for Campaign Decision Intelligence
+
+### 8.1 The Closed Loop Architecture
+Campaign Decision Intelligence establishes an explicit 8-step closed learning loop:
+
+$$\text{Prediction} \longrightarrow \text{Decision} \longrightarrow \text{Execution} \longrightarrow \text{Observation} \longrightarrow \text{Outcome Comparison} \longrightarrow \text{Learning} \longrightarrow \text{Enterprise Memory} \longrightarrow \text{Future Decision}$$
+
+1. **Prediction:** Contextualised Decision Outlook predicts demand, revenue, halo, cannibalisation, and risk.
+2. **Decision:** Executive selects strategy play and registers `DecisionContract`.
+3. **Execution:** Decision dispatched via Execution Briefing.
+4. **Observation:** Externally sourced `ESF-3` connector signals observe actual run-rates. `ESF-1`/`ESF-2` are deterministic simulations of Shared Decision State and are never authoritative observations of the world; a synthetic connector feed is likewise never a real-world outcome, whatever its external shape.
+5. **Outcome Comparison:** Evaluates predicted against observed quantities **only where grain and measurement basis match**. The contracted headline prediction is attributable — counterfactual-differenced, excluding ambient drivers — while connector observations are gross, so the two are never differenced; where no like-for-like quantity exists the comparison is indeterminate with the missing authoritative capability named.
+6. **Learning:** Records prediction error deltas as descriptive evidence about the prediction. An error is never a verdict on the decision: a decision made on the best declared evidence available can still be followed by an outcome the model did not anticipate.
+7. **Enterprise Memory:** Stores an `EnterpriseMemoryCase` with explicit provenance (`synthetic_demo` or production connector).
+8. **Future Decision:** Surfaces historical analogues during subsequent decision canvas evaluations.
+
+---
+
+## 9. Observation Correspondence & Declared Tolerance (CDI-08 — design frozen 2026-08-16)
+
+### 9.1 Correspondence is a predicate, not an estimate
+
+Step 5 of the closed loop ("only where grain and measurement basis match") is made precise. An
+observation addresses a contracted decision only when **every** dimension corresponds exactly:
+
+prediction ↔ metric ↔ quantity basis ↔ entity grain ↔ geography ↔ observation window ↔ tenant/session
+
+Governing rules, all fail-closed:
+
+- **No apportionment.** A broader-grain observation is never narrowed onto a contracted grain, on
+  the entity axis or the time axis. A jointly-covering set of marginal observations is never
+  combined into a joint cell — marginals do not determine it, and combining them is apportionment
+  under another name.
+- **No fuzzy matching.** Exact normalised token identity only. No substring, prefix, case-folded
+  containment or similarity judgement, by rule or by model.
+- **No fallback from attributable to gross.** The contracted headline prediction is
+  counterfactual-differenced; every available observation is gross. They are never differenced.
+- **No dimension may pass silently.** An empty contracted grain, a null contracted window, an
+  undeclared metric correspondence and an undeclared measurement design each **refuse**. Absence is
+  never treated as agreement.
+- **Tenant and session isolation is enforced at binding.** An observation from another tenant or
+  another session is never a binding candidate, and is never republished under the contract's
+  tenancy.
+
+### 9.2 A declared tolerance, never an inferred one
+
+A prediction envelope is a **declared acceptance tolerance** authored by a named accountable human
+at the moment of decision — answering *"how wrong may this be before we would want to know?"* It is
+declared on the `DecisionContract` before any outcome is observed, covered by `contract_digest`,
+excluded from `decision_basis_digest`, **never inferred from observed outcomes** and **never derived
+from a confidence band**. It is not a statistical prediction interval and must never be presented as
+one. See ADR-036.
+
+Because digest immutability proves an envelope was not edited but not that it preceded the outcome,
+an outcome falling **outside** a declared tolerance is admissible on digest binding alone, while an
+outcome falling **within** one is withheld until pre-declaration is witnessed by an instant the
+caller does not author. The asymmetry is deliberate: the admissible direction is the one that can
+only ever be adverse to the declarer.
+
+### 9.3 Published pattern telemetry — governance correction (Y4-gov)
+
+The six seeded `EnterpriseLearningPattern` records in the learning service publish **46 claimed
+`historical_occurrences`** and six `intervention_success_rate` figures (73%, 86%, 67%, 82%, 80%,
+78%) supported between them by **three distinct cited memory cases** — one per pattern. Every
+published rate is unsupported by its own citations, and `PAT-COMM-01`'s description restates "73% of
+untreated cases" as though it were a finding.
+
+**Governance ruling (Z5, 2026-08-16).** These figures are uncalibrated demonstration constants and
+must not be published as findings. Either withdraw them, or relabel them as uncalibrated
+demonstration telemetry with the supporting citation count shown alongside every occurrence and
+success-rate figure; `PAT-COMM-01`'s description must be reworded so no rate reads as an observed
+result. `PATTERN_TELEMETRY_DISCLOSURE` remains mandatory and is not a substitute for the correction.
+
+This is an immediate correction outside any work package. It does not gate CDI-08. Pattern
+telemetry **calibration** (`Y4-cal`) remains deferred behind N ≥ 3 independent eligible
+`LearningCase`s and a WP10-D pattern write path, per the X3 gate.

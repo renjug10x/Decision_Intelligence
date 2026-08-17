@@ -1,9 +1,9 @@
 # COGNIX DEMO OPERATING MODEL & EXECUTIVE FACILITATION GUIDE
 
-**Document Status:** Approved & Authoritative  
-**Version:** 1.0.0  
-**Effective Date:** August 2026  
-**Owner:** G10X Executive Consulting Practice  
+**Document Status:** Approved & Authoritative
+**Version:** 1.1.0
+**Effective Date:** August 2026
+**Owner:** G10X Executive Consulting Practice
 
 ---
 
@@ -49,6 +49,18 @@ Every G10X consultant or solution architect facilitating a CogniX session must f
 - **Key Insight Statement:** *"A 15% promo boost creates a 1st-order sales surge, but a 2nd-order labor shortage in fulfillment centers, and a 3rd-order margin erosion due to emergency air freight."*
 - **Call to Action:** *"Can your current planning stack simulate 2nd and 3rd order operational ripples before committing budget?"*
 
+### 3.3 Flagship 3: Campaign Decision Intelligence
+- **Facilitator Opening:** *"CogniX is not another promotion optimiser. It is a Campaign Decision Intelligence system that discovers whether, what, where, when, and how to intervene."*
+- **The 5-Question Walkthrough:**
+  1. *Should we intervene?* (Demonstrate counterfactual baseline vs doing nothing).
+  2. *What intervention?* (Demonstrate non-promotion alternatives like stock reallocation or markdowns).
+  3. *Where and when?* (Demonstrate AI-discovered timing window and micro-market store cohorts).
+  4. *What happens elsewhere?* (Demonstrate Decision Ripple 2nd/3rd order labor & margin effects).
+  5. *What did reality teach us?* (Demonstrate closed learning loop and historical memory analogues).
+- **Key Insight Statement:** *"Notice how CogniX progressively reveals driver decomposition (`What? → Why? → Evidence → What If?`) while presenting Pareto-efficient strategy trade-offs rather than an opaque single discount number."*
+- **Call to Action:** *"Does your promotion system tell you if doing nothing or reallocating stock is more profitable than discounting?"*
+
+
 ---
 
 ## 4. Post-Demo Learning Capture Protocol
@@ -65,4 +77,3 @@ At the conclusion of every executive demonstration, the consultant logs feedback
 
 - **Exit Demo Control:** In demo bypass mode, the sidebar footer provides a dedicated `Exit Demo` button. Clicking `Exit Demo` clears session tokens/local storage state and returns the user to the setup entry screen (`/platform-setup`) cleanly without auth errors or redirect loops.
 - **Honest Future Preview:** Selecting a `Coming Soon` domain or persona displays a clear, elegant teaser notification ("Domain/Persona experience coming soon") rather than switching into an empty state or faking non-existent analytics. Active simulation remains anchored in `Retail & Grocery`.
-

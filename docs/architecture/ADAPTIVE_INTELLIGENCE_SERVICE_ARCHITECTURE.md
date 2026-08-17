@@ -1,11 +1,12 @@
-# COGNIX ADAPTIVE INTELLIGENCE & SERVICE ARCHITECTURE BLUEPRINT
+# COGNIX — ADAPTIVE INTELLIGENCE SERVICE ARCHITECTURE & BLUEPRINT
 
-**Document Status:** Authoritative Architectural Blueprint & Roadmap
-**Version:** 1.0.0
+**Document Status:** Approved & Authoritative
+**Version:** 1.1.0
 **Effective Date:** August 2026
 **Owner:** G10X Enterprise Innovation Lab Architecture Steering Group
 
 ---
+
 
 ## 1. Executive Strategic Vision
 
@@ -114,6 +115,7 @@ State Versioning (v2) + Deterministic Impact Recalculation
 ### 4.4 Enterprise Signal Fabric (ESF-1 Implemented) Architecture
 - **ESF-1 Enterprise Signal Foundation [COMPLETED]:** `EnterpriseSignal` schema model, taxonomy, OpenAPI 3.1 spec, generator in `services/world`, BFF proxy endpoints (`/api/v1/signals/*`), and developer diagnostic panel.
 - **ESF-2 Dynamic Signal Simulation [COMPLETED]:** Deterministic simulation engine (`services/world/src/dynamic-signal-simulator.ts`), temporal timeline models (`EnterpriseSignalTimeline`, `EnterpriseSignalObservation`), bounded context projection (`SignalSimulationContext`), same-origin simulation BFF (`POST /api/v1/signals/simulate`), intervention timing immutability, and 17/17 verified unit & regression tests.
+- **ESF-3 External Signal Connector Contract [COMPLETED]:** Provider-neutral connector registry and envelope contract (`packages/contracts/src/external-signal-connector-model.ts`), reference adapters + normaliser (`services/world/src/external-signal-connector.ts`), BFF/world routes (`GET /api/v1/signals/connectors`, `POST /api/v1/signals/connectors/ingest`, `GET /api/v1/signals/connectors/ingested`), OpenAPI extensions, and 20/20 ESF-3 unit tests with ESF-1/ESF-2/IFI-01 regression.
 - **The Five Information Classes:**
   1. *Enterprise World:* Authoritative baseline reality.
   2. *Enterprise Forecast:* Expected demand trajectory from upstream platforms (Blue Yonder / SAP IBP).

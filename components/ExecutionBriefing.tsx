@@ -210,10 +210,10 @@ export default function ExecutionBriefing({
               <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'var(--text-primary)', marginTop: 2 }}>
                 {matchedPattern.pattern_name}
               </div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4, display: 'flex', gap: 12 }}>
-                <span>Similarity: <strong>{matchedPattern.situation_similarity}%</strong></span>
-                <span>Confidence: <strong>{matchedPattern.pattern_confidence}%</strong></span>
-                <span>Success Rate: <strong>{matchedPattern.intervention_success_rate}%</strong></span>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 4, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
+                <span>Demo Similarity: <strong>{matchedPattern.situation_similarity}%</strong></span>
+                <span>Modelled Confidence: <strong>{matchedPattern.pattern_confidence}%</strong></span>
+                <span>Demo Success Rate: <strong>{matchedPattern.intervention_success_rate}%</strong></span>
               </div>
             </div>
 
@@ -281,7 +281,7 @@ export default function ExecutionBriefing({
         {/* Modal Actions */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', paddingTop: 12, borderTop: '1px solid var(--border)' }}>
           <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-            Telemetry Confidence: <strong>{briefing.confidence}%</strong>
+            Modelled Confidence: <strong>{briefing.confidence}%</strong>
           </div>
           <div style={{ display: 'flex', gap: 8 }}>
             <button

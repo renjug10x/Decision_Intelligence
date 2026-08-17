@@ -29,6 +29,13 @@ export interface IDecisionStateStore {
 
   getCurrentStateBySession(sessionId: string, tenantId?: string): DecisionState | null;
 
+  /**
+   * Strictly read-only lookup. Returns null when no state exists for the tenant/session
+   * instead of initialising one. Required by read-only consumers (CDI-04) that must never
+   * write to Shared Decision State.
+   */
+  peekCurrentStateBySession(sessionId: string, tenantId?: string): DecisionState | null;
+
   applyCommandTransition(
     id: string,
     command: TransitionCommandPayload
@@ -145,6 +152,16 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
     return this.createOrInitialiseState({ tenant_id: tenantId, session_id: sessionId });
   }
 
+  public peekCurrentStateBySession(
+    sessionId: string,
+    tenantId: string = 'tenant_uk_retail_01'
+  ): DecisionState | null {
+    const sessionKey = this.getSessionKey(tenantId, sessionId);
+    const stateId = this.sessionIndexMap.get(sessionKey);
+    if (!stateId) return null;
+    return this.statesMap.get(stateId) || null;
+  }
+
   public applyCommandTransition(
     id: string,
     commandPayload: TransitionCommandPayload
@@ -179,6 +196,31 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
         state: currentState,
         error: `Validation error: ${validation.errors.join(', ')}`
       };
+    }
+
+    // CDI-07A W1 — same-reference REGISTER_DECISION_CONTRACT is a strict idempotent no-op:
+    // no version increment, no history, no derived-impact recalc, no conflict on stale expected_version.
+    if (commandPayload.command_type === 'REGISTER_DECISION_CONTRACT') {
+      const incomingRef =
+        typeof commandPayload.payload.decision_contract_ref === 'string'
+          ? commandPayload.payload.decision_contract_ref
+          : undefined;
+      if (
+        incomingRef !== undefined &&
+        currentState.decision_contract_ref !== undefined &&
+        incomingRef === currentState.decision_contract_ref
+      ) {
+        return {
+          status: 'success',
+          decision_state_id: id,
+          previous_version: currentState.state_version,
+          new_version: currentState.state_version,
+          command_type: commandPayload.command_type,
+          changed_fields: [],
+          derived_impacts: currentState.derived_impacts,
+          state: currentState
+        };
+      }
     }
 
     // Optimistic Concurrency check
@@ -290,6 +332,33 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
         updatedProvenance.commercial_intent = 'registered_intent';
         break;
 
+      case 'REGISTER_CAMPAIGN_INTENT':
+        if (commandPayload.payload.campaign_intent_ref) {
+          changedFields.push('campaign_intent_ref');
+        }
+        if (typeof commandPayload.payload.promotion_lift === 'number') {
+          updatedParams.promotion_lift = commandPayload.payload.promotion_lift;
+          changedFields.push('promotion_lift');
+        }
+        if (commandPayload.payload.promotion_method) {
+          updatedParams.promotion_method = commandPayload.payload.promotion_method;
+          changedFields.push('promotion_method');
+        }
+        if (commandPayload.payload.campaign_scope) {
+          updatedParams.campaign_scope = commandPayload.payload.campaign_scope;
+          changedFields.push('campaign_scope');
+        }
+        updatedProvenance.campaign_intent = 'registered_cdi01_intent';
+        updatedProvenance.intervention_posture = String(commandPayload.payload.intervention_posture || 'UNDECIDED');
+        break;
+
+      case 'REGISTER_DECISION_CONTRACT':
+        if (typeof commandPayload.payload.decision_contract_ref === 'string') {
+          changedFields.push('decision_contract_ref');
+          updatedProvenance.decision_contract = 'registered_cdi07a_contract';
+        }
+        break;
+
       case 'RESET_SCENARIO':
         Object.assign(updatedParams, DEFAULT_SCENARIO_PARAMS);
         updatedInterventions = [];
@@ -317,6 +386,15 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
       scenario_parameters: updatedParams,
       selected_interventions: updatedInterventions,
       commercial_intent_ref: commandPayload.payload.commercial_intent_ref || currentState.commercial_intent_ref,
+      campaign_intent_ref: commandPayload.payload.campaign_intent_ref || currentState.campaign_intent_ref,
+      // CDI-07A W1 — only REGISTER_DECISION_CONTRACT binds the reference. Accepting it from any
+      // command's payload would let an unrelated transition rebind the contract without it ever
+      // appearing in changed_fields, and would then prime the same-reference idempotent no-op.
+      decision_contract_ref:
+        commandPayload.command_type === 'REGISTER_DECISION_CONTRACT' &&
+        typeof commandPayload.payload.decision_contract_ref === 'string'
+          ? commandPayload.payload.decision_contract_ref
+          : currentState.decision_contract_ref,
       derived_impacts: newDerivedImpacts,
       provenance: updatedProvenance,
       history: [versionRecord, ...currentState.history].slice(0, 50)

@@ -13,6 +13,12 @@ export type PatternType =
 
 export type PatternScope = 'global' | 'tenant';
 
+export type TelemetryProvenance =
+  | 'measured'
+  | 'derived'
+  | 'seeded_demonstration'
+  | 'unavailable';
+
 export interface EnterpriseLearningPattern {
   pattern_id: string;                      // e.g. PAT-RISK-03
   pattern_name: string;                    // e.g. Promotional Capacity Mismatch
@@ -31,7 +37,7 @@ export interface EnterpriseLearningPattern {
   applicable_regions?: string[];           // e.g. ['North West', 'London']
 
   // Three Independent Telemetry Metrics (Never collapsed into one generic score)
-  historical_occurrences: number;          // e.g. 6
+  historical_occurrences: number;          // e.g. 6 (demonstration constant when uncalibrated)
   situation_similarity: number;            // 0..100 (%)
   pattern_confidence: number;              // 0..100 (%)
   intervention_success_rate: number;       // 0..100 (%)
@@ -52,6 +58,9 @@ export interface EnterpriseLearningPattern {
   last_observed?: string;                  // ISO date
   source_classification: string;           // e.g. 'G10X Synthetic Demonstration Precedent'
   synthetic_demo: boolean;                 // true for demo history
+  telemetry_provenance?: TelemetryProvenance; // 'measured' | 'derived' | 'seeded_demonstration' | 'unavailable'
+  telemetry_disclosure?: string;           // Disclosure string explaining metric provenance
+  citation_count?: number;                 // Count of cited supporting memory cases
   schema_version: string;                  // "1.0"
 }
 

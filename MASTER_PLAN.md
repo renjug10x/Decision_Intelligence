@@ -4,36 +4,38 @@
 
 ## Quick Summary of Phases & Immediate Wave
 
+> **Reconciled 2026-08-16.** An earlier revision of this summary listed Phase 9 as *IP and Innovation Governance* and Phases 10–11 as packs and operating model. That numbering was superseded in the authoritative plan and is corrected below.
+
 ```text
-[# PHASE 7 — ENTERPRISE MEMORY FOUNDATION (COMPLETED)
-- **Status:** Implemented & Validated
-- **Objective:** Implement organizational memory logging prior decision situations, interventions, and actual outcomes.
-- **Scope:** Structured `EnterpriseMemoryCase` schema (`Situation`, `Decision`, `Expected Outcome`, `Actual Outcome`, `Confidence`, `Intervention`, `Business Result`, `Lessons Learned`, `Provenance`), interactive case search, and contextual link (*"Have we seen this before?"*) from Demonstration Solutions.
+PHASES 0–6   Foundation wave  [COMPLETED]
+             Concept freeze · Identity neutralisation · Innovation Portfolio ·
+             Innovation Canvas · Commitment Intelligence · Decision Ripple ·
+             Curiosity Experience
 
----
+PHASE 7      Enterprise Memory Foundation                        [COMPLETED]
+PHASE 8      Opportunity Intelligence                            [COMPLETED]
+PHASE 9      Organisational Learning Intelligence &
+             Capability Reintegration                            [COMPLETED]
 
-# PHASE 8 — OPPORTUNITY INTELLIGENCE (COMPLETED)
-- **Status:** Implemented & Validated
-- **Objective:** Proactively discover value-creation opportunities (upside) by fusing demand acceleration, inventory headroom, and supplier capacity signals.
-- **Scope:** Opportunity detection solver (`Signals → Constraints → Opportunity → Estimated Value → Recommended Action → Confidence`), net margin calculator, and direct execution handoff to Demonstration Solutions.
+PROGRAMME 10 Adaptive Intelligence & Scalable Service Architecture
+             WP10-A Service/API foundation · WP10-B Journey Telemetry ·
+             WP10-C Shared Decision State · WP10-D Memory & Learning API   [COMPLETED]
+             Phases 10E–10M (adaptive, ML, learning quality)              [PLANNED]
 
----
+  Cross-cutting  ESF-1 · ESF-2 · ESF-3 · ESF-6/Y3a                        [COMPLETED]
+                 ESF-4 · ESF-5                                            [PLANNED]
+  Core capability  IFI-01 · CDI-01 … CDI-08                               [COMPLETED]
 
-# PHASE 9 — IP AND INNOVATION GOVERNANCE
-- **Objective:** Integrate IP classification metadata badges and provenance tracking directly into UI and exports.
-- **Scope:** IP badge indicators, exportable experiment blueprint sheets, legal disclaimers.
+  NEXT           DDF-01 — Demand Decision Frontier (P0)                   [PLANNED]
+                 Forecast Stability · Decision Gap · Decision Window ·
+                 Decision Regret · combined frontier visual · simulation
+  Roadmap        DOT-1 … DOT-12 — Demand Observability & Demand Truth     [ROADMAP]
 
----
-
-# PHASE 10 — INDUSTRY DEMONSTRATION PACKS
-- **Objective:** Provide pre-packaged domain ontologies for Retail (Online Grocery, Omnichannel, Discount Retail) and CPG.
-- **Scope:** `config/industry-packs.ts`, scenario dataset expansion, context switcher UI.
-
----
-
-# PHASE 11 — INNOVATION OPERATING MODEL & KNOWLEDGE CAPTURE
-- **Objective:** Capture executive demo feedback, client curiosity reactions, and experiment evolution history.
-- **Scope:** Demo feedback logging form, experiment maturity lifecycle tracker, retirement archive viewer.
+PHASE 11     IP and Innovation Governance
+PHASE 12     Industry Demonstration Packs
+PHASE 13     Innovation Operating Model & Knowledge Capture
 ```
 
-For complete work packages, user stories, test requirements, and exit gates, see [`docs/governance/MASTER_PLAN.md`](file:///Users/renjunair/projects/Decision_Intelligence/docs/governance/MASTER_PLAN.md).
+For complete work packages, user stories, test requirements, and exit gates, see [`docs/governance/MASTER_PLAN.md`](docs/governance/MASTER_PLAN.md).
+
+**Demand capability governance:** [`docs/governance/DEMAND_OBSERVABILITY_MODEL.md`](docs/governance/DEMAND_OBSERVABILITY_MODEL.md) · [`docs/reports/COGNIX_DEMAND_DECISION_FRONTIER_PLANNING_REPORT.md`](docs/reports/COGNIX_DEMAND_DECISION_FRONTIER_PLANNING_REPORT.md) · ADR-040 … ADR-043.

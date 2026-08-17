@@ -63,6 +63,11 @@ function validateDecisionStateCommand(cmd) {
             errors.push('supplier_capacity_cap must be a number between 0 and 100');
         }
     }
+    if (cmd.command_type === 'REGISTER_DECISION_CONTRACT') {
+        if (typeof cmd.payload?.decision_contract_ref !== 'string' || !cmd.payload.decision_contract_ref) {
+            errors.push('decision_contract_ref must be a non-empty string');
+        }
+    }
     return {
         valid: errors.length === 0,
         errors

@@ -240,13 +240,13 @@ export default function CommitmentIntelligence({ onNavigateToExperiment }: Commi
         </div>
 
         <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
-          Demand acceleration exceeding primary supplier capacity by &gt;8% results in customer promise failure in 73% of untreated historical cases.
+          Demand acceleration exceeding primary supplier capacity by &gt;8% risks customer promise failure in untreated promotional cases.
         </p>
 
         <div style={{ display: 'flex', gap: 16, fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          <span>Situation Similarity: <strong style={{ color: 'var(--text-primary)' }}>94%</strong></span>
-          <span>Pattern Confidence: <strong style={{ color: 'var(--text-primary)' }}>89%</strong></span>
-          <span>Intervention Success Rate: <strong style={{ color: 'var(--success)' }}>73% (11 occurrences)</strong></span>
+          <span>Demo Similarity: <strong style={{ color: 'var(--text-primary)' }}>94%</strong></span>
+          <span>Modelled Confidence: <strong style={{ color: 'var(--text-primary)' }}>89%</strong></span>
+          <span>Demo Success Rate: <strong style={{ color: 'var(--success)' }}>73% (1 cited precedent)</strong></span>
         </div>
       </div>
 
@@ -270,14 +270,14 @@ export default function CommitmentIntelligence({ onNavigateToExperiment }: Commi
           owner: 'Executive Supply Chain Lead',
           dependencies: ['Total Produce Logistics Allocation', 'Trafford DC Gate 4 Transfer Window'],
           timeHorizon: 'Immediate (Next 18 Hours)',
-          expectedOutcome: 'Mitigates £14,200 weekly lost sales exposure and restores availability to 98.4%.',
+          expectedOutcome: 'Mitigates £14,200 weekly lost sales exposure and restores availability to 98.4% in demonstration simulation.',
           confidence: 89,
           patternId: 'PAT-COMM-01',
           contractStatus: 'VERIFIED',
           evidence: [
             'FreshDirect UK 14-day delivery delay rate: 42% (Threshold: 30%)',
             'Pre-approved backup supplier Total Produce Ltd contract CTR-TP-2023-008 verified',
-            '11 historical occurrences evaluated; backup activation restored 100% stock in past events'
+            'Demo pattern precedent PAT-COMM-01 (seeded uncalibrated telemetry)'
           ]
         }}
       />

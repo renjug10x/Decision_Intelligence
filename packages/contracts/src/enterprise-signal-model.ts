@@ -69,7 +69,14 @@ export type CanonicalSignalType =
   | 'MARGIN_COMPRESSION'
   | 'PROMOTION_CANNIBALISATION'
   | 'LOGISTICS_COST_ESCALATION'
-  | 'INCREMENTAL_REVENUE_OPPORTUNITY';
+  | 'INCREMENTAL_REVENUE_OPPORTUNITY'
+  // Contextual factors (ESF-3 connector-compatible; documented in ENTERPRISE_SIGNAL_MODEL §7.1)
+  | 'WEATHER_TEMPERATURE_ANOMALY'
+  | 'WEATHER_PRECIPITATION_SHIFT'
+  | 'COMPETITOR_CAMPAIGN_LAUNCH'
+  | 'LOCAL_EVENT_DEMAND_SURGE'
+  | 'PAYDAY_CALENDAR_EFFECT'
+  | 'DEMOGRAPHIC_MISSION_SHIFT';
 
 export type SimulationPeriod =
   | 'T-90'
@@ -137,7 +144,8 @@ export interface SignalSimulationContext {
   tenant_id: string;
   scenario_id: string;
   scenario_family?: string;
-  promotion_lift: number;
+  /** Explicit 0 means no promotional pressure. Omit/undefined → simulator defaults to 20. */
+  promotion_lift?: number;
   supplier_capacity_cap: number;
   forecast_horizon_days: number;
   promotion_method: string;
@@ -251,7 +259,15 @@ export function validateSignalSimulationContext(context: Partial<SignalSimulatio
   if (!context.session_id) errors.push('Missing required field: session_id');
   if (!context.decision_state_id) errors.push('Missing required field: decision_state_id');
   if (typeof context.decision_state_version !== 'number') errors.push('Missing required field: decision_state_version');
-  if (typeof context.promotion_lift !== 'number') errors.push('Missing required field: promotion_lift');
+  // Absent/undefined may be defaulted by the simulator (→ 20). Explicit 0 is a valid value
+  // and must not be rejected here — callers that mean "no promotional pressure" pass 0.
+  if (
+    context.promotion_lift !== undefined &&
+    context.promotion_lift !== null &&
+    typeof context.promotion_lift !== 'number'
+  ) {
+    errors.push('Invalid field: promotion_lift must be a number when provided');
+  }
 
   return {
     valid: errors.length === 0,

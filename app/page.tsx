@@ -19,6 +19,7 @@ import CommitmentIntelligence from '@/components/CommitmentIntelligence';
 import DecisionRippleIntelligence from '@/components/DecisionRippleIntelligence';
 import EnterpriseMemory from '@/components/EnterpriseMemory';
 import OpportunityIntelligence from '@/components/OpportunityIntelligence';
+import CampaignDecisionCanvas from '@/components/CampaignDecisionCanvas';
 import { EXPERIMENT_REGISTRY } from '@/config/experiments';
 import { env } from '@/config/environment';
 import { DOMAIN_CATALOGUE, getDomainById, DEFAULT_DOMAIN_ID } from '@/config/domains';
@@ -80,6 +81,7 @@ export default function App() {
     else if (expId === 'EXP-RIPPLE-02') setCurrentPage('decision-ripple');
     else if (expId === 'EXP-MEMORY-03') setCurrentPage('enterprise-memory');
     else if (expId === 'EXP-OPPORTUNITY-04') setCurrentPage('opportunity-intelligence');
+    else if (expId === 'EXP-CDI-01') setCurrentPage('campaign-decision');
     else {
       setSelectedExperimentId(expId);
       setCurrentPage('canvas');
@@ -188,6 +190,8 @@ export default function App() {
         return <EnterpriseMemory onNavigateToSolution={handleNavigateToSolution} onNavigateToExperiment={handleNavigateToExperiment} />;
       case 'opportunity-intelligence':
         return <OpportunityIntelligence onNavigateToSolution={handleNavigateToSolution} onNavigateToExperiment={handleNavigateToExperiment} />;
+      case 'campaign-decision':
+        return <CampaignDecisionCanvas onNavigateToExperiment={handleNavigateToExperiment} />;
       case 'solution-promo':
       case 'promotions':
         return <PromotionPlanner onNavigateToExperiment={handleNavigateToExperiment} />;

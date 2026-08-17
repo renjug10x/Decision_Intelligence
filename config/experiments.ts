@@ -163,5 +163,31 @@ export const EXPERIMENT_REGISTRY: CognixExperiment[] = [
     applicableIndustries: ['Retail', 'Consumer Packaged Goods'],
     businessDomains: ['Commercial Strategy', 'Merchandising'],
     learnings: []
+  },
+  {
+    id: 'EXP-CDI-01',
+    name: 'Campaign Decision Intelligence',
+    provocativeQuestion: 'What if promotional decisions discovered whether, where, when, and how to intervene while accounting for counterfactuals, cross-functional consequences, and closed-loop learning?',
+    problemStatement: 'Retail promotion tools collapse decision-making into discount calculators, skipping whether intervention is needed, where and when it should happen, and what reality later taught the enterprise.',
+    industryToday: 'Promotion planners optimise mechanic depth inside a silo without an explicit counterfactual baseline, readiness gate, or closed learning loop.',
+    cognixInnovation: 'Progressive Campaign Decision Canvas establishing authoritative campaign intent, then unlocking counterfactual, causal, readiness, frontier, and learning capabilities across CDI packages.',
+    demonstrationRoute: 'campaign-decision',
+    maturity: 'Prototype',
+    ipClassification: 'G10X Proprietary',
+    originDate: '2026-08-14',
+    originator: 'G10X Enterprise Innovation Lab',
+    version: '0.1.0',
+    commercialStatus: 'Active CDI Foundation (CDI-01)',
+    businessValue: {
+      financialUpside: '£4.6K net profit recovery pathway (demo)',
+      operationalMetric: '35% OOS risk reduction pathway (demo)',
+      strategicAdvantage: 'Promotion treated as one intervention option — not the default answer'
+    },
+    confidenceScore: 86,
+    intelligenceUsed: ['Campaign Intent Contract', 'Shared Decision State', 'Commercial Intent Projection'],
+    evidenceSources: ['CDI-01 Canvas Registration', 'IFI-01 Commercial Intent Store', 'WP10-C Decision State'],
+    applicableIndustries: ['Retail & Grocery', 'Consumer Packaged Goods'],
+    businessDomains: ['Commercial Strategy', 'Merchandising', 'Demand Planning'],
+    learnings: []
   }
 ];

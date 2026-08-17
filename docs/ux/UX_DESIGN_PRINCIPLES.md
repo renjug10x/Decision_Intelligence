@@ -1,9 +1,9 @@
 # COGNIX UX & VISUAL DESIGN PRINCIPLES
 
-**Document Status:** Approved & Authoritative  
-**Version:** 1.0.0  
-**Effective Date:** August 2026  
-**Owner:** G10X Experience & Design Systems Group  
+**Document Status:** Approved & Authoritative
+**Version:** 1.1.0
+**Effective Date:** August 2026
+**Owner:** G10X Experience & Design Systems Group
 
 ---
 
@@ -110,7 +110,7 @@ When an executive opens CogniX, they are greeted by the **Curiosity Engine**:
 
 ### Progressive Disclosure Flow:
 ```text
-  [ Provocative Question ] 
+  [ Provocative Question ]
              ↓
   [ Innovation Canvas ]  ──> Problem statement, hypothesis, business value.
              ↓
@@ -126,3 +126,76 @@ When an executive opens CogniX, they are greeted by the **Curiosity Engine**:
 - **Border Radius:** Subtly rounded (`var(--radius-sm)` = 6px, `var(--radius-md)` = 8px, `var(--radius-lg)` = 12px)
 - **Elevation Shadows:** Very light, crisp directional shadows (`box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03)`).
 - **Glassmorphism:** Prohibited except for floating modal backdrop filters where readability demands it.
+
+---
+
+## 5. Campaign Decision Intelligence UX & Progressive Disclosure Patterns
+
+### 5.1 Non-Cockpit Decision Surface
+Campaign Decision Intelligence surfaces MUST NOT create dense, cluttered dashboard cockpits. Primary views present progressive disclosure, answering five executive questions in order:
+1. **What are we considering?** (Campaign Intent & Objective)
+2. **What does CogniX predict?** (Decision Timeline & Counterfactual Baseline)
+3. **Should we proceed?** (Campaign Decision Readiness: GO / CONDITIONAL GO / REVIEW / DO NOT PROCEED)
+4. **Is there a better intervention?** (Multi-Objective Outcome Frontier & AI Competing Strategies)
+5. **What should I investigate?** (Curiosity-Driven Demand Decomposition & Pre-Mortem)
+
+### 5.2 Progressive Disclosure Pattern: `What? → Why? → Evidence → What If?`
+Executives are never forced to inspect dense numbers or complex multi-variable breakdown charts upfront:
+- **`What?`** High-level headline prediction (e.g. `Campaign Demand +28% · 84% Confidence`).
+- **`Why?`** Clicking *Why?* surfaces progressive driver contributions (Mechanic +18.2pp, Audience +6.4pp, Weather +4.1pp, Competitor -2.1pp).
+- **`Evidence`** Clicking *Show Evidence* exposes underlying data telemetry, historical analogues, and confidence bounds.
+- **`What If?`** Clicking *What If?* opens scenario adjustment controls and alternative trade-off frontiers.
+
+### 5.3 Multi-Objective Outcome Frontier UX
+Trade-offs between Revenue, Profit Contribution, Waste Reduction, and Customer Availability are presented as clear strategy cards (*Maximum Growth*, *Maximum Contribution*, *Maximum Waste Reduction*, *Balanced*) with visible, explainable trade-offs—never as opaque single-number optimizations.
+
+### 5.4 Primary Campaign Delta Decision Surface ("Should We Intervene?")
+The "Do Nothing vs Proposed Intervention" comparison (Campaign Delta) is elevated as a mandatory primary decision surface. It exposes true incremental net monetary value (£ contribution delta, net volume delta, waste reduction delta), answering: *"Does intervention create more value than doing nothing?"*
+
+### 5.5 Decision Readiness UX: Compact Summary → 6-Dimension Evidence
+Decision Readiness is never reduced to a static badge or generic AI text. It follows a 2-tier structure:
+- **Tier 1 (Compact Summary):** Overall state (`GO` | `CONDITIONAL GO` | `REVIEW` | `DO NOT PROCEED`) with confidence score.
+- **Tier 2 (Progressively Disclosed Evidence):** Interactive drawer exposing 6-dimension evaluation breakdown (*Commercial*, *Demand*, *Operational*, *Context*, *Customer*, *Strategic*) with evidence provenance.
+
+### 5.6 Decision Half-Life UX: Compact Validity Indicator → Validity Evidence
+Decision Half-Life is never implemented as a countdown timer, expiry estimate or duration. It follows an evidence-driven pattern:
+- **Tier 1 (Compact Indicator):** Validity state only — `STABLE` | `WATCH` | `DEGRADED` | `REASSESS_REQUIRED` | `INDETERMINATE`. No hours, no percentage remaining, no progress bar, no clock, no decay animation. `INDETERMINATE` means insufficient evidence and is rendered distinctly, never as a fifth severity step and never collapsed into `STABLE`.
+- **Tier 2 (Progressively Disclosed Evidence):** Assumption and trigger drawer showing each declared assumption, the value it held when the decision was resolved, and which triggers fired, did not fire, or could not be assessed — with the specific signal drifts behind any fired trigger (e.g. weather shift +3.2°C, competitor price change −5%) and whether that movement was scenario-driven or world-driven.
+
+Quantitative duration is unavailable until calibrated temporal evidence exists, and its absence is shown rather than filled. Authoritative semantics: `docs/reports/COGNIX_CDI_07A_DECISION_CONTRACT_DESIGN_GATE.md` §5.
+
+---
+
+## 6. Demand Decision Frontier UX (`DDF-01`)
+
+Demand & Forecast must **not** become a dense planning dashboard. It remains executive-grade: light, professional, curiosity-led, progressively disclosed, evidence-driven, low in card and container density, and understandable without ML knowledge.
+
+### 6.1 The reasoning must be visible in the visual hierarchy
+```text
+change  →  gap  →  urgency  →  consequence  →  intervention  →  outcome
+```
+Read as: *something is changing* (Forecast Stability) → *our commitments may not capture it* (Decision Gap) → *there is limited time* (Decision Window) → *waiting or choosing wrongly has a cost* (Decision Regret) → *CogniX evaluates an intervention* → *the frontier is recomputed*.
+
+The three capabilities are **one experience**, never three unrelated widgets. The five-second rule and the 40–60 word ceiling (§3) apply unchanged.
+
+### 6.2 Progressive disclosure — two entry actions
+- **`Explore Decision Frontier`** — progressively discloses what changed, why CogniX believes it changed, what evidence contributed, emerging demand, executable capacity, Decision Gap, Decision Window, economic consequences, the recommended intervention, the expected outcome, and confidence/evidence.
+- **`Simulate Intervention`** — recomputes Decision Gap, Decision Regret, capturable opportunity, residual exposure and risk state. **A failed recomputation renders an explicit unavailable state; a previous result is never left on screen as current.**
+
+Both follow the established `What? → Why? → Evidence → What If?` pattern (§5.2) rather than introducing a new interaction grammar.
+
+### 6.3 Demand Decision Frontier visualisation
+The forecast chart evolves from a passive historical/forecast line into a **decision visual**, showing where supported:
+1. current / base forecast trajectory
+2. emerging demand trajectory
+3. executable / committed trajectory
+4. a visual area representing the **Decision Gap**
+5. the **decision-frontier marker** where the Decision Window closes
+6. the post-intervention trajectory while simulation is active
+
+Rules: the graph must make the commercial situation legible **in seconds** and without a legend lookup. Only trajectories the estate can actually support are drawn — an unsupported trajectory is omitted, never dashed in as an implication. The chart obeys the §1.2 light semantic palette (Red for gap/exposure, Orange for opportunity, Green for protection); the current dark-theme chart styling on this light surface is a defect to correct. **No charting library decision is mandated** — Chart.js via `react-chartjs-2` is already the repository's established choice and remains it.
+
+### 6.4 Two-tier honesty patterns
+- **Forecast Confidence vs Forecast Stability (Tier 1):** presented as two distinct readings with distinct labels, never merged into one "trust" number and never captioned as *model accuracy* absent a backtest. `INDETERMINATE` stability is rendered distinctly and never collapsed into a favourable score.
+- **Decision Window (Tier 1):** a duration renders **only** where a constraint is declared, and the declared constraint is named on disclosure. With none declared the state is `INDETERMINATE` and **no countdown, clock, progress bar or decay animation is drawn**. Modelled demo deadlines are visibly labelled as modelled. The Decision Window must **never** share an indicator with, be labelled as, or substitute for `CDI-07A` Decision Half-Life validity (§5.6) — that prohibition is unchanged and is not relaxed by this section.
+- **Decision Regret (Tier 1 → Tier 2):** `ACT_NOW` / `WAIT` / `DO_NOTHING` as comparable alternatives with visible trade-offs — never an opaque single-number optimisation. Where they do not separate materially, CogniX says so and **names no winner**; where readiness evidence would gate an option, it is shown as *not currently actionable* rather than recommended.

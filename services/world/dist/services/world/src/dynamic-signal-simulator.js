@@ -28,7 +28,8 @@ function simulateEnterpriseSignalTimelines(request) {
     const toIdx = index_1.ORDERED_SIMULATION_PERIODS.indexOf(toPeriod);
     const targetPeriods = index_1.ORDERED_SIMULATION_PERIODS.slice(fromIdx, toIdx + 1);
     const scenarioFamily = context.scenario_family || (context.scenario_id.includes('BREACH') ? 'supplier_breach' : 'promotion_surge');
-    const promoLift = context.promotion_lift || 20; // percent
+    // Nullish default only — explicit 0 must remain 0 (never coerce via || into a 20% promo world).
+    const promoLift = context.promotion_lift ?? 20; // percent
     const stateVersion = context.decision_state_version || 1;
     const now = new Date().toISOString();
     // Find active interventions and their effective periods

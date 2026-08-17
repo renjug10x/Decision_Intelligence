@@ -1,9 +1,9 @@
 # ENTERPRISE SIGNAL FABRIC & CANONICAL SIGNAL MODEL
 
-**Document Status:** Authoritative & Implemented (ESF-1)  
-**Version:** 1.0.0  
-**Effective Date:** August 2026  
-**Owner:** G10X Enterprise Innovation Lab Architecture Group  
+**Document Status:** Approved & Authoritative
+**Version:** 1.1.0
+**Effective Date:** August 2026
+**Owner:** G10X Enterprise Innovation Lab Architecture Group
 
 ---
 
@@ -105,7 +105,12 @@ export interface EnterpriseSignal {
 
 Every Enterprise Signal carries explicit source provenance:
 - **Synthetic Signals (Current Innovation Lab):** `source_type = 'SYNTHETIC_WORLD'`, generated deterministically by the Enterprise World domain service (`services/world/src/enterprise-signal-generator.ts`). The `packages/contracts` repository remains strictly transport-neutral and owns zero scenario-generation logic.
-- **Production Connectors (Future Enterprise):** `source_type = 'EXTERNAL_CONNECTOR'`, received via adapters from Blue Yonder, SAP IBP, E-Commerce clickstream, or WMS systems.
+- **Production Connectors (ESF-3):** `source_type` mapped from provider-neutral connector category (`PLANNING_SYSTEM`, `COMMERCE_TELEMETRY`, `FULFILMENT_SYSTEM`, or `EXTERNAL_CONNECTOR`). Inbound feeds enter as `ExternalSignalEnvelope` objects, are normalised by the ESF-3 normaliser, and emit canonical `EnterpriseSignal` records with explicit connector provenance. Vendor platforms are reference adapters only. **Every connector in the reference registry is `synthetic_demo: true` and is therefore non-authoritative as organisational evidence.**
+- **Attested Sources (ESF-6 / Y3a) — the sole origin of `synthetic_demo = false`:** a server-side `AttestedObservationSource` registry, separate from the ESF-3 registry, holding tenant ownership, permitted observation categories, supported signal types, supported composite grain capabilities, supported measurement bases, and a named `SourceAttestation`. `source_type` is derived from the registered source's category through the existing ESF-3 mapping — **no new `SignalSourceType`, no new `ExternalSignalCategory`, no widening of `CanonicalSignalType`.**
+
+**Authority is a property of the registry, never of the payload.** A request body cannot declare itself authoritative. The effective synthetic flag is `payload.synthetic_demo || payload.provenance.synthetic_demo || source.synthetic_demo` — **monotone toward synthetic**: a payload may declare itself synthetic and be believed, and may declare itself real and be ignored. `confidence` and `quality` (including the 80 / 85 adapter defaults) are classified `SUPPLIED` vs `ADAPTER_DEFAULT` and are **permanently barred from the authority conjunction** — a high score never creates authority.
+
+**Synthetic provenance is immutable for the observation.** There is no migration path and none may be added: admission mints a new observation with server-issued identity and never re-flags, rewrites or re-classifies an existing one. ESF-1 / ESF-2 / ESF-3 observations remain non-authoritative permanently.
 
 The underlying signal contract is 100% identical between synthetic and production sources. Shared Decision State references canonical signal IDs (`sig_<id>`), storing zero duplicate signal objects.
 
@@ -121,6 +126,41 @@ ESF-2 introduces deterministic temporal signal simulation (`services/world/src/d
 - **Bounded Simulation Context:** `SignalSimulationContext` projects bounded decision state parameters (`session_id`, `decision_state_id`, `decision_state_version`, `promotion_lift`, `supplier_capacity_cap`, `selected_interventions`) into `cognix-world` via `POST /api/v1/signals/simulate`.
 - **Intervention Temporal Immutability:** Interventions become effective at a specific `effective_period` (e.g. `T-2`). Historical observations at or before `effective_period` remain strictly unchanged (`period <= effective_period`), while future observations (`period > effective_period`) deterministically reflect intervention consequences.
 - **Pure Function Simulation:** Dynamic simulation is 100% calculative and on-demand. It mutates zero state in Enterprise World, Decision State, or Telemetry.
-- **`ESF-3` — External Signal Connector Contract [PENDING]:** Transport adapters for enterprise planning (Blue Yonder / SAP IBP) and commerce telemetry.
-- **`ESF-4` — Signal Quality, Confidence & Provenance [PENDING]:** Signal freshness metrics, reliability scoring, and source anomaly detection.
-- **`ESF-5` — Learned Signal Behaviour [PENDING]:** Machine Learning scoring signal precursor sequences against historical memory precedents.
+- **`ESF-3` — External Signal Connector Contract [COMPLETED]:** Provider-neutral `ExternalSignalEnvelope` → normalisation → canonical `EnterpriseSignal` pipeline; connector registry/discovery; reference adapters across planning, commerce, weather, events, competitive intel, operational telemetry, and demographic context. Vendor labels (e.g. Blue Yonder / SAP IBP) are reference aliases only.
+- **`ESF-6 / Y3a` — Attested Observation Admission [COMPLETED 2026-08-16]:** The predicate `source × context → authority` — whether an observation is evidence about the real world at all, asked before CDI-08 asks whether it addresses the contracted decision. Attested source registry, deterministic server-issued receipts (`SOURCE_REGISTRATION`, `CONTRACT_REGISTRATION`, `OBSERVATION_ADMISSION`) ordered by a per-tenant strictly monotonic `sequence` rather than any wall-clock reading, and a fail-closed admission predicate. Supersedes `Y3`. Gate: `docs/reports/COGNIX_ESF_6_ATTESTED_OBSERVATION_ADMISSION_DESIGN_GATE.md`; report: `COGNIX_ESF_6_ATTESTED_OBSERVATION_ADMISSION_REPORT.md`; ADR-038, ADR-039. Independently reconciled 2026-08-16 — five defects corrected, led by an unbound admission receipt that let a caller publish `WITHIN_DECLARED_ENVELOPE` over an observation the server never admitted. LE-1…LE-5, LE-7 and LE-8 now pass on attested evidence; LE-6 remains blocked by `PLACEHOLDER_EXCLUDED` in the reference estate, so no eligible `LearningCase` is produced.
+- **`ESF-4` — Signal Quality, Confidence & Provenance [PENDING — parallel-eligible after ESF-6]:** Signal freshness metrics, reliability scoring, and source anomaly detection. **Admission precedes grading:** quality grades signals already admitted and can never make an inadmissible signal admissible.
+- **`ESF-5` — Learned Signal Behaviour [PENDING]:** Machine Learning scoring signal precursor sequences against historical memory precedents. ML may rank, cluster, shortlist and suggest; it may never establish authority, eligibility, correspondence, comparability or a verdict.
+
+---
+
+## 7. Contextual Signals & Decision Half-Life Signal Tracking
+
+### 7.1 Contextual Factor Signals
+Campaign Decision Intelligence extends the taxonomy to capture contextual signals:
+- `WEATHER_TEMPERATURE_ANOMALY`
+- `WEATHER_PRECIPITATION_SHIFT`
+- `COMPETITOR_CAMPAIGN_LAUNCH`
+- `LOCAL_EVENT_DEMAND_SURGE`
+- `PAYDAY_CALENDAR_EFFECT`
+- `DEMOGRAPHIC_MISSION_SHIFT`
+
+### 7.2 Decision Validity & Volatility — no signal types are added
+
+Three signal types were previously reserved here for `CDI-07A`: `RECOMMENDATION_HALF_LIFE_DECAY`,
+`ASSUMPTION_SENSITIVITY_BREACH` and `SIGNAL_VOLATILITY_SURGE`. `ESF-3` correctly declined to absorb
+them, and `CDI-07A` has now ruled that **none of the three is added**. `CanonicalSignalType` is not
+widened.
+
+| Reserved type | Ruling |
+| --- | --- |
+| `RECOMMENDATION_HALF_LIFE_DECAY` | Not added. It names a decay quantity that does not exist — quantitative duration is unavailable until calibrated temporal evidence exists. Adding the type would create a slot demanding to be filled |
+| `ASSUMPTION_SENSITIVITY_BREACH` | Not added. Fully expressed by a fired `CDI-07A` decision trigger on a load-bearing assumption. A second representation would be a competing taxonomy |
+| `SIGNAL_VOLATILITY_SURGE` | Not added. Volatility is expressed as a fired trigger with its movement attribution. A surge type would carry an implied magnitude with no calibration |
+
+Signal movement is instead evaluated against the assumptions an active `DecisionContract` declared,
+producing a validity state and, where warranted, a request that a person reassess. **No signal
+publishes a re-simulation instruction, and no signal supersedes or withdraws a contract
+automatically** — only a named person does that. Movement caused by a Shared Decision State
+parameter change is scenario-driven rather than world-driven and is reported as such.
+
+Authoritative semantics: `docs/reports/COGNIX_CDI_07A_DECISION_CONTRACT_DESIGN_GATE.md` §5–§7.

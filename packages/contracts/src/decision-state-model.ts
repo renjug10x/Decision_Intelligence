@@ -14,6 +14,8 @@ export type DecisionCommandType =
   | 'SELECT_INTERVENTION'
   | 'DESELECT_INTERVENTION'
   | 'REGISTER_COMMERCIAL_INTENT'
+  | 'REGISTER_CAMPAIGN_INTENT'
+  | 'REGISTER_DECISION_CONTRACT'
   | 'RESET_SCENARIO';
 
 export interface DecisionScenarioParameters {
@@ -62,6 +64,9 @@ export interface DecisionState {
   constraints: string[];
   selected_interventions: string[];
   commercial_intent_ref?: string;
+  campaign_intent_ref?: string;
+  /** CDI-07A W1 — plain string reference only; contract content lives in CDI-07A store. */
+  decision_contract_ref?: string;
   derived_impacts: DecisionDerivedImpacts;
   history: DecisionStateVersionRecord[];
   provenance: Record<string, string>;
@@ -157,6 +162,12 @@ export function validateDecisionStateCommand(cmd: Partial<TransitionCommandPaylo
     const val = cmd.payload?.supplier_capacity_cap;
     if (typeof val !== 'number' || val < 0 || val > 100) {
       errors.push('supplier_capacity_cap must be a number between 0 and 100');
+    }
+  }
+
+  if (cmd.command_type === 'REGISTER_DECISION_CONTRACT') {
+    if (typeof cmd.payload?.decision_contract_ref !== 'string' || !cmd.payload.decision_contract_ref) {
+      errors.push('decision_contract_ref must be a non-empty string');
     }
   }
 

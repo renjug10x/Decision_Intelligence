@@ -203,6 +203,28 @@ function runTests() {
   const impacts = calculateDerivedImpacts({ promotion_lift: 20, supplier_capacity_cap: 10, forecast_horizon_days: 14, promotion_method: '20_percent_off', campaign_scope: 'national', cannibalisation_factor: 0, event_boost: 'none' }, []);
   assert(impacts.weekly_demand_units === 12000, 'Test 17: WP10-C decision state impact engine regression clean');
 
+  // TEST 18: Explicit promotion_lift 0 stays 0 (falsy-zero must not become 20).
+  const zeroLiftRes = simulateEnterpriseSignalTimelines({
+    context: { ...baseContext, promotion_lift: 0, promotion_method: 'none' }
+  });
+  const zeroToday = zeroLiftRes.timelines[0].observations.find(o => o.period === 'Today')!;
+  const twentyToday = res1.timelines[0].observations.find(o => o.period === 'Today')!;
+  assert(
+    zeroToday.delta_pct === 0 && twentyToday.delta_pct !== 0,
+    'Test 18: Explicit promotion_lift 0 stays 0 (not coerced to default 20)',
+    `zero=${zeroToday.delta_pct} twenty=${twentyToday.delta_pct}`
+  );
+
+  // TEST 19: Absent promotion_lift receives intended default (20).
+  const { promotion_lift: _omit, ...withoutLift } = baseContext as any;
+  const absentLiftRes = simulateEnterpriseSignalTimelines({ context: withoutLift });
+  const absentToday = absentLiftRes.timelines[0].observations.find(o => o.period === 'Today')!;
+  assert(
+    absentToday.delta_pct === twentyToday.delta_pct,
+    'Test 19: Absent promotion_lift follows intended default semantics (= explicit 20)',
+    `absent=${absentToday.delta_pct} twenty=${twentyToday.delta_pct}`
+  );
+
   console.log('\n====================================================');
   console.log(`TEST RESULTS: ${passed} PASSED, ${failed} FAILED`);
   console.log('====================================================\n');

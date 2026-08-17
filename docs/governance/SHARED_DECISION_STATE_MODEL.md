@@ -1,9 +1,9 @@
 # COGNIX SHARED DECISION STATE MODEL & GOVERNANCE
 
-**Document Status:** Approved & Authoritative  
-**Version:** 1.0.0  
-**Effective Date:** August 2026  
-**Owner:** CogniX Architecture Steering Group  
+**Document Status:** Approved & Authoritative
+**Version:** 1.1.0
+**Effective Date:** August 2026
+**Owner:** CogniX Architecture Steering Group
 
 ---
 
@@ -128,3 +128,33 @@ Journey Telemetry Records SCENARIO_CHANGED Event
 - `PATCH /api/v1/decision-state/{id}` — Execute Deterministic Command State Transition
 - `POST /api/v1/decision-state/{id}/reset` — Reset State to Baseline
 - `GET  /api/v1/decision-state/{id}/history` — Fetch Version History
+
+---
+
+## 8. Campaign Decision Contract Integration
+
+**Ownership boundary (authoritative).** Shared Decision State stores a **reference only**. It does
+not hold, mirror, derive or interpret decision-contract content. `CDI-07A` exclusively owns
+`DecisionContract` content, assumptions, validity, triggers and Decision Half-Life semantics.
+
+### 8.1 Active Decision Contract Binding
+Shared Decision State binds to the active `DecisionContract` through one additive optional field:
+
+- `decision_contract_ref?: string` — the reference to the active contract.
+
+No frontier selection, counterfactual run-rate, micro-market cohort set, validity state or duration
+is stored on, mirrored into, or derived by Shared Decision State. A reader that needs contract
+content resolves it from the CDI-07A contract domain.
+
+### 8.2 Extended Command
+- `REGISTER_DECISION_CONTRACT`: Sets `decision_contract_ref`, following the existing
+  `REGISTER_CAMPAIGN_INTENT` pattern. Registration of the **same** `decision_contract_ref` is
+  **idempotent**: it must not increment `state_version`, must not append a `history` record, and must
+  not produce derived-impact recalculation. Only a change of reference is a state transition.
+
+`calculateDerivedImpacts` is **not** extended. A decision contract changes no scenario parameter and
+therefore no derived impact.
+
+### 8.3 Decision Half-Life
+Decision Half-Life is not a Shared Decision State concern and holds no field here. See
+`docs/reports/COGNIX_CDI_07A_DECISION_CONTRACT_DESIGN_GATE.md` §5 for its authoritative semantics.

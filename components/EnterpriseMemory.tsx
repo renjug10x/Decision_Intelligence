@@ -114,7 +114,7 @@ export default function EnterpriseMemory({
             Enterprise Memory Foundation
           </h1>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
-            Search historical decision precedents, verified interventions, and empirical outcomes.
+            Search seeded demonstration decision precedents, recorded interventions and demonstration outcomes.
           </p>
         </div>
       </div>
@@ -277,7 +277,7 @@ export default function EnterpriseMemory({
           briefing={{
             title: `Precedent Execution Briefing — ${selectedCase.memoryId}`,
             situation: selectedCase.situation,
-            whyNow: 'Precedent historical match provides empirical justification for immediate intervention.',
+            whyNow: 'Seeded demonstration precedent match — illustrative justification only, not measured enterprise evidence.',
             recommendedAction: selectedCase.interventionExecuted,
             owner: 'Enterprise Supply Chain & Operations',
             dependencies: ['DC Gate Logistics Release', 'Supplier Backup SLA Confirmation'],
@@ -288,7 +288,7 @@ export default function EnterpriseMemory({
             contractStatus: 'VERIFIED',
             evidence: [
               `Precedent Memory ID: ${selectedCase.memoryId}`,
-              `Historical Result: ${selectedCase.businessResult}`,
+              `Demonstration Result: ${selectedCase.businessResult}`,
               `Source Classification: ${selectedCase.provenance.source}`
             ]
           }}
