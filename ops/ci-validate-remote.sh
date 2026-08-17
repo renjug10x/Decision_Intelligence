@@ -46,8 +46,9 @@ VALIDATE_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 DEPLOY_ENV="${REPORT_DIR}/deploy.env"
 COMMIT_SHA="unknown"
 COMMIT_BRANCH="unknown"
-DI_NEXTJS_IMAGE="unknown"
-DI_NGINX_IMAGE="unknown"
+DI_COGNIX_WEB_IMAGE="unknown"
+DI_COGNIX_WORLD_IMAGE="unknown"
+DI_COGNIX_LEARNING_IMAGE="unknown"
 
 if [[ -f "${DEPLOY_ENV}" ]]; then
   # shellcheck disable=SC1091
@@ -57,24 +58,28 @@ fi
 log "Compose service status:"
 compose ps | tee "${REPORT_DIR}/compose-ps.txt"
 
-CONTAINER_HEALTH="unknown"
-if docker inspect --format='{{.State.Health.Status}}' nextjs-app 2>/dev/null; then
-  CONTAINER_HEALTH="$(docker inspect --format='{{.State.Health.Status}}' nextjs-app 2>/dev/null || echo unknown)"
-fi
+WEB_HEALTH="unknown"
+WORLD_HEALTH="unknown"
+LEARNING_HEALTH="unknown"
 
-NGINX_HEALTH="unknown"
-if docker inspect --format='{{.State.Health.Status}}' nginx-proxy 2>/dev/null; then
-  NGINX_HEALTH="$(docker inspect --format='{{.State.Health.Status}}' nginx-proxy 2>/dev/null || echo unknown)"
+if docker inspect --format='{{.State.Health.Status}}' cognix-web 2>/dev/null; then
+  WEB_HEALTH="$(docker inspect --format='{{.State.Health.Status}}' cognix-web 2>/dev/null || echo unknown)"
+fi
+if docker inspect --format='{{.State.Health.Status}}' cognix-world 2>/dev/null; then
+  WORLD_HEALTH="$(docker inspect --format='{{.State.Health.Status}}' cognix-world 2>/dev/null || echo unknown)"
+fi
+if docker inspect --format='{{.State.Health.Status}}' cognix-learning 2>/dev/null; then
+  LEARNING_HEALTH="$(docker inspect --format='{{.State.Health.Status}}' cognix-learning 2>/dev/null || echo unknown)"
 fi
 
 HTTP_STATUS="000"
 HEALTH_BODY=""
 REDIRECT_NOTE="not checked"
 
-LOCAL_NGINX_STATUS="000"
+LOCAL_WEB_STATUS="000"
 if command -v curl >/dev/null 2>&1; then
-  log "Checking local nginx on :${DI_HTTP_PORT}/api/health"
-  LOCAL_NGINX_STATUS="$(curl -s -o /tmp/di-local-health.json -w "%{http_code}" "http://127.0.0.1:${DI_HTTP_PORT}/api/health" || echo "000")"
+  log "Checking local cognix-web on :${DI_HTTP_PORT}/api/health"
+  LOCAL_WEB_STATUS="$(curl -s -o /tmp/di-local-health.json -w "%{http_code}" "http://127.0.0.1:${DI_HTTP_PORT}/api/health" || echo "000")"
 
   log "Checking public health endpoint: ${HEALTH_URL}"
   HTTP_STATUS="$(curl -s -o /tmp/di-health.json -w "%{http_code}" "${HEALTH_URL}" || echo "000")"
@@ -90,18 +95,22 @@ else
 fi
 
 OVERALL="PASS"
-if [[ "${LOCAL_NGINX_STATUS}" != "200" ]]; then
+if [[ "${LOCAL_WEB_STATUS}" != "200" ]]; then
   OVERALL="FAIL"
 fi
 if [[ "${HTTP_STATUS}" != "200" ]]; then
   OVERALL="FAIL"
 fi
-if [[ "${NGINX_HEALTH}" != "healthy" && "${NGINX_HEALTH}" != "unknown" ]]; then
-  OVERALL="FAIL"
-fi
-if ! docker ps --format '{{.Names}}' | grep -qx 'nginx-proxy'; then
-  OVERALL="FAIL"
-fi
+for svc_health in "${WEB_HEALTH}" "${WORLD_HEALTH}" "${LEARNING_HEALTH}"; do
+  if [[ "${svc_health}" != "healthy" && "${svc_health}" != "unknown" ]]; then
+    OVERALL="FAIL"
+  fi
+done
+for svc in cognix-web cognix-world cognix-learning; do
+  if ! docker ps --format '{{.Names}}' | grep -qx "${svc}"; then
+    OVERALL="FAIL"
+  fi
+done
 
 cat > "${REPORT_FILE}" <<EOF
 # Decision Intelligence Deployment Report
@@ -114,22 +123,24 @@ cat > "${REPORT_FILE}" <<EOF
 | Public URL | ${PUBLIC_BASE_URL} |
 | Health URL | ${HEALTH_URL} |
 | DI_HTTP_PORT | ${DI_HTTP_PORT} |
-| Local nginx health | http://127.0.0.1:${DI_HTTP_PORT}/api/health → ${LOCAL_NGINX_STATUS} |
+| Local cognix-web health | http://127.0.0.1:${DI_HTTP_PORT}/api/health → ${LOCAL_WEB_STATUS} |
 | Overall | **${OVERALL}** |
 
 Host nginx / ALB must forward \`${PUBLIC_BASE_URL}\` → \`http://127.0.0.1:${DI_HTTP_PORT}\`.
 
 ## Images
 
-- nextjs-app: \`${DI_NEXTJS_IMAGE}\`
-- nginx-proxy: \`${DI_NGINX_IMAGE}\`
+- cognix-web: \`${DI_COGNIX_WEB_IMAGE}\`
+- cognix-world: \`${DI_COGNIX_WORLD_IMAGE}\`
+- cognix-learning: \`${DI_COGNIX_LEARNING_IMAGE}\`
 
 ## Container health
 
 | Service | Health |
 |---------|--------|
-| nextjs-app | ${CONTAINER_HEALTH} |
-| nginx-proxy | ${NGINX_HEALTH} |
+| cognix-web | ${WEB_HEALTH} |
+| cognix-world | ${WORLD_HEALTH} |
+| cognix-learning | ${LEARNING_HEALTH} |
 
 ## Public health check
 
@@ -154,7 +165,7 @@ log "Validation report written to ${REPORT_FILE}"
 cat "${REPORT_FILE}"
 
 if [[ "${OVERALL}" == "FAIL" ]]; then
-  echo "ERROR: Validation failed (HTTP ${HTTP_STATUS}, container health ${CONTAINER_HEALTH})."
+  echo "ERROR: Validation failed (HTTP ${HTTP_STATUS}, cognix-web health ${WEB_HEALTH})."
   exit 1
 fi
 

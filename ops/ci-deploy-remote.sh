@@ -55,47 +55,50 @@ if [[ -f .env ]]; then
 fi
 set +a
 
-: "${DI_NEXTJS_IMAGE:?DI_NEXTJS_IMAGE not set in .env.images}"
-: "${DI_NGINX_IMAGE:?DI_NGINX_IMAGE not set in .env.images}"
+: "${DI_COGNIX_WEB_IMAGE:?DI_COGNIX_WEB_IMAGE not set in .env.images}"
+: "${DI_COGNIX_WORLD_IMAGE:?DI_COGNIX_WORLD_IMAGE not set in .env.images}"
+: "${DI_COGNIX_LEARNING_IMAGE:?DI_COGNIX_LEARNING_IMAGE not set in .env.images}"
 
 DI_HTTP_PORT="${DI_HTTP_PORT:-8080}"
 
 log "Pulling images..."
-compose pull nextjs-app nginx-proxy
+compose pull cognix-world cognix-learning cognix-web
 
-log "Recreating nextjs-app..."
-compose up -d --force-recreate nextjs-app
+log "Recreating backend services..."
+compose up -d --force-recreate cognix-world cognix-learning
 
-log "Waiting for nextjs-app health (${HEALTH_CHECK_DELAY}s)..."
+log "Waiting for backend health (${HEALTH_CHECK_DELAY}s)..."
 sleep "${HEALTH_CHECK_DELAY}"
 
-log "Recreating nginx-proxy on host port ${DI_HTTP_PORT} (host nginx → 127.0.0.1:${DI_HTTP_PORT})..."
-compose up -d --force-recreate nginx-proxy
+log "Recreating cognix-web on host port ${DI_HTTP_PORT} (host nginx → 127.0.0.1:${DI_HTTP_PORT})..."
+compose up -d --force-recreate cognix-web
 
 log "Compose status:"
 compose ps
 
-if ! docker ps --format '{{.Names}}' | grep -qx 'nginx-proxy'; then
-  echo "ERROR: nginx-proxy is not running."
-  compose logs --tail=80 nginx-proxy || true
-  exit 1
-fi
+for svc in cognix-world cognix-learning cognix-web; do
+  if ! docker ps --format '{{.Names}}' | grep -qx "${svc}"; then
+    echo "ERROR: ${svc} is not running."
+    compose logs --tail=80 "${svc}" || true
+    exit 1
+  fi
+done
 
-log "Checking internal health via nextjs-app..."
-if docker exec nextjs-app wget --no-verbose --tries=3 --spider http://localhost:3000/api/health; then
-  log "nextjs-app health check passed."
+log "Checking internal health via cognix-web..."
+if docker exec cognix-web wget --no-verbose --tries=3 --spider "http://localhost:3000/api/v1/health?type=live"; then
+  log "cognix-web health check passed."
 else
-  echo "ERROR: nextjs-app health check failed."
-  compose logs --tail=50 nextjs-app || true
+  echo "ERROR: cognix-web health check failed."
+  compose logs --tail=50 cognix-web || true
   exit 1
 fi
 
-log "Checking nginx → app on port ${DI_HTTP_PORT}..."
+log "Checking public entrypoint on port ${DI_HTTP_PORT}..."
 if curl -sf "http://127.0.0.1:${DI_HTTP_PORT}/api/health" >/dev/null; then
-  log "nginx proxy health check passed on :${DI_HTTP_PORT}."
+  log "cognix-web health check passed on :${DI_HTTP_PORT}."
 else
-  echo "ERROR: nginx not reachable on http://127.0.0.1:${DI_HTTP_PORT}/api/health"
-  compose logs --tail=80 nginx-proxy || true
+  echo "ERROR: cognix-web not reachable on http://127.0.0.1:${DI_HTTP_PORT}/api/health"
+  compose logs --tail=80 cognix-web || true
   exit 1
 fi
 
@@ -104,8 +107,9 @@ DEPLOY_TIME="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "DEPLOY_TIME_UTC=${DEPLOY_TIME}"
   echo "COMMIT_SHA=${COMMIT_SHA}"
   echo "COMMIT_BRANCH=${COMMIT_BRANCH}"
-  echo "DI_NEXTJS_IMAGE=${DI_NEXTJS_IMAGE}"
-  echo "DI_NGINX_IMAGE=${DI_NGINX_IMAGE}"
+  echo "DI_COGNIX_WEB_IMAGE=${DI_COGNIX_WEB_IMAGE}"
+  echo "DI_COGNIX_WORLD_IMAGE=${DI_COGNIX_WORLD_IMAGE}"
+  echo "DI_COGNIX_LEARNING_IMAGE=${DI_COGNIX_LEARNING_IMAGE}"
   echo "DI_HTTP_PORT=${DI_HTTP_PORT}"
 } > "${REPORT_DIR}/deploy.env"
 
