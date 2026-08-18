@@ -1261,7 +1261,7 @@ export default function CampaignDecisionCanvas({
       const playId = humanSelectedPlayId.trim();
       if (!resolvedBy || !basis || !playId) {
         setError(
-          'CHOICE_REQUIRED needs explicit human fields: resolved_by, resolution basis, and a selected survivor play.'
+          'Recording this decision needs three things: who is deciding, why, and which of the remaining options they are choosing.'
         );
         return;
       }
