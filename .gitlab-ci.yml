@@ -184,6 +184,8 @@ build:
       set -e
       export ECR_REGISTRY=$AWS_ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com
       export AUTH_API_URL="${AUTH_API_URL:-https://probx-be.glassx.ai/identity}"
+      export NEXT_PUBLIC_AUTH_API_URL="${NEXT_PUBLIC_AUTH_API_URL:-$AUTH_API_URL}"
+      echo "AUTH_API_URL=${AUTH_API_URL}"
       echo "=== BUILD revision ${CI_COMMIT_SHA} → ${ECR_REPO_NAME} (${IMAGE_TAG_PREFIX}) ==="
 
       if docker compose version >/dev/null 2>&1; then
@@ -277,7 +279,8 @@ push:
           echo \"WARNING: ${DEPLOY_DIR}/.env is missing — create it with AUTH_API_URL (GEMINI key is entered in the app UI).\"
         fi
         rm -f /tmp/docker-compose.ec2.yml /tmp/di.env.images /tmp/ci-deploy-remote.sh /tmp/ci-validate-remote.sh
-        sudo bash ${DEPLOY_DIR}/ci-deploy-remote.sh \
+        export AUTH_API_URL=\"${AUTH_API_URL:-https://probx-be.glassx.ai/identity}\"
+        sudo -E bash ${DEPLOY_DIR}/ci-deploy-remote.sh \
           ${DEPLOY_DIR} \
           ${ECR_REGISTRY} \
           ${ECR_PASSWORD} \

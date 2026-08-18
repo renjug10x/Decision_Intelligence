@@ -2,9 +2,11 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   output: 'standalone',
-  // Expose AUTH_API_URL to the client bundle (used by auth Axios client).
+  // Expose auth base URL to the client bundle (fallback when runtime meta tag is absent).
   env: {
     AUTH_API_URL: process.env.AUTH_API_URL ?? '',
+    NEXT_PUBLIC_AUTH_API_URL:
+      process.env.NEXT_PUBLIC_AUTH_API_URL ?? process.env.AUTH_API_URL ?? '',
   },
   // Next.js 16 uses Turbopack by default — no webpack config needed
   turbopack: {},

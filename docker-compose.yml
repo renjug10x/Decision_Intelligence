@@ -5,6 +5,7 @@ services:
       dockerfile: docker/Dockerfile.web
       args:
         AUTH_API_URL: ${AUTH_API_URL:-}
+        NEXT_PUBLIC_AUTH_API_URL: ${NEXT_PUBLIC_AUTH_API_URL:-${AUTH_API_URL:-}}
     container_name: cognix-web
     ports:
       - "3000:3000"

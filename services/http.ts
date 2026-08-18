@@ -1,5 +1,5 @@
 import axios, { type AxiosInstance } from 'axios';
-import { env } from '@/config/environment';
+import { env, getAuthApiBaseUrl } from '@/config/environment';
 import type { ApiClient } from '@/types/auth';
 
 let unauthorizedCallback: (() => void) | null = null;
@@ -77,7 +77,7 @@ export function getSharedApiService(): ApiClient {
 /** Axios instance for identity/auth routes (`AUTH_API_URL`). */
 export function getAuthApiService(): ApiClient {
   if (!authClient) {
-    authClient = createClient(env.AUTH_API_URL || undefined);
+    authClient = createClient(getAuthApiBaseUrl() || undefined);
   }
   if (typeof window !== 'undefined') {
     const token = localStorage.getItem(env.JWT_STORAGE_KEY);

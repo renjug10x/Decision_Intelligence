@@ -55,6 +55,10 @@ if [[ -f .env ]]; then
 fi
 set +a
 
+AUTH_API_URL="${AUTH_API_URL:-https://probx-be.glassx.ai/identity}"
+export AUTH_API_URL
+log "AUTH_API_URL=${AUTH_API_URL}"
+
 : "${DI_COGNIX_WEB_IMAGE:?DI_COGNIX_WEB_IMAGE not set in .env.images}"
 : "${DI_COGNIX_WORLD_IMAGE:?DI_COGNIX_WORLD_IMAGE not set in .env.images}"
 : "${DI_COGNIX_LEARNING_IMAGE:?DI_COGNIX_LEARNING_IMAGE not set in .env.images}"
