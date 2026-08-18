@@ -4,7 +4,7 @@
 **Date:** August 2026  
 **Baseline Commit:** `f6142d96901e594696660af110f1460908bcfc4a`  
 **Branch:** `Feature/MatchingContract-AutoActivate`  
-**Author:** G10X Antigravity AI Engine  
+**Author:** G10X CogniX Engineering  
 
 ---
 

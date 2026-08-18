@@ -262,6 +262,13 @@ function approxEqual(a: number, b: number, tol = 0.05): boolean {
   return Math.abs(a - b) <= tol;
 }
 
+/**
+ * Points store index_pct rounded to 4 decimal places. Comparisons against an unrounded sum
+ * must allow that rounding, and nothing more — this tolerance admits the representation
+ * artefact and would still catch a real conservation break at the fifth decimal.
+ */
+const INDEX_ROUNDING_TOLERANCE = 1e-4;
+
 export function validateDecisionTimelineProjection(
   p: Partial<DecisionTimelineProjection>
 ): { valid: boolean; errors: string[] } {
@@ -357,7 +364,12 @@ export function assertAmbientMovementPresent(
       if (pt.ambient_component_pp !== ambientUpliftPp) {
         violations.push(`CAMPAIGN ambient_component_pp ${pt.ambient_component_pp} ≠ ${ambientUpliftPp}`);
       }
-      if (pt.index_pct !== 100 + (pt.ambient_component_pp || 0)) {
+      // index_pct is rounded to 4 decimal places when the point is built, so comparing it
+      // to an unrounded float sum is an exact-equality test against a deliberately rounded
+      // number: 100 + 19.46 is 119.46000000000001 in IEEE-754 while the stored point reads
+      // 119.46. Whether that test passed depended on the ambient value's binary
+      // representation rather than on conservation holding, which is what it exists to check.
+      if (!approxEqual(pt.index_pct ?? 0, 100 + (pt.ambient_component_pp || 0), INDEX_ROUNDING_TOLERANCE)) {
         violations.push(`CAMPAIGN counterfactual index must be 100 + ambient`);
       }
     }

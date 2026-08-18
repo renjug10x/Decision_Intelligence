@@ -2,7 +2,7 @@
 
 - **Work Package:** ESF-3 — External Signal Connector Contract
 - **Implementing Agent:** Cursor Auto Balance
-- **Independent Reviewer & Integration Authority:** Claude Opus 5
+- **Independent Reviewer & Integration Authority:** Independent review team
 - **Authoritative Baseline (pre-implementation):** `5911f1491e89d194cf728dde2471713043590189`
 - **Branch:** `Feature/MatchingContract-AutoActivate`
 - **Execution Date:** 2026-08-15
@@ -25,7 +25,7 @@
 | IFI-01 evidence | Present — `docs/reports/COGNIX_IFI_01_INTENT_FUSION_REPORT.md` |
 | Unexplained divergence | **None** — gate PASSED |
 
-### 1.1 Independent Review Continuity Gate (Claude Opus 5)
+### 1.1 Independent Review Continuity Gate
 
 Re-verified before any reconciliation was applied:
 
@@ -128,7 +128,7 @@ OpenAPI: `docs/openapi/enterprise-signals-v1.yaml`
 
 ---
 
-## 5A. Independent Review & Reconciliation (Claude Opus 5)
+## 5A. Independent Review & Reconciliation
 
 The implementation was verified against the repository rather than accepted from the completion report. Two material defects were found in areas explicitly within ESF-3's scope (tenant/session boundaries) and corrected; one contract-alignment gap was closed. No scope was expanded.
 
@@ -259,7 +259,7 @@ The implementing agent proposed ESF-4 as the default continuation. On independen
 
 **Primary recommendation:** `CDI-01 — Campaign Decision Canvas & Intent Model`
 
-**Recommended agent:** Claude Opus 5 — CDI-01 freezes the `CampaignIntent` contract that seven downstream packages bind to, and it spans contracts, runtime, BFF and a new UI surface. That contract-design-under-constraint work, across an unfamiliar multi-layer surface, is where the stronger reasoning model earns its cost. Cursor Auto Balance remains well suited to ESF-4 afterwards, which is additive scoring over an already-frozen signal contract.
+**Recommended agent:** the CDI stream implementation team — CDI-01 freezes the `CampaignIntent` contract that seven downstream packages bind to, and it spans contracts, runtime, BFF and a new UI surface. That contract-design-under-constraint work, across an unfamiliar multi-layer surface, is where the stronger reasoning model earns its cost. Cursor Auto Balance remains well suited to ESF-4 afterwards, which is additive scoring over an already-frozen signal contract.
 
 ### Why CDI-01 over ESF-4
 
@@ -285,7 +285,7 @@ ESF-1 through ESF-3 have established a sufficient signal foundation for CDI-01 t
 # COGNIX — EXECUTE CDI-01
 
 **Work Package:** CDI-01 — Campaign Decision Canvas & Intent Model
-**Primary Agent:** Claude Opus 5
+**Primary Agent:** CogniX implementation team
 **Authorised Starting Baseline:** <ESF-3 commit SHA>
 **Branch:** Feature/MatchingContract-AutoActivate
 

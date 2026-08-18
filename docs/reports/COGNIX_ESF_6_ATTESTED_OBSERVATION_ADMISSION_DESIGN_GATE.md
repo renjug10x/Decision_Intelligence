@@ -581,7 +581,7 @@ that gap, allow a caller-declared witness over authoritative evidence.
 **No subtask delegation.** One predicate, one receipt semantic, one registry; splitting them produces
 divergent conventions on a shared invariant.
 
-**Recommended agent:** the designated CDI/ESF stream implementation agent (Opus-class), with mandatory
+**Recommended agent:** the designated CDI/ESF stream implementation agent (senior implementation capability), with mandatory
 independent adversarial reconciliation before commit.
 
 ---

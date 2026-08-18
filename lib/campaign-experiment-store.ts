@@ -23,14 +23,26 @@ import {
   CampaignDecisionExperiment,
   ExperimentComparison,
   ExperimentComparisonDimension,
+  ExperimentStandingDimension,
   ComparisonSynthesis,
   ExecutionBrief,
   ReadinessVerdict,
+  MIN_COMPARISON_EXPERIMENTS,
+  MAX_COMPARISON_EXPERIMENTS,
   readinessVerdictLabel,
   formatContributionGbp,
   formatDemandPct,
-  validateCampaignDecisionExperiment
+  validateCampaignDecisionExperiment,
+  categoryLabel,
+  segmentLabel,
+  channelLabel,
+  activationLabel,
+  resolveCategory,
+  resolveSegment,
+  resolveChannel,
+  discountIsConfinableToSegment
 } from '../packages/contracts/src/index';
+import { label } from './campaign-decision-language';
 
 /** Deltas below these thresholds are presentation noise, not decision-material change. */
 const DEMAND_MATERIALITY_PP = 0.05;
@@ -52,10 +64,47 @@ class CampaignExperimentStore {
     return `${tenantId}::${sessionId}::${experimentId}`;
   }
 
+  /** Structural clone that tolerates the engine payloads' plain-object shape. */
+  private deepCopy<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value)) as T;
+  }
+
+  /**
+   * What an evaluation concluded, stripped of the identifiers and timestamps that differ on
+   * every call. Two evaluations of an unchanged decision fingerprint identically; a genuine
+   * re-evaluation does not.
+   */
+  private evaluationFingerprint(snapshot: any): string {
+    if (!snapshot || typeof snapshot !== 'object') return '';
+    const causal = snapshot.causal || {};
+    const delta = snapshot.counterfactual?.campaign_delta || {};
+    return JSON.stringify({
+      uplift: causal.intervention_uplift_pp ?? null,
+      ambient: causal.ambient_uplift_pp ?? null,
+      total: causal.total_predicted_uplift_pp ?? null,
+      attributable: delta.attributable_uplift_pp ?? null,
+      contribution: delta.contribution_delta_gbp ?? null,
+      volume: delta.volume_delta_units ?? null,
+      drivers: (causal.drivers || []).map((d: any) => [d.driver_id, d.contribution_pp, d.attributed])
+    });
+  }
+
+  /**
+   * The next free display id in this scope.
+   *
+   * Derived from the highest number already allocated, not from how many records exist. A
+   * count-based id collides the moment any record was created out of sequence — two records
+   * and a highest id of EXP-005 would hand the next decision EXP-003, silently overwriting a
+   * preserved one. History has to be append-only even when its numbering has gaps.
+   */
   public getNextExperimentId(tenantId: string, sessionId: string): string {
     const key = this.buildSessionKey(tenantId, sessionId);
     const existing = this.experimentIdsBySession.get(key) || [];
-    return `EXP-${String(existing.length + 1).padStart(3, '0')}`;
+    const highest = existing.reduce((max, id) => {
+      const n = Number.parseInt(id.replace(/^EXP-/, ''), 10);
+      return Number.isFinite(n) && n > max ? n : max;
+    }, 0);
+    return `EXP-${String(highest + 1).padStart(3, '0')}`;
   }
 
   /** The experiment id the in-progress decision owns, or null when a new decision is being drafted. */
@@ -87,22 +136,69 @@ class CampaignExperimentStore {
 
     const sessionKey = this.buildSessionKey(tenantId, sessionId);
 
-    // Resolve which experiment this preservation belongs to. An explicit id wins; otherwise the
-    // decision currently in progress owns it; otherwise this is a new decision.
-    const targetId =
-      payload.experiment_id ||
-      this.getActiveExperimentId(tenantId, sessionId) ||
-      this.getNextExperimentId(tenantId, sessionId);
+    const activeId = this.getActiveExperimentId(tenantId, sessionId);
+
+    // Resolve which experiment this preservation belongs to: the decision currently in
+    // progress owns it, otherwise this is a new decision.
+    //
+    // An explicit experiment_id is honoured only when it names the decision already in
+    // progress. A closed record is history, and history is not writable: allowing a request
+    // to nominate any id would let a stray or replayed request overwrite a preserved
+    // decision and silently re-open it as the session's active one, which is the one thing
+    // an experiment log must never permit.
+    const requestedId = payload.experiment_id;
+    if (requestedId && activeId && requestedId !== activeId) {
+      throw new Error(
+        `Experiment ${requestedId} is not the decision in progress (${activeId}); preserved experiments are immutable`
+      );
+    }
+    if (requestedId && !activeId && this.experimentIdsBySession.get(sessionKey)?.includes(requestedId)) {
+      throw new Error(`Experiment ${requestedId} is already preserved and cannot be rewritten`);
+    }
+
+    const targetId = requestedId || activeId || this.getNextExperimentId(tenantId, sessionId);
 
     const scopedKey = this.buildScopedKey(tenantId, sessionId, targetId);
     const existing = this.experimentsByScopedKey.get(scopedKey);
     const now = new Date().toISOString();
 
+    // A fresh evaluation restarts the analysis chain, so results computed against the previous
+    // evaluation no longer describe this decision — both the raw downstream snapshots and the
+    // derived scalars read off them. Carrying either forward leaves a record whose readiness
+    // verdict and recommendation answer a configuration it no longer holds.
+    //
+    // Sameness is judged on what the evaluation concluded, not on the whole response: every
+    // CDI-02 response carries a fresh evaluation_id and timestamps, so a whole-object compare
+    // reports every preservation as a re-evaluation and drops analysis on each save.
+    const reEvaluated =
+      !!payload.evaluation_snapshot &&
+      !!existing?.evaluation_snapshot &&
+      this.evaluationFingerprint(payload.evaluation_snapshot) !==
+        this.evaluationFingerprint(existing.evaluation_snapshot);
+    const carried: Partial<CampaignDecisionExperiment> = reEvaluated
+      ? {
+          ...existing,
+          opportunity_snapshot: payload.opportunity_snapshot,
+          readiness_snapshot: payload.readiness_snapshot,
+          timeline_snapshot: payload.timeline_snapshot,
+          frontier_snapshot: payload.frontier_snapshot,
+          contract_snapshot: payload.contract_snapshot,
+          // Derived from the superseded downstream analysis — re-supplied by this payload or
+          // absent, never inherited.
+          readiness_status: payload.readiness_status,
+          readiness_summary: payload.readiness_summary,
+          decision_recommendation: payload.decision_recommendation,
+          primary_trade_off: payload.primary_trade_off,
+          selected_strategy_id: payload.selected_strategy_id,
+          selected_strategy_name: payload.selected_strategy_name
+        }
+      : existing || {};
+
     // Later stages of one decision carry more analysis than earlier ones. Merge rather than
     // replace so a field already established (a frontier result, say) is never blanked by a
     // subsequent preservation that did not carry it.
     const merged: CampaignDecisionExperiment = {
-      ...(existing || {}),
+      ...carried,
       ...Object.fromEntries(Object.entries(payload).filter(([, v]) => v !== undefined)),
       experiment_id: targetId,
       tenant_id: tenantId,
@@ -123,13 +219,13 @@ class CampaignExperimentStore {
       target_direction: payload.target_direction || existing?.target_direction || 'INCREASE',
       major_constraints: payload.major_constraints || existing?.major_constraints || [],
       decision_recommendation:
-        payload.decision_recommendation || existing?.decision_recommendation || 'Balanced promotion',
+        payload.decision_recommendation || carried.decision_recommendation || 'Balanced promotion',
       incremental_demand_pct: payload.incremental_demand_pct ?? existing?.incremental_demand_pct ?? 0,
       contribution_impact_gbp: payload.contribution_impact_gbp ?? existing?.contribution_impact_gbp ?? 0,
-      readiness_status: payload.readiness_status || existing?.readiness_status || 'NOT_ASSESSED',
+      readiness_status: payload.readiness_status || carried.readiness_status || 'NOT_ASSESSED',
       readiness_summary:
-        payload.readiness_summary || existing?.readiness_summary || 'Operational readiness was not assessed.',
-      primary_trade_off: payload.primary_trade_off || existing?.primary_trade_off || 'Margin vs volume balance',
+        payload.readiness_summary || carried.readiness_summary || 'Operational readiness was not assessed.',
+      primary_trade_off: payload.primary_trade_off || carried.primary_trade_off || 'Margin vs volume balance',
       evidence_posture:
         payload.evidence_posture ||
         existing?.evidence_posture ||
@@ -145,7 +241,10 @@ class CampaignExperimentStore {
       throw new Error(`Invalid CampaignDecisionExperiment: ${validation.errors.join(', ')}`);
     }
 
-    this.experimentsByScopedKey.set(scopedKey, { ...merged });
+    // Deep-copied on the way in. A shallow copy leaves the nested snapshots aliased to the
+    // caller's live objects, so a later edit to the working intent would rewrite a decision
+    // that has already been preserved — the record would change without anyone saving it.
+    this.experimentsByScopedKey.set(scopedKey, this.deepCopy(merged));
 
     if (!existing) {
       const list = this.experimentIdsBySession.get(sessionKey) || [];
@@ -157,7 +256,7 @@ class CampaignExperimentStore {
     // This decision now owns the identity until it is explicitly closed.
     this.activeExperimentIdBySession.set(sessionKey, targetId);
 
-    return { ...merged };
+    return this.deepCopy(merged);
   }
 
   /**
@@ -173,7 +272,9 @@ class CampaignExperimentStore {
     const exp = this.experimentsByScopedKey.get(this.buildScopedKey(tenantId, sessionId, experimentId));
     if (!exp) return null;
     if (exp.tenant_id !== tenantId || exp.session_id !== sessionId) return null;
-    return { ...exp };
+    // Deep-copied on the way out for the same reason: a caller mutating what it read must
+    // not be able to reach into preserved history.
+    return this.deepCopy(exp);
   }
 
   public listExperiments(
@@ -215,83 +316,43 @@ class CampaignExperimentStore {
     });
   }
 
+  /**
+   * Compare 2–4 preserved experiments.
+   *
+   * Accepts ids as rest arguments or as a single array. Returns null when any id does not
+   * resolve inside this tenant/session scope, or when the count falls outside 2–4 — a
+   * comparison the caller cannot render honestly is not returned in a degraded form.
+   */
   public compareExperiments(
     tenantId: string,
     sessionId: string,
-    experimentAId: string,
-    experimentBId: string
+    ...experimentIdArgs: (string | string[])[]
   ): ExperimentComparison | null {
-    const a = this.getExperimentById(experimentAId, tenantId, sessionId);
-    const b = this.getExperimentById(experimentBId, tenantId, sessionId);
-    if (!a || !b) return null;
+    // Duplicates are collapsed before the count is checked. Resolving the same record twice
+    // would let one experiment appear as two "configurations", win against itself, and inflate
+    // the compared count — a comparison of one decision reported as a comparison of three.
+    //
+    // Naming ONE experiment twice and nothing else is different: that is a request to compare
+    // a decision with itself, which the synthesis answers explicitly rather than refusing.
+    const requestedIds = experimentIdArgs.flat();
+    const uniqueRequested = Array.from(new Set(requestedIds));
+    const experimentIds =
+      uniqueRequested.length === 1 && requestedIds.length >= MIN_COMPARISON_EXPERIMENTS
+        ? [uniqueRequested[0], uniqueRequested[0]]
+        : uniqueRequested;
+    if (experimentIds.length < MIN_COMPARISON_EXPERIMENTS) return null;
+    if (experimentIds.length > MAX_COMPARISON_EXPERIMENTS) return null;
 
-    const demandDelta = b.incremental_demand_pct - a.incremental_demand_pct;
-    const contribDelta = b.contribution_impact_gbp - a.contribution_impact_gbp;
+    const resolved = experimentIds.map(id => this.getExperimentById(id, tenantId, sessionId));
+    if (resolved.some(e => !e)) return null;
+    const experiments = resolved as CampaignDecisionExperiment[];
 
-    const dimensions: ExperimentComparisonDimension[] = [
-      {
-        dimension: 'Objective',
-        experiment_a_value: a.objective_label,
-        experiment_b_value: b.objective_label,
-        is_focal_difference: a.objective_type !== b.objective_type
-      },
-      {
-        dimension: 'Category & SKU',
-        experiment_a_value: `${a.category} · ${a.sku_scope.join(', ')}`,
-        experiment_b_value: `${b.category} · ${b.sku_scope.join(', ')}`,
-        is_focal_difference: a.category !== b.category || a.sku_scope.join() !== b.sku_scope.join()
-      },
-      {
-        dimension: 'Region / Market Scope',
-        experiment_a_value: a.region,
-        experiment_b_value: b.region,
-        is_focal_difference: a.region !== b.region
-      },
-      {
-        dimension: 'Intervention Posture',
-        experiment_a_value: a.posture_label,
-        experiment_b_value: b.posture_label,
-        is_focal_difference: a.intervention_posture !== b.intervention_posture
-      },
-      {
-        dimension: 'Incremental Demand',
-        experiment_a_value: this.formatDemand(a.incremental_demand_pct),
-        experiment_b_value: this.formatDemand(b.incremental_demand_pct),
-        difference_summary: `${demandDelta >= 0 ? '+' : ''}${demandDelta.toFixed(1)}pp delta`,
-        is_focal_difference: Math.abs(demandDelta) > DEMAND_MATERIALITY_PP
-      },
-      {
-        dimension: 'Contribution Impact',
-        experiment_a_value: this.formatMoney(a.contribution_impact_gbp),
-        experiment_b_value: this.formatMoney(b.contribution_impact_gbp),
-        difference_summary: this.formatMoney(contribDelta),
-        is_focal_difference: Math.abs(contribDelta) > CONTRIBUTION_MATERIALITY_GBP
-      },
-      {
-        dimension: 'Operational Readiness',
-        experiment_a_value: this.readinessLabel(a.readiness_status),
-        experiment_b_value: this.readinessLabel(b.readiness_status),
-        is_focal_difference: a.readiness_status !== b.readiness_status
-      },
-      {
-        dimension: 'Primary Trade-Off',
-        experiment_a_value: a.primary_trade_off,
-        experiment_b_value: b.primary_trade_off,
-        is_focal_difference: a.primary_trade_off !== b.primary_trade_off
-      },
-      {
-        dimension: 'Decision Recommendation',
-        experiment_a_value: a.decision_recommendation,
-        experiment_b_value: b.decision_recommendation,
-        is_focal_difference: a.decision_recommendation !== b.decision_recommendation
-      }
-    ];
+    const dimensions = this.buildComparisonDimensions(experiments);
 
     return {
-      experiment_a: a,
-      experiment_b: b,
+      experiments,
       dimensions,
-      synthesis: this.generateComparisonSynthesis(a, b, dimensions),
+      synthesis: this.generateComparisonSynthesis(experiments, dimensions),
       compared_at: new Date().toISOString()
     };
   }
@@ -313,133 +374,635 @@ class CampaignExperimentStore {
     return readinessVerdictLabel(status as ReadinessVerdict);
   }
 
+  /** A dimension is focal when the compared experiments do not all agree on it. */
+  private buildComparisonDimensions(
+    experiments: CampaignDecisionExperiment[]
+  ): ExperimentComparisonDimension[] {
+    const spread = (values: number[]) => Math.max(...values) - Math.min(...values);
+    const demandSpread = spread(experiments.map(e => e.incremental_demand_pct));
+    const contribSpread = spread(experiments.map(e => e.contribution_impact_gbp));
+
+    const row = (
+      dimension: string,
+      values: string[],
+      isFocal: boolean,
+      differenceSummary?: string
+    ): ExperimentComparisonDimension => ({
+      dimension,
+      values,
+      difference_summary: differenceSummary,
+      is_focal_difference: isFocal
+    });
+
+    /**
+     * Focality is judged on the values the reader will actually see.
+     *
+     * Judging it on the underlying field instead produced both halves of the same bug: a row
+     * whose rendered values were identical could be highlighted as a key difference, and a row
+     * showing two visibly different values could be reported as equivalent because the enum
+     * behind them matched. What the table shows and what the narrative claims have to agree.
+     */
+    const allEqual = (values: string[]) => values.every(v => v === values[0]);
+    const differs = (values: string[]) => !allEqual(values);
+
+    // Objective and posture are compared through their governed enum, not through the free-text
+    // label stored alongside it. Two records can carry the same objective_type and differently
+    // cased prose ("Revenue Acceleration" vs "Revenue acceleration"), and comparing the prose
+    // reported a focal difference between two decisions with identical objectives.
+    const objective = experiments.map(e =>
+      e.objective_type ? label('campaign_objective', e.objective_type) : e.objective_label
+    );
+    const scope = experiments.map(e => `${categoryLabel(e.category)} · ${e.sku_scope.join(', ')}`);
+    const region = experiments.map(e => e.region);
+    const audience = experiments.map(e => segmentLabel(e.audience_segment));
+    const channel = experiments.map(e => channelLabel(e.sales_channel));
+    const posture = experiments.map(e =>
+      e.intervention_posture ? label('intervention_posture', e.intervention_posture) : e.posture_label
+    );
+    const demand = experiments.map(e => this.formatDemand(e.incremental_demand_pct));
+    const contribution = experiments.map(e => this.formatMoney(e.contribution_impact_gbp));
+    const readiness = experiments.map(e => this.readinessLabel(e.readiness_status));
+    const tradeOff = experiments.map(e => e.primary_trade_off);
+    const recommendation = experiments.map(e => e.decision_recommendation);
+
+    const activation = experiments.map(e =>
+      (e.activation_channels || []).length > 0
+        ? e.activation_channels!.map(a => activationLabel(a)).join(', ')
+        : 'None'
+    );
+    const timing = experiments.map(
+      e => e.planned_window || (e.timing_mode === 'KNOWN_DATES' ? 'Stated dates' : 'Discovered window')
+    );
+    const objectiveMetric = experiments.map(e => `${label('primary_metric', e.primary_metric)} · ${e.target_direction.toLowerCase()}`);
+    const evidence = experiments.map(e => e.evidence_posture);
+
+    // Demand and contribution keep numeric materiality thresholds — a rounding-level
+    // difference in a formatted figure is presentation noise, not a decision. Every other
+    // dimension is compared on what is rendered.
+    const demandFocal = demandSpread > DEMAND_MATERIALITY_PP && differs(demand);
+    const contribFocal = contribSpread > CONTRIBUTION_MATERIALITY_GBP && differs(contribution);
+
+    return [
+      row('Objective', objective, differs(objective)),
+      row('Category & SKU', scope, differs(scope)),
+      row('Region', region, differs(region)),
+      row('Audience', audience, differs(audience)),
+      row('Route to customer', channel, differs(channel)),
+      row('Activation routes', activation, differs(activation)),
+      row('Intervention posture', posture, differs(posture)),
+      row('Timing', timing, differs(timing)),
+      row('Measured on', objectiveMetric, differs(objectiveMetric)),
+      row(
+        'Incremental demand',
+        demand,
+        demandFocal,
+        demandFocal ? `${demandSpread.toFixed(1)}pp spread` : undefined
+      ),
+      row(
+        'Contribution impact',
+        contribution,
+        contribFocal,
+        contribFocal ? `£${Math.round(contribSpread).toLocaleString()} spread` : undefined
+      ),
+      row('Operational readiness', readiness, differs(readiness)),
+      row('Primary trade-off', tradeOff, differs(tradeOff)),
+      row('Evidence basis', evidence, differs(evidence)),
+      row('Decision recommendation', recommendation, differs(recommendation))
+    ];
+  }
+
   /**
-   * Deterministic synthesis over the compared dimensions.
+   * Readiness as an order. DO_NOT_PROCEED is worst; an unassessed decision sits above it but
+   * below anything the engine actually cleared, and is never allowed to lead the readiness
+   * dimension — "not assessed" is an absence of evidence, not a low-risk finding.
+   */
+  private readinessRank(status: ReadinessVerdict): number {
+    switch (status) {
+      case 'READY':
+        return 4;
+      case 'CONDITIONAL':
+        return 3;
+      case 'REVIEW':
+        return 2;
+      case 'NOT_ASSESSED':
+        return 1;
+      default:
+        return 0;
+    }
+  }
+
+  private readinessCleared(status: ReadinessVerdict): boolean {
+    return status === 'READY' || status === 'CONDITIONAL';
+  }
+
+  /**
+   * Whether a preserved experiment rests on demonstration data. Recorded on the snapshot at
+   * preservation time, so this reads history rather than the current session's posture.
+   */
+  private isSyntheticEvidence(exp: CampaignDecisionExperiment): boolean {
+    if (typeof exp.intent_snapshot?.synthetic_demo === 'boolean') {
+      return exp.intent_snapshot.synthetic_demo;
+    }
+    return /demonstration|uncalibrated|synthetic|simulat/i.test(exp.evidence_posture || '');
+  }
+
+  /**
+   * Per-dimension standing across the compared set.
    *
-   * Two rules keep this honest: nothing is asserted that the preserved snapshots do not show,
-   * and no winner is manufactured where the evidence does not separate the two configurations.
-   * Two experiments that differ in nothing material are reported as exactly that — inventing a
-   * "distinct trade-off" narrative for identical records would be the most damaging thing this
+   * `separates: false` is a first-class answer. Where the snapshots do not distinguish the
+   * experiments on a dimension, saying so is more useful than naming an arbitrary leader,
+   * and it is what stops a four-way comparison from manufacturing a winner.
+   */
+  private buildStandings(experiments: CampaignDecisionExperiment[]): ExperimentStandingDimension[] {
+    const standings: ExperimentStandingDimension[] = [];
+
+    const leadersBy = <T>(
+      score: (e: CampaignDecisionExperiment) => T,
+      better: (a: T, b: T) => number,
+      eligible: (e: CampaignDecisionExperiment) => boolean = () => true
+    ): CampaignDecisionExperiment[] => {
+      const pool = experiments.filter(eligible);
+      if (pool.length === 0) return [];
+      const best = pool.reduce((acc, e) => (better(score(e), score(acc)) > 0 ? e : acc), pool[0]);
+      return pool.filter(e => better(score(e), score(best)) === 0);
+    };
+
+    // Commercial — contribution, on the materiality threshold used everywhere else.
+    const contributions = experiments.map(e => e.contribution_impact_gbp);
+    const contribSpread = Math.max(...contributions) - Math.min(...contributions);
+    const commercialLeaders = leadersBy(
+      e => e.contribution_impact_gbp,
+      (a, b) => a - b
+    );
+    standings.push({
+      dimension: 'commercial',
+      leader_experiment_ids: contribSpread > CONTRIBUTION_MATERIALITY_GBP ? commercialLeaders.map(e => e.experiment_id) : [],
+      basis:
+        contribSpread > CONTRIBUTION_MATERIALITY_GBP
+          ? `Highest modelled contribution (${this.formatMoney(commercialLeaders[0].contribution_impact_gbp)}), on a £${Math.round(contribSpread).toLocaleString()} spread across the set.`
+          : 'Contribution is materially equivalent across the compared experiments.',
+      separates: contribSpread > CONTRIBUTION_MATERIALITY_GBP
+    });
+
+    // Demand — headline volume effect.
+    const demands = experiments.map(e => e.incremental_demand_pct);
+    const demandSpread = Math.max(...demands) - Math.min(...demands);
+    const demandLeaders = leadersBy(
+      e => e.incremental_demand_pct,
+      (a, b) => a - b
+    );
+    standings.push({
+      dimension: 'demand',
+      leader_experiment_ids: demandSpread > DEMAND_MATERIALITY_PP ? demandLeaders.map(e => e.experiment_id) : [],
+      basis:
+        demandSpread > DEMAND_MATERIALITY_PP
+          ? `Largest expected demand effect (${this.formatDemand(demandLeaders[0].incremental_demand_pct)}), on a ${demandSpread.toFixed(1)}pp spread.`
+          : 'Expected demand is materially equivalent across the compared experiments.',
+      separates: demandSpread > DEMAND_MATERIALITY_PP
+    });
+
+    // Readiness — execution risk.
+    //
+    // Only a configuration the engine actually cleared may lead this dimension. Ranking the
+    // whole set and taking the top would name the least-bad option among configurations that
+    // were all refused: with a blocked option and an unassessed one, the blocked option would
+    // be reported as the lowest execution risk and recommended, because it is the only one
+    // with an assessment. "Least refused" is not "safe".
+    const cleared = experiments.filter(e => this.readinessCleared(e.readiness_status));
+    const assessed = experiments.filter(e => e.readiness_status !== 'NOT_ASSESSED');
+    const readinessVaries = new Set(experiments.map(e => e.readiness_status)).size > 1;
+    const readinessLeaders =
+      cleared.length > 0
+        ? leadersBy(
+            e => this.readinessRank(e.readiness_status),
+            (a, b) => a - b,
+            e => this.readinessCleared(e.readiness_status)
+          )
+        : [];
+    const readinessSeparates = readinessVaries && readinessLeaders.length > 0;
+    standings.push({
+      dimension: 'readiness',
+      leader_experiment_ids: readinessSeparates ? readinessLeaders.map(e => e.experiment_id) : [],
+      basis:
+        assessed.length === 0
+          ? 'No compared experiment was assessed for operational readiness.'
+          : cleared.length === 0
+            ? 'No compared experiment cleared operational readiness, so none carries a lower execution risk than the others.'
+            : readinessVaries
+              ? `Cleared operational readiness at ${this.readinessLabel(readinessLeaders[0].readiness_status)}.`
+              : `All compared experiments hold the same readiness verdict (${this.readinessLabel(experiments[0].readiness_status)}).`,
+      separates: readinessSeparates
+    });
+
+    // Evidence — whether the numbers rest on demonstration data or attested measurement.
+    const syntheticFlags = experiments.map(e => this.isSyntheticEvidence(e));
+    const evidenceVaries = new Set(syntheticFlags).size > 1;
+    const attested = experiments.filter(e => !this.isSyntheticEvidence(e));
+    standings.push({
+      dimension: 'evidence',
+      leader_experiment_ids: evidenceVaries ? attested.map(e => e.experiment_id) : [],
+      basis: evidenceVaries
+        ? 'Rests on attested measurement where the others rest on demonstration data.'
+        : syntheticFlags[0]
+          ? 'Every compared experiment rests on demonstration data, so evidence strength does not separate them.'
+          : 'Every compared experiment rests on attested measurement.',
+      separates: evidenceVaries
+    });
+
+    return standings;
+  }
+
+  /**
+   * Deterministic synthesis over the compared experiments.
+   *
+   * Two rules keep this honest, and they hold at two, three and four experiments alike:
+   * nothing is asserted that the preserved snapshots do not show, and no winner is
+   * manufactured where the evidence does not separate the configurations. A set that
+   * differs in nothing material is reported as exactly that — inventing a "distinct
+   * trade-off" narrative for equivalent records would be the most damaging thing this
    * surface could do, because it reads as analysis.
    */
   private generateComparisonSynthesis(
-    a: CampaignDecisionExperiment,
-    b: CampaignDecisionExperiment,
+    experiments: CampaignDecisionExperiment[],
     dimensions: ExperimentComparisonDimension[]
   ): ComparisonSynthesis {
-    if (a.experiment_id === b.experiment_id) {
+    const ids = experiments.map(e => e.experiment_id);
+    const uniqueIds = Array.from(new Set(ids));
+    const idList = this.joinClauses(uniqueIds);
+
+    if (uniqueIds.length < 2) {
       return {
-        headline: `${a.experiment_id} compared with itself`,
-        what_changed: `${a.experiment_id} has been compared against itself, so no configuration or outcome differs.`,
+        headline: `${uniqueIds[0]} compared with itself`,
+        what_changed: `${uniqueIds[0]} has been compared against itself, so no configuration or outcome differs.`,
         why_it_matters:
-          'No material decision differences detected. Select two different preserved experiments to evaluate a trade-off.'
+          'No material decision differences detected. Select different preserved experiments to evaluate a trade-off.',
+        standings: [],
+        trade_offs: [],
+        watch_items: [],
+        next_move: 'Select a second preserved experiment to compare against.'
       };
     }
 
     const focal = dimensions.filter(d => d.is_focal_difference);
-    const demandDelta = b.incremental_demand_pct - a.incremental_demand_pct;
-    const contribDelta = b.contribution_impact_gbp - a.contribution_impact_gbp;
-    const demandMaterial = Math.abs(demandDelta) > DEMAND_MATERIALITY_PP;
-    const contribMaterial = Math.abs(contribDelta) > CONTRIBUTION_MATERIALITY_GBP;
 
     if (focal.length === 0) {
       return {
-        headline: `${b.experiment_id} vs ${a.experiment_id}: no material differences`,
-        what_changed: `No material decision differences detected between ${a.experiment_id} and ${b.experiment_id}. Objective, scope, region, posture, readiness, recommendation and commercial outcome are equivalent across both preserved snapshots.`,
+        headline: `${idList}: no material differences`,
+        what_changed: `No material decision differences detected across ${idList}. Objective, scope, region, audience, route to customer, posture, readiness, recommendation and commercial outcome are equivalent in every preserved snapshot.`,
         why_it_matters:
-          'There is no trade-off to weigh here: the two preserved decisions are equivalent on every compared dimension. Vary scope, posture or objective to produce a decision-relevant comparison.'
+          'There is no trade-off to weigh here: the compared decisions are equivalent on every dimension. Vary scope, audience, route to customer, posture or objective to produce a decision-relevant comparison.',
+        standings: [],
+        trade_offs: [],
+        watch_items: [],
+        next_move:
+          'Change one dimension — audience, route to customer, category or posture — and preserve a new experiment to create a real comparison.'
       };
     }
 
-    // What changed — configuration first, then the outcome those changes produced.
-    const configChanges: string[] = [];
-    if (a.objective_type !== b.objective_type) {
-      configChanges.push(`the objective is reframed from ${a.objective_label} to ${b.objective_label}`);
+    const standings = this.buildStandings(experiments);
+    const byId = new Map(experiments.map(e => [e.experiment_id, e]));
+    const standing = (dimension: string) => standings.find(s => s.dimension === dimension);
+
+    const commercial = standing('commercial');
+    const demand = standing('demand');
+    const readiness = standing('readiness');
+
+    const whatChanged = this.describeWhatChanged(experiments, focal);
+
+    // ── Strongest commercial option ────────────────────────────────────────
+    // Only a single configuration whose readiness the engine actually cleared may be
+    // recommended. A tie, an uncleared leader, or an unseparated set all yield no winner.
+    let strongerId: string | undefined;
+    let rationale: string | undefined;
+    let whyItMatters: string;
+
+    const commercialLeaderIds = commercial?.leader_experiment_ids || [];
+    const soleCommercialLeader =
+      commercialLeaderIds.length === 1 ? byId.get(commercialLeaderIds[0]) : undefined;
+
+    if (!commercial?.separates && !demand?.separates) {
+      whyItMatters = `Commercial separation is unavailable: the compared experiments do not differ materially in contribution or demand, so this comparison cannot rank them on outcome. The difference is one of configuration only.`;
+    } else if (!commercial?.separates) {
+      whyItMatters = `Expected demand differs by ${this.setDemandSpread(experiments).toFixed(1)}pp but contribution is materially equivalent, so the configurations are commercially comparable — choose on operational fit rather than on financial return.`;
+    } else if (commercialLeaderIds.length > 1) {
+      whyItMatters = `${this.joinClauses(commercialLeaderIds)} return the same contribution, so no single configuration is commercially strongest. Separate them on readiness or evidence rather than on financial return.`;
+    } else if (soleCommercialLeader && soleCommercialLeader.contribution_impact_gbp <= 0) {
+      // Ranking value-destroying options against each other produces a "winner" that loses
+      // the least. Recommending it would tell a planner to proceed with a configuration the
+      // model says destroys contribution, which is the opposite of what the comparison found.
+      whyItMatters = `Every compared configuration destroys contribution, from ${this.formatMoney(
+        Math.min(...experiments.map(e => e.contribution_impact_gbp))
+      )} to ${this.formatMoney(
+        soleCommercialLeader.contribution_impact_gbp
+      )}. ${soleCommercialLeader.experiment_id} loses the least, which is not a case for proceeding with it — none of these is commercially viable as configured.`;
+    } else if (soleCommercialLeader && !this.readinessCleared(soleCommercialLeader.readiness_status)) {
+      whyItMatters = `${soleCommercialLeader.experiment_id} carries the highest contribution (${this.formatMoney(soleCommercialLeader.contribution_impact_gbp)}) but its operational readiness is ${this.readinessLabel(soleCommercialLeader.readiness_status)}, so the financial advantage is not currently actionable.`;
+    } else if (soleCommercialLeader) {
+      strongerId = soleCommercialLeader.experiment_id;
+      const runnerUp = experiments
+        .filter(e => e.experiment_id !== strongerId)
+        .reduce((acc, e) => (e.contribution_impact_gbp > acc.contribution_impact_gbp ? e : acc));
+      const contribGap = soleCommercialLeader.contribution_impact_gbp - runnerUp.contribution_impact_gbp;
+      const demandGap = soleCommercialLeader.incremental_demand_pct - runnerUp.incremental_demand_pct;
+      const gaveUpVolume = demandGap < -DEMAND_MATERIALITY_PP;
+      whyItMatters = gaveUpVolume
+        ? `${strongerId} gives up ${Math.abs(demandGap).toFixed(1)}pp of headline demand against ${runnerUp.experiment_id} but returns £${Math.abs(Math.round(contribGap)).toLocaleString()} more contribution, so the narrower configuration is the better commercial trade-off despite the smaller top line.`
+        : `${strongerId} delivers £${Math.abs(Math.round(contribGap)).toLocaleString()} more contribution than ${runnerUp.experiment_id}${Math.abs(demandGap) > DEMAND_MATERIALITY_PP ? ` on ${Math.abs(demandGap).toFixed(1)}pp more demand` : ' at comparable demand'}, and clears readiness at ${this.readinessLabel(soleCommercialLeader.readiness_status)}.`;
+      rationale = gaveUpVolume
+        ? 'Higher net contribution from a tighter scope.'
+        : 'Higher contribution without a readiness penalty.';
+    } else {
+      whyItMatters = `The compared experiments differ in configuration (${focal.map(f => f.dimension.toLowerCase()).join(', ')}) without separating on outcome, so none is commercially preferable on the preserved evidence.`;
     }
-    if (a.category !== b.category || a.sku_scope.join() !== b.sku_scope.join()) {
-      configChanges.push(
-        `scope moves from ${a.category} (${a.sku_scope.join(', ')}) to ${b.category} (${b.sku_scope.join(', ')})`
-      );
-    }
-    if (a.region !== b.region) {
-      configChanges.push(`the market scope changes from ${a.region} to ${b.region}`);
-    }
-    if (a.intervention_posture !== b.intervention_posture) {
-      configChanges.push(`the posture switches from ${a.posture_label} to ${b.posture_label}`);
-    }
+
+    // ── Lowest execution risk ──────────────────────────────────────────────
+    // Reported separately from the commercial leader precisely because they are often not
+    // the same configuration, and collapsing them would hide the decision.
+    const readinessLeaderIds = readiness?.leader_experiment_ids || [];
+    const lowestExecutionRiskId =
+      readiness?.separates && readinessLeaderIds.length === 1 ? readinessLeaderIds[0] : undefined;
+
+    return {
+      headline: this.buildHeadline(experiments, focal),
+      what_changed: whatChanged,
+      why_it_matters: whyItMatters,
+      stronger_experiment_id: strongerId,
+      recommendation_rationale: rationale,
+      lowest_execution_risk_experiment_id: lowestExecutionRiskId,
+      standings,
+      trade_offs: this.buildTradeOffs(experiments, strongerId, lowestExecutionRiskId),
+      watch_items: this.buildWatchItems(experiments),
+      next_move: this.buildNextMove(experiments, strongerId, lowestExecutionRiskId, focal)
+    };
+  }
+
+  private setDemandSpread(experiments: CampaignDecisionExperiment[]): number {
+    const values = experiments.map(e => e.incremental_demand_pct);
+    return Math.max(...values) - Math.min(...values);
+  }
+
+  private buildHeadline(
+    experiments: CampaignDecisionExperiment[],
+    focal: ExperimentComparisonDimension[]
+  ): string {
+    const count = experiments.length;
+    const lead = focal[0].dimension.toLowerCase();
+    return count === 2
+      ? `${experiments[1].experiment_id} vs ${experiments[0].experiment_id}: ${lead} differs`
+      : `${count} configurations compared — ${focal.length} dimension${focal.length === 1 ? '' : 's'} differ, led by ${lead}`;
+  }
+
+  /**
+   * Configuration first, then the outcome those changes produced. Every dimension that the
+   * comparison marked focal is described, so a difference the reader can see in the table is
+   * never absent from the narrative.
+   */
+  private describeWhatChanged(
+    experiments: CampaignDecisionExperiment[],
+    focal: ExperimentComparisonDimension[]
+  ): string {
+    const distinct = (values: string[]) => Array.from(new Set(values));
+    // Every configuration dimension the table can mark focal must be describable here.
+    // A dimension missing from this set produced a narrative that claimed equivalence while
+    // the row beside it displayed two different values.
+    const configDimensions = new Set([
+      'Objective',
+      'Category & SKU',
+      'Region',
+      'Audience',
+      'Route to customer',
+      'Activation routes',
+      'Intervention posture',
+      'Timing',
+      'Measured on',
+      'Evidence basis',
+      'Primary trade-off'
+    ]);
+
+    const configChanges = focal
+      .filter(d => configDimensions.has(d.dimension))
+      .map(d => `${d.dimension.toLowerCase()} varies across ${this.joinClauses(distinct(d.values))}`);
 
     const outcomeChanges: string[] = [];
-    if (demandMaterial) {
+    const demandSpread = this.setDemandSpread(experiments);
+    if (demandSpread > DEMAND_MATERIALITY_PP) {
+      const best = experiments.reduce((a, e) => (e.incremental_demand_pct > a.incremental_demand_pct ? e : a));
+      const worst = experiments.reduce((a, e) => (e.incremental_demand_pct < a.incremental_demand_pct ? e : a));
       outcomeChanges.push(
-        `expected demand moves ${demandDelta >= 0 ? 'up' : 'down'} by ${Math.abs(demandDelta).toFixed(1)}pp (${this.formatDemand(a.incremental_demand_pct)} → ${this.formatDemand(b.incremental_demand_pct)})`
+        `expected demand spans ${demandSpread.toFixed(1)}pp, from ${this.formatDemand(worst.incremental_demand_pct)} on ${worst.experiment_id} to ${this.formatDemand(best.incremental_demand_pct)} on ${best.experiment_id}`
       );
     }
-    if (contribMaterial) {
+    const contributions = experiments.map(e => e.contribution_impact_gbp);
+    const contribSpread = Math.max(...contributions) - Math.min(...contributions);
+    if (contribSpread > CONTRIBUTION_MATERIALITY_GBP) {
+      const best = experiments.reduce((a, e) => (e.contribution_impact_gbp > a.contribution_impact_gbp ? e : a));
+      const worst = experiments.reduce((a, e) => (e.contribution_impact_gbp < a.contribution_impact_gbp ? e : a));
       outcomeChanges.push(
-        `contribution ${contribDelta >= 0 ? 'improves' : 'falls'} by £${Math.abs(Math.round(contribDelta)).toLocaleString()} (${this.formatMoney(a.contribution_impact_gbp)} → ${this.formatMoney(b.contribution_impact_gbp)})`
+        `contribution spans £${Math.round(contribSpread).toLocaleString()}, from ${this.formatMoney(worst.contribution_impact_gbp)} on ${worst.experiment_id} to ${this.formatMoney(best.contribution_impact_gbp)} on ${best.experiment_id}`
       );
     }
-    if (a.readiness_status !== b.readiness_status) {
+    const readinessFocal = focal.find(d => d.dimension === 'Operational readiness');
+    if (readinessFocal) {
       outcomeChanges.push(
-        `operational readiness changes from ${this.readinessLabel(a.readiness_status)} to ${this.readinessLabel(b.readiness_status)}`
+        `operational readiness varies across ${this.joinClauses(distinct(readinessFocal.values))}`
       );
     }
-    if (a.decision_recommendation !== b.decision_recommendation) {
+    const recommendationFocal = focal.find(d => d.dimension === 'Decision recommendation');
+    if (recommendationFocal) {
       outcomeChanges.push(
-        `the recommendation changes from "${a.decision_recommendation}" to "${b.decision_recommendation}"`
+        `the recommendation varies across ${this.joinClauses(distinct(recommendationFocal.values).map(v => `"${v}"`))}`
       );
     }
 
+    const idList = this.joinClauses(experiments.map(e => e.experiment_id));
     const configClause =
       configChanges.length > 0
-        ? `Moving from ${a.experiment_id} to ${b.experiment_id}, ${this.joinClauses(configChanges)}.`
-        : `${a.experiment_id} and ${b.experiment_id} share the same objective, scope, region and posture.`;
+        ? // Each clause already contains its own "and" over the values it lists, so joining the
+          // clauses with another "and" produces a sentence with three of them and no clear
+          // boundaries. Semicolons separate the clauses where there is more than one.
+          `Across ${idList}, ${configChanges.length > 1 ? configChanges.join('; ') : configChanges[0]}.`
+        : `${idList} share the same objective, scope, region, audience, route to customer and posture.`;
     const outcomeClause =
       outcomeChanges.length > 0
         ? ` As a result, ${outcomeChanges.join('; ')}.`
-        : ' Commercial outcome and readiness are unchanged between the two.';
+        : ' Commercial outcome and readiness are unchanged across the set.';
 
-    // Why it matters — only name a stronger configuration where the evidence separates them.
-    const economicsAvailable =
-      a.contribution_impact_gbp !== 0 || b.contribution_impact_gbp !== 0 || demandMaterial;
-    let whyItMatters: string;
-    let strongerId: string | undefined;
-    let rationale: string | undefined;
+    return `${configClause}${outcomeClause}`;
+  }
 
-    if (!economicsAvailable) {
-      whyItMatters = `Commercial separation is unavailable: neither ${a.experiment_id} nor ${b.experiment_id} carries a modelled contribution or demand effect, so this comparison cannot rank them on outcome. The difference is one of configuration only.`;
-    } else if (contribMaterial) {
-      const winner = contribDelta > 0 ? b : a;
-      const loser = contribDelta > 0 ? a : b;
-      // Only a configuration whose readiness the engine actually cleared may be recommended.
-      const winnerCleared = winner.readiness_status === 'READY' || winner.readiness_status === 'CONDITIONAL';
-      if (!winnerCleared) {
-        whyItMatters = `${winner.experiment_id} carries the higher contribution (${this.formatMoney(winner.contribution_impact_gbp)} vs ${this.formatMoney(loser.contribution_impact_gbp)}) but its operational readiness is ${this.readinessLabel(winner.readiness_status)}, so the financial advantage is not currently actionable.`;
-      } else {
-        const gaveUpVolume =
-          (contribDelta > 0 && demandDelta < -DEMAND_MATERIALITY_PP) ||
-          (contribDelta < 0 && demandDelta > DEMAND_MATERIALITY_PP);
-        strongerId = winner.experiment_id;
-        whyItMatters = gaveUpVolume
-          ? `${winner.experiment_id} gives up ${Math.abs(demandDelta).toFixed(1)}pp of headline demand but returns £${Math.abs(Math.round(contribDelta)).toLocaleString()} more contribution, so the narrower configuration is the better commercial trade-off despite the smaller top line.`
-          : `${winner.experiment_id} delivers £${Math.abs(Math.round(contribDelta)).toLocaleString()} more contribution${demandMaterial ? ` on ${Math.abs(demandDelta).toFixed(1)}pp more demand` : ' at comparable demand'}, and clears readiness at ${this.readinessLabel(winner.readiness_status)}.`;
-        rationale = gaveUpVolume
-          ? 'Higher net contribution from a tighter scope.'
-          : 'Higher contribution without a readiness penalty.';
+  /**
+   * What each option costs to get what it gives. Stated only where the snapshots show both
+   * sides of the trade — a gain with no corresponding sacrifice is not a trade-off.
+   */
+  private buildTradeOffs(
+    experiments: CampaignDecisionExperiment[],
+    strongerId?: string,
+    lowestRiskId?: string
+  ): string[] {
+    const tradeOffs: string[] = [];
+    const byId = new Map(experiments.map(e => [e.experiment_id, e]));
+
+    const commercialLeader = strongerId ? byId.get(strongerId) : undefined;
+    const demandLeader = experiments.reduce((a, e) =>
+      e.incremental_demand_pct > a.incremental_demand_pct ? e : a
+    );
+
+    if (commercialLeader && demandLeader.experiment_id !== commercialLeader.experiment_id) {
+      const demandGap = demandLeader.incremental_demand_pct - commercialLeader.incremental_demand_pct;
+      const contribGap = commercialLeader.contribution_impact_gbp - demandLeader.contribution_impact_gbp;
+      if (demandGap > DEMAND_MATERIALITY_PP && contribGap > CONTRIBUTION_MATERIALITY_GBP) {
+        tradeOffs.push(
+          `${commercialLeader.experiment_id} sacrifices ${demandGap.toFixed(1)}pp of expected demand against ${demandLeader.experiment_id} but returns £${Math.round(contribGap).toLocaleString()} more contribution.`
+        );
       }
-    } else if (demandMaterial) {
-      whyItMatters = `Demand differs by ${Math.abs(demandDelta).toFixed(1)}pp but contribution is materially equivalent, so the two configurations are commercially comparable — choose on operational fit rather than on financial return.`;
-    } else {
-      whyItMatters = `${a.experiment_id} and ${b.experiment_id} differ in configuration (${focal.map(f => f.dimension.toLowerCase()).join(', ')}) without a material difference in demand or contribution, so neither is commercially preferable on the preserved evidence.`;
     }
 
-    return {
-      headline: `${b.experiment_id} vs ${a.experiment_id}: ${focal[0].dimension} differs`,
-      what_changed: `${configClause}${outcomeClause}`,
-      why_it_matters: whyItMatters,
-      stronger_experiment_id: strongerId,
-      recommendation_rationale: rationale
-    };
+    if (lowestRiskId && strongerId && lowestRiskId !== strongerId) {
+      const safest = byId.get(lowestRiskId)!;
+      const strongest = byId.get(strongerId)!;
+      const contribGap = strongest.contribution_impact_gbp - safest.contribution_impact_gbp;
+      tradeOffs.push(
+        contribGap > CONTRIBUTION_MATERIALITY_GBP
+          ? `${lowestRiskId} clears readiness at ${this.readinessLabel(safest.readiness_status)} against ${this.readinessLabel(strongest.readiness_status)} for ${strongerId}, at £${Math.round(contribGap).toLocaleString()} less contribution.`
+          : `${lowestRiskId} carries the lower execution risk (${this.readinessLabel(safest.readiness_status)}) at comparable contribution, so the commercial case does not require the riskier configuration.`
+      );
+    }
+
+    // A configuration that cannot confine its discount to the audience it targets is paying
+    // for volume it would have won anyway. Experiments sharing the same leak are named
+    // together: repeating one sentence per experiment reads as three findings when it is one,
+    // and a comparison that pads its own output is harder to act on, not more thorough.
+    const leaksByRoute = new Map<string, string[]>();
+    for (const exp of experiments) {
+      const segment = resolveSegment(exp.audience_segment);
+      if (!segment || segment.id === 'ALL_CUSTOMERS') continue;
+      if (
+        discountIsConfinableToSegment(exp.audience_segment, exp.sales_channel, exp.activation_channels)
+      ) {
+        continue;
+      }
+      const route = `${segment.display_label} through ${channelLabel(exp.sales_channel)}`;
+      const list = leaksByRoute.get(route) || [];
+      list.push(exp.experiment_id);
+      leaksByRoute.set(route, list);
+    }
+    for (const [route, expIds] of leaksByRoute) {
+      const all = expIds.length === experiments.length;
+      tradeOffs.push(
+        all
+          ? `Every compared configuration targets ${route}, which cannot confine an offer to that audience — the discount is paid on the whole base in each case.`
+          : `${this.joinClauses(expIds)} target${expIds.length === 1 ? 's' : ''} ${route}, which cannot confine an offer to that audience — the discount is paid on the whole base.`
+      );
+    }
+
+    return tradeOffs.slice(0, 4);
+  }
+
+  /**
+   * Weaknesses that survive whichever configuration is chosen. Every item is read off a
+   * preserved snapshot; nothing is added for balance.
+   */
+  private buildWatchItems(experiments: CampaignDecisionExperiment[]): string[] {
+    const watch: string[] = [];
+
+    const blocked = experiments.filter(e => e.readiness_status === 'DO_NOT_PROCEED');
+    if (blocked.length > 0) {
+      watch.push(
+        `${this.joinClauses(blocked.map(e => e.experiment_id))} ${blocked.length === 1 ? 'is' : 'are'} blocked by a readiness constraint and cannot proceed as configured.`
+      );
+    }
+
+    const unresolved = experiments.filter(e => e.readiness_status === 'REVIEW');
+    if (unresolved.length > 0) {
+      watch.push(
+        `${this.joinClauses(unresolved.map(e => e.experiment_id))} ${unresolved.length === 1 ? 'has' : 'have'} unresolved readiness concerns to settle before commitment.`
+      );
+    }
+
+    const unassessed = experiments.filter(e => e.readiness_status === 'NOT_ASSESSED');
+    if (unassessed.length > 0) {
+      watch.push(
+        `${this.joinClauses(unassessed.map(e => e.experiment_id))} ${unassessed.length === 1 ? 'was' : 'were'} never assessed for operational readiness, so execution risk is unknown rather than low.`
+      );
+    }
+
+    const lossMaking = experiments.filter(e => e.contribution_impact_gbp < 0);
+    if (lossMaking.length > 0) {
+      watch.push(
+        `${this.joinClauses(lossMaking.map(e => e.experiment_id))} ${lossMaking.length === 1 ? 'returns' : 'return'} negative contribution — margin compression outweighs the volume gained.`
+      );
+    }
+
+    // Category-level constraints that bind whatever the commercial case says.
+    const constraints = new Map<string, string[]>();
+    for (const exp of experiments) {
+      const category = resolveCategory(exp.category);
+      if (!category) continue;
+      const list = constraints.get(category.binding_constraint) || [];
+      list.push(exp.experiment_id);
+      constraints.set(category.binding_constraint, list);
+    }
+    for (const [constraint, expIds] of constraints) {
+      watch.push(`${this.joinClauses(expIds)}: ${constraint}`);
+    }
+
+    // The evidence caveat is appended after truncation, never inside it. It was previously
+    // pushed onto the end of the list and then cut by the cap, so the comparisons carrying the
+    // most findings — the ones most likely to be acted on — were exactly the ones that lost
+    // the statement saying the figures are not forecasts.
+    const capped = watch.slice(0, 5);
+    if (experiments.every(e => this.isSyntheticEvidence(e))) {
+      capped.push(
+        'Every compared decision rests on demonstration data, so the contribution and demand figures rank the options against each other but do not forecast outcomes.'
+      );
+    }
+
+    return capped;
+  }
+
+  /** One concrete action. Never "consider your options". */
+  private buildNextMove(
+    experiments: CampaignDecisionExperiment[],
+    strongerId?: string,
+    lowestRiskId?: string,
+    focal: ExperimentComparisonDimension[] = []
+  ): string {
+    const byId = new Map(experiments.map(e => [e.experiment_id, e]));
+
+    if (strongerId && lowestRiskId && strongerId !== lowestRiskId) {
+      return `Decide whether the extra contribution in ${strongerId} justifies its execution risk; if it does not, proceed with ${lowestRiskId}.`;
+    }
+    if (strongerId) {
+      const winner = byId.get(strongerId)!;
+      return winner.readiness_status === 'CONDITIONAL'
+        ? `Proceed with the ${strongerId} configuration once its readiness conditions are confirmed.`
+        : `Proceed with the ${strongerId} configuration.`;
+    }
+    if (lowestRiskId) {
+      return `No configuration is commercially strongest, so proceed on execution risk: ${lowestRiskId} carries the lowest.`;
+    }
+
+    const blocked = experiments.filter(e => !this.readinessCleared(e.readiness_status));
+    if (blocked.length === experiments.length) {
+      return 'No compared configuration currently clears readiness — resolve the blocking constraints before running a further experiment.';
+    }
+
+    const variedDimension = focal.find(d => d.dimension !== 'Decision recommendation');
+    return variedDimension
+      ? `Run a further experiment varying ${variedDimension.dimension.toLowerCase()} to separate the options on outcome rather than on configuration.`
+      : 'Run a further experiment varying one dimension to separate the options on outcome.';
+  }
+
+
+  /**
+   * Route to customer as one line: where they transact, and how the campaign reaches them.
+   * Activation routes are named because "Store" alone does not say whether the campaign runs
+   * on shelf edge, through CRM, or both.
+   */
+  private describeRouteToCustomer(experiment: CampaignDecisionExperiment): string {
+    const channel = channelLabel(experiment.sales_channel);
+    const activations = (experiment.activation_channels || []).map(a => activationLabel(a));
+    return activations.length > 0 ? `${channel} · via ${activations.join(', ')}` : channel;
   }
 
   public generateExecutionBrief(
@@ -475,9 +1038,13 @@ class CampaignExperimentStore {
       session_id: experiment.session_id,
       generated_at: new Date().toISOString(),
       proposal: {
-        title: `${experiment.decision_recommendation} — ${experiment.category} (${experiment.region})`,
-        recommendation: `Deploy ${experiment.posture_label.toLowerCase()} configuration for ${experiment.sku_scope.join(', ')} in ${experiment.region}.`,
-        category_and_sku: `${experiment.category} · Scope: ${experiment.sku_scope.join(', ')}`,
+        title: `${experiment.decision_recommendation} — ${categoryLabel(experiment.category)} (${experiment.region})`,
+        // Posture labels are noun phrases ("Consider promotion", "Open on approach"), so they
+        // read as the subject of the sentence rather than as an adjective inside one. The
+        // audience and route come from the preserved snapshot, so the brief states who this
+        // decision was for and how it would reach them.
+        recommendation: `${experiment.posture_label} for ${experiment.sku_scope.join(', ')} in ${experiment.region}, reaching ${segmentLabel(experiment.audience_segment).toLowerCase()} through ${channelLabel(experiment.sales_channel).toLowerCase()}.`,
+        category_and_sku: `${categoryLabel(experiment.category)} · Scope: ${experiment.sku_scope.join(', ')}`,
         region_and_window: `${experiment.region} · ${experiment.planned_window || 'Optimal discovery window'}`
       },
       rationale: {
@@ -497,8 +1064,10 @@ class CampaignExperimentStore {
       operational_scope: {
         region: experiment.region,
         timing: experiment.planned_window || 'Dynamic window discovery',
-        audience: experiment.audience_segment || 'All targeted shoppers',
-        channel: 'Omnichannel'
+        audience: segmentLabel(experiment.audience_segment),
+        // Read from the preserved snapshot. This was previously the constant 'Omnichannel',
+        // which reported a route the planner had not chosen.
+        channel: this.describeRouteToCustomer(experiment)
       },
       material_constraints:
         experiment.major_constraints.length > 0

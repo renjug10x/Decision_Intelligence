@@ -475,7 +475,7 @@ Contract shape settles before any predicate consumes it:
 **No subtask delegation.** Four tests on one predicate over one pair of objects; splitting them
 produces divergent conventions on a shared invariant.
 
-**Recommended agent:** the designated CDI stream implementation agent (Opus-class), with mandatory
+**Recommended agent:** the designated CDI stream implementation agent (senior implementation capability), with mandatory
 independent adversarial reconciliation before commit.
 
 ---

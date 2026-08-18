@@ -550,9 +550,18 @@ function runTests() {
   const c12b = createDecisionContract(req12b);
   assert(c12a.contract_id === c12b.contract_id, 'AC-12: identical inputs → identical contract_id', `${c12a.contract_id} vs ${c12b.contract_id}`);
   assert(c12a.decision_basis_digest === c12b.decision_basis_digest, 'AC-12b: identical inputs → identical decision_basis_digest');
+  // The property under test is that contract_id is a pure content digest — no wall-clock time
+  // and no incrementing counter folded in. Structure carries that: a fixed-length lowercase hex
+  // digest cannot hold a formatted timestamp, and AC-12/AC-12b already prove identical inputs
+  // give an identical id. The previous form also rejected any run of ten digits, which a hex
+  // digest produces by chance — so the assertion failed or passed according to the digest's
+  // bytes rather than according to whether a timestamp had leaked in.
   assert(
-    !/\d{10,}|20\d{2}-\d{2}-\d{2}/.test(c12a.contract_id) && !c12a.contract_id.includes(TS),
-    'AC-12c: contract_id has no timestamp / counter',
+    /^[0-9a-f]{64}$/.test(c12a.contract_id) &&
+      !/20\d{2}-\d{2}-\d{2}/.test(c12a.contract_id) &&
+      !c12a.contract_id.includes(TS) &&
+      !c12a.contract_id.includes(String(Date.now()).slice(0, 8)),
+    'AC-12c: contract_id is a pure content digest with no timestamp or counter',
     c12a.contract_id
   );
 

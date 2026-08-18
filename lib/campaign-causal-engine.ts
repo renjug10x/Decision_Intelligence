@@ -24,6 +24,13 @@ import {
   validateCausalDemandContribution,
   validateCounterfactualBaseline
 } from '../packages/contracts/src/campaign-counterfactual-model';
+import {
+  evaluateSubsidyConfinement,
+  resolveCategory,
+  resolveChannel,
+  resolveSegment,
+  type ResponsivenessClass
+} from '../packages/contracts/src/campaign-decision-taxonomy-model';
 import { getCampaignIntentById } from './campaign-intent-store';
 import { getDecisionState } from './decision-state-store';
 import { simulateEnterpriseSignalTimelines } from '../services/world/src/dynamic-signal-simulator';
@@ -128,11 +135,19 @@ function hashSeed(input: string): number {
   return h;
 }
 
+/**
+ * Deterministic ±6% differentiation band for the SKU and region in scope.
+ *
+ * Category is deliberately not part of the seed. It used to be, which meant renaming a
+ * category — even to the same thing spelled differently — moved every downstream number by
+ * up to 6% for no modelled reason, and on a demo whose economics sit near a contribution
+ * breakeven that jitter was enough to flip a verdict. Category now acts through its
+ * elasticity, which is a stated property with a reason attached; a hash of its name is not.
+ */
 function skuContextFactor(campaign: CampaignIntent): number {
   const skuKey = campaign.campaign_intent.sku_scope.join('|') || 'none';
   const regionKey = campaign.audience_market.region || 'unknown';
-  const seed = hashSeed(`${campaign.campaign_intent.category}::${skuKey}::${regionKey}`);
-  // Deterministic ±6% differentiation band for SKU/context
+  const seed = hashSeed(`${skuKey}::${regionKey}`);
   return 0.94 + ((seed % 13) / 100);
 }
 
@@ -149,16 +164,94 @@ function nonPromotionResponsePp(campaign: CampaignIntent): number {
   return Number((4.2 * factor).toFixed(2));
 }
 
+/**
+ * The elasticity the flat 0.55pp-per-discount-point rate was calibrated against.
+ *
+ * That rate was not a cross-category average — it was tuned on the seeded Dairy scenario
+ * (P004, ε≈2.4), together with the unit contribution and erosion constants above. Anchoring
+ * on Dairy therefore leaves the calibrated demonstration economics exactly as they were and
+ * expresses every other category relative to it, rather than silently re-tuning the whole
+ * demo to fit a newly invented average.
+ */
+const CALIBRATION_CATEGORY_ELASTICITY = 2.4;
+const BASE_PP_PER_DISCOUNT_POINT = 0.55;
+
 function mechanicResponsePp(depth: number, campaign: CampaignIntent): number {
   if (depth <= 0) return 0;
   const factor = skuContextFactor(campaign);
-  // ~0.55pp uplift per discount point, moderated by SKU/context
-  return Number((depth * 0.55 * factor).toFixed(2));
+  // A confined offer reaches only the targeted share, so it moves only that share's volume.
+  // Scaling the cost by confinement while leaving the volume response estate-wide would make
+  // contribution rise without limit as depth increases — the discount would buy whole-estate
+  // volume at a fraction of the estate's margin, and the accretive/dilutive boundary the demo
+  // exists to show would never be crossed. Both sides scale together or neither does.
+  const reachedShare = subsidisedVolumeShare(campaign);
+  // Price elasticity is a property of the category, so it belongs on the price mechanic
+  // rather than in a blended constant: an inelastic category (premium bakery, ε≈0.8) must
+  // not be modelled as converting discount into volume like an elastic staple (ε≈2.4).
+  const elasticity = resolveCategory(campaign.campaign_intent.category)?.promotional_elasticity;
+  const perPoint =
+    BASE_PP_PER_DISCOUNT_POINT *
+    (typeof elasticity === 'number' ? elasticity / CALIBRATION_CATEGORY_ELASTICITY : 1);
+  return Number((depth * perPoint * factor * reachedShare).toFixed(2));
 }
 
+/**
+ * Estate-level response to an untargeted intervention — the anchor the seeded demo
+ * economics were calibrated on. Targeting is expressed relative to it.
+ */
+const UNTARGETED_AUDIENCE_RESPONSE_PP = 2.1;
+
+/** How hard a cohort responds within itself, relative to the base as a whole. */
+const SEGMENT_RESPONSIVENESS_MULTIPLIER: Record<ResponsivenessClass, number> = {
+  LOW: 0.7,
+  MODERATE: 1.0,
+  HIGH: 1.3
+};
+
+/**
+ * Estate-level demand attributable to the audience choice.
+ *
+ * A segment contributes its within-cohort responsiveness scaled by the share of the base it
+ * addresses: a highly responsive but narrow cohort cannot move the estate total as far as
+ * its own response rate suggests. Targeting everybody is the neutral case and returns the
+ * anchor unchanged.
+ *
+ * The gain from targeting deliberately does not appear here. It appears in contribution —
+ * less discount spent on customers who would have bought anyway — which is why a narrower
+ * configuration can return more money on less volume, and is precisely the trade-off the
+ * comparison surface exists to show.
+ */
 function audienceResponsePp(campaign: CampaignIntent): number {
-  if (!campaign.audience_market.customer_segment) return 0.8;
-  return campaign.audience_market.customer_segment.toLowerCase().includes('family') ? 2.1 : 1.4;
+  const segment = resolveSegment(campaign.audience_market.customer_segment);
+  if (!segment) {
+    // Free-text or absent segment: no taxonomy claim is available, so the neutral
+    // pre-taxonomy response is kept rather than guessing a cohort.
+    return campaign.audience_market.customer_segment ? 1.4 : 0.8;
+  }
+  const responsiveness = SEGMENT_RESPONSIVENESS_MULTIPLIER[segment.promotional_responsiveness];
+  return Number((UNTARGETED_AUDIENCE_RESPONSE_PP * responsiveness * segment.reach_share).toFixed(2));
+}
+
+/** Demand given up per unit of estate reach the chosen route cannot serve. */
+const CHANNEL_REACH_FORFEIT_PP = 2.5;
+/** Partial offset where the route can put the offer in front of the intended customer. */
+const CHANNEL_TARGETING_OFFSET_PP = 0.35;
+
+/**
+ * Demand attributable to the route to customer.
+ *
+ * Serving every channel is the unconstrained case and forfeits nothing. Narrowing the route
+ * gives up the share of trade it cannot reach — an app-only campaign cannot move estate
+ * volume the way the store estate can, however agile it is — and a route that can address
+ * an individual customer wins part of that back by landing the offer on the intended basket
+ * rather than on whoever passes the shelf.
+ */
+function channelResponsePp(campaign: CampaignIntent): number {
+  const channel = resolveChannel(campaign.audience_market.channel);
+  if (!channel) return 0;
+  const reachForfeit = CHANNEL_REACH_FORFEIT_PP * (1 - channel.reach_share);
+  const targetingOffset = channel.supports_personalisation ? CHANNEL_TARGETING_OFFSET_PP : 0;
+  return Number((targetingOffset - reachForfeit).toFixed(2));
 }
 
 function placeResponsePp(campaign: CampaignIntent): number {
@@ -239,10 +332,39 @@ function extractSignalUpliftPp(
  * when a canvas-stated mechanic was actually attributed — a placeholder depth must never
  * move the economics any more than it moves demand.
  */
-function unitContributionFor(depth: number, mechanicAttributed: boolean): number {
+function unitContributionFor(
+  depth: number,
+  mechanicAttributed: boolean,
+  campaign?: CampaignIntent
+): number {
   if (!mechanicAttributed || depth <= 0) return UNIT_CONTRIBUTION_GBP;
-  const retained = Math.max(0, 1 - depth * PROMO_CONTRIBUTION_EROSION_PER_DEPTH_POINT);
+  const erosion = depth * PROMO_CONTRIBUTION_EROSION_PER_DEPTH_POINT;
+
+  // A discount the estate cannot confine to the targeted cohort is paid on every unit sold,
+  // including the volume that would have arrived at full price anyway. Where the route to
+  // customer can address an individual — an app, an online basket, a personalised loyalty
+  // offer — the same depth erodes only the targeted share. This is the whole commercial
+  // case for targeting, and it is why a narrower configuration can return more contribution
+  // on less volume.
+  const subsidisedShare = campaign ? subsidisedVolumeShare(campaign) : 1;
+  const retained = Math.max(0, 1 - erosion * subsidisedShare);
   return Number((UNIT_CONTRIBUTION_GBP * retained).toFixed(4));
+}
+
+/**
+ * Share of volume the promotional discount is actually paid on, 0–1.
+ *
+ * Delegated to the taxonomy so the economics, the readiness subsidy-leak constraint and the
+ * canvas remediation note are all decided by one predicate. Computing this separately let
+ * an addressable activation clear the constraint and remove the warning while the engine
+ * kept charging full-base erosion.
+ */
+function subsidisedVolumeShare(campaign: CampaignIntent): number {
+  return evaluateSubsidyConfinement(
+    campaign.audience_market.customer_segment,
+    campaign.audience_market.channel,
+    campaign.audience_market.activation_channels
+  ).reached_share;
 }
 
 function buildTrajectory(
@@ -349,8 +471,40 @@ export function evaluateCausalDemandContribution(
       attributed:
         campaign.campaign_intent.intervention_posture === 'CONSIDER_PROMOTION' ||
         campaign.campaign_intent.intervention_posture === 'CONSIDER_NON_PROMOTION',
-      rationale: 'Segment affinity contribution when an active intervention posture is selected.',
+      rationale: (() => {
+        const segment = resolveSegment(campaign.audience_market.customer_segment);
+        if (!segment) {
+          return campaign.audience_market.customer_segment
+            ? 'Audience stated as free text — no cohort responsiveness or reach can be attributed to it.'
+            : 'No audience targeting stated; untargeted response only.';
+        }
+        return `${segment.display_label}: ${segment.promotional_responsiveness.toLowerCase()} within-cohort response across ${(segment.reach_share * 100).toFixed(0)}% of the base.`;
+      })(),
       evidence_refs: ['CDI01_AUDIENCE_SCOPE']
+    },
+    {
+      driver_id: 'channel_response',
+      driver_class: 'intervention',
+      label: 'Route to customer response',
+      contribution_pp:
+        campaign.campaign_intent.intervention_posture === 'CONSIDER_PROMOTION' ||
+        campaign.campaign_intent.intervention_posture === 'CONSIDER_NON_PROMOTION'
+          ? channelResponsePp(campaign)
+          : 0,
+      attributed:
+        (campaign.campaign_intent.intervention_posture === 'CONSIDER_PROMOTION' ||
+          campaign.campaign_intent.intervention_posture === 'CONSIDER_NON_PROMOTION') &&
+        !!resolveChannel(campaign.audience_market.channel),
+      rationale: (() => {
+        const channel = resolveChannel(campaign.audience_market.channel);
+        if (!channel) {
+          return campaign.audience_market.channel
+            ? 'Channel stated as free text — no reach or execution profile can be attributed to it.'
+            : 'No sales channel stated; route to customer contributes nothing attributable.';
+        }
+        return `${channel.display_label}: reaches ${(channel.reach_share * 100).toFixed(0)}% of trade${channel.supports_personalisation ? ', and can confine an offer to the targeted customer' : ', with no customer-level targeting'}.`;
+      })(),
+      evidence_refs: ['CDI01_CHANNEL_SCOPE']
     },
     {
       driver_id: 'place_response',
@@ -523,7 +677,7 @@ export function evaluateCounterfactualBaseline(
     'PREDICTED_WITH_INTERVENTION',
     predictedIndex,
     posture === 'UNDECIDED' ? 72 : 88,
-    unitContributionFor(mechanic.discount_depth, mechanic.mechanic_attributed),
+    unitContributionFor(mechanic.discount_depth, mechanic.mechanic_attributed, campaign),
     applyInterventionClearance
   );
 

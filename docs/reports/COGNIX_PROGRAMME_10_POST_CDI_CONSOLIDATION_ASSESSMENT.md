@@ -4,7 +4,7 @@
 **Baseline:** `5b92dae25f3db0994b64d6fca98010558df2a49f`
 **Branch:** `Feature/MatchingContract-AutoActivate`
 **Date:** 2026-08-16
-**Primary agent:** Claude Opus 5
+**Primary agent:** CogniX implementation team
 **Status:** ASSESSMENT COMPLETE — **Z1–Z5 RESOLVED 2026-08-16.** See
 `docs/reports/COGNIX_CDI_08_OBSERVATION_CORRESPONDENCE_DESIGN_GATE.md` §1.
 Z1, Z2, Z3, Z5 approved as proposed. **Z4 approved but NARROWED:** the jointly-covering observation
@@ -536,7 +536,7 @@ CDI-07B [CLOSED]
                         ├──> Y4-cal  Pattern telemetry calibration + WP10-D write path
                         │              (X3 gate: both required before any promotion)
                         │
-                        └──> Antigravity / ML workstream  [DEFERRED — see §11]
+                        └──> ML workstream  [DEFERRED — see §11]
 ```
 
 **Changes from the existing roadmap.** ESF-4 moves from "parallel-eligible now" to "parallel-eligible
@@ -551,7 +551,7 @@ all sit behind the first eligible case and are unchanged in content.
 | WP | Agent | Rationale |
 |---|---|---|
 | **Y4-gov** | Any implementation agent | Bounded correction to six seeded records plus a disclosure. No contract change |
-| **CDI-08** | **The designated CDI stream implementation agent (Opus-class), with mandatory independent adversarial reconciliation before commit** | It extends a closed contract and tightens a closed gate. Every WP from CDI-02 to CDI-07B shipped defects found by review rather than by its own suite — CDI-07A eight, CDI-07B eight. That precedent is unbroken and must not be tested here |
+| **CDI-08** | **The designated CDI stream implementation agent (senior implementation capability), with mandatory independent adversarial reconciliation before commit** | It extends a closed contract and tightens a closed gate. Every WP from CDI-02 to CDI-07B shipped defects found by review rather than by its own suite — CDI-07A eight, CDI-07B eight. That precedent is unbroken and must not be tested here |
 | **ESF-6 / Y3a** | The designated ESF/platform implementation agent, with the same mandatory reconciliation | More separable — its contract surface is ESF-owned. Reconciliation remains mandatory because it is the WP that arms every latent fail-open path |
 | **ESF-4** | ESF/platform implementation agent, standard review | Additive, separate file ownership, no CDI contract touched |
 | **Y4-cal** | Deferred | — |
@@ -564,7 +564,7 @@ consumes it.
 
 ---
 
-## 11. Antigravity / ML workstream — justified now?
+## 11. ML workstream — justified now?
 
 > **No. Defer, explicitly and on the record.**
 

@@ -4,7 +4,7 @@
 **Date:** 12 August 2026  
 **Repository Branch:** `Feature/MatchingContract-AutoActivate`  
 **Commit:** `aef18ba2ee89b99a4d328003cfe7c79764635bbb`  
-**Author:** Antigravity (CogniX Transformation Team)  
+**Author:** CogniX Transformation Team  
 
 ---
 

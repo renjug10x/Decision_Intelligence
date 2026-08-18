@@ -45,11 +45,21 @@ export interface BaselineObjective {
     cost_note?: string;
     capacity_cap_note?: string;
 }
-/** Area 3 — Audience & market scope (no micro-market scoring). */
+/**
+ * Area 3 — Audience & market scope (no micro-market scoring).
+ *
+ * `channel` is the sales channel — where the customer transacts. `activation_channels` are
+ * the media routes used to reach them. They are separate fields because they fail
+ * separately: an in-store point-of-sale campaign reaches nobody transacting online, and a
+ * shelf-edge price cut cannot be confined to a targeted customer however it is advertised.
+ * Values are the ids in campaign-decision-taxonomy-model; free text stays accepted so
+ * intents recorded before the taxonomy existed keep loading.
+ */
 export interface AudienceMarket {
     region: string;
     customer_segment?: string;
     channel?: string;
+    activation_channels?: string[];
     store_cohort_hint?: string;
     timing_mode: TimingMode;
     planned_start?: string;
@@ -64,11 +74,25 @@ export interface DecisionContextArea {
     contextual_factor_notes?: string[];
     open_questions?: string[];
     assumptions?: string[];
+    /**
+     * Entries above that the planner accepted from an assistant draft, recorded verbatim as
+     * accepted.
+     *
+     * The three arrays stay plain strings so every existing reader keeps working, but a record
+     * that cannot tell a drafted line from an authored one has lost the provenance the draft was
+     * stamped with. An entry the planner later edits stops matching, which is the intended
+     * reading: once edited, the line is theirs.
+     */
+    assistant_drafted_entries?: string[];
     commercial_intent_ref?: string;
     decision_state_id?: string;
     scenario_id?: string;
     scenario_family?: string;
 }
+/** Whether a decision-context entry entered the record as an accepted assistant draft. */
+export declare function isAssistantDrafted(context: DecisionContextArea | undefined, entry: string): boolean;
+/** Count of decision-context entries still carrying assistant-draft provenance. */
+export declare function assistantDraftedCount(context: DecisionContextArea | undefined): number;
 export interface CampaignCanvasProgress {
     active_area: CampaignCanvasArea;
     completed_areas: CampaignCanvasArea[];

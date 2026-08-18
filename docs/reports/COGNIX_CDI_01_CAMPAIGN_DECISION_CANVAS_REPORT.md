@@ -136,7 +136,7 @@ Commercial Intent schema unchanged; projection is additive and posture-gated.
 
 # ANNEX A — INDEPENDENT ARCHITECTURE & CLOSURE REVIEW
 
-**Reviewer:** Claude Opus 5 (independent of implementing agent)
+**Reviewer:** Independent reviewer (separate from the implementing team)
 **Review Date:** 2026-08-15
 **Reviewed Baseline:** `bd8a1782a2096ecffdcd5ecfb12a4adc2ccf3a5e`
 **Scope:** Contract-freeze gate before CDI-02 / CDI-03

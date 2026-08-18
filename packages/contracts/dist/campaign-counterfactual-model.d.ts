@@ -57,7 +57,7 @@ export interface CounterfactualBaseline {
     provenance: Record<string, string>;
     timestamp: string;
 }
-export type CausalDriverId = 'intrinsic_demand' | 'mechanic_response' | 'non_promotion_response' | 'audience_response' | 'place_response' | 'temporal_response' | 'external_signal_response' | 'portfolio_effects' | 'interaction_residual';
+export type CausalDriverId = 'intrinsic_demand' | 'mechanic_response' | 'non_promotion_response' | 'audience_response' | 'channel_response' | 'place_response' | 'temporal_response' | 'external_signal_response' | 'portfolio_effects' | 'interaction_residual';
 /**
  * Whether a driver acts on the world regardless of the campaign (`ambient`) or only
  * because an intervention is made (`intervention`).
