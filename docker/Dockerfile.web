@@ -8,6 +8,10 @@ WORKDIR /app
 ARG NEXT_PUBLIC_COGNIX_DEMO_MODE=false
 ENV NEXT_PUBLIC_COGNIX_DEMO_MODE=$NEXT_PUBLIC_COGNIX_DEMO_MODE
 
+# Auth base URL is inlined into the client bundle at build time (see next.config.ts `env`).
+ARG AUTH_API_URL=
+ENV AUTH_API_URL=$AUTH_API_URL
+
 COPY package*.json ./
 RUN npm ci
 COPY . .
