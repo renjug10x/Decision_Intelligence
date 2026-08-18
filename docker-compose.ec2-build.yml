@@ -1,7 +1,4 @@
-services:
-  nginx-proxy:
-    build:
-      context: ./nginx
-      dockerfile: Dockerfile
-      args:
-        NGINX_CONF: nginx.alb.conf
+# EC2 build overlay — all service images are built from docker-compose.yml.
+# Kept for CI compatibility (`-f docker-compose.yml -f docker-compose.ec2-build.yml`).
+
+services: {}

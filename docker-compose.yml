@@ -1,9 +1,10 @@
 services:
-  # Monolithic Next.js application
-  nextjs-app:
+  cognix-web:
     build:
       context: .
       dockerfile: docker/Dockerfile.web
+      args:
+        AUTH_API_URL: ${AUTH_API_URL:-}
     container_name: cognix-web
     ports:
       - "3000:3000"
@@ -11,6 +12,8 @@ services:
       - NODE_ENV=production
       - HOSTNAME=0.0.0.0
       - PORT=3000
+      - AUTH_API_URL=${AUTH_API_URL:-}
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
       - COGNIX_WORLD_MODE=service
       - COGNIX_WORLD_SERVICE_URL=http://cognix-world:8081
       - LEARNING_SERVICE_URL=http://cognix-learning:8082
@@ -29,9 +32,12 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+      start_period: 20s
     depends_on:
-      - cognix-world
-      - cognix-learning
+      cognix-world:
+        condition: service_healthy
+      cognix-learning:
+        condition: service_healthy
 
   cognix-world:
     build:
@@ -48,6 +54,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 3
+      start_period: 10s
 
   cognix-learning:
     build:
@@ -60,7 +67,8 @@ services:
       - NODE_ENV=production
       - PORT=8082
     healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8082/api/v1/health || exit 1"]
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8082/api/v1/health?type=live || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 3
+      start_period: 10s
