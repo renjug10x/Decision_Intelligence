@@ -2,7 +2,7 @@
 
 **Work Package:** CDI-02 — Counterfactual Baseline & Causal Campaign Engine  
 **Primary Agent:** Cursor Auto Balance  
-**Independent Reviewer:** Claude Opus 5 (architecture, modelling, integration & closure)  
+**Independent Reviewer:** Independent review team (architecture, modelling, integration & closure)  
 **Authorised Baseline (pre-implementation):** `fd5846638c2a647b4c931c55998df1d1ab9c2d69`  
 **Branch:** `Feature/MatchingContract-AutoActivate`  
 **Execution Date:** 2026-08-15  

@@ -6,7 +6,7 @@
 **Commit Baseline:** `7f37e76dc4a09d179e6a9da7f4b3a0283b27df0f` (`7f37e76d`)  
 **Readiness Classification:** **EXECUTIVE DEMO READY — ORGANISATIONAL LEARNING EDITION**  
 **Git Action Taken:** **UNCOMMITTED LOCAL CHANGES READY FOR MANUAL OWNER COMMIT/PUSH**  
-**Author:** Antigravity (CogniX Lead Architect & Transformation Team)  
+**Author:** CogniX Lead Architect & Transformation Team  
 
 ---
 

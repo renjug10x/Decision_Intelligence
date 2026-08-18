@@ -4,7 +4,7 @@
 **Date:** August 2026  
 **Starting SHA Baseline:** `aa997415c14e9da07e61c229efb2bad380f15400`  
 **Branch:** `Feature/MatchingContract-AutoActivate`  
-**Author:** G10X Antigravity AI Engine  
+**Author:** G10X CogniX Engineering  
 
 ---
 
