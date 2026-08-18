@@ -1322,6 +1322,33 @@ async function run() {
     'and the play id stays reachable as provenance on the option rather than being discarded'
   );
 
+  // Readiness conditions and vetoes are read by a planner deciding whether to proceed, so
+  // they must say what to do in business terms. Several embedded the engine field they were
+  // computed from ("restore contribution_delta_gbp >= 0"), which reads as a variable to set
+  // rather than an action to take. The raw field stays available through each finding's
+  // evidence refs and the technical-provenance disclosure.
+  const readinessSource = readFileSync(join(REPO_ROOT, 'lib', 'campaign-readiness-engine.ts'), 'utf8');
+  const statementLeaks: string[] = [];
+  for (const m of readinessSource.matchAll(/statement:\s*[`'"]([^`'"]{5,220})[`'"]/g)) {
+    for (const token of m[1].matchAll(/\b[a-z]+(?:_[a-z0-9]+)+\b/g)) {
+      statementLeaks.push(token[0]);
+    }
+  }
+  assert(
+    statementLeaks.length === 0,
+    'No readiness condition or veto states an engine field name to the planner',
+    statementLeaks.length ? `leaked: ${[...new Set(statementLeaks)].join(', ')}` : undefined
+  );
+
+  // The CDI-06 "not measurable yet" note says what the estate must supply, not which
+  // variable is unset. The raw path stays on the tooltip.
+  assert(
+    !/Needed before this can be measured:\{' '\}\s*\{dim\.required_authoritative_input\.field\}/.test(
+      canvasSource
+    ),
+    'The unmeasurable-dimension note does not print a raw engine field path as visible text'
+  );
+
   // ─────────────────────────────────────────────────────────────────────
   console.log('\n--- 16. Suggestion response validation ---');
 

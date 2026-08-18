@@ -222,7 +222,7 @@ export function evaluateCommercial(
       conditions.push({
         condition_id: 'C2_declare_tolerance_or_restore',
         dimension: 'COMMERCIAL',
-        statement: 'Declare an economic tolerance covering the contribution sacrifice, or restore contribution_delta_gbp ≥ 0.',
+        statement: 'Declare an economic tolerance covering the contribution sacrifice, or bring net contribution back to zero or above.',
         discharge_test:
           'economic_tolerance.max_contribution_sacrifice_gbp >= abs(contribution_delta_gbp) OR contribution_delta_gbp >= 0',
         evidence_gap: 'No economic_tolerance on request',
@@ -394,7 +394,7 @@ export function evaluateCommercial(
         conditions.push({
           condition_id: 'C7_meet_target',
           dimension: 'COMMERCIAL',
-          statement: `Close shortfall vs target_value ${targetValue} on ${metric}.`,
+          statement: `Close the shortfall against the stated target of ${targetValue} on ${metric}.`,
           discharge_test: `primary_metric_predicted_movement >= ${targetValue}`,
           evidence_gap: 'Predicted movement below stated target',
           blocking_if_unmet: 'REVIEW'
@@ -872,7 +872,7 @@ export function evaluateOperational(bundle: EvalBundle): {
       conditions.push({
         condition_id: 'O2_apply_recovery_lever',
         dimension: 'OPERATIONAL',
-        statement: `Apply recovery lever(s) ${primaryLever} (combined headroom ${cumulative} units ≥ gap ${gap}) so commitment_gap_units becomes 0.`,
+        statement: `Apply recovery lever(s) ${primaryLever} — combined headroom of ${cumulative} units covers the ${gap}-unit gap, closing it entirely.`,
         discharge_test: `selected_interventions includes [${closing.join(', ')}] AND commitment_gap_units === 0`,
         evidence_gap: `Lever(s) ${primaryLever} not yet applied`,
         blocking_if_unmet: 'REVIEW'
@@ -1523,7 +1523,7 @@ export function evaluateStrategic(bundle: EvalBundle): {
     conditions.push({
       condition_id: 'S1_serve_clearance',
       dimension: 'STRATEGIC',
-      statement: 'Produce waste reduction (waste_delta_units < 0) or revise objective.',
+      statement: 'Deliver an actual reduction in waste, or revise the objective.',
       discharge_test: 'waste_delta_units < 0 OR objective_type !== INVENTORY_CLEARANCE',
       evidence_gap: 'Clearance objective unmet',
       blocking_if_unmet: 'REVIEW'
@@ -1554,7 +1554,7 @@ export function evaluateStrategic(bundle: EvalBundle): {
     conditions.push({
       condition_id: 'S2_align_metric',
       dimension: 'STRATEGIC',
-      statement: 'Align delivered value with stated primary_metric or revise the metric.',
+      statement: 'Align the delivered value with the metric the objective is measured on, or revise that metric.',
       discharge_test: 'contribution_delta_gbp > 0 OR primary_metric !== CONTRIBUTION',
       evidence_gap: 'Metric/value mismatch',
       blocking_if_unmet: 'REVIEW'
