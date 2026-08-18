@@ -414,6 +414,14 @@ export async function POST(request: NextRequest) {
   } catch (e: unknown) {
     // Provider detail stays in the server log — the caller gets the fact of the failure only.
     console.error('Decision context suggestion provider call failed:', e);
+    const detail = e instanceof Error ? e.message : String(e);
+    if (/API key|API_KEY|401|403|invalid.*key|PERMISSION_DENIED/i.test(detail)) {
+      return errorResponse(
+        'ProviderRequestFailed',
+        'The Gemini API key was rejected. Check the key in Google AI Studio (aistudio.google.com/apikey) and try again.',
+        502
+      );
+    }
     return errorResponse(
       'ProviderRequestFailed',
       'The suggestion provider could not be reached. No suggestions were generated.',

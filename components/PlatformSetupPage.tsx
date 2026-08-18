@@ -142,7 +142,7 @@ export default function PlatformSetupPage() {
           <input
             className="input"
             type={showKey ? 'text' : 'password'}
-            placeholder="Paste your Google AI Studio key…"
+            placeholder="Paste your Google AI Studio key (AIza… or AQ.…)"
             value={keyInput}
             onChange={(e) => {
               setKeyInput(e.target.value);

@@ -23,17 +23,51 @@ function resolveApiKey(apiKey?: string): string {
   return sanitizeApiKey(key);
 }
 
-/** Call Gemini with automatic model fallback when Google retires model names */
+/** Call Gemini via the native REST API (supports both AIza standard and AQ auth keys). */
 export async function generateGeminiContent(prompt: string, apiKey?: string): Promise<string> {
   const key = resolveApiKey(apiKey);
-  const client = new GoogleGenerativeAI(key);
   let lastError: unknown;
 
   for (const modelName of GEMINI_MODELS) {
     try {
-      const model = client.getGenerativeModel({ model: modelName });
-      const result = await model.generateContent(prompt);
-      return result.response.text().trim();
+      const res = await fetch(
+        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': key,
+          },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: prompt }] }],
+          }),
+        }
+      );
+
+      if (!res.ok) {
+        const detail = await res.text();
+        const err = new Error(`Gemini API ${res.status}: ${detail.slice(0, 300)}`);
+        if (
+          res.status === 404 ||
+          detail.includes('not found') ||
+          detail.includes('no longer available')
+        ) {
+          lastError = err;
+          console.warn(`Gemini model ${modelName} unavailable, trying next...`);
+          continue;
+        }
+        throw err;
+      }
+
+      const json = (await res.json()) as {
+        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+      };
+      const text = json.candidates?.[0]?.content?.parts
+        ?.map((part) => part.text ?? '')
+        .join('')
+        .trim();
+      if (!text) throw new Error('Gemini API returned no text');
+      return text;
     } catch (err) {
       lastError = err;
       const msg = err instanceof Error ? err.message : String(err);
@@ -44,6 +78,7 @@ export async function generateGeminiContent(prompt: string, apiKey?: string): Pr
       throw err;
     }
   }
+
   throw lastError;
 }
 

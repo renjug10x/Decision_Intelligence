@@ -105,15 +105,16 @@ export async function suggestDecisionContextClient(args: {
       })
     });
 
+    const json = await res.json().catch(() => ({}));
+    const serverMessage = typeof json?.message === 'string' ? json.message.trim() : '';
+
     if (!res.ok) {
-      // 503 and 429 are the two failures a planner can act on — one says the environment lacks
-      // the assistant, the other says to wait. Everything else is just "not now".
       if (res.status === 503) return { ok: false, message: NOT_CONFIGURED_MESSAGE };
       if (res.status === 429) return { ok: false, message: RATE_LIMITED_MESSAGE };
+      if (serverMessage) return { ok: false, message: serverMessage };
       return { ok: false, message: UNAVAILABLE_MESSAGE };
     }
 
-    const json = await res.json();
     const raw: unknown = json?.data?.suggestions;
     const suggestions = Array.isArray(raw)
       ? raw.filter((s): s is string => typeof s === 'string' && s.trim().length > 0)
