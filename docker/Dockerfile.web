@@ -1,6 +1,13 @@
 # CogniX Web Container Dockerfile
 FROM node:20-alpine AS builder
 WORKDIR /app
+
+# The demonstration auth bypass is a build-time decision because Next.js inlines NEXT_PUBLIC_*
+# values into the client bundle. It defaults to false so a plain `docker compose build` produces
+# an image that still requires sign-in; only an explicit opt-in produces a bypassed one.
+ARG NEXT_PUBLIC_COGNIX_DEMO_MODE=false
+ENV NEXT_PUBLIC_COGNIX_DEMO_MODE=$NEXT_PUBLIC_COGNIX_DEMO_MODE
+
 COPY package*.json ./
 RUN npm ci
 COPY . .

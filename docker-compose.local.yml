@@ -1,0 +1,17 @@
+# Local demonstration stack — auth bypassed.
+#
+# The published image requires sign-in: NEXT_PUBLIC_COGNIX_DEMO_MODE defaults to false in
+# docker/Dockerfile.web, so a plain `docker compose build` is unaffected by this file. This
+# override opts a LOCAL build into the demonstration bypass, which is what makes the Campaign
+# Decision journey reachable without an identity provider in front of it.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
+#
+# Never deploy an image built through this override.
+services:
+  nextjs-app:
+    build:
+      args:
+        NEXT_PUBLIC_COGNIX_DEMO_MODE: "true"
+    environment:
+      - NEXT_PUBLIC_COGNIX_DEMO_MODE=true
