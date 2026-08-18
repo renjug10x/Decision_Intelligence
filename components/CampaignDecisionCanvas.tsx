@@ -34,17 +34,39 @@ import {
   CampaignDecisionExperiment,
   ExperimentComparison,
   ExecutionBrief,
+  MAX_COMPARISON_EXPERIMENTS,
   mapReadinessStateToVerdict,
   readinessVerdictLabel,
   formatContributionGbp,
   formatDemandPct
 } from '@/packages/contracts/src/campaign-experiment-model';
 import {
+  CAMPAIGN_CATEGORIES,
+  CAMPAIGN_SEGMENTS,
+  CAMPAIGN_CHANNELS,
+  CAMPAIGN_ACTIVATIONS,
+  resolveCategory,
+  resolveSegment,
+  resolveChannel,
+  categoryLabel,
+  segmentLabel,
+  channelLabel,
+  activationLabel,
+  isActivationCompatible,
+  discountIsConfinableToSegment,
+  executionLeadTimeDays,
+  addressableReachShare
+} from '@/packages/contracts/src/campaign-decision-taxonomy-model';
+import {
   listCampaignExperimentsClient,
   saveCampaignExperimentClient,
   compareCampaignExperimentsClient,
   fetchExecutionBriefClient
 } from '@/lib/campaign-experiment-client';
+import {
+  suggestDecisionContextClient,
+  type DecisionContextSuggestionType
+} from '@/lib/campaign-decision-suggestion-client';
 import { ExperimentHistoryDrawer } from '@/components/campaign/ExperimentHistoryDrawer';
 import { ExperimentComparisonModal } from '@/components/campaign/ExperimentComparisonModal';
 import { ExecutionBriefModal } from '@/components/campaign/ExecutionBriefModal';
@@ -62,6 +84,7 @@ import {
 import {
   DECISION_STAGE_LANGUAGE,
   formatAxisValue,
+  humanise as humaniseToken,
   label as executiveLabel,
   phrase as executivePhrase
 } from '@/lib/campaign-decision-language';
@@ -156,6 +179,41 @@ const CONSEQUENCE_ORDER_LABEL: Record<ConsequenceOrder, string> = {
 /** Fixed demo reference instant — never Date.now() for decision semantics (C-INV-9). */
 const CANVAS_EVALUATION_TIMESTAMP = '2026-08-15T12:00:00.000Z';
 
+type SuggestionField = DecisionContextSuggestionType;
+
+interface SuggestionSlot {
+  loading: boolean;
+  items: string[];
+  selected: string[];
+  error: string | null;
+}
+
+type SuggestionStateMap = Partial<Record<SuggestionField, SuggestionSlot | null>>;
+
+/**
+ * Route to customer as one line: where they transact, and how the campaign reaches them.
+ * "Store" alone does not say whether the campaign runs on shelf edge, through CRM, or both.
+ */
+function describeRouteToCustomer(channel?: string, activations?: string[]): string {
+  const base = channelLabel(channel);
+  const routes = (activations || []).map(a => activationLabel(a));
+  return routes.length > 0 ? `${base} · via ${routes.join(', ')}` : base;
+}
+
+/**
+ * An engine field path rendered for a planner: `micro_markets.stores_included` reads as
+ * "micro markets — stores included". Used only where a contract supplies no prose reason of
+ * its own; the raw path stays available as provenance.
+ */
+function humaniseFieldPath(path?: string): string {
+  if (!path) return 'an authoritative input the estate does not yet hold';
+  return path
+    .split('.')
+    .map(part => part.replace(/_/g, ' ').trim())
+    .filter(Boolean)
+    .join(' — ');
+}
+
 function formatSnapshotValue(sv: { value?: unknown; unit?: string; source_field_path?: string }): string {
   const raw = sv?.value;
   const n = typeof raw === 'number' ? raw : Number(raw);
@@ -181,6 +239,29 @@ function formatOutcomeSnapshot(snapshot: Array<{ value?: unknown; unit?: string;
  * CDI-06 keeps it displayed and first-class — and "we considered it and chose not to act" is
  * exactly the decision the human resolution route exists to record.
  */
+/**
+ * Why the overall readiness position was held below what the dimensions alone would give.
+ *
+ * The caps do not share a cause, so they cannot share a sentence: K7 fires on negative
+ * contribution and K8 on an operational capacity gap, while the remainder are evidence
+ * limits. The raw cap ids stay on the element's title as technical provenance.
+ */
+function describeReadinessCaps(caps: string[]): string {
+  const commercial = caps.includes('K7');
+  const operational = caps.includes('K8');
+  const evidence = caps.some(c => c !== 'K7' && c !== 'K8');
+  const reasons: string[] = [];
+  if (commercial) reasons.push('negative contribution');
+  if (operational) reasons.push('an operational capacity gap');
+  if (evidence) reasons.push('limited evidence');
+  if (reasons.length === 0) return 'overall position held back';
+  const joined =
+    reasons.length === 1
+      ? reasons[0]
+      : `${reasons.slice(0, -1).join(', ')} and ${reasons[reasons.length - 1]}`;
+  return `overall position held back by ${joined}`;
+}
+
 function humanResolvablePlayIds(frontier: any): string[] {
   const ids: string[] = [...(frontier?.frontier_play_ids || [])];
   for (const p of frontier?.plays || []) {
@@ -372,6 +453,22 @@ export function TimelineChart({ projection }: { projection: any }) {
   );
 }
 
+/**
+ * A message shown to the planner, optionally carrying the engine code that produced it.
+ * The engine's rejection id (RJ-C2, R5, …) is real provenance and is kept — but it is relegated
+ * to the element's title so the banner reads as a sentence rather than a fault code. The
+ * message itself is never softened: the engine's own wording is passed through unchanged.
+ */
+type SurfaceNotice = { message: string; code?: string };
+
+const noticeText = (notice: string | SurfaceNotice | null): string =>
+  notice === null ? '' : typeof notice === 'string' ? notice : notice.message;
+
+const noticeProvenance = (notice: string | SurfaceNotice | null): string | undefined =>
+  notice !== null && typeof notice !== 'string' && notice.code
+    ? `Engine rejection id: ${notice.code}`
+    : undefined;
+
 export default function CampaignDecisionCanvas({
   onNavigateToExperiment
 }: CampaignDecisionCanvasProps = {}) {
@@ -379,26 +476,26 @@ export default function CampaignDecisionCanvas({
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [evaluation, setEvaluation] = useState<any | null>(null);
+  const [error, setError] = useState<string | SurfaceNotice | null>(null);
+  const [liveEvaluation, setEvaluation] = useState<any | null>(null);
   const [evaluating, setEvaluating] = useState(false);
-  const [opportunity, setOpportunity] = useState<any | null>(null);
+  const [liveOpportunity, setOpportunity] = useState<any | null>(null);
   const [discovering, setDiscovering] = useState(false);
-  const [readiness, setReadiness] = useState<any | null>(null);
+  const [liveReadiness, setReadiness] = useState<any | null>(null);
   const [assessing, setAssessing] = useState(false);
   const [readinessExpanded, setReadinessExpanded] = useState(false);
-  const [timeline, setTimeline] = useState<any | null>(null);
+  const [liveTimeline, setTimeline] = useState<any | null>(null);
   const [projecting, setProjecting] = useState(false);
   const [timelineTier, setTimelineTier] = useState(1);
-  const [frontier, setFrontier] = useState<any | null>(null);
+  const [liveFrontier, setFrontier] = useState<any | null>(null);
   const [evaluatingFrontier, setEvaluatingFrontier] = useState(false);
   const [frontierDrawerOpen, setFrontierDrawerOpen] = useState(false);
   const [excludedPlaysOpen, setExcludedPlaysOpen] = useState(false);
   const [provenanceOpen, setProvenanceOpen] = useState(false);
   const [selectedPlayId, setSelectedPlayId] = useState<string | null>(null);
   const [evaluationTimestamp] = useState(CANVAS_EVALUATION_TIMESTAMP);
-  const [decisionContract, setDecisionContract] = useState<any | null>(null);
-  const [validityAssessment, setValidityAssessment] = useState<any | null>(null);
+  const [liveDecisionContract, setDecisionContract] = useState<any | null>(null);
+  const [liveValidityAssessment, setValidityAssessment] = useState<any | null>(null);
   const [validityDrawerOpen, setValidityDrawerOpen] = useState(false);
   const [registeringContract, setRegisteringContract] = useState(false);
   const [humanResolvedBy, setHumanResolvedBy] = useState('');
@@ -410,7 +507,7 @@ export default function CampaignDecisionCanvas({
   );
   const [learningCandidate, setLearningCandidate] = useState<LearningCandidate | null>(null);
   const [loadingLayer8, setLoadingLayer8] = useState(false);
-  const [layer8Error, setLayer8Error] = useState<string | null>(null);
+  const [layer8Error, setLayer8Error] = useState<string | SurfaceNotice | null>(null);
 
   // Experiment History & Comparison & Execution Brief States
   const [experimentsList, setExperimentsList] = useState<CampaignDecisionExperiment[]>([]);
@@ -426,6 +523,15 @@ export default function CampaignDecisionCanvas({
    * same tick cannot each believe they are the first.
    */
   const [activeExperimentId, setActiveExperimentId] = useState<string | null>(null);
+
+  /**
+   * Draft suggestions live here and nowhere else until the planner accepts them.
+   *
+   * Keeping them out of `intent` is the whole boundary: an unaccepted draft is never part of
+   * the governed CampaignIntent, is never preserved into an experiment, and cannot become
+   * evidence. Reset clears this alongside the decision itself.
+   */
+  const [suggestionState, setSuggestionState] = useState<SuggestionStateMap>({});
   const activeExperimentIdRef = useRef<string | null>(null);
   const preservingRef = useRef(false);
 
@@ -473,7 +579,7 @@ export default function CampaignDecisionCanvas({
   }, []);
 
   useEffect(() => {
-    if (!intent || !decisionContract?.contract_id || !decisionContract?.contract_digest) {
+    if (!intent || !liveDecisionContract?.contract_id || !liveDecisionContract?.contract_digest) {
       setPreMortem(null);
       setPredictionComparison(null);
       setLearningCandidate(null);
@@ -488,29 +594,28 @@ export default function CampaignDecisionCanvas({
       setLayer8Error(null);
 
       let pm = await fetchPreMortemClient({
-        contract_id: decisionContract.contract_id,
+        contract_id: liveDecisionContract.contract_id,
         tenant_id: intent.tenant_id,
         session_id: intent.session_id
       });
 
       if (!pm) {
         const created = await createPreMortemClient({
-          contract_id: decisionContract.contract_id,
+          contract_id: liveDecisionContract.contract_id,
           tenant_id: intent.tenant_id,
           session_id: intent.session_id,
           created_as_of: evaluationTimestamp,
-          contract_digest: decisionContract.contract_digest
+          contract_digest: liveDecisionContract.contract_digest
         });
         if (cancelled) return;
         if (!created.pre_mortem) {
           setPreMortem(null);
           setPredictionComparison(null);
           setLearningCandidate(null);
-          setLayer8Error(
-            created.rejection_id
-              ? `${created.rejection_id}: ${created.error}`
-              : created.error || 'Pre-mortem unavailable for this contract.'
-          );
+          setLayer8Error({
+            message: created.error || 'Pre-mortem unavailable for this contract.',
+            code: created.rejection_id
+          });
           setLoadingLayer8(false);
           return;
         }
@@ -521,11 +626,11 @@ export default function CampaignDecisionCanvas({
       setPreMortem(pm);
 
       const comparisonResult = await runPredictionComparisonClient({
-        contract_id: decisionContract.contract_id,
+        contract_id: liveDecisionContract.contract_id,
         tenant_id: intent.tenant_id,
         session_id: intent.session_id,
         as_of: evaluationTimestamp,
-        contract_digest: decisionContract.contract_digest,
+        contract_digest: liveDecisionContract.contract_digest,
         category: intent.campaign_intent.category
       });
 
@@ -533,34 +638,32 @@ export default function CampaignDecisionCanvas({
       if (!comparisonResult.comparison) {
         setPredictionComparison(null);
         setLearningCandidate(null);
-        setLayer8Error(
-          comparisonResult.rejection_id
-            ? `${comparisonResult.rejection_id}: ${comparisonResult.error}`
-            : comparisonResult.error || 'Prediction comparison unavailable for this contract.'
-        );
+        setLayer8Error({
+          message: comparisonResult.error || 'Prediction comparison unavailable for this contract.',
+          code: comparisonResult.rejection_id
+        });
         setLoadingLayer8(false);
         return;
       }
       setPredictionComparison(comparisonResult.comparison);
 
       const candidateResult = await createLearningCandidateClient({
-        contract_id: decisionContract.contract_id,
+        contract_id: liveDecisionContract.contract_id,
         tenant_id: intent.tenant_id,
         session_id: intent.session_id,
         comparison: comparisonResult.comparison,
         comparison_id: comparisonResult.comparison.comparison_id,
-        contract_digest: decisionContract.contract_digest,
+        contract_digest: liveDecisionContract.contract_digest,
         created_as_of: evaluationTimestamp
       });
 
       if (cancelled) return;
       if (!candidateResult.candidate) {
         setLearningCandidate(null);
-        setLayer8Error(
-          candidateResult.rejection_id
-            ? `${candidateResult.rejection_id}: ${candidateResult.error}`
-            : candidateResult.error || 'Learning candidate unavailable for this contract.'
-        );
+        setLayer8Error({
+          message: candidateResult.error || 'Learning candidate unavailable for this contract.',
+          code: candidateResult.rejection_id
+        });
         setLoadingLayer8(false);
         return;
       }
@@ -574,8 +677,8 @@ export default function CampaignDecisionCanvas({
   }, [
     intent?.tenant_id,
     intent?.session_id,
-    decisionContract?.contract_id,
-    decisionContract?.contract_digest,
+    liveDecisionContract?.contract_id,
+    liveDecisionContract?.contract_digest,
     evaluationTimestamp
   ]);
 
@@ -590,12 +693,24 @@ export default function CampaignDecisionCanvas({
   // Historical view vs active decision
   const isHistoricalView = !!reviewedExperiment;
   const displayedIntent = isHistoricalView && reviewedExperiment ? reviewedExperiment.intent_snapshot : intent;
-  const displayedEvaluation = isHistoricalView && reviewedExperiment ? reviewedExperiment.evaluation_snapshot : evaluation;
-  const displayedOpportunity = isHistoricalView && reviewedExperiment ? reviewedExperiment.opportunity_snapshot : opportunity;
-  const displayedReadiness = isHistoricalView && reviewedExperiment ? reviewedExperiment.readiness_snapshot : readiness;
-  const displayedTimeline = isHistoricalView && reviewedExperiment ? reviewedExperiment.timeline_snapshot : timeline;
-  const displayedFrontier = isHistoricalView && reviewedExperiment ? reviewedExperiment.frontier_snapshot : frontier;
-  const displayedContract = isHistoricalView && reviewedExperiment ? reviewedExperiment.contract_snapshot : decisionContract;
+  /*
+   * Every analysis panel below reads these names, not the live state hooks. Binding them
+   * here — rather than adding parallel `displayed*` aliases the panels could forget to use —
+   * is what makes historical review actually historical: a panel physically cannot render
+   * the live session's analysis against a preserved decision, because the live value is only
+   * reachable under its `live*` name, which no panel references.
+   *
+   * A preserved experiment carries no validity snapshot, so historical review shows no
+   * validity assessment at all. Showing the live one would assert that a check run against
+   * today's decision was run against this one.
+   */
+  const evaluation = isHistoricalView && reviewedExperiment ? reviewedExperiment.evaluation_snapshot : liveEvaluation;
+  const opportunity = isHistoricalView && reviewedExperiment ? reviewedExperiment.opportunity_snapshot : liveOpportunity;
+  const readiness = isHistoricalView && reviewedExperiment ? reviewedExperiment.readiness_snapshot : liveReadiness;
+  const timeline = isHistoricalView && reviewedExperiment ? reviewedExperiment.timeline_snapshot : liveTimeline;
+  const frontier = isHistoricalView && reviewedExperiment ? reviewedExperiment.frontier_snapshot : liveFrontier;
+  const decisionContract = isHistoricalView && reviewedExperiment ? reviewedExperiment.contract_snapshot : liveDecisionContract;
+  const validityAssessment = isHistoricalView ? null : liveValidityAssessment;
 
   /**
    * What the decision on screen is called. Three honest states, and no fourth:
@@ -615,6 +730,80 @@ export default function CampaignDecisionCanvas({
   const isFieldsDisabled = isRegistered || isHistoricalView;
   const stageIndex = CAMPAIGN_CANVAS_AREA_ORDER.indexOf(active);
   const isLastStage = stageIndex === CAMPAIGN_CANVAS_AREA_ORDER.length - 1;
+
+  /**
+   * The decision dimensions resolved to their taxonomy definitions.
+   *
+   * These read `displayedIntent`, not `intent`, so reviewing a historical experiment shows
+   * the dimensions that decision was taken on rather than whatever the live draft now holds.
+   */
+  const selectedCategory = resolveCategory(displayedIntent.campaign_intent.category);
+  const selectedSegment = resolveSegment(displayedIntent.audience_market.customer_segment);
+  const selectedChannel = resolveChannel(displayedIntent.audience_market.channel);
+  const selectedActivations = displayedIntent.audience_market.activation_channels || [];
+
+  /**
+   * What the chosen audience and route imply, stated before the analysis runs.
+   *
+   * Each line is derived from the taxonomy, and each names a consequence a planner would
+   * otherwise discover only after committing: how much of the base is addressable, whether a
+   * discount can be confined to the people it was meant for, how long the slowest route
+   * takes to go live, and any activation that cannot reach the chosen sales channel at all.
+   */
+  const audienceReachNote = (() => {
+    const notes: string[] = [];
+    if (!selectedSegment && !selectedChannel && selectedActivations.length === 0) return null;
+
+    if (selectedSegment || selectedChannel) {
+      const reach = addressableReachShare(
+        displayedIntent.audience_market.customer_segment,
+        displayedIntent.audience_market.channel
+      );
+      notes.push(
+        `Addressable reach is about ${(reach * 100).toFixed(0)}% of trade — ${segmentLabel(
+          displayedIntent.audience_market.customer_segment
+        ).toLowerCase()} through ${channelLabel(displayedIntent.audience_market.channel).toLowerCase()}.`
+      );
+    }
+
+    if (
+      selectedSegment &&
+      selectedSegment.id !== 'ALL_CUSTOMERS' &&
+      !discountIsConfinableToSegment(
+        displayedIntent.audience_market.customer_segment,
+        displayedIntent.audience_market.channel,
+        selectedActivations
+      )
+    ) {
+      notes.push(
+        `This route cannot confine an offer to ${selectedSegment.display_label.toLowerCase()}, so any discount is paid across the whole base. Add a personalised activation route, or an online channel, to target it.`
+      );
+    }
+
+    const incompatible = selectedActivations.filter(
+      a => !isActivationCompatible(displayedIntent.audience_market.channel, a)
+    );
+    if (incompatible.length > 0) {
+      notes.push(
+        `${incompatible.map(a => activationLabel(a)).join(', ')} does not reach customers buying through ${channelLabel(
+          displayedIntent.audience_market.channel
+        ).toLowerCase()}.`
+      );
+    }
+
+    if (selectedChannel) {
+      const leadDays = executionLeadTimeDays(displayedIntent.audience_market.channel, selectedActivations);
+      notes.push(
+        `Slowest route needs about ${leadDays} working days to go live. ${selectedChannel.primary_execution_risk}`
+      );
+    }
+
+    if (selectedSegment && selectedSegment.evidence_basis === 'DEMO_ASSUMPTION') {
+      notes.push(`Segment is a stated planning intent, not a measured audience. ${selectedSegment.evidence_requirement}`);
+    }
+
+    return notes.length > 0 ? notes : null;
+  })();
 
   function isAreaValid(targetIntent: CampaignIntent, area: CampaignCanvasArea): boolean {
     if (area === 'CAMPAIGN_INTENT') return targetIntent.campaign_intent ? validateCampaignIntentCore(targetIntent.campaign_intent).valid : false;
@@ -699,6 +888,10 @@ export default function CampaignDecisionCanvas({
       sku_scope: currentIntent.campaign_intent.sku_scope,
       region: currentIntent.audience_market.region,
       audience_segment: currentIntent.audience_market.customer_segment,
+      // Route to customer is preserved on the record so history, comparison and the brief
+      // all read the channel this decision was actually taken on.
+      sales_channel: currentIntent.audience_market.channel,
+      activation_channels: currentIntent.audience_market.activation_channels,
       timing_mode: currentIntent.audience_market.timing_mode,
       planned_window: currentIntent.audience_market.planned_start && currentIntent.audience_market.planned_end
         ? `${currentIntent.audience_market.planned_start} to ${currentIntent.audience_market.planned_end}`
@@ -818,6 +1011,10 @@ export default function CampaignDecisionCanvas({
 
   const patchContext = (patch: Partial<DecisionContextArea>) => {
     if (isHistoricalView) return;
+    // Open questions feed readiness rule S6, so editing decision context after an assessment
+    // leaves that assessment answering a question set the decision no longer holds. The other
+    // three areas already invalidate downstream analysis; this one was the exception.
+    invalidateDownstreamState();
     updateIntent({
       ...intent,
       decision_context: { ...intent.decision_context, ...patch }
@@ -913,6 +1110,10 @@ export default function CampaignDecisionCanvas({
   };
 
   const handleEvaluate = async () => {
+    // Every sibling analysis handler refuses while a historical experiment is on screen.
+    // Without this guard, re-evaluating during review would overwrite the live decision's
+    // analysis from a snapshot the user is only reading.
+    if (isHistoricalView || !intent) return;
     setEvaluating(true);
     setError(null);
     // Only FIND_BEST_WINDOW defers its timing to CDI-03. KNOWN_DATES keeps the
@@ -1096,11 +1297,10 @@ export default function CampaignDecisionCanvas({
 
     if (!created.contract) {
       setRegisteringContract(false);
-      setError(
-        created.rejection_id
-          ? `${created.rejection_id}: ${created.error}`
-          : created.error || 'Decision contract registration failed.'
-      );
+      setError({
+        message: created.error || 'Decision contract registration failed.',
+        code: created.rejection_id
+      });
       return;
     }
 
@@ -1132,11 +1332,10 @@ export default function CampaignDecisionCanvas({
     setRegisteringContract(false);
 
     if (!validity.assessment) {
-      setError(
-        validity.rejection_id
-          ? `${validity.rejection_id}: ${validity.error}`
-          : validity.error || 'Validity assessment failed.'
-      );
+      setError({
+        message: validity.error || 'Validity assessment failed.',
+        code: validity.rejection_id
+      });
       return;
     }
     setValidityAssessment(validity.assessment);
@@ -1224,6 +1423,11 @@ export default function CampaignDecisionCanvas({
     setPredictionComparison(null);
     setLearningCandidate(null);
     setReviewedExperiment(null);
+    setComparisonModalData(null);
+    setExecutionBriefData(null);
+    // Unaccepted drafts belong to the decision that asked for them. Carrying them into a new
+    // decision would offer context written about a campaign that no longer exists.
+    setSuggestionState({});
     // Release this session's claim on the current experiment identity. The record itself stays
     // in history; the next preserved decision earns the next number rather than reopening it.
     preservingRef.current = false;
@@ -1260,8 +1464,8 @@ export default function CampaignDecisionCanvas({
     if (!displayedIntent) return;
     // Fallback brief for a decision that has not yet been preserved. It reads the same engine
     // field paths as preservation does, so a brief and its experiment can never disagree.
-    const liveDelta = displayedEvaluation?.counterfactual?.campaign_delta;
-    const liveDemand = liveDelta?.attributable_uplift_pp ?? displayedEvaluation?.causal?.intervention_uplift_pp ?? 0;
+    const liveDelta = evaluation?.counterfactual?.campaign_delta;
+    const liveDemand = liveDelta?.attributable_uplift_pp ?? evaluation?.causal?.intervention_uplift_pp ?? 0;
     const liveContrib = liveDelta?.contribution_delta_gbp ?? 0;
     const demandFormatted = formatDemandPct(liveDemand);
     const contribFormatted = formatContributionGbp(liveContrib);
@@ -1273,9 +1477,11 @@ export default function CampaignDecisionCanvas({
       session_id: displayedIntent.session_id,
       generated_at: new Date().toISOString(),
       proposal: {
-        title: `${executiveLabel('campaign_objective', displayedIntent.campaign_intent.objective_type)} — ${displayedIntent.campaign_intent.category} (${displayedIntent.audience_market.region})`,
-        recommendation: `Deploy ${executiveLabel('intervention_posture', displayedIntent.campaign_intent.intervention_posture).toLowerCase()} configuration for ${displayedIntent.campaign_intent.sku_scope.join(', ')} in ${displayedIntent.audience_market.region}.`,
-        category_and_sku: `${displayedIntent.campaign_intent.category} · Scope: ${displayedIntent.campaign_intent.sku_scope.join(', ')}`,
+        title: `${executiveLabel('campaign_objective', displayedIntent.campaign_intent.objective_type)} — ${categoryLabel(displayedIntent.campaign_intent.category)} (${displayedIntent.audience_market.region})`,
+        // Posture labels are noun phrases ("Consider promotion", "Open on approach"), so they
+        // read as the subject of the sentence rather than as an adjective inside one.
+        recommendation: `${executiveLabel('intervention_posture', displayedIntent.campaign_intent.intervention_posture)} for ${displayedIntent.campaign_intent.sku_scope.join(', ')} in ${displayedIntent.audience_market.region}, reaching ${segmentLabel(displayedIntent.audience_market.customer_segment).toLowerCase()} through ${channelLabel(displayedIntent.audience_market.channel).toLowerCase()}.`,
+        category_and_sku: `${categoryLabel(displayedIntent.campaign_intent.category)} · Scope: ${displayedIntent.campaign_intent.sku_scope.join(', ')}`,
         region_and_window: `${displayedIntent.audience_market.region} · Optimal discovery window`
       },
       rationale: {
@@ -1288,15 +1494,20 @@ export default function CampaignDecisionCanvas({
       expected_impact: {
         incremental_demand: demandFormatted,
         contribution_impact: contribFormatted,
-        readiness_verdict: readinessVerdictLabel(mapReadinessStateToVerdict(displayedReadiness?.readiness?.state)),
+        readiness_verdict: readinessVerdictLabel(mapReadinessStateToVerdict(readiness?.readiness?.state)),
         trade_off_balance:
-          displayedFrontier?.frontier?.selection?.open_trade_off || 'Trade-off not yet evaluated.'
+          frontier?.frontier?.selection?.open_trade_off || 'Trade-off not yet evaluated.'
       },
       operational_scope: {
         region: displayedIntent.audience_market.region,
         timing: 'Optimal discovery window',
-        audience: displayedIntent.audience_market.customer_segment || 'All shoppers',
-        channel: 'Omnichannel'
+        audience: segmentLabel(displayedIntent.audience_market.customer_segment),
+        // Reads the chosen route to customer. This was previously the constant
+        // 'Omnichannel', which reported a channel the planner had not selected.
+        channel: describeRouteToCustomer(
+          displayedIntent.audience_market.channel,
+          displayedIntent.audience_market.activation_channels
+        )
       },
       material_constraints: displayedIntent.baseline_objective.capacity_cap_note ? [displayedIntent.baseline_objective.capacity_cap_note] : ['Capacity constraint to be monitored'],
       decision_triggers: [
@@ -1336,6 +1547,244 @@ export default function CampaignDecisionCanvas({
     fontWeight: 600,
     color: 'var(--text-secondary)',
     marginBottom: 6
+  };
+
+  const fieldHintStyle: CSSProperties = {
+    margin: '6px 0 0',
+    fontSize: '0.75rem',
+    color: 'var(--text-muted)',
+    lineHeight: 1.45
+  };
+
+  const contextFieldHeaderStyle: CSSProperties = {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    marginBottom: 6,
+    flexWrap: 'wrap'
+  };
+
+  const suggestionNoticeStyle: CSSProperties = {
+    marginTop: 8,
+    padding: '8px 11px',
+    borderRadius: 8,
+    border: '1px solid var(--border)',
+    background: '#F8FAFC',
+    fontSize: '0.75rem',
+    color: 'var(--text-secondary)'
+  };
+
+  /**
+   * Ask the assistant to draft items for one decision-context field.
+   *
+   * The request carries the decision as configured — category, audience, route, objective —
+   * so the drafts are about this campaign rather than about retail in general. Nothing is
+   * written to the intent here: drafts land in local state and reach the record only when
+   * the planner accepts them.
+   */
+  const handleSuggest = async (field: SuggestionField) => {
+    if (isFieldsDisabled) return;
+    setSuggestionState(prev => ({
+      ...prev,
+      [field]: { loading: true, items: [], selected: [], error: null }
+    }));
+
+    const outcome = await suggestDecisionContextClient({
+      suggestion_type: field,
+      tenant_id: intent.tenant_id,
+      session_id: intent.session_id,
+      context: {
+        category: intent.campaign_intent.category,
+        sku_scope: intent.campaign_intent.sku_scope,
+        objective_type: intent.campaign_intent.objective_type,
+        intervention_posture: intent.campaign_intent.intervention_posture,
+        customer_segment: intent.audience_market.customer_segment,
+        channel: intent.audience_market.channel,
+        activation_channels: intent.audience_market.activation_channels,
+        region: intent.audience_market.region,
+        timing_mode: intent.audience_market.timing_mode,
+        primary_metric: intent.baseline_objective.primary_metric,
+        existing_contextual_factors: intent.decision_context.contextual_factor_notes,
+        existing_open_questions: intent.decision_context.open_questions,
+        existing_assumptions: intent.decision_context.assumptions,
+        synthetic_demo: intent.synthetic_demo
+      }
+    });
+
+    setSuggestionState(prev => ({
+      ...prev,
+      [field]: outcome.ok
+        ? { loading: false, items: outcome.result.suggestions, selected: [], error: null }
+        : // The planner's own text is untouched and the field stays editable — a failed
+          // suggestion must cost nothing but the click.
+          { loading: false, items: [], selected: [], error: outcome.message }
+    }));
+  };
+
+  /** Append the checked drafts to the field the planner asked them for. */
+  const handleAcceptSuggestions = (field: SuggestionField) => {
+    // Registration freezes the intent and historical review is read-only. Without this the
+    // accept path wrote into a registered decision — and in historical review `patchContext`
+    // returned early while the slot was cleared regardless, silently discarding the drafts the
+    // planner had just ticked.
+    if (isFieldsDisabled) return;
+    const slot = suggestionState[field];
+    if (!slot || slot.selected.length === 0) return;
+    const accepted = slot.selected;
+
+    if (field === 'CONTEXTUAL_FACTORS') {
+      patchContext({
+        contextual_factor_notes: [...(intent.decision_context.contextual_factor_notes || []), ...accepted]
+      });
+    } else if (field === 'OPEN_QUESTIONS') {
+      patchContext({ open_questions: [...(intent.decision_context.open_questions || []), ...accepted] });
+    } else {
+      patchContext({ assumptions: [...(intent.decision_context.assumptions || []), ...accepted] });
+    }
+
+    setSuggestionState(prev => ({ ...prev, [field]: null }));
+  };
+
+  const SuggestWithAiButton = ({ field }: { field: SuggestionField }) => {
+    const slot = suggestionState[field];
+    return (
+      <button
+        type="button"
+        disabled={isFieldsDisabled || slot?.loading}
+        onClick={() => handleSuggest(field)}
+        style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 5,
+          padding: '4px 9px',
+          borderRadius: 6,
+          border: '1px solid var(--border)',
+          background: '#FFFFFF',
+          color: isFieldsDisabled ? 'var(--text-muted)' : 'var(--g10x-orange)',
+          fontSize: '0.6875rem',
+          fontWeight: 650,
+          cursor: isFieldsDisabled || slot?.loading ? 'not-allowed' : 'pointer'
+        }}
+      >
+        <Sparkles size={11} />
+        {slot?.loading ? 'Drafting…' : 'Suggest with AI'}
+      </button>
+    );
+  };
+
+  const SuggestionPanel = ({ field }: { field: SuggestionField }) => {
+    const slot = suggestionState[field];
+    if (!slot) return null;
+
+    if (slot.error) {
+      return (
+        <div role="status" style={suggestionNoticeStyle}>
+          {slot.error}
+        </div>
+      );
+    }
+    if (slot.loading || slot.items.length === 0) return null;
+
+    const toggle = (item: string) =>
+      setSuggestionState(prev => {
+        const current = prev[field];
+        if (!current) return prev;
+        const selected = current.selected.includes(item)
+          ? current.selected.filter(s => s !== item)
+          : [...current.selected, item];
+        return { ...prev, [field]: { ...current, selected } };
+      });
+
+    return (
+      <div
+        style={{
+          marginTop: 8,
+          padding: '10px 12px',
+          borderRadius: 8,
+          border: '1px solid #FED7AA',
+          background: 'var(--curiosity-light)',
+          display: 'grid',
+          gap: 8
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <span
+            style={{
+              fontSize: '0.6875rem',
+              fontWeight: 650,
+              textTransform: 'uppercase',
+              letterSpacing: '0.06em',
+              color: 'var(--g10x-orange)'
+            }}
+          >
+            AI-assisted suggestions
+          </span>
+          <button
+            type="button"
+            onClick={() => setSuggestionState(prev => ({ ...prev, [field]: null }))}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              fontSize: '0.6875rem',
+              color: 'var(--text-muted)'
+            }}
+          >
+            Dismiss
+          </button>
+        </div>
+
+        <div style={{ display: 'grid', gap: 5 }}>
+          {slot.items.map((item, i) => (
+            <label
+              key={i}
+              style={{
+                display: 'flex',
+                gap: 7,
+                alignItems: 'flex-start',
+                fontSize: '0.8125rem',
+                color: 'var(--text-primary)',
+                lineHeight: 1.45,
+                cursor: 'pointer'
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={slot.selected.includes(item)}
+                onChange={() => toggle(item)}
+                style={{ marginTop: 3, cursor: 'pointer' }}
+              />
+              <span>{item}</span>
+            </label>
+          ))}
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
+            Drafts only — edit after adding. Nothing is recorded until you add it.
+          </span>
+          <button
+            type="button"
+            disabled={slot.selected.length === 0}
+            onClick={() => handleAcceptSuggestions(field)}
+            style={{
+              padding: '5px 11px',
+              borderRadius: 6,
+              border: 'none',
+              background: slot.selected.length > 0 ? 'var(--g10x-orange)' : '#CBD5E1',
+              color: '#FFFFFF',
+              fontSize: '0.6875rem',
+              fontWeight: 650,
+              cursor: slot.selected.length > 0 ? 'pointer' : 'not-allowed',
+              whiteSpace: 'nowrap'
+            }}
+          >
+            Add selected ({slot.selected.length})
+          </button>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -1405,7 +1854,7 @@ export default function CampaignDecisionCanvas({
             </span>
           </button>
 
-          {(displayedEvaluation || isRegistered) && (
+          {(evaluation || isRegistered) && (
             <button
               type="button"
               onClick={handleOpenExecutionBrief}
@@ -1450,8 +1899,11 @@ export default function CampaignDecisionCanvas({
             <div style={{ fontSize: '0.6875rem', fontWeight: 700, textTransform: 'uppercase', color: '#B45309', letterSpacing: '0.06em' }}>
               Historical Decision Experiment
             </div>
-            <div style={{ fontSize: '0.9375rem', fontWeight: 650, color: '#92400E', marginTop: 2 }}>
-              Reviewing {reviewedExperiment.experiment_id} · {reviewedExperiment.objective_label} ({reviewedExperiment.category}) · Preserved {new Date(reviewedExperiment.completed_at).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}
+            <div
+              style={{ fontSize: '0.9375rem', fontWeight: 650, color: '#92400E', marginTop: 2 }}
+              title={`category: ${reviewedExperiment.category}`}
+            >
+              Reviewing {reviewedExperiment.experiment_id} · {reviewedExperiment.objective_label} ({resolveCategory(reviewedExperiment.category)?.display_label || reviewedExperiment.category}) · Preserved {new Date(reviewedExperiment.completed_at).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' })}
             </div>
             <div style={{ fontSize: '0.75rem', color: '#A16207', marginTop: 2 }}>
               Inputs and analytical findings are displayed in read-only mode. Active session decision is unaffected.
@@ -1569,8 +2021,8 @@ export default function CampaignDecisionCanvas({
               <label style={labelStyle}>Objective type</label>
               <select
                 style={fieldStyle}
-                disabled={isRegistered}
-                value={intent.campaign_intent.objective_type}
+                disabled={isFieldsDisabled}
+                value={displayedIntent.campaign_intent.objective_type}
                 onChange={e => patchCore({ objective_type: e.target.value as CampaignIntentCore['objective_type'] })}
               >
                 <option value="INVENTORY_CLEARANCE">Inventory Clearance</option>
@@ -1592,12 +2044,12 @@ export default function CampaignDecisionCanvas({
                     ['CONSIDER_DO_NOTHING', 'Consider doing nothing']
                   ] as const
                 ).map(([value, label]) => {
-                  const selected = intent.campaign_intent.intervention_posture === value;
+                  const selected = displayedIntent.campaign_intent.intervention_posture === value;
                   return (
                     <button
                       key={value}
                       type="button"
-                      disabled={isRegistered}
+                      disabled={isFieldsDisabled}
                       onClick={() => patchCore({ intervention_posture: value })}
                       style={{
                         textAlign: 'left',
@@ -1622,8 +2074,8 @@ export default function CampaignDecisionCanvas({
               <label style={labelStyle}>Framing question</label>
               <textarea
                 style={{ ...fieldStyle, minHeight: 72, resize: 'vertical' }}
-                disabled={isRegistered}
-                value={intent.campaign_intent.framing_question}
+                disabled={isFieldsDisabled}
+                value={displayedIntent.campaign_intent.framing_question}
                 onChange={e => patchCore({ framing_question: e.target.value })}
               />
             </div>
@@ -1631,19 +2083,41 @@ export default function CampaignDecisionCanvas({
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
                 <label style={labelStyle}>Category</label>
-                <input
+                <select
                   style={fieldStyle}
-                  disabled={isRegistered}
-                  value={intent.campaign_intent.category}
+                  disabled={isFieldsDisabled}
+                  value={resolveCategory(displayedIntent.campaign_intent.category)?.id || ''}
                   onChange={e => patchCore({ category: e.target.value })}
-                />
+                >
+                  {!resolveCategory(displayedIntent.campaign_intent.category) && (
+                    <option value="">
+                      {displayedIntent.campaign_intent.category
+                        ? `${displayedIntent.campaign_intent.category} (not in catalogue)`
+                        : 'Select a category'}
+                    </option>
+                  )}
+                  {CAMPAIGN_CATEGORIES.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.display_label}
+                    </option>
+                  ))}
+                </select>
+                {selectedCategory && (
+                  <p style={fieldHintStyle}>
+                    {selectedCategory.planning_note} {selectedCategory.sku_count} lines,{' '}
+                    {selectedCategory.supplier_count === 0
+                      ? 'no catalogued supplier'
+                      : `${selectedCategory.supplier_count} supplier${selectedCategory.supplier_count === 1 ? '' : 's'}`}
+                    .
+                  </p>
+                )}
               </div>
               <div>
                 <label style={labelStyle}>SKU scope (comma-separated)</label>
                 <input
                   style={fieldStyle}
-                  disabled={isRegistered}
-                  value={intent.campaign_intent.sku_scope.join(', ')}
+                  disabled={isFieldsDisabled}
+                  value={displayedIntent.campaign_intent.sku_scope.join(', ')}
                   onChange={e =>
                     patchCore({
                       sku_scope: e.target.value.split(',').map(s => s.trim()).filter(Boolean)
@@ -1653,15 +2127,15 @@ export default function CampaignDecisionCanvas({
               </div>
             </div>
 
-            {intent.campaign_intent.intervention_posture === 'CONSIDER_PROMOTION' && (
+            {displayedIntent.campaign_intent.intervention_posture === 'CONSIDER_PROMOTION' && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, padding: 12, background: '#F8FAFC', borderRadius: 8, border: '1px dashed var(--border)' }}>
                 <div>
                   <label style={labelStyle}>Provisional mechanic (optional)</label>
                   <input
                     style={fieldStyle}
-                    disabled={isRegistered}
-                    placeholder="e.g. 20_percent_off"
-                    value={intent.campaign_intent.provisional_mechanic || ''}
+                    disabled={isFieldsDisabled}
+                    placeholder="e.g. 20% off"
+                    value={displayedIntent.campaign_intent.provisional_mechanic || ''}
                     onChange={e => patchCore({ provisional_mechanic: e.target.value || undefined })}
                   />
                 </div>
@@ -1670,8 +2144,8 @@ export default function CampaignDecisionCanvas({
                   <input
                     type="number"
                     style={fieldStyle}
-                    disabled={isRegistered}
-                    value={intent.campaign_intent.provisional_discount_depth ?? ''}
+                    disabled={isFieldsDisabled}
+                    value={displayedIntent.campaign_intent.provisional_discount_depth ?? ''}
                     onChange={e =>
                       patchCore({
                         provisional_discount_depth: e.target.value === '' ? undefined : Number(e.target.value)
@@ -1691,8 +2165,8 @@ export default function CampaignDecisionCanvas({
                 <label style={labelStyle}>Primary metric</label>
                 <select
                   style={fieldStyle}
-                  disabled={isRegistered}
-                  value={intent.baseline_objective.primary_metric}
+                  disabled={isFieldsDisabled}
+                  value={displayedIntent.baseline_objective.primary_metric}
                   onChange={e => patchBaseline({ primary_metric: e.target.value as BaselineObjective['primary_metric'] })}
                 >
                   <option value="VOLUME">Volume</option>
@@ -1706,8 +2180,8 @@ export default function CampaignDecisionCanvas({
                 <label style={labelStyle}>Target direction</label>
                 <select
                   style={fieldStyle}
-                  disabled={isRegistered}
-                  value={intent.baseline_objective.target_direction}
+                  disabled={isFieldsDisabled}
+                  value={displayedIntent.baseline_objective.target_direction}
                   onChange={e => patchBaseline({ target_direction: e.target.value as BaselineObjective['target_direction'] })}
                 >
                   <option value="INCREASE">Increase</option>
@@ -1723,8 +2197,8 @@ export default function CampaignDecisionCanvas({
                 <input
                   type="number"
                   style={fieldStyle}
-                  disabled={isRegistered}
-                  value={intent.baseline_objective.target_value ?? ''}
+                  disabled={isFieldsDisabled}
+                  value={displayedIntent.baseline_objective.target_value ?? ''}
                   onChange={e =>
                     patchBaseline({
                       target_value: e.target.value === '' ? undefined : Number(e.target.value)
@@ -1736,8 +2210,8 @@ export default function CampaignDecisionCanvas({
                 <label style={labelStyle}>Unit (optional)</label>
                 <input
                   style={fieldStyle}
-                  disabled={isRegistered}
-                  value={intent.baseline_objective.target_unit || ''}
+                  disabled={isFieldsDisabled}
+                  value={displayedIntent.baseline_objective.target_unit || ''}
                   onChange={e => patchBaseline({ target_unit: e.target.value || undefined })}
                 />
               </div>
@@ -1746,8 +2220,8 @@ export default function CampaignDecisionCanvas({
               <label style={labelStyle}>Capacity / constraint note (optional)</label>
               <textarea
                 style={{ ...fieldStyle, minHeight: 64 }}
-                disabled={isRegistered}
-                value={intent.baseline_objective.capacity_cap_note || ''}
+                disabled={isFieldsDisabled}
+                value={displayedIntent.baseline_objective.capacity_cap_note || ''}
                 onChange={e => patchBaseline({ capacity_cap_note: e.target.value || undefined })}
               />
               <p style={{ margin: '8px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
@@ -1764,42 +2238,144 @@ export default function CampaignDecisionCanvas({
                 <label style={labelStyle}>Region</label>
                 <input
                   style={fieldStyle}
-                  disabled={isRegistered}
-                  value={intent.audience_market.region}
+                  disabled={isFieldsDisabled}
+                  value={displayedIntent.audience_market.region}
                   onChange={e => patchAudience({ region: e.target.value })}
                 />
               </div>
               <div>
-                <label style={labelStyle}>Customer segment (optional)</label>
-                <input
+                <label style={labelStyle}>Customer segment</label>
+                <select
                   style={fieldStyle}
-                  disabled={isRegistered}
-                  value={intent.audience_market.customer_segment || ''}
+                  disabled={isFieldsDisabled}
+                  value={resolveSegment(displayedIntent.audience_market.customer_segment)?.id || ''}
                   onChange={e => patchAudience({ customer_segment: e.target.value || undefined })}
-                />
+                >
+                  {!resolveSegment(displayedIntent.audience_market.customer_segment) && (
+                    <option value="">
+                      {displayedIntent.audience_market.customer_segment
+                        ? `${displayedIntent.audience_market.customer_segment} (unclassified)`
+                        : 'Not targeted'}
+                    </option>
+                  )}
+                  {CAMPAIGN_SEGMENTS.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.display_label}
+                    </option>
+                  ))}
+                </select>
+                {selectedSegment && <p style={fieldHintStyle}>{selectedSegment.planning_note}</p>}
               </div>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div>
-                <label style={labelStyle}>Channel (optional)</label>
-                <input
+                <label style={labelStyle}>Sales channel</label>
+                <select
                   style={fieldStyle}
-                  disabled={isRegistered}
-                  value={intent.audience_market.channel || ''}
+                  disabled={isFieldsDisabled}
+                  value={resolveChannel(displayedIntent.audience_market.channel)?.id || ''}
                   onChange={e => patchAudience({ channel: e.target.value || undefined })}
-                />
+                >
+                  {!resolveChannel(displayedIntent.audience_market.channel) && (
+                    <option value="">
+                      {displayedIntent.audience_market.channel
+                        ? `${displayedIntent.audience_market.channel} (unclassified)`
+                        : 'Not specified'}
+                    </option>
+                  )}
+                  {CAMPAIGN_CHANNELS.map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.display_label}
+                    </option>
+                  ))}
+                </select>
+                {selectedChannel && <p style={fieldHintStyle}>{selectedChannel.planning_note}</p>}
               </div>
               <div>
                 <label style={labelStyle}>Store cohort hint (optional)</label>
                 <input
                   style={fieldStyle}
-                  disabled={isRegistered}
+                  disabled={isFieldsDisabled}
                   placeholder="Not scored here — CDI-03 owns micro-markets"
-                  value={intent.audience_market.store_cohort_hint || ''}
+                  value={displayedIntent.audience_market.store_cohort_hint || ''}
                   onChange={e => patchAudience({ store_cohort_hint: e.target.value || undefined })}
                 />
               </div>
             </div>
+
+            <div>
+              <label style={labelStyle}>Activation routes (optional)</label>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {CAMPAIGN_ACTIVATIONS.map(a => {
+                  const chosen = (displayedIntent.audience_market.activation_channels || []).includes(a.id);
+                  const compatible = isActivationCompatible(displayedIntent.audience_market.channel, a.id);
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      disabled={isFieldsDisabled}
+                      title={a.planning_note}
+                      onClick={() => {
+                        const current = intent.audience_market.activation_channels || [];
+                        patchAudience({
+                          activation_channels: chosen
+                            ? current.filter(v => v !== a.id)
+                            : [...current, a.id]
+                        });
+                      }}
+                      style={{
+                        padding: '6px 10px',
+                        borderRadius: 999,
+                        border: chosen ? '1px solid var(--g10x-orange)' : '1px solid var(--border)',
+                        background: chosen ? 'var(--curiosity-light)' : '#FFFFFF',
+                        color: chosen ? 'var(--g10x-orange)' : 'var(--text-secondary)',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        cursor: isFieldsDisabled ? 'not-allowed' : 'pointer',
+                        opacity: !compatible && chosen ? 0.75 : 1
+                      }}
+                    >
+                      {a.display_label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p style={fieldHintStyle}>
+                How the campaign reaches the customer. Kept separate from the sales channel
+                because a shelf-edge price cut and a personalised offer are different decisions.
+              </p>
+            </div>
+
+            {audienceReachNote && (
+              <div
+                style={{
+                  padding: '10px 12px',
+                  borderRadius: 8,
+                  background: '#F8FAFC',
+                  border: '1px dashed var(--border)',
+                  display: 'grid',
+                  gap: 5
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: '0.6875rem',
+                    fontWeight: 650,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.06em',
+                    color: 'var(--text-muted)'
+                  }}
+                >
+                  What this reach implies
+                </div>
+                {audienceReachNote.map((note, i) => (
+                  <p key={i} style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    {note}
+                  </p>
+                ))}
+              </div>
+            )}
+
             <div>
               <label style={labelStyle}>Timing mode</label>
               <div style={{ display: 'flex', gap: 8 }}>
@@ -1809,12 +2385,12 @@ export default function CampaignDecisionCanvas({
                     ['KNOWN_DATES', 'I know my dates']
                   ] as const
                 ).map(([value, label]) => {
-                  const selected = intent.audience_market.timing_mode === value;
+                  const selected = displayedIntent.audience_market.timing_mode === value;
                   return (
                     <button
                       key={value}
                       type="button"
-                      disabled={isRegistered}
+                      disabled={isFieldsDisabled}
                       onClick={() => patchAudience({ timing_mode: value })}
                       style={{
                         flex: 1,
@@ -1834,15 +2410,15 @@ export default function CampaignDecisionCanvas({
                 })}
               </div>
             </div>
-            {intent.audience_market.timing_mode === 'KNOWN_DATES' && (
+            {displayedIntent.audience_market.timing_mode === 'KNOWN_DATES' && (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
                 <div>
                   <label style={labelStyle}>Planned start</label>
                   <input
                     type="datetime-local"
                     style={fieldStyle}
-                    disabled={isRegistered}
-                    value={(intent.audience_market.planned_start || '').slice(0, 16)}
+                    disabled={isFieldsDisabled}
+                    value={(displayedIntent.audience_market.planned_start || '').slice(0, 16)}
                     onChange={e =>
                       patchAudience({
                         planned_start: e.target.value ? new Date(e.target.value).toISOString() : undefined
@@ -1855,8 +2431,8 @@ export default function CampaignDecisionCanvas({
                   <input
                     type="datetime-local"
                     style={fieldStyle}
-                    disabled={isRegistered}
-                    value={(intent.audience_market.planned_end || '').slice(0, 16)}
+                    disabled={isFieldsDisabled}
+                    value={(displayedIntent.audience_market.planned_end || '').slice(0, 16)}
                     onChange={e =>
                       patchAudience({
                         planned_end: e.target.value ? new Date(e.target.value).toISOString() : undefined
@@ -1870,14 +2446,17 @@ export default function CampaignDecisionCanvas({
         )}
 
         {active === 'DECISION_CONTEXT' && (
-          <div style={{ display: 'grid', gap: 16 }}>
+          <div style={{ display: 'grid', gap: 18 }}>
             <div>
-              <label style={labelStyle}>Contextual factor notes (optional, free-form)</label>
+              <div style={contextFieldHeaderStyle}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>What else is going on?</label>
+                <SuggestWithAiButton field="CONTEXTUAL_FACTORS" />
+              </div>
               <textarea
                 style={{ ...fieldStyle, minHeight: 72 }}
-                disabled={isRegistered}
-                placeholder="e.g. Possible weather warmth; competitor activity rumoured — relevance TBD"
-                value={(intent.decision_context.contextual_factor_notes || []).join('\n')}
+                disabled={isFieldsDisabled}
+                placeholder="One per line — warm weather forecast, competitor activity rumoured, supplier under review"
+                value={(displayedIntent.decision_context.contextual_factor_notes || []).join('\n')}
                 onChange={e =>
                   patchContext({
                     contextual_factor_notes: e.target.value
@@ -1887,16 +2466,23 @@ export default function CampaignDecisionCanvas({
                   })
                 }
               />
-              <p style={{ margin: '8px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', gap: 6, alignItems: 'center' }}>
-                <HelpCircle size={12} /> Not a mandatory toggle wall — later packages decide material relevance.
+              <p style={fieldHintStyle}>
+                External factors worth keeping in view. Nothing here is scored — later stages
+                decide what turns out to be material.
               </p>
+              <SuggestionPanel field="CONTEXTUAL_FACTORS" />
             </div>
+
             <div>
-              <label style={labelStyle}>Open questions</label>
+              <div style={contextFieldHeaderStyle}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>What do we still need to resolve?</label>
+                <SuggestWithAiButton field="OPEN_QUESTIONS" />
+              </div>
               <textarea
                 style={{ ...fieldStyle, minHeight: 72 }}
-                disabled={isRegistered}
-                value={(intent.decision_context.open_questions || []).join('\n')}
+                disabled={isFieldsDisabled}
+                placeholder="One per line — questions that should be answered before committing"
+                value={(displayedIntent.decision_context.open_questions || []).join('\n')}
                 onChange={e =>
                   patchContext({
                     open_questions: e.target.value
@@ -1906,13 +2492,19 @@ export default function CampaignDecisionCanvas({
                   })
                 }
               />
+              <SuggestionPanel field="OPEN_QUESTIONS" />
             </div>
+
             <div>
-              <label style={labelStyle}>Assumptions</label>
+              <div style={contextFieldHeaderStyle}>
+                <label style={{ ...labelStyle, marginBottom: 0 }}>What are we taking on trust?</label>
+                <SuggestWithAiButton field="ASSUMPTIONS" />
+              </div>
               <textarea
                 style={{ ...fieldStyle, minHeight: 64 }}
-                disabled={isRegistered}
-                value={(intent.decision_context.assumptions || []).join('\n')}
+                disabled={isFieldsDisabled}
+                placeholder="One per line — assumptions this decision rests on, and that need validating"
+                value={(displayedIntent.decision_context.assumptions || []).join('\n')}
                 onChange={e =>
                   patchContext({
                     assumptions: e.target.value
@@ -1922,6 +2514,7 @@ export default function CampaignDecisionCanvas({
                   })
                 }
               />
+              <SuggestionPanel field="ASSUMPTIONS" />
             </div>
           </div>
         )}
@@ -2130,7 +2723,7 @@ export default function CampaignDecisionCanvas({
           </button>
         )}
 
-        {(displayedEvaluation || isRegistered) && (
+        {(evaluation || isRegistered) && (
           <button
             type="button"
             onClick={handleOpenExecutionBrief}
@@ -2223,8 +2816,11 @@ export default function CampaignDecisionCanvas({
         </div>
       )}
       {error && (
-        <div style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 8, background: '#FFF1F2', border: '1px solid #FECDD3', color: '#9F1239', fontSize: '0.8125rem' }}>
-          {error}
+        <div
+          style={{ marginBottom: 12, padding: '10px 12px', borderRadius: 8, background: '#FFF1F2', border: '1px solid #FECDD3', color: '#9F1239', fontSize: '0.8125rem' }}
+          title={noticeProvenance(error)}
+        >
+          {noticeText(error)}
         </div>
       )}
 
@@ -2404,8 +3000,11 @@ export default function CampaignDecisionCanvas({
         {opportunity && (
           <div style={{ display: 'grid', gap: 14, marginTop: 8 }}>
             <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--curiosity-light)' }}>
-              <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
-                Recommended window ({opportunity.opportunity_windows.timing_mode})
+              <div
+                style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}
+                title={`timing_mode: ${opportunity.opportunity_windows.timing_mode}`}
+              >
+                Recommended window ({executiveLabel('timing_mode', opportunity.opportunity_windows.timing_mode)})
               </div>
               <div style={{ fontSize: '0.9375rem', fontWeight: 600, color: 'var(--text-primary)' }}>
                 {opportunity.opportunity_windows.recommended_window.start_date}
@@ -2414,7 +3013,15 @@ export default function CampaignDecisionCanvas({
                 {' · '}
                 yield {opportunity.opportunity_windows.recommended_window.yield_score.toFixed(1)}
                 {' · '}
-                {opportunity.opportunity_windows.recommended_window.tier}
+                <span
+                  title={`tier: ${opportunity.opportunity_windows.recommended_window.tier}${
+                    executivePhrase('opportunity_window_tier', opportunity.opportunity_windows.recommended_window.tier).detail
+                      ? ` — ${executivePhrase('opportunity_window_tier', opportunity.opportunity_windows.recommended_window.tier).detail}`
+                      : ''
+                  }`}
+                >
+                  {executiveLabel('opportunity_window_tier', opportunity.opportunity_windows.recommended_window.tier)}
+                </span>
               </div>
               <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                 Temporal uplift for CDI-02: {opportunity.opportunity_windows.resolved_temporal_uplift_pp.toFixed(2)} pp
@@ -2469,8 +3076,15 @@ export default function CampaignDecisionCanvas({
                       {w.start_date} → {w.end_date}
                       {w.is_stated_dates ? ' (stated)' : ''}
                     </span>
-                    <span style={{ color: 'var(--text-secondary)' }}>
-                      {w.yield_score.toFixed(1)} · {w.tier}
+                    <span
+                      style={{ color: 'var(--text-secondary)' }}
+                      title={`tier: ${w.tier}${
+                        executivePhrase('opportunity_window_tier', w.tier).detail
+                          ? ` — ${executivePhrase('opportunity_window_tier', w.tier).detail}`
+                          : ''
+                      }`}
+                    >
+                      {w.yield_score.toFixed(1)} · {executiveLabel('opportunity_window_tier', w.tier)}
                     </span>
                   </div>
                 ))}
@@ -2496,7 +3110,16 @@ export default function CampaignDecisionCanvas({
                       fontSize: '0.75rem'
                     }}
                   >
-                    <span style={{ fontWeight: 650, color: 'var(--g10x-orange)' }}>{s.tier}</span>
+                    <span
+                      style={{ fontWeight: 650, color: 'var(--g10x-orange)' }}
+                      title={`tier: ${s.tier}${
+                        executivePhrase('micro_market_tier', s.tier).detail
+                          ? ` — ${executivePhrase('micro_market_tier', s.tier).detail}`
+                          : ''
+                      }`}
+                    >
+                      {executiveLabel('micro_market_tier', s.tier)}
+                    </span>
                     <span style={{ color: 'var(--text-primary)' }}>
                       {s.store_name}
                       <span style={{ color: 'var(--text-muted)' }}> · {s.region} · {s.format}</span>
@@ -2581,15 +3204,32 @@ export default function CampaignDecisionCanvas({
                 {readiness.readiness.headline}
               </div>
               <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                Confidence {readiness.readiness.confidence.band}
+                Confidence{' '}
+                <span
+                  title={`confidence band: ${readiness.readiness.confidence.band}${
+                    executivePhrase('confidence_band', readiness.readiness.confidence.band).detail
+                      ? ` — ${executivePhrase('confidence_band', readiness.readiness.confidence.band).detail}`
+                      : ''
+                  }`}
+                >
+                  {executiveLabel('confidence_band', readiness.readiness.confidence.band)}
+                </span>
                 {typeof readiness.readiness.confidence.confidence_index === 'number'
                   ? ` · index ${readiness.readiness.confidence.confidence_index}`
                   : ''}
                 {' · '}
                 weakest evidence {executiveLabel('evidence_strength', readiness.readiness.confidence.evidence_strength_floor)}
-                {readiness.readiness.state_caps_applied?.length
-                  ? ` · caps ${readiness.readiness.state_caps_applied.join(', ')}`
-                  : ''}
+                {readiness.readiness.state_caps_applied?.length ? (
+                  <span title={`state_caps_applied: ${readiness.readiness.state_caps_applied.join(', ')}`}>
+                    {' · '}
+                    {/*
+                      Not every cap is an evidence cap: K7 caps on negative contribution and K8 on
+                      an operational capacity gap. Naming all of them "evidence" told the planner to
+                      go looking for missing data when the actual limit was commercial or physical.
+                    */}
+                    {describeReadinessCaps(readiness.readiness.state_caps_applied)}
+                  </span>
+                ) : null}
               </div>
               {readiness.readiness.commercial_tolerance && (
                 <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
@@ -2639,8 +3279,12 @@ export default function CampaignDecisionCanvas({
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 6 }}>{d.not_evaluated_reason}</div>
                     )}
                     {d.findings.map((f: any) => (
-                      <div key={f.finding_id} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
-                        <strong>{f.rule_id}</strong> [{f.evidence.map((e: any) => e.strength).join(', ')}] {f.statement}
+                      <div
+                        key={f.finding_id}
+                        style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}
+                        title={`rule ${f.rule_id} · evidence ${f.evidence.map((e: any) => e.strength).join(', ')}`}
+                      >
+                        <strong>[{f.evidence.map((e: any) => executiveLabel('evidence_strength', e.strength)).join(', ')}]</strong> {f.statement}
                         {/* Seeded/proxy disclosures travel verbatim with the finding they justify (design gate §8.4). */}
                         {f.evidence
                           .filter((e: any) => e.disclosure)
@@ -2648,8 +3292,9 @@ export default function CampaignDecisionCanvas({
                             <div
                               key={`${f.finding_id}_disc_${i}`}
                               style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: 2 }}
+                              title={`${e.field_path} (${e.strength})`}
                             >
-                              {e.field_path} ({e.strength}): {e.disclosure}
+                              {executiveLabel('evidence_strength', e.strength)}: {e.disclosure}
                             </div>
                           ))}
                       </div>
@@ -2657,8 +3302,14 @@ export default function CampaignDecisionCanvas({
                   </div>
                 ))}
                 {readiness.readiness.vetoes?.length > 0 && (
-                  <div style={{ fontSize: '0.75rem', color: '#9F1239' }}>
-                    Vetoes: {readiness.readiness.vetoes.map((v: any) => `${v.veto_id} (${v.veto_basis})`).join('; ')}
+                  <div
+                    style={{ fontSize: '0.75rem', color: '#9F1239' }}
+                    title={readiness.readiness.vetoes.map((v: any) => `${v.veto_id} (${v.veto_basis})`).join('; ')}
+                  >
+                    Blocked by:{' '}
+                    {readiness.readiness.vetoes
+                      .map((v: any) => v.statement || humaniseToken(v.veto_basis))
+                      .join(' · ')}
                   </div>
                 )}
                 {readiness.readiness.conditions?.length > 0 && (
@@ -2748,9 +3399,13 @@ export default function CampaignDecisionCanvas({
                   ? ' — intervention trajectory shown as vetoed evidence, not a plan'
                   : ''}
               </div>
-              <div style={{ marginTop: 8, fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
+              <div
+                style={{ marginTop: 8, fontSize: '0.6875rem', color: 'var(--text-muted)' }}
+                title="allocation_profile: FLAT_RATE_IDENTITY"
+              >
                 Pre-campaign: modelled run-rate (not observed history). Post-campaign: not modelled.
-                Allocation: FLAT_RATE_IDENTITY. Revenue lens: not available.
+                Effect is spread evenly across the window rather than shaped into a curve. Revenue view:
+                not available.
               </div>
             </div>
 
@@ -2765,8 +3420,11 @@ export default function CampaignDecisionCanvas({
 
             {timelineTier >= 2 && (
               <div style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#F8FAFC' }}>
-                <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
-                  Why? · driver_class partition
+                <div
+                  style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}
+                  title="driver_class partition"
+                >
+                  Why? · What happens anyway vs what we cause
                 </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                   <div>
@@ -2966,19 +3624,22 @@ export default function CampaignDecisionCanvas({
               );
 
               const selectionLabel =
-                selection?.status === 'SELECTED'
-                  ? 'SELECTED'
-                  : selection?.status === 'NO_ADMISSIBLE_PLAY'
-                    ? 'NO_ADMISSIBLE_PLAY'
-                    : selection?.status === 'CHOICE_REQUIRED'
-                      ? 'CHOICE_REQUIRED'
-                      : null;
+                selection?.status === 'SELECTED' ||
+                selection?.status === 'NO_ADMISSIBLE_PLAY' ||
+                selection?.status === 'CHOICE_REQUIRED'
+                  ? executiveLabel('selection_status', selection.status)
+                  : null;
+              const playLabelById = (playId?: string | null): string =>
+                (orderedPlays.find((p: any) => p.play_id === playId)?.label as string) || playId || '—';
 
               return (
                 <>
                   <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--curiosity-light)' }}>
-                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
-                      Frontier · {f.frontier_status}
+                    <div
+                      style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}
+                      title={`frontier_status: ${f.frontier_status}${selection?.status ? ` · selection status: ${selection.status}` : ''}`}
+                    >
+                      Frontier · {humaniseToken(String(f.frontier_status))}
                       {selectionLabel ? ` · ${selectionLabel}` : ''}
                     </div>
                     {f.frontier_status === 'NOT_EMITTED' ? (
@@ -2999,14 +3660,24 @@ export default function CampaignDecisionCanvas({
                           </div>
                         )}
                         {selection?.status === 'SELECTED' && selection.selected_play_id && (
-                          <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            Selected under declared constraints: {selection.selected_play_id}
-                            {selection.selection_basis ? ` (${selection.selection_basis})` : ''}
+                          <div
+                            style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}
+                            title={`selected_play_id: ${selection.selected_play_id}${
+                              selection.selection_basis ? ` · selection_basis: ${selection.selection_basis}` : ''
+                            }`}
+                          >
+                            Recommended under your declared constraints: {playLabelById(selection.selected_play_id)}
+                            {selection.selection_basis
+                              ? ` — ${executiveLabel('selection_basis', selection.selection_basis).toLowerCase()}`
+                              : ''}
                           </div>
                         )}
                         {selection?.status === 'NO_ADMISSIBLE_PLAY' && (
-                          <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            No admissible play remains under declared constraints.
+                          <div
+                            style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}
+                            title="selection status: NO_ADMISSIBLE_PLAY"
+                          >
+                            {executivePhrase('selection_status', 'NO_ADMISSIBLE_PLAY').detail}
                           </div>
                         )}
                         <div style={{ marginTop: 8, fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
@@ -3070,8 +3741,13 @@ export default function CampaignDecisionCanvas({
                                   }}
                                 >
                                   <div>{play.label}</div>
-                                  <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', fontWeight: 500, marginTop: 2 }}>
-                                    {play.play_kind}
+                                  <div
+                                    style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', fontWeight: 500, marginTop: 2 }}
+                                    title={`play_kind: ${play.play_kind}${
+                                      play.admissibility ? ` · admissibility: ${play.admissibility}` : ''
+                                    }`}
+                                  >
+                                    {executiveLabel('play_kind', play.play_kind)}
                                     {play.play_kind === 'DO_NOTHING' ? ' · Scenario 0' : ''}
                                     {dominated ? ' · dominated' : ''}
                                     {excluded ? ' · excluded' : ''}
@@ -3107,8 +3783,12 @@ export default function CampaignDecisionCanvas({
                                 ))}
                               </div>
                               {(dominanceByPlay.get(activePlay.play_id) || []).length > 0 && (
-                                <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
-                                  Outperformed by: {(dominanceByPlay.get(activePlay.play_id) || []).join(', ')}
+                                <div
+                                  style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 6 }}
+                                  title={`dominated_by: ${(dominanceByPlay.get(activePlay.play_id) || []).join(', ')}`}
+                                >
+                                  Outperformed by:{' '}
+                                  {(dominanceByPlay.get(activePlay.play_id) || []).map(playLabelById).join(', ')}
                                 </div>
                               )}
                               {activePlay.admissibility && activePlay.admissibility !== 'ADMISSIBLE' && (
@@ -3179,18 +3859,36 @@ export default function CampaignDecisionCanvas({
                                 Not measurable yet
                               </div>
                               {unavailableDims.map((dim: any) => (
-                                <div key={dim.dimension_id} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
+                                <div
+                                  key={dim.dimension_id}
+                                  style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 8 }}
+                                  title={`dimension_id: ${dim.dimension_id} · availability: ${dim.availability}`}
+                                >
                                   <div>
-                                    <strong>{executiveLabel('axis', dim.dimension_id)}</strong> · {executiveLabel('availability', dim.availability)}
+                                    <strong>{executiveLabel('outcome_dimension', dim.dimension_id)}</strong> ·{' '}
+                                    {executiveLabel('availability', dim.availability)}
                                   </div>
-                                  {dim.required_authoritative_input && (
+                                  {executivePhrase('outcome_dimension', dim.dimension_id).detail && (
                                     <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                                      Required: {dim.required_authoritative_input.field}
+                                      {executivePhrase('outcome_dimension', dim.dimension_id).detail}
+                                    </div>
+                                  )}
+                                  {dim.required_authoritative_input && (
+                                    <div
+                                      style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: 2 }}
+                                      title={`required field: ${dim.required_authoritative_input.field}`}
+                                    >
+                                      {/*
+                                        What is missing is stated in the planner's terms. The raw
+                                        field path stays on the tooltip above: naming the engine
+                                        field here told the reader which variable was unset, not
+                                        which input the estate has to supply.
+                                      */}
+                                      Needed before this can be measured:{' '}
+                                      {dim.required_authoritative_input.why_required ||
+                                        humaniseFieldPath(dim.required_authoritative_input.field)}
                                       {dim.required_authoritative_input.grain
-                                        ? ` (${dim.required_authoritative_input.grain})`
-                                        : ''}
-                                      {dim.required_authoritative_input.why_required
-                                        ? ` — ${dim.required_authoritative_input.why_required}`
+                                        ? ` (by ${dim.required_authoritative_input.grain})`
                                         : ''}
                                     </div>
                                   )}
@@ -3200,10 +3898,15 @@ export default function CampaignDecisionCanvas({
                           )}
 
                           {selection?.eliminations?.length > 0 && (
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
+                            <div
+                              style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}
+                              title={selection.eliminations
+                                .map((e: any) => `${e.play_id} (${e.constraint_id})`)
+                                .join(' · ')}
+                            >
                               Ruled out by your declared constraints:{' '}
                               {selection.eliminations
-                                .map((e: any) => `${e.play_id} (${e.constraint_id})`)
+                                .map((e: any) => playLabelById(e.play_id))
                                 .join(' · ')}
                             </div>
                           )}
@@ -3265,21 +3968,34 @@ export default function CampaignDecisionCanvas({
               )}
 
               {f?.frontier_status === 'EMITTED' && selectionStatus === 'NO_ADMISSIBLE_PLAY' && (
-                <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}>
-                  No admissible play remains — a decision contract cannot be registered.
+                <div
+                  style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)' }}
+                  title="selection status: NO_ADMISSIBLE_PLAY"
+                >
+                  {executiveLabel('selection_status', 'NO_ADMISSIBLE_PLAY')} —{' '}
+                  {executivePhrase('selection_status', 'NO_ADMISSIBLE_PLAY').detail} Nothing can be
+                  committed to, so no decision can be recorded.
                 </div>
               )}
 
               {canRegisterChoice && !decisionContract && (
                 <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: '#F8FAFC', display: 'grid', gap: 10 }}>
-                  <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                    Human resolve · CHOICE_REQUIRED
+                  <div
+                    style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}
+                    title="selection status: CHOICE_REQUIRED"
+                  >
+                    {executiveLabel('selection_status', 'CHOICE_REQUIRED')} · record who decided
                   </div>
                   <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-                    Explicit attribution is required — no silent contract. Name the resolver, the basis, and one survivor from the open trade-off.
+                    Explicit attribution is required — no decision is recorded silently. Name who is deciding, why, and which of the remaining options from the open trade-off.
                   </p>
                   <label style={{ display: 'grid', gap: 4 }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>resolved_by</span>
+                    <span
+                      style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}
+                      title="resolved_by"
+                    >
+                      Who is deciding
+                    </span>
                     <input
                       type="text"
                       value={humanResolvedBy}
@@ -3296,11 +4012,16 @@ export default function CampaignDecisionCanvas({
                     />
                   </label>
                   <label style={{ display: 'grid', gap: 4 }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>resolution_basis</span>
+                    <span
+                      style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}
+                      title="resolution_basis"
+                    >
+                      Why this option
+                    </span>
                     <textarea
                       value={humanResolutionBasis}
                       onChange={e => setHumanResolutionBasis(e.target.value)}
-                      placeholder="Why this survivor under the declared trade-off"
+                      placeholder="Why this option, given the open trade-off"
                       rows={2}
                       style={{
                         padding: '8px 10px',
@@ -3314,7 +4035,12 @@ export default function CampaignDecisionCanvas({
                     />
                   </label>
                   <label style={{ display: 'grid', gap: 4 }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}>selected play (survivors)</span>
+                    <span
+                      style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-secondary)' }}
+                      title="selected_play_id — frontier survivors"
+                    >
+                      Chosen option (from those still defensible)
+                    </span>
                     <select
                       value={humanSelectedPlayId}
                       onChange={e => setHumanSelectedPlayId(e.target.value)}
@@ -3327,10 +4053,14 @@ export default function CampaignDecisionCanvas({
                         background: '#FFFFFF'
                       }}
                     >
-                      <option value="">Select a survivor…</option>
+                      <option value="">Select an option…</option>
                       {survivorPlays.map((p: any) => (
-                        <option key={p.play_id} value={p.play_id}>
-                          {p.label} ({p.play_id})
+                        // The option text is what the planner is choosing between, so it names
+                        // the option. The generated play id stays reachable as provenance on
+                        // the option's tooltip rather than sitting in the visible label of the
+                        // control used to commit the decision.
+                        <option key={p.play_id} value={p.play_id} title={`play id ${p.play_id}`}>
+                          {p.label}
                         </option>
                       ))}
                     </select>
@@ -3367,28 +4097,48 @@ export default function CampaignDecisionCanvas({
                 <>
                   {/* Contract Summary */}
                   <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--curiosity-light)' }}>
-                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
-                      Contract Summary · {decisionContract.status}
+                    <div
+                      style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}
+                      title={`contract status: ${decisionContract.status}`}
+                    >
+                      Contract Summary · {executiveLabel('contract_status', decisionContract.status)}
                     </div>
-                    <div style={{ fontSize: '0.875rem', color: 'var(--text-primary)', marginBottom: 6 }}>
-                      selected_play_id: {decisionContract.resolution?.selected_play_id}
+                    <div
+                      style={{ fontSize: '0.875rem', color: 'var(--text-primary)', marginBottom: 6 }}
+                      title={`selected_play_id: ${decisionContract.resolution?.selected_play_id}`}
+                    >
+                      Committed option:{' '}
+                      {(f?.plays || []).find(
+                        (p: any) => p.play_id === decisionContract.resolution?.selected_play_id
+                      )?.label || decisionContract.resolution?.selected_play_id}
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
-                      route: {decisionContract.resolution?.route}
+                    <div
+                      style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}
+                      title={`route: ${decisionContract.resolution?.route}${
+                        decisionContract.resolution?.selection_basis
+                          ? ` · selection_basis: ${decisionContract.resolution.selection_basis}`
+                          : ''
+                      }`}
+                    >
+                      {executiveLabel('resolution_route', decisionContract.resolution?.route)}
                       {decisionContract.resolution?.resolved_by
-                        ? ` · resolver: ${decisionContract.resolution.resolved_by}`
+                        ? ` · decided by ${decisionContract.resolution.resolved_by}`
                         : ''}
                       {decisionContract.resolution?.selection_basis
-                        ? ` · selection_basis: ${decisionContract.resolution.selection_basis}`
+                        ? ` · ${executiveLabel('selection_basis', decisionContract.resolution.selection_basis).toLowerCase()}`
                         : ''}
                     </div>
                     {decisionContract.resolution?.resolution_statement && (
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
-                        resolution basis: {decisionContract.resolution.resolution_statement}
+                        Why: {decisionContract.resolution.resolution_statement}
                       </div>
                     )}
-                    <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginBottom: 10 }}>
-                      contract_id {decisionContract.contract_id?.slice(0, 12)}… · created_as_of {decisionContract.created_as_of}
+                    <div
+                      style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginBottom: 10 }}
+                      title={`contract_id: ${decisionContract.contract_id} · created_as_of: ${decisionContract.created_as_of}`}
+                    >
+                      Contract reference {decisionContract.contract_id?.slice(0, 12)}… · recorded as of{' '}
+                      {decisionContract.created_as_of}
                     </div>
 
                     {(decisionContract.basis?.rejected_alternatives || []).length > 0 && (
@@ -3397,10 +4147,25 @@ export default function CampaignDecisionCanvas({
                           Rejected alternatives
                         </div>
                         {(decisionContract.basis.rejected_alternatives as any[]).map((alt: any) => (
-                          <div key={alt.play_id} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
-                            <strong>{alt.label || alt.play_id}</strong> · {alt.cause}
-                            {alt.dominated_by?.length ? ` · outperformed by ${alt.dominated_by.join(', ')}` : ''}
-                            {alt.elimination?.constraint_id ? ` · ruled out by ${alt.elimination.constraint_id}` : ''}
+                          <div
+                            key={alt.play_id}
+                            style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}
+                            title={`play_id: ${alt.play_id} · cause: ${alt.cause}${
+                              alt.dominated_by?.length ? ` · dominated_by: ${alt.dominated_by.join(', ')}` : ''
+                            }${alt.elimination?.constraint_id ? ` · constraint_id: ${alt.elimination.constraint_id}` : ''}`}
+                          >
+                            <strong>{alt.label || alt.play_id}</strong> · {executiveLabel('rejection_cause', alt.cause)}
+                            {alt.dominated_by?.length
+                              ? ` · outperformed by ${alt.dominated_by
+                                  .map(
+                                    (id: string) =>
+                                      (frontier?.frontier?.plays || []).find((p: any) => p.play_id === id)?.label || id
+                                  )
+                                  .join(', ')}`
+                              : ''}
+                            {alt.elimination?.statement
+                              ? ` · ${alt.elimination.statement}`
+                              : ''}
                           </div>
                         ))}
                       </div>
@@ -3420,8 +4185,17 @@ export default function CampaignDecisionCanvas({
                           Outcome at decision time: {formatOutcomeSnapshot(decisionContract.basis.scenario_zero.outcome_snapshot)}
                         </div>
                         {decisionContract.basis.scenario_zero.dominated_by?.length > 0 && (
-                          <div style={{ marginTop: 4, fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
-                            Outperformed by: {decisionContract.basis.scenario_zero.dominated_by.join(', ')}
+                          <div
+                            style={{ marginTop: 4, fontSize: '0.6875rem', color: 'var(--text-muted)' }}
+                            title={`dominated_by: ${decisionContract.basis.scenario_zero.dominated_by.join(', ')}`}
+                          >
+                            Outperformed by:{' '}
+                            {decisionContract.basis.scenario_zero.dominated_by
+                              .map(
+                                (id: string) =>
+                                  (frontier?.frontier?.plays || []).find((p: any) => p.play_id === id)?.label || id
+                              )
+                              .join(', ')}
                           </div>
                         )}
                       </div>
@@ -3434,8 +4208,15 @@ export default function CampaignDecisionCanvas({
                       <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
                         Validity
                       </div>
-                      <span style={validityStateStyle(validityAssessment.state)}>
-                        {validityAssessment.state}
+                      <span
+                        style={validityStateStyle(validityAssessment.state)}
+                        title={`validity state: ${validityAssessment.state}${
+                          executivePhrase('validity_state', validityAssessment.state).detail
+                            ? ` — ${executivePhrase('validity_state', validityAssessment.state).detail}`
+                            : ''
+                        }`}
+                      >
+                        {executiveLabel('validity_state', validityAssessment.state)}
                       </span>
                     </div>
                   )}
@@ -3470,37 +4251,60 @@ export default function CampaignDecisionCanvas({
                       {validityDrawerOpen && (
                         <div style={{ display: 'grid', gap: 12 }}>
                           <div style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#F8FAFC' }}>
-                            <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
-                              Assumptions · held_at_resolution
+                            <div
+                              style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}
+                              title="assumptions · held_at_resolution"
+                            >
+                              Assumptions · what held when this was decided
                             </div>
                             {(decisionContract.assumptions || []).map((a: any) => (
-                              <div key={a.assumption_id} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
-                                <strong>{a.assumption_id}</strong> [{a.assumption_class}] held_at_resolution={String(a.held_at_resolution)}
-                                {a.load_bearing ? ' · load-bearing' : ''}
+                              <div
+                                key={a.assumption_id}
+                                style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 6 }}
+                                title={`${a.assumption_id} · assumption_class: ${a.assumption_class} · held_at_resolution=${String(
+                                  a.held_at_resolution
+                                )}`}
+                              >
+                                <strong>{a.statement || humaniseToken(String(a.assumption_class))}</strong>
+                                {' — value when decided: '}
+                                {String(a.held_at_resolution)}
+                                {a.load_bearing ? ' · the decision leans on it' : ''}
                               </div>
                             ))}
                           </div>
 
                           <div style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#F8FAFC' }}>
-                            <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}>
-                              Trigger evaluations
+                            <div
+                              style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 8 }}
+                              title="triggers_evaluated"
+                            >
+                              What was re-checked
                             </div>
                             {(validityAssessment.half_life_basis?.triggers_evaluated || []).map((te: any) => (
                               <div key={te.trigger_id} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
-                                <div>
-                                  <strong>{te.trigger_id}</strong> · {te.outcome}
+                                <div title={`${te.trigger_id} · outcome: ${te.outcome}`}>
+                                  <strong>{executiveLabel('trigger_outcome', te.outcome)}</strong>
+                                  {executivePhrase('trigger_outcome', te.outcome).detail
+                                    ? ` — ${executivePhrase('trigger_outcome', te.outcome).detail}`
+                                    : ''}
                                   {te.outcome === 'FIRED' && te.observed_value !== undefined
-                                    ? ` · moved to ${String(te.observed_value)}`
+                                    ? ` Moved to ${String(te.observed_value)}.`
                                     : ''}
                                 </div>
                                 {te.outcome === 'UNASSESSABLE' && te.unassessable_reason && (
-                                  <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                                    UNASSESSABLE: {te.unassessable_reason}
+                                  <div
+                                    style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: 2 }}
+                                    title="outcome: UNASSESSABLE"
+                                  >
+                                    {executiveLabel('trigger_outcome', 'UNASSESSABLE')}: {te.unassessable_reason}
                                   </div>
                                 )}
                                 {te.movement_attribution && (
-                                  <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: 2 }}>
-                                    movement_attribution: {te.movement_attribution}
+                                  <div
+                                    style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: 2 }}
+                                    title={`movement_attribution: ${te.movement_attribution}`}
+                                  >
+                                    Movement attributed to: {humaniseToken(String(te.movement_attribution))}
                                   </div>
                                 )}
                                 {te.statement && (
@@ -3511,15 +4315,22 @@ export default function CampaignDecisionCanvas({
                               </div>
                             ))}
                             {(validityAssessment.half_life_basis?.unassessable_assumptions || []).map((u: any) => (
-                              <div key={`ua_${u.assumption_id}`} style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}>
-                                unassessable assumption {u.assumption_id}: {u.reason}
+                              <div
+                                key={`ua_${u.assumption_id}`}
+                                style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: 4 }}
+                                title={`unassessable assumption: ${u.assumption_id}`}
+                              >
+                                Could not be checked: {u.reason}
                               </div>
                             ))}
                           </div>
 
                           <div style={{ padding: 12, borderRadius: 8, border: '1px dashed var(--border)', background: '#FFFFFF' }}>
-                            <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
-                              QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT
+                            <div
+                              style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}
+                              title="QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT"
+                            >
+                              Why no expiry date is given
                             </div>
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
                               {(
@@ -3541,8 +4352,11 @@ export default function CampaignDecisionCanvas({
                           </div>
 
                           <div style={{ padding: 12, borderRadius: 8, border: '1px dashed var(--border)', background: '#FFFFFF' }}>
-                            <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
-                              NOT_A_PREDICTION_DISCLOSURE
+                            <div
+                              style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}
+                              title="NOT_A_PREDICTION_DISCLOSURE"
+                            >
+                              What this validity check is not
                             </div>
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
                               {validityAssessment.half_life_basis?.not_a_prediction_disclosure ||
@@ -3594,8 +4408,11 @@ export default function CampaignDecisionCanvas({
           )}
 
           {layer8Error && !loadingLayer8 && (
-            <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 12 }}>
-              {layer8Error}
+            <div
+              style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 12 }}
+              title={noticeProvenance(layer8Error)}
+            >
+              {noticeText(layer8Error)}
             </div>
           )}
 
@@ -3603,14 +4420,20 @@ export default function CampaignDecisionCanvas({
             {/* Pre-Mortem panel — grouped by consequence_order only */}
             {preMortem && (
               <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: '#F8FAFC' }}>
-                <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 10 }}>
-                  Pre-Mortem · {preMortem.status}
+                <div
+                  style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 10 }}
+                  title={`pre-mortem status: ${preMortem.status}`}
+                >
+                  Pre-Mortem · {humaniseToken(String(preMortem.status))}
                 </div>
 
                 {preMortem.derived_impact_scope_disclosure && (
                   <div style={{ padding: 12, borderRadius: 8, border: '1px dashed var(--border)', background: '#FFFFFF', marginBottom: 12 }}>
-                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
-                      DERIVED_IMPACT_SCOPE_DISCLOSURE
+                    <div
+                      style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}
+                      title="DERIVED_IMPACT_SCOPE_DISCLOSURE"
+                    >
+                      How far these knock-on impacts reach
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
                       {preMortem.derived_impact_scope_disclosure}
@@ -3637,16 +4460,25 @@ export default function CampaignDecisionCanvas({
                               <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', marginBottom: 6 }}>
                                 {mode.statement}
                               </div>
-                              <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginBottom: 4 }}>
-                                {mode.failure_mode_id} · {mode.failure_mode_class} · grounding: {mode.grounding}
+                              <div
+                                style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginBottom: 4 }}
+                                title={`${mode.failure_mode_id} · ${mode.failure_mode_class} · grounding: ${mode.grounding}`}
+                              >
+                                {humaniseToken(String(mode.failure_mode_class))} · grounded in{' '}
+                                {humaniseToken(String(mode.grounding)).toLowerCase()}
                               </div>
-                              <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginBottom: 4 }}>
-                                source: {mode.source_package} · {mode.source_field_path} · contracted_value:{' '}
-                                {String(mode.contracted_value)}
+                              <div
+                                style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginBottom: 4 }}
+                                title={`source: ${mode.source_package} · ${mode.source_field_path}`}
+                              >
+                                From {mode.source_package} · what was contracted: {String(mode.contracted_value)}
                               </div>
                               {mode.follows_from_failure_mode_id && (
-                                <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginBottom: 4 }}>
-                                  follows_from: {mode.follows_from_failure_mode_id}
+                                <div
+                                  style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginBottom: 4 }}
+                                  title={`follows_from: ${mode.follows_from_failure_mode_id}`}
+                                >
+                                  Follows from an earlier failure mode above
                                 </div>
                               )}
                               {mode.derived_impact_ref && (
@@ -3681,8 +4513,17 @@ export default function CampaignDecisionCanvas({
                       Unexamined dimensions
                     </div>
                     {preMortem.unexamined.map(dim => (
-                      <div key={dim.dimension_id} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
-                        <strong>{dim.dimension_id}</strong> — {dim.statement} ({dim.reason})
+                      <div
+                        key={dim.dimension_id}
+                        style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}
+                        title={`dimension_id: ${dim.dimension_id}`}
+                      >
+                        <strong>{executiveLabel('outcome_dimension', dim.dimension_id)}</strong> —{' '}
+                        {dim.statement && dim.statement !== dim.dimension_id
+                          ? dim.statement
+                          : executivePhrase('outcome_dimension', dim.dimension_id).detail ||
+                            'No authoritative input is recorded stating what this dimension would need.'}{' '}
+                        ({dim.reason})
                       </div>
                     ))}
                   </div>
@@ -3693,8 +4534,11 @@ export default function CampaignDecisionCanvas({
                     key={cap.field}
                     style={{ marginTop: 10, padding: 12, borderRadius: 8, border: '1px dashed var(--border)', background: '#FFFFFF' }}
                   >
-                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>
-                      {cap.field} · {cap.status}
+                    <div
+                      style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}
+                      title={`${cap.field} · ${cap.status}`}
+                    >
+                      Not yet possible — {humaniseToken(String(cap.status)).toLowerCase()}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
                       {cap.why_required}
@@ -3707,8 +4551,11 @@ export default function CampaignDecisionCanvas({
             {/* Prediction vs Reality panel — comparability before numbers */}
             {predictionComparison && (
               <div style={{ padding: 14, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--curiosity-light)' }}>
-                <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 10 }}>
-                  Prediction vs Reality · verdict {predictionComparison.verdict}
+                <div
+                  style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 10 }}
+                  title={`verdict: ${predictionComparison.verdict}`}
+                >
+                  Prediction vs Reality · {executiveLabel('comparison_verdict', predictionComparison.verdict)}
                 </div>
 
                 {(predictionComparison.observations.some(
@@ -3735,8 +4582,11 @@ export default function CampaignDecisionCanvas({
                 )}
 
                 <div style={{ padding: 12, borderRadius: 8, border: '1px dashed var(--border)', background: '#FFFFFF', marginBottom: 12 }}>
-                  <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
-                    NOT_A_DECISION_VERDICT_DISCLOSURE
+                  <div
+                    style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}
+                    title="NOT_A_DECISION_VERDICT_DISCLOSURE"
+                  >
+                    What this comparison is not
                   </div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
                     {predictionComparison.not_a_decision_verdict_disclosure || NOT_A_DECISION_VERDICT_DISCLOSURE}
@@ -3748,8 +4598,11 @@ export default function CampaignDecisionCanvas({
                     to see that a number came from demonstration data at the row that carries it. */}
                 {(predictionComparison.observations || []).length > 0 && (
                   <div style={{ display: 'grid', gap: 6, marginBottom: 12 }}>
-                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}>
-                      observation authority
+                    <div
+                      style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase' }}
+                      title="observation authority"
+                    >
+                      Where each outcome came from
                     </div>
                     {predictionComparison.observations.map(observation => (
                       <div
@@ -3763,7 +4616,12 @@ export default function CampaignDecisionCanvas({
                           color: 'var(--text-secondary)'
                         }}
                       >
-                        <span style={{ fontWeight: 650, color: 'var(--text-primary)' }}>{observation.authority}</span>
+                        <span
+                          style={{ fontWeight: 650, color: 'var(--text-primary)' }}
+                          title={`authority: ${observation.authority}`}
+                        >
+                          {humaniseToken(String(observation.authority))}
+                        </span>
                         {' · '}
                         {observation.entity_type} {observation.entity_id}
                         {' · '}
@@ -3784,24 +4642,47 @@ export default function CampaignDecisionCanvas({
                       key={`${comparison.predicted_source_field_path}_${idx}`}
                       style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#FFFFFF' }}
                     >
-                      <div style={{ fontSize: '0.75rem', fontWeight: 650, color: 'var(--text-primary)', marginBottom: 6 }}>
-                        comparability: {comparison.comparability}
+                      <div
+                        style={{ fontSize: '0.75rem', fontWeight: 650, color: 'var(--text-primary)', marginBottom: 6 }}
+                        title={`comparability: ${comparison.comparability}`}
+                      >
+                        {executiveLabel('comparability_verdict', comparison.comparability)}
                       </div>
-                      <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginBottom: 8 }}>
-                        {comparison.predicted_source_package} · {comparison.predicted_source_field_path}
+                      <div
+                        style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginBottom: 8 }}
+                        title={`${comparison.predicted_source_package} · ${comparison.predicted_source_field_path}`}
+                      >
+                        {executivePhrase('comparability_verdict', comparison.comparability).detail}
                       </div>
                       {comparisonIsLikeForLike(comparison) && comparison.error ? (
                         <div style={{ display: 'grid', gap: 4 }}>
-                          <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)' }}>
-                            predicted: {comparison.predicted_value} {comparison.predicted_unit} ({comparison.predicted_basis})
+                          <div
+                            style={{ fontSize: '0.8125rem', color: 'var(--text-primary)' }}
+                            title={`predicted_basis: ${comparison.predicted_basis}`}
+                          >
+                            Predicted: {comparison.predicted_value} {comparison.predicted_unit} (
+                            {executiveLabel('quantity_basis', comparison.predicted_basis).toLowerCase()})
                           </div>
-                          <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)' }}>
-                            observed: {comparison.observed_value} {comparison.observed_unit} ({comparison.observed_basis})
+                          <div
+                            style={{ fontSize: '0.8125rem', color: 'var(--text-primary)' }}
+                            title={`observed_basis: ${comparison.observed_basis}`}
+                          >
+                            Observed: {comparison.observed_value} {comparison.observed_unit} (
+                            {executiveLabel('quantity_basis', comparison.observed_basis).toLowerCase()})
                           </div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            signed_delta: {comparison.error.signed_delta} {comparison.error.unit}
+                          <div
+                            style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}
+                            title={`signed_delta${
+                              comparison.error.within_declared_envelope !== undefined
+                                ? ` · within_declared_envelope: ${String(comparison.error.within_declared_envelope)}`
+                                : ''
+                            }`}
+                          >
+                            Difference: {comparison.error.signed_delta} {comparison.error.unit}
                             {comparison.error.within_declared_envelope !== undefined
-                              ? ` · within_declared_envelope: ${String(comparison.error.within_declared_envelope)}`
+                              ? comparison.error.within_declared_envelope
+                                ? ' · within the tolerance declared beforehand'
+                                : ' · outside the tolerance declared beforehand'
                               : ''}
                           </div>
                           {comparison.error.statement && (
@@ -3810,16 +4691,21 @@ export default function CampaignDecisionCanvas({
                         </div>
                       ) : (
                         <div style={{ display: 'grid', gap: 4 }}>
-                          <div style={{ fontSize: '0.8125rem', color: 'var(--text-primary)' }}>
-                            predicted: {comparison.predicted_value} {comparison.predicted_unit} ({comparison.predicted_basis})
+                          <div
+                            style={{ fontSize: '0.8125rem', color: 'var(--text-primary)' }}
+                            title={`predicted_basis: ${comparison.predicted_basis}`}
+                          >
+                            Predicted: {comparison.predicted_value} {comparison.predicted_unit} (
+                            {executiveLabel('quantity_basis', comparison.predicted_basis).toLowerCase()})
                           </div>
                           <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                            incomparable
+                            Not scored — the prediction and the outcome cannot be compared
                             {comparison.incomparable_reason ? ` — ${comparison.incomparable_reason}` : ''}
                           </div>
                           {comparison.observed_value !== undefined && (
                             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                              observed (not differenced): {comparison.observed_value} {comparison.observed_unit || '—'}
+                              Observed, but not differenced against the prediction: {comparison.observed_value}{' '}
+                              {comparison.observed_unit || '—'}
                             </div>
                           )}
                         </div>
@@ -3829,8 +4715,12 @@ export default function CampaignDecisionCanvas({
                 </div>
 
                 {predictionComparison.attribution && (
-                  <div style={{ marginTop: 12, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                    attribution: {predictionComparison.attribution.attribution} — {predictionComparison.attribution.statement}
+                  <div
+                    style={{ marginTop: 12, fontSize: '0.75rem', color: 'var(--text-secondary)' }}
+                    title={`attribution: ${predictionComparison.attribution.attribution}`}
+                  >
+                    {humaniseToken(String(predictionComparison.attribution.attribution))} —{' '}
+                    {predictionComparison.attribution.statement}
                   </div>
                 )}
 
@@ -3839,8 +4729,12 @@ export default function CampaignDecisionCanvas({
                     key={cap.field}
                     style={{ marginTop: 10, padding: 12, borderRadius: 8, border: '1px dashed var(--border)', background: '#FFFFFF' }}
                   >
-                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>
-                      {cap.field} · {cap.enables} · {cap.status}
+                    <div
+                      style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}
+                      title={`${cap.field} · ${cap.enables} · ${cap.status}`}
+                    >
+                      Not yet possible: {humaniseToken(String(cap.enables)).toLowerCase()} —{' '}
+                      {humaniseToken(String(cap.status)).toLowerCase()}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
                       {cap.why_required}
@@ -3863,13 +4757,16 @@ export default function CampaignDecisionCanvas({
                       key={condition.condition_id}
                       style={{ padding: 10, borderRadius: 8, border: '1px solid var(--border)', background: '#FFFFFF' }}
                     >
-                      <div style={{ fontSize: '0.75rem', fontWeight: 650, color: 'var(--text-primary)', marginBottom: 4 }}>
-                        {condition.condition_id} · {condition.met ? 'met' : 'unmet'}
+                      <div
+                        style={{ fontSize: '0.75rem', fontWeight: 650, color: 'var(--text-primary)', marginBottom: 4 }}
+                        title={`condition_id: ${condition.condition_id}`}
+                      >
+                        {humaniseToken(String(condition.condition_id))} · {condition.met ? 'met' : 'not met'}
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)' }}>{condition.statement}</div>
                       {!condition.met && condition.unmet_reason && (
-                        <div style={{ marginTop: 4, fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
-                          unmet_reason: {condition.unmet_reason}
+                        <div style={{ marginTop: 4, fontSize: '0.6875rem', color: 'var(--text-muted)' }} title="unmet_reason">
+                          Why not: {condition.unmet_reason}
                         </div>
                       )}
                     </div>
@@ -3878,12 +4775,19 @@ export default function CampaignDecisionCanvas({
 
                 {!learningCandidate.eligibility.eligible && learningCandidate.blocked_by.length > 0 && (
                   <div style={{ marginBottom: 12 }}>
-                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
-                      blocked_by
+                    <div
+                      style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}
+                      title="blocked_by"
+                    >
+                      What is blocking it
                     </div>
                     {learningCandidate.blocked_by.map(item => (
-                      <div key={item} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
-                        {item}
+                      <div
+                        key={item}
+                        style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}
+                        title={item}
+                      >
+                        {humaniseToken(String(item))}
                       </div>
                     ))}
                   </div>
@@ -3895,14 +4799,18 @@ export default function CampaignDecisionCanvas({
                       key={cap.field}
                       style={{ marginBottom: 10, padding: 12, borderRadius: 8, border: '1px dashed var(--border)', background: '#FFFFFF' }}
                     >
-                      <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}>
-                        {cap.field} · {cap.enables} · {cap.status}
+                      <div
+                        style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 4 }}
+                        title={`${cap.field} · ${cap.enables} · ${cap.status}`}
+                      >
+                        Not yet possible: {humaniseToken(String(cap.enables)).toLowerCase()} —{' '}
+                        {humaniseToken(String(cap.status)).toLowerCase()}
                       </div>
                       <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45, marginBottom: 4 }}>
                         {cap.why_required}
                       </div>
-                      <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
-                        grain: {cap.grain}
+                      <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', lineHeight: 1.4 }} title="grain">
+                        Needed at: {cap.grain}
                       </div>
                     </div>
                   )
@@ -3910,15 +4818,22 @@ export default function CampaignDecisionCanvas({
 
                 {learningCandidate.eligibility.eligible && learningCandidate.learning_case && (
                   <div style={{ padding: 12, borderRadius: 8, border: '1px solid var(--border)', background: '#FFFFFF' }}>
-                    <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>
-                      LearningCase · {learningCandidate.learning_case.learning_case_id}
+                    <div
+                      style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}
+                      title={`LearningCase · ${learningCandidate.learning_case.learning_case_id}`}
+                    >
+                      What can be learned from this one decision
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45, marginBottom: 8 }}>
                       {learningCandidate.learning_case.single_case_disclosure || SINGLE_CASE_DISCLOSURE}
                     </div>
                     {(learningCandidate.learning_case.pattern_refs || []).map(ref => (
-                      <div key={ref.pattern_id} style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 6 }}>
-                        pattern_ref: {ref.pattern_name} ({ref.pattern_id}) — context only
+                      <div
+                        key={ref.pattern_id}
+                        style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 6 }}
+                        title={`pattern_ref: ${ref.pattern_id}`}
+                      >
+                        Related pattern: {ref.pattern_name} — context only, not evidence
                         <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', marginTop: 2 }}>
                           {ref.telemetry_disclosure || PATTERN_TELEMETRY_DISCLOSURE}
                         </div>
@@ -3998,12 +4913,15 @@ export default function CampaignDecisionCanvas({
         onViewBrief={exp => {
           handleOpenExecutionBriefForExperiment(exp);
         }}
-        onCompareExperiments={async (expAId, expBId) => {
-          const comp = await compareCampaignExperimentsClient(expAId, expBId);
+        onCompareExperiments={async experimentIds => {
+          const comp = await compareCampaignExperimentsClient(experimentIds);
           if (comp) {
             setComparisonModalData(comp);
+            setHistoryDrawerOpen(false);
           } else {
-            setError('Could not generate comparison for selected experiments.');
+            setError(
+              `Could not compare ${experimentIds.join(', ')}. Select between 2 and ${MAX_COMPARISON_EXPERIMENTS} preserved decisions.`
+            );
           }
         }}
       />

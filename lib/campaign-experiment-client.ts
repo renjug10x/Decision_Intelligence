@@ -80,9 +80,9 @@ export async function saveCampaignExperimentClient(
   }
 }
 
+/** Compare 2–4 preserved experiments. */
 export async function compareCampaignExperimentsClient(
-  experimentAId: string,
-  experimentBId: string,
+  experimentIds: string[],
   params?: { tenant_id?: string; session_id?: string }
 ): Promise<ExperimentComparison | null> {
   try {
@@ -94,8 +94,7 @@ export async function compareCampaignExperimentsClient(
       body: JSON.stringify({
         tenant_id: tenant,
         session_id: session,
-        experiment_a_id: experimentAId,
-        experiment_b_id: experimentBId
+        experiment_ids: experimentIds
       })
     });
     if (!res.ok) return null;

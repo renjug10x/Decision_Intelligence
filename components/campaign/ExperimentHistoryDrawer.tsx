@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, type CSSProperties } from 'react';
+import { useEffect, useState, useMemo, type CSSProperties } from 'react';
 import {
   X,
   History,
@@ -16,10 +16,17 @@ import {
 import {
   CampaignDecisionExperiment,
   ReadinessVerdict,
+  MIN_COMPARISON_EXPERIMENTS,
+  MAX_COMPARISON_EXPERIMENTS,
   readinessVerdictLabel,
   formatContributionGbp,
   formatDemandPct
 } from '@/packages/contracts/src/campaign-experiment-model';
+import {
+  categoryLabel,
+  segmentLabel,
+  channelLabel
+} from '@/packages/contracts/src/campaign-decision-taxonomy-model';
 
 /**
  * Green reads as cleared, amber as qualified, red as blocked, grey as never assessed.
@@ -45,7 +52,7 @@ interface ExperimentHistoryDrawerProps {
   onClose: () => void;
   onReviewExperiment: (experiment: CampaignDecisionExperiment) => void;
   onViewBrief: (experiment: CampaignDecisionExperiment) => void;
-  onCompareExperiments: (experimentAId: string, experimentBId: string) => void;
+  onCompareExperiments: (experimentIds: string[]) => void;
 }
 
 export function ExperimentHistoryDrawer({
@@ -60,6 +67,28 @@ export function ExperimentHistoryDrawer({
   const [regionFilter, setRegionFilter] = useState('');
   const [objectiveFilter, setObjectiveFilter] = useState('');
   const [selectedForCompare, setSelectedForCompare] = useState<string[]>([]);
+  const [selectionNotice, setSelectionNotice] = useState<string | null>(null);
+
+  /**
+   * Selection and filters belong to one visit to the drawer. The component stays mounted
+   * when closed, so without this a reopened drawer would still hold the previous visit's
+   * selection and silently offer to compare experiments the user is no longer looking at.
+   */
+  useEffect(() => {
+    if (!isOpen) {
+      setSelectedForCompare([]);
+      setSelectionNotice(null);
+      setCategoryFilter('');
+      setRegionFilter('');
+      setObjectiveFilter('');
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!selectionNotice) return;
+    const timer = setTimeout(() => setSelectionNotice(null), 4000);
+    return () => clearTimeout(timer);
+  }, [selectionNotice]);
 
   const filteredExperiments = useMemo(() => {
     return experiments.filter(e => {
@@ -70,23 +99,32 @@ export function ExperimentHistoryDrawer({
     });
   }, [experiments, categoryFilter, regionFilter, objectiveFilter]);
 
+  /**
+   * Selection is capped rather than rotated. Silently dropping an earlier pick to make room
+   * for a fifth would change what the user is about to compare without telling them; saying
+   * the cap is reached leaves the choice with them.
+   */
   const toggleSelectForCompare = (id: string) => {
     setSelectedForCompare(prev => {
       if (prev.includes(id)) {
+        setSelectionNotice(null);
         return prev.filter(item => item !== id);
       }
-      if (prev.length >= 2) {
-        // Keep the newest selection and the new one
-        return [prev[1], id];
+      if (prev.length >= MAX_COMPARISON_EXPERIMENTS) {
+        setSelectionNotice(
+          `You can compare up to ${MAX_COMPARISON_EXPERIMENTS} decisions at once. Deselect one to add another.`
+        );
+        return prev;
       }
+      setSelectionNotice(null);
       return [...prev, id];
     });
   };
 
+  const canCompare = selectedForCompare.length >= MIN_COMPARISON_EXPERIMENTS;
+
   const handleLaunchCompare = () => {
-    if (selectedForCompare.length === 2) {
-      onCompareExperiments(selectedForCompare[0], selectedForCompare[1]);
-    }
+    if (canCompare) onCompareExperiments(selectedForCompare);
   };
 
   if (!isOpen) return null;
@@ -171,61 +209,82 @@ export function ExperimentHistoryDrawer({
           </button>
         </div>
 
-        {/* Comparison Action Bar (when selections exist) */}
+        {/* Comparison action bar (when selections exist) */}
         {selectedForCompare.length > 0 && (
           <div
             style={{
               padding: '10px 24px',
               background: 'var(--curiosity-light)',
               borderBottom: '1px solid #FED7AA',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              gap: 12
+              display: 'grid',
+              gap: 6
             }}
           >
-            <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-              {selectedForCompare.length} of 2 selected for comparison
-              <span style={{ color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>
-                ({selectedForCompare.join(' vs ')})
-              </span>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+                flexWrap: 'wrap'
+              }}
+            >
+              <div style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-primary)' }}>
+                {selectedForCompare.length} of {MAX_COMPARISON_EXPERIMENTS} selected
+                <span style={{ color: 'var(--text-muted)', fontWeight: 400, marginLeft: 6 }}>
+                  ({selectedForCompare.join(', ')})
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedForCompare([]);
+                    setSelectionNotice(null);
+                  }}
+                  style={{
+                    background: 'transparent',
+                    border: 'none',
+                    fontSize: '0.75rem',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  disabled={!canCompare}
+                  onClick={handleLaunchCompare}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 12px',
+                    borderRadius: 6,
+                    border: 'none',
+                    background: canCompare ? 'var(--g10x-orange)' : '#CBD5E1',
+                    color: '#FFFFFF',
+                    fontSize: '0.75rem',
+                    fontWeight: 650,
+                    cursor: canCompare ? 'pointer' : 'not-allowed'
+                  }}
+                >
+                  <Scale size={13} />
+                  Compare selected ({selectedForCompare.length})
+                </button>
+              </div>
             </div>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button
-                type="button"
-                onClick={() => setSelectedForCompare([])}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  fontSize: '0.75rem',
-                  color: 'var(--text-muted)',
-                  cursor: 'pointer'
-                }}
-              >
-                Clear
-              </button>
-              <button
-                type="button"
-                disabled={selectedForCompare.length !== 2}
-                onClick={handleLaunchCompare}
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  padding: '6px 12px',
-                  borderRadius: 6,
-                  border: 'none',
-                  background: selectedForCompare.length === 2 ? 'var(--g10x-orange)' : '#CBD5E1',
-                  color: '#FFFFFF',
-                  fontSize: '0.75rem',
-                  fontWeight: 650,
-                  cursor: selectedForCompare.length === 2 ? 'pointer' : 'not-allowed'
-                }}
-              >
-                <Scale size={13} />
-                Compare (2)
-              </button>
-            </div>
+            {!canCompare && (
+              <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>
+                Select at least {MIN_COMPARISON_EXPERIMENTS} decisions to compare.
+              </div>
+            )}
+            {selectionNotice && (
+              <div role="status" style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--g10x-orange)' }}>
+                {selectionNotice}
+              </div>
+            )}
           </div>
         )}
 
@@ -260,9 +319,11 @@ export function ExperimentHistoryDrawer({
             style={filterInputStyle}
           >
             <option value="">All objectives</option>
-            <option value="REVENUE_ACCELERATION">Revenue Acceleration</option>
-            <option value="INVENTORY_CLEARANCE">Inventory Clearance</option>
-            <option value="MARKET_DEFENSE">Market Defense</option>
+            <option value="REVENUE_ACCELERATION">Revenue acceleration</option>
+            <option value="INVENTORY_CLEARANCE">Inventory clearance</option>
+            <option value="MARKET_DEFENSE">Market defence</option>
+            <option value="LAUNCH">Launch</option>
+            <option value="OTHER">Other</option>
           </select>
         </div>
 
@@ -322,13 +383,16 @@ export function ExperimentHistoryDrawer({
                     </span>
                   </div>
 
-                  {/* Summary title & scope */}
+                  {/* Summary title & scope — the dimensions that tell two experiments apart */}
                   <div>
                     <div style={{ fontSize: '0.9375rem', fontWeight: 650, color: 'var(--text-primary)' }}>
-                      {exp.objective_label} · {exp.category}
+                      {exp.objective_label} · {categoryLabel(exp.category)}
                     </div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 2 }}>
-                      {exp.region} · Scope: {exp.sku_scope.join(', ')} · Lever: {exp.posture_label}
+                      {exp.region} · {exp.sku_scope.join(', ')} · {exp.posture_label}
+                    </div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
+                      {segmentLabel(exp.audience_segment)} · {channelLabel(exp.sales_channel)}
                     </div>
                   </div>
 
@@ -346,7 +410,12 @@ export function ExperimentHistoryDrawer({
                   >
                     <div>
                       <div style={{ color: 'var(--text-muted)', fontSize: '0.6875rem' }}>Decision</div>
-                      <div style={{ fontWeight: 650, color: 'var(--text-primary)', textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
+                      {/* Recommendations run long ("Choice required — two defensible options"),
+                          and a clipped recommendation is the one line that must stay readable. */}
+                      <div
+                        title={exp.decision_recommendation}
+                        style={{ fontWeight: 650, color: 'var(--text-primary)', overflowWrap: 'anywhere' }}
+                      >
                         {exp.decision_recommendation}
                       </div>
                     </div>
@@ -358,7 +427,18 @@ export function ExperimentHistoryDrawer({
                     </div>
                     <div>
                       <div style={{ color: 'var(--text-muted)', fontSize: '0.6875rem' }}>Contribution</div>
-                      <div style={{ fontWeight: 700, color: 'var(--success, #059669)' }}>
+                      {/* A preserved loss must never render in the colour of a gain. */}
+                      <div
+                        style={{
+                          fontWeight: 700,
+                          color:
+                            exp.contribution_impact_gbp < 0
+                              ? 'var(--error, #DC2626)'
+                              : exp.contribution_impact_gbp > 0
+                                ? 'var(--success, #059669)'
+                                : 'var(--text-secondary)'
+                        }}
+                      >
                         {formatContributionGbp(exp.contribution_impact_gbp)}
                       </div>
                     </div>
