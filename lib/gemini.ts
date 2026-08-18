@@ -1,18 +1,17 @@
 // Gemini API Client — Google AI Studio
 // Set GEMINI_API_KEY in .env.local (get one free at aistudio.google.com)
 
+import { GoogleGenAI } from '@google/genai';
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 
 let _client: GoogleGenerativeAI | null = null;
 let _model: GenerativeModel | null = null;
 
-// Try stable/widely available models first; Google retires aliases frequently.
+// Models verified against current Google AI Studio keys (Aug 2026).
 const GEMINI_MODELS = [
+  'gemini-3.6-flash',
+  'gemini-3.7-flash',
   'gemini-2.0-flash',
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-1.5-flash',
-  'gemini-flash-latest',
 ] as const;
 
 const GEMINI_REST_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
@@ -59,14 +58,48 @@ function shouldTryNextModel(status: number, detail: string): boolean {
 
 function isDefinitiveKeyFailure(status: number, detail: string): boolean {
   const lower = detail.toLowerCase();
-  if (status !== 401 && status !== 403) return false;
-  return (
+  if (
     lower.includes('api key') ||
     lower.includes('api_key') ||
     lower.includes('invalid authentication') ||
     lower.includes('permission_denied') ||
-    lower.includes('access_token_type_unsupported')
-  );
+    lower.includes('access_token_type_unsupported') ||
+    lower.includes('api key not valid')
+  ) {
+    return true;
+  }
+  return status === 401 || status === 403;
+}
+
+function parseGeminiFailure(err: unknown): { status: number; detail: string; message: string } {
+  const message = err instanceof Error ? err.message : String(err);
+  const statusMatch = message.match(/Gemini API (\d+)/);
+  const status = statusMatch ? Number.parseInt(statusMatch[1], 10) : 0;
+  const detail = message.includes(': ') ? message.slice(message.indexOf(': ') + 2) : message;
+  return { status, detail, message };
+}
+
+function shouldRetryModel(err: unknown): boolean {
+  const { status, detail, message } = parseGeminiFailure(err);
+  const text = detail || message;
+  if (isDefinitiveKeyFailure(status, text)) return false;
+  if (status > 0) return shouldTryNextModel(status, text);
+  return shouldTryNextModel(0, text);
+}
+
+async function generateViaGenAiSdk(
+  prompt: string,
+  key: string,
+  modelName: string
+): Promise<string> {
+  const ai = new GoogleGenAI({ apiKey: key });
+  const response = await ai.models.generateContent({
+    model: modelName,
+    contents: prompt,
+  });
+  const text = response.text?.trim();
+  if (!text) throw new Error(`Gemini SDK returned no text [${modelName}]`);
+  return text;
 }
 
 async function generateViaRest(
@@ -108,34 +141,24 @@ async function generateViaRest(
   return text;
 }
 
-async function generateViaLegacySdk(
-  prompt: string,
-  key: string,
-  modelName: string
-): Promise<string> {
-  const client = new GoogleGenerativeAI(key);
-  const model = client.getGenerativeModel({ model: modelName });
-  const result = await model.generateContent(prompt);
-  const text = result.response.text().trim();
-  if (!text) throw new Error(`Gemini SDK returned no text [${modelName}]`);
-  return text;
-}
-
-function parseGeminiFailure(err: unknown): { status: number; detail: string; message: string } {
-  const message = err instanceof Error ? err.message : String(err);
-  const statusMatch = message.match(/Gemini API (\d+)/);
-  const status = statusMatch ? Number.parseInt(statusMatch[1], 10) : 0;
-  const detail = message.includes(': ') ? message.slice(message.indexOf(': ') + 2) : message;
-  return { status, detail, message };
-}
-
-/** Call Gemini via REST (AQ + AIza keys) with model and auth-mode fallback. */
+/** Call Gemini via @google/genai (primary) with REST fallback and model rotation. */
 export async function generateGeminiContent(prompt: string, apiKey?: string): Promise<string> {
   const key = resolveApiKey(apiKey);
   const authModes: Array<'header' | 'query'> = key.startsWith('AQ.') ? ['query', 'header'] : ['header', 'query'];
   let lastError: unknown;
 
   for (const modelName of GEMINI_MODELS) {
+    try {
+      return await generateViaGenAiSdk(prompt, key, modelName);
+    } catch (err) {
+      lastError = err;
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`Gemini genai SDK failed (${modelName}): ${msg}`);
+      if (!shouldRetryModel(err)) {
+        throw err;
+      }
+    }
+
     for (const auth of authModes) {
       try {
         return await generateViaRest(prompt, key, modelName, auth);
@@ -149,20 +172,6 @@ export async function generateGeminiContent(prompt: string, apiKey?: string): Pr
         }
         if (shouldTryNextModel(status, detail)) {
           break;
-        }
-      }
-    }
-
-    // Legacy SDK fallback for AIza keys when REST fails for non-key reasons.
-    if (key.startsWith('AIza')) {
-      try {
-        return await generateViaLegacySdk(prompt, key, modelName);
-      } catch (err) {
-        lastError = err;
-        const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`Gemini SDK failed (${modelName}): ${msg}`);
-        if (!shouldTryNextModel(0, msg)) {
-          throw err;
         }
       }
     }

@@ -2,6 +2,7 @@ import type { NextConfig } from 'next';
 
 const nextConfig: NextConfig = {
   output: 'standalone',
+  serverExternalPackages: ['@google/genai'],
   // Expose auth base URL to the client bundle (fallback when runtime meta tag is absent).
   env: {
     AUTH_API_URL: process.env.AUTH_API_URL ?? '',
