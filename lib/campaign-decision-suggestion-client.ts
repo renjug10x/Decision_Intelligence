@@ -59,7 +59,8 @@ export type DecisionContextSuggestionOutcome =
   | { ok: false; message: string };
 
 const UNAVAILABLE_MESSAGE = 'AI suggestions are unavailable right now.';
-const NOT_CONFIGURED_MESSAGE = 'AI suggestions are not configured on this environment.';
+const NOT_CONFIGURED_MESSAGE =
+  'AI suggestions need a Gemini API key. Add one in Platform Setup after login, or ask your operator to set GEMINI_API_KEY on the server.';
 const RATE_LIMITED_MESSAGE = 'Too many suggestion requests just now. Try again in a moment.';
 
 function readString(value: unknown): string {
@@ -88,6 +89,8 @@ export async function suggestDecisionContextClient(args: {
   context: DecisionContextSuggestionContext;
   tenant_id?: string;
   session_id?: string;
+  /** User Gemini key from Platform Setup (used when server GEMINI_API_KEY is unset). */
+  apiKey?: string;
 }): Promise<DecisionContextSuggestionOutcome> {
   try {
     const res = await fetch('/api/v1/campaigns/decision-context/suggest', {
@@ -97,7 +100,8 @@ export async function suggestDecisionContextClient(args: {
         tenant_id: args.tenant_id || DEFAULT_TENANT,
         session_id: args.session_id || DEFAULT_SESSION,
         suggestion_type: args.suggestion_type,
-        context: args.context
+        context: args.context,
+        ...(args.apiKey?.trim() ? { apiKey: args.apiKey.trim() } : {})
       })
     });
 

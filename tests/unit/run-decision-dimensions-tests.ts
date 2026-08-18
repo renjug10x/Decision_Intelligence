@@ -1106,15 +1106,15 @@ async function run() {
   );
   assert(
     !/process\.env/.test(clientSource) && !/process\.env\.GEMINI/.test(canvasSource),
-    'Neither the client helper nor the canvas reads the provider key'
+    'Neither the client helper nor the canvas reads the provider key from process.env'
   );
   assert(
-    !/api_?key/i.test(clientSource.replace(/\/\*[\s\S]*?\*\//g, '')),
-    'The client never sends a key of its own'
+    /apiKey/.test(clientSource),
+    'The client may send the user Platform Setup key when no server key is configured'
   );
   assert(
-    /process\.env\.GEMINI_API_KEY/.test(routeSource),
-    'The route resolves the key from the server environment only'
+    /process\.env\.GEMINI_API_KEY/.test(routeSource) && /resolveProviderApiKey/.test(routeSource),
+    'The route resolves the key from server env first, then the request body'
   );
 
   // Provider absent: refuse, do not invent.
@@ -1139,8 +1139,8 @@ async function run() {
     'and returns no suggestions at all'
   );
   assert(
-    JSON.stringify(unavailableBody).includes('GEMINI_API_KEY'),
-    'and names the variable an operator must configure'
+    JSON.stringify(unavailableBody).includes('Gemini API key'),
+    'and tells the caller how to supply a key'
   );
   assert(
     !/AIzaSy[A-Za-z0-9_-]{20,}/.test(JSON.stringify(unavailableBody)),

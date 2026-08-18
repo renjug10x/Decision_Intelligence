@@ -47,7 +47,7 @@ import {
  *    the case the check exists for.
  */
 
-/** The provider key is a server boundary — it is resolved here and never crosses the wire. */
+/** The provider key is resolved on the server: shared env first, then the caller's Platform Setup key. */
 export const runtime = 'nodejs';
 
 const SUGGESTION_TYPES = Object.keys(TYPE_SPECS) as DecisionContextSuggestionType[];
@@ -323,6 +323,13 @@ function errorResponse(
   );
 }
 
+/** Prefer server GEMINI_API_KEY; fall back to the user's Platform Setup key from the request body. */
+function resolveProviderApiKey(payload: Record<string, unknown>): string {
+  const fromEnv = (process.env.GEMINI_API_KEY || '').trim();
+  if (fromEnv) return fromEnv;
+  return boundedText(payload?.apiKey, 256);
+}
+
 export async function POST(request: NextRequest) {
   const payload = await request.json().catch(() => ({} as Record<string, unknown>));
   const suggestionType = payload?.suggestion_type as DecisionContextSuggestionType | undefined;
@@ -350,13 +357,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // Resolved from the server environment only. A key accepted from the request body would
-  // hand the caller control of the provider boundary this route exists to hold.
-  const apiKey = (process.env.GEMINI_API_KEY || '').trim();
+  // Shared server key takes precedence; otherwise use the caller's Platform Setup key.
+  const apiKey = resolveProviderApiKey(payload);
   if (!apiKey) {
     return errorResponse(
       'ProviderUnavailable',
-      'Decision context suggestions require the GEMINI_API_KEY environment variable to be set on the server. No suggestions are generated without it.',
+      'Decision context suggestions require a Gemini API key. Add one in Platform Setup after login, or set GEMINI_API_KEY on the server.',
       503
     );
   }

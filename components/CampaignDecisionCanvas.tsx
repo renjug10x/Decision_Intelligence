@@ -126,6 +126,7 @@ import {
   fetchCurrentDecisionState,
   executeDecisionCommand
 } from '@/lib/decision-state-client';
+import { useApp } from '@/lib/context';
 
 interface CampaignDecisionCanvasProps {
   onNavigateToExperiment?: (experimentId: string) => void;
@@ -472,6 +473,7 @@ const noticeProvenance = (notice: string | SurfaceNotice | null): string | undef
 export default function CampaignDecisionCanvas({
   onNavigateToExperiment
 }: CampaignDecisionCanvasProps = {}) {
+  const { apiKey } = useApp();
   const [intent, setIntent] = useState<CampaignIntent | null>(null);
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -1594,6 +1596,7 @@ export default function CampaignDecisionCanvas({
       suggestion_type: field,
       tenant_id: intent.tenant_id,
       session_id: intent.session_id,
+      apiKey: apiKey || undefined,
       context: {
         category: intent.campaign_intent.category,
         sku_scope: intent.campaign_intent.sku_scope,
