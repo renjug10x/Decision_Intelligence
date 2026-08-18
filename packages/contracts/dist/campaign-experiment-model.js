@@ -4,6 +4,7 @@
  * Transport-neutral contracts, types, comparison models, and execution brief definitions.
  */
 Object.defineProperty(exports, "__esModule", { value: true });
+exports.MAX_COMPARISON_EXPERIMENTS = exports.MIN_COMPARISON_EXPERIMENTS = void 0;
 exports.mapReadinessStateToVerdict = mapReadinessStateToVerdict;
 exports.formatContributionGbp = formatContributionGbp;
 exports.formatDemandPct = formatDemandPct;
@@ -53,6 +54,14 @@ function readinessVerdictLabel(verdict) {
             return 'Not assessed';
     }
 }
+/** A comparison weighs a decision against alternatives; below two there is nothing to weigh. */
+exports.MIN_COMPARISON_EXPERIMENTS = 2;
+/**
+ * Above four, a comparison stops being a decision aid and becomes a spreadsheet: the reader
+ * can no longer hold the alternatives in mind at once, which is the only thing this surface
+ * is for.
+ */
+exports.MAX_COMPARISON_EXPERIMENTS = 4;
 function validateCampaignDecisionExperiment(exp) {
     const errors = [];
     if (!exp.experiment_id)
@@ -77,12 +86,30 @@ function validateCampaignDecisionExperiment(exp) {
 }
 function validateExperimentComparison(comp) {
     const errors = [];
-    if (!comp.experiment_a)
-        errors.push('Missing experiment_a');
-    if (!comp.experiment_b)
-        errors.push('Missing experiment_b');
-    if (!comp.dimensions || !Array.isArray(comp.dimensions))
+    if (!Array.isArray(comp.experiments)) {
+        errors.push('Missing experiments array');
+    }
+    else {
+        if (comp.experiments.length < exports.MIN_COMPARISON_EXPERIMENTS) {
+            errors.push(`A comparison needs at least ${exports.MIN_COMPARISON_EXPERIMENTS} experiments`);
+        }
+        if (comp.experiments.length > exports.MAX_COMPARISON_EXPERIMENTS) {
+            errors.push(`A comparison holds at most ${exports.MAX_COMPARISON_EXPERIMENTS} experiments`);
+        }
+    }
+    if (!comp.dimensions || !Array.isArray(comp.dimensions)) {
         errors.push('Missing dimensions array');
+    }
+    else if (Array.isArray(comp.experiments)) {
+        // A dimension row that does not carry one value per experiment would render columns
+        // against the wrong experiment — a silent misattribution, not a formatting bug.
+        const mismatched = comp.dimensions.filter(d => (d.values || []).length !== comp.experiments.length);
+        if (mismatched.length > 0) {
+            errors.push(`Dimension rows must carry one value per compared experiment: ${mismatched
+                .map(d => d.dimension)
+                .join(', ')}`);
+        }
+    }
     if (!comp.synthesis)
         errors.push('Missing synthesis');
     return { valid: errors.length === 0, errors };

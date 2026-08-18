@@ -74,7 +74,14 @@ export interface CampaignDecisionExperiment {
   category: string;                      // e.g. 'Fresh Dairy'
   sku_scope: string[];                   // e.g. ['P004']
   region: string;                        // e.g. 'North West'
-  audience_segment?: string;             // e.g. 'Family Shoppers'
+  /**
+   * Audience, sales channel and activation routes as they stood when this decision was
+   * preserved. They are stored on the record rather than read back from the live intent so
+   * that reviewing history shows the decision that was actually taken.
+   */
+  audience_segment?: string;             // taxonomy id, e.g. 'FAMILIES'
+  sales_channel?: string;                // taxonomy id, e.g. 'ONLINE_GROCERY'
+  activation_channels?: string[];        // taxonomy ids, e.g. ['EMAIL_CRM']
   timing_mode: TimingMode;
   planned_window?: string;               // e.g. '2026-08-24 to 2026-09-06' or 'Optimal discovery window'
   intervention_posture: InterventionPosture;
@@ -102,25 +109,64 @@ export interface CampaignDecisionExperiment {
   schema_version: string;                // "1.0"
 }
 
+/** A comparison weighs a decision against alternatives; below two there is nothing to weigh. */
+export const MIN_COMPARISON_EXPERIMENTS = 2;
+/**
+ * Above four, a comparison stops being a decision aid and becomes a spreadsheet: the reader
+ * can no longer hold the alternatives in mind at once, which is the only thing this surface
+ * is for.
+ */
+export const MAX_COMPARISON_EXPERIMENTS = 4;
+
 export interface ExperimentComparisonDimension {
   dimension: string;                     // e.g. 'Objective', 'Region', 'Incremental demand'
-  experiment_a_value: string;
-  experiment_b_value: string;
+  /** One value per compared experiment, in the same order as ExperimentComparison.experiments. */
+  values: string[];
   difference_summary?: string;
+  /** True when the compared experiments do not all agree on this dimension. */
   is_focal_difference?: boolean;
+}
+
+/**
+ * How one experiment scores on an explainable dimension.
+ *
+ * There is deliberately no single composite score. Collapsing commercial return, execution
+ * risk and evidence strength into one number would invent a precision the inputs do not
+ * carry, and would hide the case this surface exists to show — that the best commercial
+ * option and the safest one are often different experiments.
+ */
+export interface ExperimentStandingDimension {
+  /** 'commercial' | 'demand' | 'readiness' | 'evidence' */
+  dimension: string;
+  leader_experiment_ids: string[];
+  /** Why these lead — stated from the preserved snapshots, never asserted beyond them. */
+  basis: string;
+  /** False when the snapshots do not separate the experiments on this dimension at all. */
+  separates: boolean;
 }
 
 export interface ComparisonSynthesis {
   headline: string;                      // Concise summary of difference
   what_changed: string;                  // Deterministic breakdown of delta
   why_it_matters: string;                // Strategic/commercial trade-off synthesis
-  stronger_experiment_id?: string;       // Recommended configuration ID if clear
+  /** Best commercial outcome, where the evidence separates the set. Absent when it does not. */
+  stronger_experiment_id?: string;
   recommendation_rationale?: string;
+  /** Lowest execution risk, which may be a different experiment from the commercial leader. */
+  lowest_execution_risk_experiment_id?: string;
+  /** Per-dimension standing, so a reader can see why a leader leads. */
+  standings?: ExperimentStandingDimension[];
+  /** Material trade-offs between the compared configurations, stated in outcome terms. */
+  trade_offs?: string[];
+  /** Weaknesses and risks that survive whichever option is chosen. */
+  watch_items?: string[];
+  /** The concrete next action for the analyst. */
+  next_move?: string;
 }
 
 export interface ExperimentComparison {
-  experiment_a: CampaignDecisionExperiment;
-  experiment_b: CampaignDecisionExperiment;
+  /** Compared experiments in selection order. Length is 2–4. */
+  experiments: CampaignDecisionExperiment[];
   dimensions: ExperimentComparisonDimension[];
   synthesis: ComparisonSynthesis;
   compared_at: string;
@@ -198,9 +244,30 @@ export function validateExperimentComparison(
   comp: Partial<ExperimentComparison>
 ): { valid: boolean; errors: string[] } {
   const errors: string[] = [];
-  if (!comp.experiment_a) errors.push('Missing experiment_a');
-  if (!comp.experiment_b) errors.push('Missing experiment_b');
-  if (!comp.dimensions || !Array.isArray(comp.dimensions)) errors.push('Missing dimensions array');
+  if (!Array.isArray(comp.experiments)) {
+    errors.push('Missing experiments array');
+  } else {
+    if (comp.experiments.length < MIN_COMPARISON_EXPERIMENTS) {
+      errors.push(`A comparison needs at least ${MIN_COMPARISON_EXPERIMENTS} experiments`);
+    }
+    if (comp.experiments.length > MAX_COMPARISON_EXPERIMENTS) {
+      errors.push(`A comparison holds at most ${MAX_COMPARISON_EXPERIMENTS} experiments`);
+    }
+  }
+  if (!comp.dimensions || !Array.isArray(comp.dimensions)) {
+    errors.push('Missing dimensions array');
+  } else if (Array.isArray(comp.experiments)) {
+    // A dimension row that does not carry one value per experiment would render columns
+    // against the wrong experiment — a silent misattribution, not a formatting bug.
+    const mismatched = comp.dimensions.filter(d => (d.values || []).length !== comp.experiments!.length);
+    if (mismatched.length > 0) {
+      errors.push(
+        `Dimension rows must carry one value per compared experiment: ${mismatched
+          .map(d => d.dimension)
+          .join(', ')}`
+      );
+    }
+  }
   if (!comp.synthesis) errors.push('Missing synthesis');
   return { valid: errors.length === 0, errors };
 }

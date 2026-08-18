@@ -41,6 +41,17 @@ import {
   validateCounterfactualBaseline,
   validateCausalDemandContribution
 } from '../packages/contracts/src/index';
+import {
+  resolveCategory,
+  resolveChannel,
+  resolveSegment,
+  segmentLabel,
+  channelLabel,
+  activationLabel,
+  isActivationCompatible,
+  discountIsConfinableToSegment,
+  executionLeadTimeDays
+} from '../packages/contracts/src/campaign-decision-taxonomy-model';
 import { getCampaignIntentById } from './campaign-intent-store';
 import { evaluateCampaignDecision } from './campaign-causal-engine';
 import { discoverCampaignOpportunity } from './campaign-opportunity-engine';
@@ -962,6 +973,75 @@ export function evaluateOperational(bundle: EvalBundle): {
     );
   }
 
+  /**
+   * O7 — the route to customer carries its own execution exposure, independent of supply.
+   * A store-wide repricing and an app-only offer are not the same operational commitment,
+   * and the difference is invisible unless readiness says so.
+   */
+  const routeChannel = resolveChannel(bundle.campaign.audience_market.channel);
+  if (routeChannel && routeChannel.operational_risk_class !== 'LOW') {
+    const routeSeverity = routeChannel.operational_risk_class === 'ELEVATED' ? 'CONSTRAINT' : 'WATCH';
+    state = raiseState(state, routeChannel.operational_risk_class === 'ELEVATED' ? 'CONSTRAINED' : 'WATCH');
+    findings.push(
+      finding(
+        'O7_route_execution_exposure',
+        'O7',
+        'OPERATIONAL',
+        routeSeverity,
+        `${routeChannel.display_label} needs about ${executionLeadTimeDays(
+          bundle.campaign.audience_market.channel,
+          bundle.campaign.audience_market.activation_channels
+        )} working days to go live. ${routeChannel.primary_execution_risk}`,
+        true,
+        [
+          ev(
+            'CDI-01',
+            'audience_market.channel',
+            bundle.campaign.audience_market.channel || '',
+            'DECLARED_INPUT',
+            false
+          )
+        ]
+      )
+    );
+  }
+
+  /**
+   * O8 — the constraint that binds this category regardless of the commercial case. Fresh
+   * produce spoils whatever the contribution says; frozen volume can be borrowed from a
+   * later week. Read from the catalogue-backed taxonomy, not asserted here.
+   */
+  const scopeCategory = resolveCategory(bundle.campaign.campaign_intent.category);
+  if (scopeCategory) {
+    const categorySeverity = scopeCategory.waste_sensitivity === 'HIGH' ? 'CONSTRAINT' : 'WATCH';
+    state = raiseState(state, scopeCategory.waste_sensitivity === 'HIGH' ? 'CONSTRAINED' : 'WATCH');
+    findings.push(
+      finding(
+        'O8_category_binding_constraint',
+        'O8',
+        'OPERATIONAL',
+        categorySeverity,
+        `${scopeCategory.display_label}: ${scopeCategory.binding_constraint}${
+          scopeCategory.supplier_count === 0
+            ? ' No catalogued supplier covers this category, so supply assurance cannot be evidenced.'
+            : scopeCategory.supplier_count === 1
+              ? ' A single catalogued supplier carries the whole category.'
+              : ''
+        }`,
+        true,
+        [
+          ev(
+            'CDI-01',
+            'campaign_intent.category',
+            bundle.campaign.campaign_intent.category,
+            'DECLARED_INPUT',
+            false
+          )
+        ]
+      )
+    );
+  }
+
   // O6 depends on ESF-2 supply signals that CDI-04 does not consume. Published, not silent.
   findings.push(
     finding(
@@ -1259,7 +1339,12 @@ export function evaluateCustomer(bundle: EvalBundle): {
     );
   }
 
-  if (bundle.campaign.audience_market.customer_segment) {
+  const statedSegment = bundle.campaign.audience_market.customer_segment;
+  const segmentDefinition = resolveSegment(statedSegment);
+  // Targeting everybody makes no audience claim, so there is no assumption to flag.
+  const segmentIsTargeted = !!statedSegment && segmentDefinition?.id !== 'ALL_CUSTOMERS';
+
+  if (segmentIsTargeted) {
     state = raiseState(state, 'WATCH');
     findings.push(
       finding(
@@ -1267,13 +1352,79 @@ export function evaluateCustomer(bundle: EvalBundle): {
         'U4',
         'CUSTOMER',
         'WATCH',
-        `customer_segment "${bundle.campaign.audience_market.customer_segment}" stated without supporting customer signal — assumption, not evidence.`,
+        segmentDefinition
+          ? `Audience "${segmentDefinition.display_label}" is a stated targeting intent, not a measured cohort. ${segmentDefinition.evidence_requirement}`
+          : `Audience "${statedSegment}" is stated as free text with no supporting customer signal — an assumption, not evidence.`,
+        true,
+        [ev('CDI-01', 'audience_market.customer_segment', statedSegment!, 'DECLARED_INPUT', false)]
+      )
+    );
+  }
+
+  /**
+   * A targeted audience on a route that cannot address an individual customer means the
+   * discount reaches everyone. That is a customer-dimension constraint, not a footnote: the
+   * campaign is paying for volume it was never trying to buy.
+   */
+  if (
+    segmentIsTargeted &&
+    !discountIsConfinableToSegment(
+      statedSegment,
+      bundle.campaign.audience_market.channel,
+      bundle.campaign.audience_market.activation_channels
+    )
+  ) {
+    state = raiseState(state, 'CONSTRAINED');
+    findings.push(
+      finding(
+        'U6_offer_not_confinable',
+        'U6',
+        'CUSTOMER',
+        'CONSTRAINT',
+        `${segmentLabel(statedSegment)} is targeted through ${channelLabel(
+          bundle.campaign.audience_market.channel
+        )}, which cannot confine an offer to that audience — any discount is paid across the whole base.`,
+        true,
+        [
+          ev('CDI-01', 'audience_market.customer_segment', statedSegment!, 'DECLARED_INPUT', false),
+          ev(
+            'CDI-01',
+            'audience_market.channel',
+            bundle.campaign.audience_market.channel || '',
+            'DECLARED_INPUT',
+            false
+          )
+        ]
+      )
+    );
+  }
+
+  /**
+   * An activation route that cannot reach customers buying through the chosen sales channel
+   * is spend with no path to the basket. Named per route so the planner can drop it.
+   */
+  const incoherentActivations = (bundle.campaign.audience_market.activation_channels || []).filter(
+    a => !isActivationCompatible(bundle.campaign.audience_market.channel, a)
+  );
+  if (incoherentActivations.length > 0) {
+    state = raiseState(state, 'WATCH');
+    findings.push(
+      finding(
+        'U7_activation_channel_mismatch',
+        'U7',
+        'CUSTOMER',
+        'WATCH',
+        `${incoherentActivations
+          .map(a => activationLabel(a))
+          .join(', ')} does not reach customers buying through ${channelLabel(
+          bundle.campaign.audience_market.channel
+        )}.`,
         true,
         [
           ev(
             'CDI-01',
-            'audience_market.customer_segment',
-            bundle.campaign.audience_market.customer_segment,
+            'audience_market.activation_channels',
+            incoherentActivations.join(', '),
             'DECLARED_INPUT',
             false
           )
@@ -1665,7 +1816,13 @@ function applyCeilingCaps(state: ReadinessState, caps: string[]): ReadinessState
 
 function headlineFor(state: ReadinessState, vetoes: ReadinessVeto[], conditions: ReadinessCondition[]): string {
   if (state === 'DO_NOT_PROCEED') {
-    return `Do not proceed — ${vetoes.map(v => v.veto_id).join(', ') || 'hard veto'} fired for this intervention as specified.`;
+    // The headline is the most prominent sentence on the readiness surface, so it states
+    // what is wrong, not which rule fired. The veto ids stay on each finding and in
+    // technical provenance, where an engineer can still reach them.
+    const reason = vetoes[0]?.statement?.trim();
+    return reason
+      ? `Do not proceed — ${reason.replace(/\.$/, '')}.${vetoes.length > 1 ? ` ${vetoes.length - 1} further blocking issue${vetoes.length > 2 ? 's' : ''} also apply.` : ''}`
+      : 'Do not proceed — a blocking constraint rules this intervention out as specified.';
   }
   if (state === 'REVIEW') {
     return 'Review required — the model cannot responsibly distinguish GO from a veto, or a constraint lacks a discharge test.';

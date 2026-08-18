@@ -45,11 +45,21 @@ export interface BaselineObjective {
     cost_note?: string;
     capacity_cap_note?: string;
 }
-/** Area 3 — Audience & market scope (no micro-market scoring). */
+/**
+ * Area 3 — Audience & market scope (no micro-market scoring).
+ *
+ * `channel` is the sales channel — where the customer transacts. `activation_channels` are
+ * the media routes used to reach them. They are separate fields because they fail
+ * separately: an in-store point-of-sale campaign reaches nobody transacting online, and a
+ * shelf-edge price cut cannot be confined to a targeted customer however it is advertised.
+ * Values are the ids in campaign-decision-taxonomy-model; free text stays accepted so
+ * intents recorded before the taxonomy existed keep loading.
+ */
 export interface AudienceMarket {
     region: string;
     customer_segment?: string;
     channel?: string;
+    activation_channels?: string[];
     store_cohort_hint?: string;
     timing_mode: TimingMode;
     planned_start?: string;

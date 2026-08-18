@@ -68,6 +68,7 @@ export type CausalDriverId =
   | 'mechanic_response'
   | 'non_promotion_response'
   | 'audience_response'
+  | 'channel_response'
   | 'place_response'
   | 'temporal_response'
   | 'external_signal_response'

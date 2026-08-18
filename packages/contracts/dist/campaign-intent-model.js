@@ -60,8 +60,11 @@ function createDefaultCampaignIntentDraft(tenantId, sessionId, options) {
         campaign_intent: {
             objective_type: 'REVENUE_ACCELERATION',
             intervention_posture: 'UNDECIDED',
-            framing_question: 'Should we intervene on Fresh Dairy in the North West — and is promotion even the right lever?',
-            category: 'Fresh Dairy',
+            framing_question: 'Should we intervene on Dairy in the North West — and is promotion even the right lever?',
+            // Catalogue-backed: P004 (Cheddar Mature 400g) is a Dairy line. The earlier default,
+            // "Fresh Dairy", matched no catalogue category, so the seeded decision opened against
+            // a category the estate does not stock.
+            category: 'DAIRY',
             sku_scope: ['P004'],
             provisional_mechanic: undefined,
             provisional_discount_depth: undefined
@@ -78,8 +81,12 @@ function createDefaultCampaignIntentDraft(tenantId, sessionId, options) {
         },
         audience_market: {
             region: 'North West',
-            customer_segment: 'Family Shoppers',
-            channel: 'Omnichannel',
+            // A new decision has not yet chosen who to target or how to reach them. The neutral
+            // values say exactly that, and leave targeting as something the analyst decides
+            // rather than something the draft assumed on their behalf.
+            customer_segment: 'ALL_CUSTOMERS',
+            channel: 'ALL_CHANNELS',
+            activation_channels: [],
             store_cohort_hint: undefined,
             timing_mode: 'FIND_BEST_WINDOW',
             planned_start: undefined,
@@ -147,6 +154,9 @@ function validateAudienceMarket(area) {
         errors.push('audience_market.region is required');
     if (!area.timing_mode)
         errors.push('audience_market.timing_mode is required');
+    if (area.activation_channels && !Array.isArray(area.activation_channels)) {
+        errors.push('audience_market.activation_channels must be an array when provided');
+    }
     if (area.timing_mode === 'KNOWN_DATES') {
         if (!area.planned_start)
             errors.push('audience_market.planned_start is required when timing_mode is KNOWN_DATES');
