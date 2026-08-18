@@ -237,6 +237,27 @@ export function validateCampaignDecisionExperiment(
   if (!exp.decision_recommendation) errors.push('Missing required field: decision_recommendation');
   if (typeof exp.incremental_demand_pct !== 'number') errors.push('incremental_demand_pct must be a number');
   if (typeof exp.contribution_impact_gbp !== 'number') errors.push('contribution_impact_gbp must be a number');
+
+  // Array fields are checked at write time because every reader joins them. A payload whose
+  // sku_scope arrived as a string was accepted and then broke each render that called .join —
+  // permanently, since the record is immutable once preserved, so the execution brief for that
+  // experiment could never be produced again.
+  const arrayFields: Array<[string, unknown]> = [
+    ['sku_scope', exp.sku_scope],
+    ['major_constraints', exp.major_constraints],
+    ['activation_channels', exp.activation_channels]
+  ];
+  for (const [name, value] of arrayFields) {
+    if (value === undefined) continue;
+    if (!Array.isArray(value)) {
+      errors.push(`${name} must be an array of strings when provided`);
+      continue;
+    }
+    if (value.some(entry => typeof entry !== 'string')) {
+      errors.push(`${name} must contain only strings`);
+    }
+  }
+
   return { valid: errors.length === 0, errors };
 }
 

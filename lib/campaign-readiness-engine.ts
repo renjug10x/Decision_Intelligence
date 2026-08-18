@@ -42,6 +42,7 @@ import {
   validateCausalDemandContribution
 } from '../packages/contracts/src/index';
 import {
+  evidenceStrengthForBasis,
   resolveCategory,
   resolveChannel,
   resolveSegment,
@@ -1000,6 +1001,18 @@ export function evaluateOperational(bundle: EvalBundle): {
             bundle.campaign.audience_market.channel || '',
             'DECLARED_INPUT',
             false
+          ),
+          // The planner declared the route; the lead time attached to it did not come from
+          // them, and is reported at the strength its own basis supports.
+          ev(
+            'CDI-01',
+            'route_execution_lead_time_days',
+            executionLeadTimeDays(
+              bundle.campaign.audience_market.channel,
+              bundle.campaign.audience_market.activation_channels
+            ),
+            evidenceStrengthForBasis(routeChannel.evidence_basis),
+            false
           )
         ]
       )
@@ -1030,6 +1043,16 @@ export function evaluateOperational(bundle: EvalBundle): {
         }`,
         true,
         [
+          // The catalogue facts this finding rests on — supplier concentration and the binding
+          // constraint — are read from the estate catalogue, not declared by the planner, and
+          // are cited at the strength that basis supports.
+          ev(
+            'CDI-01',
+            'category_supplier_count',
+            scopeCategory.supplier_count,
+            evidenceStrengthForBasis(scopeCategory.evidence_basis),
+            false
+          ),
           ev(
             'CDI-01',
             'campaign_intent.category',

@@ -1633,14 +1633,29 @@ export default function CampaignDecisionCanvas({
     if (!slot || slot.selected.length === 0) return;
     const accepted = slot.selected;
 
+    // The accepted lines keep their draft provenance on the record. Storing them as bare text
+    // left the intent unable to say which context the planner wrote and which arrived as a
+    // draft they approved — the distinction the NON_AUTHORITATIVE_DRAFT stamp exists to make.
+    const draftProvenance = [
+      ...(intent.decision_context.assistant_drafted_entries || []),
+      ...accepted
+    ];
+
     if (field === 'CONTEXTUAL_FACTORS') {
       patchContext({
-        contextual_factor_notes: [...(intent.decision_context.contextual_factor_notes || []), ...accepted]
+        contextual_factor_notes: [...(intent.decision_context.contextual_factor_notes || []), ...accepted],
+        assistant_drafted_entries: draftProvenance
       });
     } else if (field === 'OPEN_QUESTIONS') {
-      patchContext({ open_questions: [...(intent.decision_context.open_questions || []), ...accepted] });
+      patchContext({
+        open_questions: [...(intent.decision_context.open_questions || []), ...accepted],
+        assistant_drafted_entries: draftProvenance
+      });
     } else {
-      patchContext({ assumptions: [...(intent.decision_context.assumptions || []), ...accepted] });
+      patchContext({
+        assumptions: [...(intent.decision_context.assumptions || []), ...accepted],
+        assistant_drafted_entries: draftProvenance
+      });
     }
 
     setSuggestionState(prev => ({ ...prev, [field]: null }));
@@ -4332,16 +4347,33 @@ export default function CampaignDecisionCanvas({
                             >
                               Why no expiry date is given
                             </div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-                              {(
+                            {/*
+                              What the estate would have to hold, in the planner's terms. The raw
+                              field name stays on the heading's tooltip: naming the engine field
+                              here said which variable was unset rather than which measurement is
+                              missing.
+                            */}
+                            <div
+                              style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}
+                              title={`required field: ${(
                                 validityAssessment.half_life_basis?.quantitative_measure ||
                                 QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT
-                              ).field}
+                              ).field}`}
+                            >
+                              {humaniseFieldPath(
+                                (
+                                  validityAssessment.half_life_basis?.quantitative_measure ||
+                                  QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT
+                                ).field
+                              )}
                               {' — '}
-                              {(
-                                validityAssessment.half_life_basis?.quantitative_measure ||
-                                QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT
-                              ).status}
+                              {executiveLabel(
+                                'required_input_status',
+                                (
+                                  validityAssessment.half_life_basis?.quantitative_measure ||
+                                  QUANTITATIVE_HALF_LIFE_REQUIRED_INPUT
+                                ).status
+                              )}
                             </div>
                             <div style={{ marginTop: 4, fontSize: '0.6875rem', color: 'var(--text-muted)', lineHeight: 1.4 }}>
                               {(

@@ -556,6 +556,13 @@ const CONTRACT_STATUS: Record<string, ExecutivePhrase> = {
   }
 };
 
+const REQUIRED_INPUT_STATUS: Record<string, ExecutivePhrase> = {
+  AWAITING_AUTHORITATIVE_SOURCE: {
+    label: 'no authoritative source yet',
+    detail: 'The estate holds nothing that could supply this measurement, so it is not being estimated.'
+  }
+};
+
 const REGISTRIES: Record<string, Record<string, ExecutivePhrase>> = {
   play_admissibility: PLAY_ADMISSIBILITY,
   economics_completeness: ECONOMICS_COMPLETENESS,
@@ -571,6 +578,7 @@ const REGISTRIES: Record<string, Record<string, ExecutivePhrase>> = {
   objective_class: OBJECTIVE_CLASS,
   play_kind: PLAY_KIND,
   campaign_objective: CAMPAIGN_OBJECTIVE,
+  required_input_status: REQUIRED_INPUT_STATUS,
   intervention_posture: INTERVENTION_POSTURE,
   primary_metric: PRIMARY_METRIC,
   timing_mode: TIMING_MODE,

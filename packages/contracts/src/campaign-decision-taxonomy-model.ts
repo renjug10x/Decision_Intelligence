@@ -805,6 +805,21 @@ export function discountIsConfinableToSegment(
   return !c.targeting_claimed || c.confinable;
 }
 
+/**
+ * The evidence strength a readiness finding may claim for a figure of this basis.
+ *
+ * Readiness cited every taxonomy-derived figure as `DECLARED_INPUT` because the planner had
+ * declared the dimension. What the planner declared is the channel; the lead time attached to
+ * it is a demonstration assumption, and reporting the two at the same strength presented a
+ * planning assumption as a stated fact. Each finding can now cite the dimension the planner
+ * chose and the figure it rests on at their own strengths.
+ */
+export function evidenceStrengthForBasis(
+  basis: DimensionEvidenceBasis
+): 'DERIVED' | 'SEEDED_ASSUMPTION' {
+  return basis === 'DEMO_ASSUMPTION' ? 'SEEDED_ASSUMPTION' : 'DERIVED';
+}
+
 export const CAMPAIGN_CATEGORY_IDS: CampaignCategoryId[] = CAMPAIGN_CATEGORIES.map(c => c.id);
 export const CAMPAIGN_SEGMENT_IDS: CampaignSegmentId[] = CAMPAIGN_SEGMENTS.map(s => s.id);
 export const CAMPAIGN_CHANNEL_IDS: CampaignChannelId[] = CAMPAIGN_CHANNELS.map(c => c.id);

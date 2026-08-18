@@ -14,6 +14,8 @@
  */
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.CDI01_FORBIDDEN_CALCULATION_KEYS = exports.CAMPAIGN_CANVAS_AREA_ORDER = void 0;
+exports.isAssistantDrafted = isAssistantDrafted;
+exports.assistantDraftedCount = assistantDraftedCount;
 exports.buildCampaignIntentId = buildCampaignIntentId;
 exports.createDefaultCampaignIntentDraft = createDefaultCampaignIntentDraft;
 exports.validateCampaignIntentCore = validateCampaignIntentCore;
@@ -26,6 +28,25 @@ exports.deriveCanvasProgress = deriveCanvasProgress;
 exports.validateCampaignIntent = validateCampaignIntent;
 exports.projectCampaignIntentToCommercialIntent = projectCampaignIntentToCommercialIntent;
 exports.assertNoFutureCdiCalculations = assertNoFutureCdiCalculations;
+/** Whether a decision-context entry entered the record as an accepted assistant draft. */
+function isAssistantDrafted(context, entry) {
+    if (!context?.assistant_drafted_entries || !entry)
+        return false;
+    const target = entry.trim();
+    return context.assistant_drafted_entries.some(e => e.trim() === target);
+}
+/** Count of decision-context entries still carrying assistant-draft provenance. */
+function assistantDraftedCount(context) {
+    const drafted = context?.assistant_drafted_entries || [];
+    if (drafted.length === 0)
+        return 0;
+    const live = new Set([
+        ...(context?.contextual_factor_notes || []),
+        ...(context?.open_questions || []),
+        ...(context?.assumptions || [])
+    ].map(e => e.trim()));
+    return drafted.filter(e => live.has(e.trim())).length;
+}
 exports.CAMPAIGN_CANVAS_AREA_ORDER = [
     'CAMPAIGN_INTENT',
     'BASELINE_OBJECTIVE',

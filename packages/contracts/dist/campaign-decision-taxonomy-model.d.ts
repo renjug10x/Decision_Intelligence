@@ -217,6 +217,16 @@ export declare function evaluateSubsidyConfinement(segment?: string | null, chan
  * An untargeted campaign has nothing to confine and is therefore not a leak.
  */
 export declare function discountIsConfinableToSegment(segment?: string | null, channel?: string | null, activations?: string[] | null): boolean;
+/**
+ * The evidence strength a readiness finding may claim for a figure of this basis.
+ *
+ * Readiness cited every taxonomy-derived figure as `DECLARED_INPUT` because the planner had
+ * declared the dimension. What the planner declared is the channel; the lead time attached to
+ * it is a demonstration assumption, and reporting the two at the same strength presented a
+ * planning assumption as a stated fact. Each finding can now cite the dimension the planner
+ * chose and the figure it rests on at their own strengths.
+ */
+export declare function evidenceStrengthForBasis(basis: DimensionEvidenceBasis): 'DERIVED' | 'SEEDED_ASSUMPTION';
 export declare const CAMPAIGN_CATEGORY_IDS: CampaignCategoryId[];
 export declare const CAMPAIGN_SEGMENT_IDS: CampaignSegmentId[];
 export declare const CAMPAIGN_CHANNEL_IDS: CampaignChannelId[];

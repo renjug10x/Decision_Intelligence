@@ -130,17 +130,64 @@ export function parseSuggestionArray(raw: string): unknown {
  */
 const FABRICATED_FIGURE_PATTERNS: readonly RegExp[] = [
   /%/,
-  /\b(?:per\s?cent|percent|percentage\s+points?|ppts?|bps|basis\s+points)\b/i,
-  /[£$€¥₹]/,
-  /\b(?:gbp|usd|eur|jpy)\b/i,
+  /\b(?:per\s?cent|percent|pct|pc|percentage\s+points?|ppts?|pp|bps|basis\s+points)\b/i,
+  /\p{Sc}/u, // any currency symbol, not a hand-listed few
+  /\b(?:gbp|usd|eur|jpy|inr|cad|aud|chf|cny)\b/i,
   /\d[\d,]*\.\d/, // decimal quantity: 3.4, 30.2
   /\d{1,3}(?:,\d{3})+/, // thousands separated: 8,450
   /\b\d{3,}\b/, // any three-digit-or-larger figure
-  /\b\d+(?:\.\d+)?\s*(?:k|m|bn|thousand|million|billion)\b/i
+  /\b\d+(?:\.\d+)?\s*(?:k|m|bn|thousand|million|billion)\b/i,
+  /\p{No}/u // ½, ①, superscript digits — numerals that never fold to ASCII
 ];
 
+/**
+ * Fold a suggestion into a form the ASCII figure patterns can actually see.
+ *
+ * The patterns are written in ASCII, so a model returning "３０％" or "٣٠" stated a measurement
+ * the guard did not recognise — the rule held for the characters it expected and let the same
+ * claim through in another script. NFKC folds width and compatibility forms (％→%, ＄→$, ３→3);
+ * decimal digits in scripts NFKC leaves alone (Arabic-Indic, Devanagari and the rest) are then
+ * mapped by their offset from their own script's zero.
+ */
+export function foldFiguresToAscii(text: string): string {
+  return text
+    .normalize('NFKC')
+    // Percent and per-mille signs NFKC leaves alone. "٣٠٪" folds its digits but would keep an
+    // Arabic percent sign the ASCII pattern cannot see, so the claim would still slip through.
+    .replace(/[\u066A\u2030\u2031\uFE6A]/g, '%')
+    .replace(/\p{Nd}/gu, ch => {
+      const zero = decimalScriptZero(ch);
+      return zero === null ? ch : String(ch.codePointAt(0)! - zero);
+    });
+}
+
+/**
+ * Code point of "0" in the decimal script `ch` belongs to, or null if it cannot be located.
+ * Decimal scripts lay their ten digits out contiguously, so the zero is at most nine below and
+ * is the lowest code point in that unbroken run.
+ */
+function decimalScriptZero(ch: string): number | null {
+  const cp = ch.codePointAt(0);
+  if (cp === undefined) return null;
+  for (let back = 0; back <= 9; back++) {
+    const candidate = cp - back;
+    if (!/\p{Nd}/u.test(String.fromCodePoint(candidate))) return candidate + 1 <= cp ? candidate + 1 : null;
+    if (back === 9) return candidate;
+  }
+  return null;
+}
+
+/**
+ * Numerals that carry a quantity without ever being ASCII digits — ½, ⑤, superscripts. These
+ * are judged on the raw text, because NFKC rewrites ½ as "1⁄2" and ⑤ as "5", destroying the
+ * evidence this check exists to find.
+ */
+const NON_ASCII_NUMERAL = /\p{No}/u;
+
 function statesAFigure(text: string): boolean {
-  return FABRICATED_FIGURE_PATTERNS.some(pattern => pattern.test(text));
+  if (NON_ASCII_NUMERAL.test(text)) return true;
+  const folded = foldFiguresToAscii(text);
+  return FABRICATED_FIGURE_PATTERNS.some(pattern => pattern.test(folded));
 }
 
 const ABBREVIATIONS = /\b(?:e\.g|i\.e|etc|vs|approx|no|dr|mr|mrs|ms)\.\s*/gi;

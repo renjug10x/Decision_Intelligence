@@ -103,10 +103,41 @@ export interface DecisionContextArea {
   contextual_factor_notes?: string[];
   open_questions?: string[];
   assumptions?: string[];
+  /**
+   * Entries above that the planner accepted from an assistant draft, recorded verbatim as
+   * accepted.
+   *
+   * The three arrays stay plain strings so every existing reader keeps working, but a record
+   * that cannot tell a drafted line from an authored one has lost the provenance the draft was
+   * stamped with. An entry the planner later edits stops matching, which is the intended
+   * reading: once edited, the line is theirs.
+   */
+  assistant_drafted_entries?: string[];
   commercial_intent_ref?: string;
   decision_state_id?: string;
   scenario_id?: string;
   scenario_family?: string;
+}
+
+/** Whether a decision-context entry entered the record as an accepted assistant draft. */
+export function isAssistantDrafted(context: DecisionContextArea | undefined, entry: string): boolean {
+  if (!context?.assistant_drafted_entries || !entry) return false;
+  const target = entry.trim();
+  return context.assistant_drafted_entries.some(e => e.trim() === target);
+}
+
+/** Count of decision-context entries still carrying assistant-draft provenance. */
+export function assistantDraftedCount(context: DecisionContextArea | undefined): number {
+  const drafted = context?.assistant_drafted_entries || [];
+  if (drafted.length === 0) return 0;
+  const live = new Set(
+    [
+      ...(context?.contextual_factor_notes || []),
+      ...(context?.open_questions || []),
+      ...(context?.assumptions || [])
+    ].map(e => e.trim())
+  );
+  return drafted.filter(e => live.has(e.trim())).length;
 }
 
 export interface CampaignCanvasProgress {

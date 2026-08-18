@@ -53,6 +53,7 @@ exports.isActivationCompatible = isActivationCompatible;
 exports.executionLeadTimeDays = executionLeadTimeDays;
 exports.evaluateSubsidyConfinement = evaluateSubsidyConfinement;
 exports.discountIsConfinableToSegment = discountIsConfinableToSegment;
+exports.evidenceStrengthForBasis = evidenceStrengthForBasis;
 /**
  * Counts, subcategories and supplier concentration below are read from the enterprise
  * catalogue (50 SKUs / 20 suppliers). They are asserted against that catalogue by test, so
@@ -602,6 +603,18 @@ function evaluateSubsidyConfinement(segment, channel, activations) {
 function discountIsConfinableToSegment(segment, channel, activations) {
     const c = evaluateSubsidyConfinement(segment, channel, activations);
     return !c.targeting_claimed || c.confinable;
+}
+/**
+ * The evidence strength a readiness finding may claim for a figure of this basis.
+ *
+ * Readiness cited every taxonomy-derived figure as `DECLARED_INPUT` because the planner had
+ * declared the dimension. What the planner declared is the channel; the lead time attached to
+ * it is a demonstration assumption, and reporting the two at the same strength presented a
+ * planning assumption as a stated fact. Each finding can now cite the dimension the planner
+ * chose and the figure it rests on at their own strengths.
+ */
+function evidenceStrengthForBasis(basis) {
+    return basis === 'DEMO_ASSUMPTION' ? 'SEEDED_ASSUMPTION' : 'DERIVED';
 }
 exports.CAMPAIGN_CATEGORY_IDS = exports.CAMPAIGN_CATEGORIES.map(c => c.id);
 exports.CAMPAIGN_SEGMENT_IDS = exports.CAMPAIGN_SEGMENTS.map(s => s.id);

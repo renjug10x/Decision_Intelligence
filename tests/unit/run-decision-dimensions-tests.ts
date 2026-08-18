@@ -44,7 +44,11 @@ import {
   validateExperimentComparison,
   type CampaignDecisionExperiment
 } from '../../packages/contracts/src/campaign-experiment-model';
-import { createDefaultCampaignIntentDraft } from '../../packages/contracts/src/campaign-intent-model';
+import {
+  assistantDraftedCount,
+  createDefaultCampaignIntentDraft,
+  isAssistantDrafted
+} from '../../packages/contracts/src/campaign-intent-model';
 import { campaignExperimentStore } from '../../lib/campaign-experiment-store';
 import {
   clearCampaignIntents,
@@ -397,10 +401,21 @@ async function run() {
     'Targeting a cohort moves less estate demand than reaching the whole base',
     `all=${driver(untargeted.evaluation, 'audience_response')} price=${driver(priceSensitive.evaluation, 'audience_response')}`
   );
+  // Reach alone separates these two cohorts (0.28 vs 0.15), so comparing their raw responses
+  // passed even with promotional_responsiveness reduced to a constant. Dividing the response by
+  // each cohort's reach isolates the responsiveness term, which is the property under test.
+  const perReach = (evaluated: any, segmentId: string) =>
+    driver(evaluated, 'audience_response') / CAMPAIGN_SEGMENTS.find(x => x.id === segmentId)!.reach_share;
+  assert(
+    perReach(priceSensitive.evaluation, 'PRICE_SENSITIVE') >
+      perReach(highValue.evaluation, 'HIGH_VALUE') * 1.5,
+    'A highly promotion-responsive cohort out-responds a low-responsiveness one once reach is divided out',
+    `price=${perReach(priceSensitive.evaluation, 'PRICE_SENSITIVE').toFixed(2)} high=${perReach(highValue.evaluation, 'HIGH_VALUE').toFixed(2)}`
+  );
   assert(
     driver(priceSensitive.evaluation, 'audience_response') >
       driver(highValue.evaluation, 'audience_response'),
-    'A highly promotion-responsive cohort out-responds a low-responsiveness one at comparable reach',
+    'and it moves more estate demand overall at its wider reach',
     `price=${driver(priceSensitive.evaluation, 'audience_response')} highValue=${driver(highValue.evaluation, 'audience_response')}`
   );
   assert(
@@ -1174,9 +1189,41 @@ async function run() {
     !/from '@\/lib\/.*store'|from '\.\.\/.*store'/.test(routeSource),
     'The suggestion route imports no store — a draft cannot be persisted by generating it'
   );
+  // Grepping for three legacy identifier names only proved those three names were absent — a
+  // fallback introduced under any other name passed. The invariant is structural instead. The
+  // route does author sentence-shaped text (the prompt's rules and its example), so the rule is
+  // not "no prose" but "no prose the response path can reach": every such array must be
+  // registered in STATIC_SCAFFOLDING, which is the set validateSuggestions refuses to return.
+  const scaffoldingRegistry = (routeSource.match(/const STATIC_SCAFFOLDING[\s\S]*?\n\];/) || [''])[0];
+  const proseArrays = [...routeSource.matchAll(/const\s+([A-Z_][A-Z0-9_]*)[^=]*=\s*(\[[^\][]*\])/g)]
+    .filter(([, , literal]) => {
+      const strings = [...literal.matchAll(/'([^']{25,})'|"([^"]{25,})"/g)].map(x => x[1] || x[2]);
+      return strings.filter(str => str.split(' ').length >= 4).length >= 2;
+    })
+    .map(([, name]) => name);
+  const unregistered = proseArrays.filter(name => !scaffoldingRegistry.includes(name));
   assert(
-    !/mockAskNLQ|mockBriefing|FALLBACK_SUGGESTIONS/.test(routeSource),
-    'The route has no canned-content fallback path'
+    proseArrays.length > 0 && unregistered.length === 0,
+    'Every block of route-authored prose is registered as prompt scaffolding, so none of it can be returned as a suggestion',
+    unregistered.length ? `unregistered: ${unregistered.join(', ')}` : `checked: ${proseArrays.join(', ')}`
+  );
+
+  // Nothing previously asserted that the route still ran its own validator: §16 exercised the
+  // extracted function directly, so deleting the call site left every assertion green while raw
+  // provider output flowed to the planner. Parsed output must reach the response only through
+  // validateSuggestions, so the parser's result is required to be its argument.
+  const parseCalls = [...routeSource.matchAll(/parseSuggestionArray\s*\(/g)].length;
+  const parseInsideValidate = [...routeSource.matchAll(/validateSuggestions\s*\(\s*[\r\n\s]*parseSuggestionArray\s*\(/g)].length;
+  assert(
+    parseCalls > 0 && parseCalls === parseInsideValidate,
+    'Every parsed provider response reaches the caller only through validateSuggestions',
+    `parsed ${parseCalls}x, validated ${parseInsideValidate}x`
+  );
+  assert(
+    /if \(suggestions\.length === 0\)/.test(routeSource) &&
+      routeSource.indexOf('if (suggestions.length === 0)') <
+        routeSource.lastIndexOf('NextResponse.json({'),
+    'and a response that survived validation with nothing usable is an error, not an empty success'
   );
 
   // The canvas keeps drafts out of governed state until accepted.
@@ -1347,6 +1394,40 @@ async function run() {
       canvasSource
     ),
     'The unmeasurable-dimension note does not print a raw engine field path as visible text'
+  );
+
+  // The validity disclosure explains why no expiry date is given. It printed the engine field
+  // that would have to exist ("observed_decision_validity_outcome_series") as its visible body.
+  assert(
+    !/\)\.field\}\s*\n\s*\{' — '\}/.test(canvasSource),
+    'The validity disclosure does not print a raw engine field path as its visible body'
+  );
+  assert(
+    /humaniseFieldPath\(/.test(canvasSource) &&
+      /executiveLabel\(\s*\n?\s*'required_input_status'/.test(canvasSource),
+    'and states the missing measurement and its status in planner terms instead'
+  );
+
+  // Assistant drafts keep their provenance once accepted, so a stored line can still be told
+  // apart from one the planner wrote.
+  const draftedIntent = createDefaultCampaignIntentDraft(TENANT, 'sess_draft_prov');
+  draftedIntent.decision_context.assumptions = ['Supplier capacity holds through the window'];
+  draftedIntent.decision_context.assistant_drafted_entries = [
+    'Supplier capacity holds through the window'
+  ];
+  assert(
+    isAssistantDrafted(draftedIntent.decision_context, 'Supplier capacity holds through the window') &&
+      !isAssistantDrafted(draftedIntent.decision_context, 'A line the planner typed'),
+    'An accepted draft is distinguishable from planner-authored context on the record'
+  );
+  assert(
+    assistantDraftedCount(draftedIntent.decision_context) === 1,
+    'and the count reflects only drafted entries still present in the decision context'
+  );
+  draftedIntent.decision_context.assumptions = ['Supplier capacity holds through the window, revised'];
+  assert(
+    assistantDraftedCount(draftedIntent.decision_context) === 0,
+    'An edited line stops claiming draft provenance — once edited it is the planner\'s own'
   );
 
   // ─────────────────────────────────────────────────────────────────────

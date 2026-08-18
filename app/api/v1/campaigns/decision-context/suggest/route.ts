@@ -98,7 +98,20 @@ function pruneCallerWindows(now: number): void {
   if (callerWindows.size >= MAX_TRACKED_CALLERS) callerWindows.clear();
 }
 
+/**
+ * Forwarding headers are only evidence of origin when something trusted sets them. Behind no
+ * proxy, `x-forwarded-for` is caller-supplied text, so keying a per-caller quota on it let one
+ * caller mint unlimited buckets by varying a header — the per-caller cap read as isolation it
+ * could not enforce.
+ *
+ * They are therefore honoured only when the deployment declares a trusted proxy in front. When
+ * it does not, every caller shares one bucket: the quota still bounds use, and it no longer
+ * claims a precision it does not have. The per-process cap bounds spend either way.
+ */
+const TRUSTS_PROXY_HEADERS = process.env.COGNIX_TRUST_PROXY_HEADERS === 'true';
+
 function networkOrigin(request: NextRequest): string {
+  if (!TRUSTS_PROXY_HEADERS) return 'shared-origin';
   const forwarded = (request.headers.get('x-forwarded-for') || '').split(',')[0].trim();
   if (forwarded) return forwarded.slice(0, 64);
   const real = (request.headers.get('x-real-ip') || '').trim();
@@ -325,6 +338,8 @@ export async function POST(request: NextRequest) {
   // The caller already sends these; requiring them gives the throttle an identity to count
   // against. They are self-declared, so they narrow abuse rather than authorising use — the
   // per-process cap below is what actually bounds what the server's key can be made to spend.
+  // A declared tenant is not an authenticated one: until there is a real identity to bill, the
+  // per-caller window is a courtesy limit and is documented as such.
   const tenantId = boundedText(payload?.tenant_id, 64);
   const sessionId = boundedText(payload?.session_id, 64);
   if (!tenantId || !sessionId) {
