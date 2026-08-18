@@ -8,3 +8,13 @@ node_modules
 scratch
 tmp
 coverage
+
+# Host env files must never enter the build context — a COPY . . would otherwise bake
+# whatever key sits in .env.local into every layer of the published image.
+.env
+.env.*
+
+# ...except the placeholder template, which holds no secret and is the only written statement
+# of which variables the stack needs. Excluding it left an image whose GEMINI_API_KEY routes
+# fail closed with nothing on disk explaining why.
+!.env.example

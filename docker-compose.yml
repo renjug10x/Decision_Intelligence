@@ -14,6 +14,16 @@ services:
       - COGNIX_WORLD_MODE=service
       - COGNIX_WORLD_SERVICE_URL=http://cognix-world:8081
       - LEARNING_SERVICE_URL=http://cognix-learning:8082
+      # Google Gemini API key. Server-side only: it is read from the host environment at run
+      # time, is never baked into the image, is never sent to the browser and is never accepted
+      # from a request body. Set it in the host shell or a .env file beside this compose file —
+      # see .env.example for the template.
+      #
+      # The :- default keeps the stack starting when it is unset; routes that need it fail
+      # closed rather than substituting invented content. In particular
+      # /api/v1/campaigns/decision-context/suggest returns 503 and drafts nothing when it is
+      # missing, so an unset key looks like a disabled assistant, not a broken one.
+      - GEMINI_API_KEY=${GEMINI_API_KEY:-}
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/api/v1/health?type=live || exit 1"]
       interval: 10s
