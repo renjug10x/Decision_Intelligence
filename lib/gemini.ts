@@ -6,12 +6,16 @@ import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
 let _client: GoogleGenerativeAI | null = null;
 let _model: GenerativeModel | null = null;
 
-// Google retires old model aliases frequently — try in order (free tier)
+// Try stable/widely available models first; Google retires aliases frequently.
 const GEMINI_MODELS = [
+  'gemini-2.0-flash',
   'gemini-2.5-flash',
   'gemini-2.5-flash-lite',
+  'gemini-1.5-flash',
   'gemini-flash-latest',
 ] as const;
+
+const GEMINI_REST_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
 function sanitizeApiKey(key: string): string {
   return key.trim().replace(/[\u2013\u2014]/g, '--').replace(/[^\x20-\x7E]/g, '');
@@ -23,63 +27,148 @@ function resolveApiKey(apiKey?: string): string {
   return sanitizeApiKey(key);
 }
 
-/** Call Gemini via the native REST API (supports both AIza standard and AQ auth keys). */
+function extractGeminiErrorText(body: string): string {
+  try {
+    const parsed = JSON.parse(body) as { error?: { message?: string; status?: string } };
+    return [parsed.error?.message, parsed.error?.status].filter(Boolean).join(' ');
+  } catch {
+    return body;
+  }
+}
+
+/** True when another model (or auth mode) may succeed — not a definitive key rejection. */
+function shouldTryNextModel(status: number, detail: string): boolean {
+  const lower = detail.toLowerCase();
+  if (status === 404) return true;
+  if (status >= 500) return true;
+  if (status === 400 || status === 429) {
+    return (
+      lower.includes('model') ||
+      lower.includes('not found') ||
+      lower.includes('not supported') ||
+      lower.includes('no longer available') ||
+      lower.includes('unavailable')
+    );
+  }
+  return (
+    lower.includes('not found') ||
+    lower.includes('no longer available') ||
+    lower.includes('not supported')
+  );
+}
+
+function isDefinitiveKeyFailure(status: number, detail: string): boolean {
+  const lower = detail.toLowerCase();
+  if (status !== 401 && status !== 403) return false;
+  return (
+    lower.includes('api key') ||
+    lower.includes('api_key') ||
+    lower.includes('invalid authentication') ||
+    lower.includes('permission_denied') ||
+    lower.includes('access_token_type_unsupported')
+  );
+}
+
+async function generateViaRest(
+  prompt: string,
+  key: string,
+  modelName: string,
+  auth: 'header' | 'query'
+): Promise<string> {
+  const url =
+    auth === 'query'
+      ? `${GEMINI_REST_BASE}/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(key)}`
+      : `${GEMINI_REST_BASE}/${encodeURIComponent(modelName)}:generateContent`;
+
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (auth === 'header') headers['x-goog-api-key'] = key;
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+    }),
+  });
+
+  const rawBody = await res.text();
+  if (!res.ok) {
+    const detail = extractGeminiErrorText(rawBody) || rawBody.slice(0, 300);
+    throw new Error(`Gemini API ${res.status} [${modelName}/${auth}]: ${detail}`);
+  }
+
+  const json = JSON.parse(rawBody) as {
+    candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+  };
+  const text = json.candidates?.[0]?.content?.parts
+    ?.map((part) => part.text ?? '')
+    .join('')
+    .trim();
+  if (!text) throw new Error(`Gemini API returned no text [${modelName}]`);
+  return text;
+}
+
+async function generateViaLegacySdk(
+  prompt: string,
+  key: string,
+  modelName: string
+): Promise<string> {
+  const client = new GoogleGenerativeAI(key);
+  const model = client.getGenerativeModel({ model: modelName });
+  const result = await model.generateContent(prompt);
+  const text = result.response.text().trim();
+  if (!text) throw new Error(`Gemini SDK returned no text [${modelName}]`);
+  return text;
+}
+
+function parseGeminiFailure(err: unknown): { status: number; detail: string; message: string } {
+  const message = err instanceof Error ? err.message : String(err);
+  const statusMatch = message.match(/Gemini API (\d+)/);
+  const status = statusMatch ? Number.parseInt(statusMatch[1], 10) : 0;
+  const detail = message.includes(': ') ? message.slice(message.indexOf(': ') + 2) : message;
+  return { status, detail, message };
+}
+
+/** Call Gemini via REST (AQ + AIza keys) with model and auth-mode fallback. */
 export async function generateGeminiContent(prompt: string, apiKey?: string): Promise<string> {
   const key = resolveApiKey(apiKey);
+  const authModes: Array<'header' | 'query'> = key.startsWith('AQ.') ? ['query', 'header'] : ['header', 'query'];
   let lastError: unknown;
 
   for (const modelName of GEMINI_MODELS) {
-    try {
-      const res = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-goog-api-key': key,
-          },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-          }),
-        }
-      );
+    for (const auth of authModes) {
+      try {
+        return await generateViaRest(prompt, key, modelName, auth);
+      } catch (err) {
+        lastError = err;
+        const { status, detail, message } = parseGeminiFailure(err);
+        console.warn(`Gemini REST failed (${modelName}, ${auth}): ${message}`);
 
-      if (!res.ok) {
-        const detail = await res.text();
-        const err = new Error(`Gemini API ${res.status}: ${detail.slice(0, 300)}`);
-        if (
-          res.status === 404 ||
-          detail.includes('not found') ||
-          detail.includes('no longer available')
-        ) {
-          lastError = err;
-          console.warn(`Gemini model ${modelName} unavailable, trying next...`);
-          continue;
+        if (isDefinitiveKeyFailure(status, detail)) {
+          throw err;
         }
-        throw err;
+        if (shouldTryNextModel(status, detail)) {
+          break;
+        }
       }
+    }
 
-      const json = (await res.json()) as {
-        candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-      };
-      const text = json.candidates?.[0]?.content?.parts
-        ?.map((part) => part.text ?? '')
-        .join('')
-        .trim();
-      if (!text) throw new Error('Gemini API returned no text');
-      return text;
-    } catch (err) {
-      lastError = err;
-      const msg = err instanceof Error ? err.message : String(err);
-      if (msg.includes('404') || msg.includes('not found') || msg.includes('no longer available')) {
-        console.warn(`Gemini model ${modelName} unavailable, trying next...`);
-        continue;
+    // Legacy SDK fallback for AIza keys when REST fails for non-key reasons.
+    if (key.startsWith('AIza')) {
+      try {
+        return await generateViaLegacySdk(prompt, key, modelName);
+      } catch (err) {
+        lastError = err;
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`Gemini SDK failed (${modelName}): ${msg}`);
+        if (!shouldTryNextModel(0, msg)) {
+          throw err;
+        }
       }
-      throw err;
     }
   }
 
-  throw lastError;
+  throw lastError ?? new Error('All Gemini models failed');
 }
 
 export function getClient(apiKey?: string): GenerativeModel {

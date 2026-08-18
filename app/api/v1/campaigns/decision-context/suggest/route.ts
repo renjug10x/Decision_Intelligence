@@ -412,13 +412,26 @@ export async function POST(request: NextRequest) {
   try {
     rawText = await generateGeminiContent(sanitize(built.prompt), apiKey);
   } catch (e: unknown) {
-    // Provider detail stays in the server log — the caller gets the fact of the failure only.
     console.error('Decision context suggestion provider call failed:', e);
     const detail = e instanceof Error ? e.message : String(e);
-    if (/API key|API_KEY|401|403|invalid.*key|PERMISSION_DENIED/i.test(detail)) {
+    if (/API key|API_KEY|401|403|invalid.*key|PERMISSION_DENIED|ACCESS_TOKEN/i.test(detail)) {
       return errorResponse(
         'ProviderRequestFailed',
         'The Gemini API key was rejected. Check the key in Google AI Studio (aistudio.google.com/apikey) and try again.',
+        502
+      );
+    }
+    if (/fetch failed|ECONNREFUSED|ENOTFOUND|ETIMEDOUT|network/i.test(detail)) {
+      return errorResponse(
+        'ProviderRequestFailed',
+        'The server could not reach Google Gemini. Check outbound internet access from the app host.',
+        502
+      );
+    }
+    if (/All Gemini models failed|returned no text/i.test(detail)) {
+      return errorResponse(
+        'ProviderRequestFailed',
+        'No Gemini model responded with usable suggestions. Try again shortly or use a different API key.',
         502
       );
     }
