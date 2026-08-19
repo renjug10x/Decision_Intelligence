@@ -3,10 +3,11 @@
 interface CognixWordmarkProps {
   showDescriptor?: boolean;
   size?: 'sm' | 'md' | 'lg';
+  centered?: boolean;
   onClick?: () => void;
 }
 
-export function CognixWordmark({ showDescriptor = true, size = 'md', onClick }: CognixWordmarkProps) {
+export function CognixWordmark({ showDescriptor = true, size = 'md', centered = false, onClick }: CognixWordmarkProps) {
   const fontSize = size === 'sm' ? '1.15rem' : size === 'lg' ? '1.65rem' : '1.35rem';
   
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -27,6 +28,7 @@ export function CognixWordmark({ showDescriptor = true, size = 'md', onClick }: 
       style={{
         display: 'inline-flex',
         flexDirection: 'column',
+        alignItems: centered ? 'center' : 'flex-start',
         lineHeight: 1,
         cursor: onClick ? 'pointer' : 'default',
         outline: 'none',

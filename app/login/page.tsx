@@ -270,9 +270,9 @@ export default function LoginRoutePage() {
   return (
     <div className="login-bg">
       <div className="login-card">
-        <div style={{ marginBottom: 32 }}>
-          <Link href={appRoutes.home} aria-label="Go to home" style={{ display: 'inline-block', width: '100%' }}>
-            <CognixBrandLockup showBadge={false} subtitle="Powered by Looker + Gemini AI" size="lg" />
+        <div style={{ marginBottom: 32, textAlign: 'center' }}>
+          <Link href={appRoutes.home} aria-label="Go to home" style={{ display: 'inline-block' }}>
+            <CognixBrandLockup showBadge={false} size="lg" />
           </Link>
         </div>
 

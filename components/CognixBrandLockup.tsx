@@ -44,7 +44,7 @@ export function CognixBrandLockup({
 
   const wordmarkBlock = (
     <div style={{ textAlign: showBadge ? 'left' : centered ? 'center' : 'left' }}>
-      <CognixWordmark showDescriptor size={size} onClick={onClick} />
+      <CognixWordmark showDescriptor size={size} centered={!showBadge && centered} onClick={onClick} />
       {subtitle && (
         <p
           style={{
