@@ -125,12 +125,16 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         </button>
 
         <button
-          className={`nav-item ${currentPage === 'campaign-decision' ? 'active' : ''}`}
+          className={`nav-item nav-item-has-tooltip ${currentPage === 'campaign-decision' ? 'active' : ''}`}
           onClick={() => onNavigate('campaign-decision')}
           style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
+          aria-describedby="campaign-decision-nav-tooltip"
         >
           <Target size={14} color={currentPage === 'campaign-decision' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
           <span>Campaign Decision</span>
+          <span id="campaign-decision-nav-tooltip" className="nav-item-tooltip" role="tooltip">
+            What if promotional decisions first asked whether to intervene at all?
+          </span>
         </button>
 
         {/* Solutions Section */}

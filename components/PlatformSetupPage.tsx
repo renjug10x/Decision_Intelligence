@@ -45,7 +45,7 @@ export default function PlatformSetupPage() {
     <div className="login-bg">
       <div className="login-card login-card-wide">
         <div style={{ marginBottom: 32 }}>
-          <CognixBrandLockup subtitle="Powered by Looker + Gemini AI" />
+          <CognixBrandLockup subtitle="" />
         </div>
 
         <p
