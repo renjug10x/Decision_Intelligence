@@ -8,6 +8,7 @@ interface CognixBrandLockupProps {
   size?: 'sm' | 'md' | 'lg';
   centered?: boolean;
   showWordmark?: boolean;
+  showBadge?: boolean;
   onClick?: () => void;
 }
 
@@ -16,6 +17,7 @@ export function CognixBrandLockup({
   size = 'md',
   centered = true,
   showWordmark = true,
+  showBadge = true,
   onClick,
 }: Readonly<CognixBrandLockupProps>) {
   const badgeSize = size === 'lg' ? 56 : size === 'sm' ? 44 : 48;
@@ -40,13 +42,44 @@ export function CognixBrandLockup({
     </div>
   );
 
+  const wordmarkBlock = (
+    <div style={{ textAlign: showBadge ? 'left' : centered ? 'center' : 'left' }}>
+      <CognixWordmark showDescriptor size={size} onClick={onClick} />
+      {subtitle && (
+        <p
+          style={{
+            fontSize: '0.8125rem',
+            color: 'var(--text-secondary)',
+            marginTop: 6,
+            marginBottom: 0,
+          }}
+        >
+          {subtitle}
+        </p>
+      )}
+    </div>
+  );
+
   if (!showWordmark) {
+    if (!showBadge) return null;
+
     return (
       <div
         className="cognix-brand-lockup"
         style={{ display: 'flex', justifyContent: centered ? 'center' : 'flex-start' }}
       >
         {badge}
+      </div>
+    );
+  }
+
+  if (!showBadge) {
+    return (
+      <div
+        className="cognix-brand-lockup"
+        style={{ display: 'flex', justifyContent: centered ? 'center' : 'flex-start' }}
+      >
+        {wordmarkBlock}
       </div>
     );
   }
@@ -62,22 +95,7 @@ export function CognixBrandLockup({
       }}
     >
       {badge}
-
-      <div style={{ textAlign: 'left' }}>
-        <CognixWordmark showDescriptor size={size} onClick={onClick} />
-        {subtitle && (
-          <p
-            style={{
-              fontSize: '0.8125rem',
-              color: 'var(--text-secondary)',
-              marginTop: 6,
-              marginBottom: 0,
-            }}
-          >
-            {subtitle}
-          </p>
-        )}
-      </div>
+      {wordmarkBlock}
     </div>
   );
 }
