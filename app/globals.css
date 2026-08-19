@@ -209,6 +209,41 @@ code, pre {
   border-radius: 0 2px 2px 0;
 }
 
+.nav-item-has-tooltip {
+  overflow: visible;
+}
+
+.nav-item-tooltip {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  width: 248px;
+  padding: 10px 12px;
+  background: #FFFFFF;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--g10x-orange);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s ease;
+  z-index: 100;
+  white-space: normal;
+  text-align: left;
+}
+
+.nav-item-has-tooltip:hover .nav-item-tooltip,
+.nav-item-has-tooltip:focus-visible .nav-item-tooltip {
+  opacity: 1;
+  visibility: visible;
+}
+
 .nav-badge {
   margin-left: auto;
   background: var(--danger);
