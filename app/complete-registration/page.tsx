@@ -245,8 +245,8 @@ function CompleteRegistrationContent() {
     <div className="login-bg">
       <div className="login-card">
         <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <Link href={appRoutes.home} aria-label="Go to home" style={{ display: 'inline-block', width: '100%' }}>
-            <CognixBrandLockup showWordmark={false} size="lg" />
+          <Link href={appRoutes.home} aria-label="Go to home" style={{ display: 'inline-block' }}>
+            <CognixBrandLockup size="lg" />
           </Link>
           <h2 style={{ fontSize: '1.375rem', marginTop: 16, marginBottom: 8 }}>{copy.title}</h2>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>{copy.subtitle}</p>

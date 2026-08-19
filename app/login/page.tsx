@@ -272,7 +272,7 @@ export default function LoginRoutePage() {
       <div className="login-card">
         <div style={{ marginBottom: 32, textAlign: 'center' }}>
           <Link href={appRoutes.home} aria-label="Go to home" style={{ display: 'inline-block' }}>
-            <CognixBrandLockup showBadge={false} size="lg" />
+            <CognixBrandLockup size="lg" />
           </Link>
         </div>
 
