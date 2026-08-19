@@ -87,6 +87,14 @@ export const DDF_EVENT_EFFECT_PCT: Record<string, number> = {
   christmas: 35
 };
 
+/** How each scenario event key is named on a client-facing surface. */
+export const DDF_EVENT_DISPLAY_NAME: Record<string, string> = {
+  none: 'No event expected',
+  holiday: 'Bank holiday weekend',
+  heatwave: 'Heatwave or summer spike',
+  christmas: 'Christmas spike'
+};
+
 /** WP10-C `SLA_FLEX_RULE_4` supplies 1,200 additional units per week. Mirrored, not redefined. */
 export const DDF_SLA_FLEX_UNITS_PER_WEEK = 1200;
 
@@ -907,7 +915,7 @@ export function evaluateInterventionRecommendation(
       risk_state_after: 'LOW',
       intervention_cost_gbp: 0,
       evidence_basis: [
-        `Executable capacity ${decisionGap.executable_demand_units.toLocaleString()} units covers emerging demand ${decisionGap.emerging_demand_units.toLocaleString()} units (Shared Decision State v${decisionStateVersion}, read-only).`
+        `Executable capacity of ${decisionGap.executable_demand_units.toLocaleString()} units covers the ${decisionGap.emerging_demand_units.toLocaleString()} units now expected, read from the current scenario.`
       ],
       is_actionable: false,
       gated_reason: 'No Decision Gap is open under the current scenario.'
@@ -930,8 +938,8 @@ export function evaluateInterventionRecommendation(
     intervention_cost_gbp: interventionCost,
     evidence_basis: [
       'FreshDirect UK Supply Agreement, Clause 4.2 volume flex notice — modelled demo assumption, not a countersigned contract.',
-      `Supplier capacity ${Math.round(derivedImpacts.supplier_capacity_units).toLocaleString()} units/week read from Shared Decision State v${decisionStateVersion} (read-only).`,
-      `Flex volume of ${DDF_SLA_FLEX_UNITS_PER_WEEK.toLocaleString()} units/week mirrors the WP10-C intervention model, carried across as the same proportional uplift.`,
+      `Supplier capacity of ${Math.round(derivedImpacts.supplier_capacity_units).toLocaleString()} units per week, read from the current scenario and unchanged by this briefing.`,
+      `Flex volume of ${DDF_SLA_FLEX_UNITS_PER_WEEK.toLocaleString()} units per week, carried across as the same proportional uplift used elsewhere in the scenario.`,
       `Flex premium of ${DDF_FLEX_PREMIUM_RATE_PCT}% of unit revenue is a declared modelled assumption.`
     ],
     is_actionable: true
@@ -1006,7 +1014,7 @@ function buildAssumptionInventory(
     {
       key: 'event_boost',
       label: 'Scenario event effect',
-      value: `${scenarioParams.event_boost} (+${DDF_EVENT_EFFECT_PCT[scenarioParams.event_boost] ?? 0}% in the projection)`,
+      value: `${DDF_EVENT_DISPLAY_NAME[scenarioParams.event_boost] ?? scenarioParams.event_boost} (+${DDF_EVENT_EFFECT_PCT[scenarioParams.event_boost] ?? 0}% in the projection)`,
       provenance_class: 'MODELLED_DEMO_ASSUMPTION',
       source: 'Projection engine declared event table'
     }
@@ -1016,7 +1024,7 @@ function buildAssumptionInventory(
     records.push({
       key: 'decision_window',
       label: 'Decision Window',
-      value: 'INDETERMINATE — no declared constraint',
+      value: 'Not established — no declared constraint',
       provenance_class: 'MODELLED_DEMO_ASSUMPTION',
       source: 'ADR-042 fail-closed predicate'
     });
@@ -1045,8 +1053,8 @@ function buildAssumptionInventory(
     key: 'stability_signals',
     label: 'Stability signal evidence',
     value: stability.status === 'VALID'
-      ? `${stability.contributing_signal_refs.length} signals: ${stability.contributing_signal_refs.join(', ')}`
-      : 'INDETERMINATE — insufficient signal evidence',
+      ? `${stability.contributing_signal_refs.length} observed signal${stability.contributing_signal_refs.length === 1 ? '' : 's'} contributing`
+      : 'Not established — insufficient signal evidence',
     provenance_class: 'SYNTHETIC_OBSERVED',
     source: 'cognix-world Enterprise Signals (synthetic_demo = true)'
   });

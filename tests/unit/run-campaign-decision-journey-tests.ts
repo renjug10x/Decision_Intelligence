@@ -458,13 +458,16 @@ async function run() {
     'utf8'
   );
 
+  // These guard the CAPABILITY, not its wording: a failed evaluation must still be announced
+  // as a failure, and the panel must still declare that its figures are uncalibrated demo data.
+  // Pinning the exact copy would block client-language refinement without protecting anything.
   assert(
-    /CAMPAIGN_DEMO_TENANT_ID/.test(plannerSource) && /Live engine evaluation failed/.test(plannerSource),
-    'Requirement 16: PromotionPlanner remains unregressed'
+    /CAMPAIGN_DEMO_TENANT_ID/.test(plannerSource) && /Live assessment unavailable/.test(plannerSource),
+    'Requirement 16: PromotionPlanner still announces a failed evaluation as a failure'
   );
   assert(
-    /SEEDED DEMO MODEL \(UNCALIBRATED\)/.test(heroSource),
-    'Requirement 16: CampaignDiscoveryHero remains unregressed'
+    /uncalibrated demonstration data/.test(heroSource) && /not calibrated/.test(heroSource),
+    'Requirement 16: CampaignDiscoveryHero still declares its figures uncalibrated'
   );
 
   // ────────────────────────────────────────────────────────────

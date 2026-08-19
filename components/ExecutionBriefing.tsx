@@ -103,7 +103,9 @@ export default function ExecutionBriefing({
                   alignItems: 'center',
                   gap: 4
                 }}>
-                  <ShieldCheck size={12} /> Contract {briefing.contractStatus}
+                  <ShieldCheck size={12} /> {briefing.contractStatus === 'VERIFIED' ? 'Verified'
+                    : briefing.contractStatus === 'CONDITIONAL' ? 'Verified with conditions'
+                    : 'Blocked'}
                 </span>
               )}
             </div>

@@ -155,10 +155,10 @@ export default function PromotionPlanner({
         if (isCancelled) return;
 
         const failed: string[] = [];
-        if (!evalRes) failed.push('decision evaluation (CDI-02)');
-        if (!oppRes) failed.push('opportunity discovery (CDI-03)');
-        if (!readRes) failed.push('readiness (CDI-04)');
-        if (!timelineRes) failed.push('timeline (CDI-05)');
+        if (!evalRes) failed.push('decision assessment');
+        if (!oppRes) failed.push('opportunity discovery');
+        if (!readRes) failed.push('readiness');
+        if (!timelineRes) failed.push('timeline');
 
         // Never leave a previous configuration's results on screen as if they were
         // current: each engine slot is either this configuration's result or empty.
@@ -168,7 +168,7 @@ export default function PromotionPlanner({
         setLiveTimeline(timelineRes);
         setApiError(
           failed.length > 0
-            ? `Live engine evaluation unavailable for this configuration: ${failed.join(', ')} failed.`
+            ? `CogniX could not complete ${failed.join(', ')} for this configuration.`
             : null
         );
       } catch (err: any) {
@@ -177,7 +177,7 @@ export default function PromotionPlanner({
           setLiveOpportunity(null);
           setLiveReadiness(null);
           setLiveTimeline(null);
-          setApiError(err?.message || 'Failed to communicate with campaign engines');
+          setApiError('CogniX could not assess this configuration.');
         }
       } finally {
         if (!isCancelled) {
@@ -261,8 +261,8 @@ export default function PromotionPlanner({
         >
           <AlertTriangle size={17} color="#D97706" style={{ flexShrink: 0 }} />
           <span>
-            <strong>Live engine evaluation failed.</strong> {apiError} Analytics below are the seeded
-            demonstration model only — no current engine verdict is available for this configuration.
+            <strong>Live assessment unavailable.</strong> {apiError} The analysis below is the
+            simulated scenario only — CogniX has no current verdict for this configuration.
           </span>
         </div>
       )}
@@ -297,7 +297,7 @@ export default function PromotionPlanner({
                 }}
               >
                 <Sparkles size={14} color="#2563EB" />
-                Select Campaign Archetype ({CAMPAIGN_ARCHETYPES.length} Seeded Demo Scenarios)
+                Select Campaign Archetype ({CAMPAIGN_ARCHETYPES.length} simulated scenarios)
               </div>
 
               <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>

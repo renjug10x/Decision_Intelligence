@@ -17,6 +17,10 @@ import { useDecisionState } from '@/context/DecisionStateContext';
 import { fetchCurrentScenarioSignals } from '@/lib/enterprise-signal-client';
 import { getOrCreateSessionId } from '@/lib/journey-client';
 import { evaluateDemandDecisionFrontier } from '@/lib/demand-decision-frontier/demand-frontier-engine';
+import DemandDecisionNarrative from '@/components/demand/DemandDecisionNarrative';
+import {
+  demandLabel, demandBadge, demandPhrase, describeSignalMovement, CONFIDENCE_VS_STABILITY
+} from '@/lib/demand-decision-language';
 import {
   DemandDecisionFrontierEvaluation,
   ContextualisedDecisionOutlook,
@@ -103,6 +107,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
   const [showBriefing, setShowBriefing] = useState(false);
   const [showDeepReasoning, setShowDeepReasoning] = useState(false);
   const [reasoningTab, setReasoningTab] = useState<'changed' | 'constrains' | 'choices'>('changed');
+  const [showTechnicalEvidence, setShowTechnicalEvidence] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
 
   useEffect(() => {
@@ -304,7 +309,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
   // A failed recomputation must never leave a previous result on screen as current (AC-DDF-29).
   const intelligenceUnavailable = !evaluation;
   const unavailableReason = !decisionState?.derived_impacts
-    ? 'Shared Decision State is unavailable, so executable capacity cannot be read.'
+    ? 'Scenario state is unavailable, so what we can serve cannot be read.'
     : !outlook
       ? `Intent Fusion evaluation is unavailable${outlookError ? ` (${outlookError})` : ''}.`
       : !demandSeries
@@ -446,8 +451,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
               <h1 style={{ fontSize: '1.375rem', fontWeight: 700, color: C.ink, letterSpacing: '-0.015em', margin: 0 }}>
                 Demand Decision Frontier
               </h1>
-              {provenanceChip('DDF-01 · P0')}
-              {provenanceChip('Synthetic demonstration · Level 0', 'warn')}
+              {provenanceChip('Simulated scenario', 'warn')}
             </div>
             <p style={{ fontSize: '0.8125rem', color: C.muted, margin: 0, lineHeight: 1.5, maxWidth: 620 }}>
               What customers are trending towards, what we can actually serve, and what it costs to wait.
@@ -521,6 +525,16 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
       {/* ── The decision story: stability → gap → window → regret ── */}
       {evaluation && gap && stability && regret && window_ && (
         <>
+          {/* The lead: what changed, why, and what it costs. The measures beneath quantify it. */}
+          <DemandDecisionNarrative
+            evaluation={evaluation}
+            gap={gap}
+            promotionDepthPct={promoLift}
+            horizonDays={horizon}
+            simulationActive={simActive}
+            scenarioEvent={eventBoost}
+          />
+
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
@@ -528,17 +542,17 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
           }}>
             {/* 1. Forecast Stability */}
             <div style={{ ...card, padding: '14px 16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span style={eyebrow}>Forecast stability</span>
                 <span style={{
-                  fontSize: '0.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                  fontSize: '0.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 4, whiteSpace: 'nowrap',
                   color: stability.stability_state === 'DETERIORATING' ? C.risk
                     : stability.stability_state === 'WATCH' ? '#B45309'
                     : stability.stability_state === 'STABLE' ? C.good : C.muted,
                   background: stability.stability_state === 'DETERIORATING' ? '#FEF2F2'
                     : stability.stability_state === 'WATCH' ? '#FFFBEB'
                     : stability.stability_state === 'STABLE' ? '#ECFDF5' : C.hairline
-                }}>{stability.stability_state}</span>
+                }}>{demandBadge('stability_state', stability.stability_state)}</span>
               </div>
               {stability.status === 'VALID' ? (
                 <>
@@ -547,11 +561,11 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
                       {stability.stability_score}
                     </span>
                     <span style={{ fontSize: '0.75rem', color: C.muted }}>
-                      revision risk {stability.revision_risk?.toLowerCase()}
+                      revision risk {demandLabel('revision_risk', stability.revision_risk)}
                     </span>
                   </div>
                   <div style={{ fontSize: '0.6875rem', color: C.muted, marginTop: 6, lineHeight: 1.45 }}>
-                    Signals point {stability.likely_revision_direction.toLowerCase()} by{' '}
+                    Evidence points {demandLabel('revision_direction', stability.likely_revision_direction)} by{' '}
                     {stability.likely_revision_magnitude_min_pct}–{stability.likely_revision_magnitude_max_pct}%,
                     at {stability.material_revision_probability_pct}% likelihood.
                   </div>
@@ -562,7 +576,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
                 </>
               ) : (
                 <div style={{ fontSize: '0.75rem', color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
-                  <strong style={{ color: C.body }}>Indeterminate.</strong> {stability.indeterminate_reason}
+                  <strong style={{ color: C.body }}>Not enough evidence yet.</strong> {stability.indeterminate_reason}
                 </div>
               )}
             </div>
@@ -573,15 +587,15 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
               borderColor: simActive ? '#A7F3D0' : gap.exposed_demand_units > 0 ? '#FECACA' : C.line,
               background: simActive ? '#F0FDF4' : C.surface
             }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span style={{ ...eyebrow, color: simActive ? '#15803D' : C.muted }}>
                   Decision gap {simActive && '· modelled'}
                 </span>
                 <span style={{
-                  fontSize: '0.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                  fontSize: '0.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 4, whiteSpace: 'nowrap',
                   color: simActive ? '#15803D' : gap.risk_state === 'LOW' ? C.good : C.risk,
                   background: simActive ? '#DCFCE7' : gap.risk_state === 'LOW' ? '#ECFDF5' : '#FEF2F2'
-                }}>{gap.risk_state}</span>
+                }}>{demandBadge('gap_risk_state', gap.risk_state)}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
                 <span style={{
@@ -604,19 +618,19 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
 
             {/* 3. Decision Window */}
             <div style={{ ...card, padding: '14px 16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span style={eyebrow}>Decision window</span>
                 <span style={{
-                  fontSize: '0.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                  fontSize: '0.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 4, whiteSpace: 'nowrap',
                   color: window_.window_state === 'OPEN' ? C.demand
                     : window_.window_state === 'CLOSING_SOON' ? '#B45309' : C.muted,
                   background: window_.window_state === 'OPEN' ? '#E0F2FE'
                     : window_.window_state === 'CLOSING_SOON' ? '#FFFBEB' : C.hairline
-                }}>{window_.window_state}</span>
+                }}>{demandBadge('window_state', window_.window_state)}</span>
               </div>
               {window_.is_indeterminate ? (
                 <div style={{ fontSize: '0.75rem', color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
-                  <strong style={{ color: C.body }}>Indeterminate.</strong> {window_.explanation}
+                  <strong style={{ color: C.body }}>Not enough evidence yet.</strong> {window_.explanation}
                 </div>
               ) : (
                 <>
@@ -639,13 +653,13 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
 
             {/* 4. Decision Regret */}
             <div style={{ ...card, padding: '14px 16px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                 <span style={eyebrow}>Cost of choosing wrongly</span>
                 <span style={{
-                  fontSize: '0.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                  fontSize: '0.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 4, whiteSpace: 'nowrap',
                   color: regret.recommended_action === 'CHOICE_REQUIRED' ? C.muted : '#6D28D9',
                   background: regret.recommended_action === 'CHOICE_REQUIRED' ? C.hairline : '#F5F3FF'
-                }}>{regret.recommended_action.replace(/_/g, ' ')}</span>
+                }}>{demandBadge('recommended_action', regret.recommended_action)}</span>
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
                 <span style={{ fontSize: '1.5rem', fontWeight: 800, color: C.ink, letterSpacing: '-0.02em' }}>
@@ -732,7 +746,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
             <div style={{ ...card, padding: '18px 22px', marginBottom: 20 }}>
               <div style={{ display: 'flex', gap: 6, marginBottom: 16, borderBottom: `1px solid ${C.line}`, paddingBottom: 12, flexWrap: 'wrap' }}>
                 {[
-                  { id: 'changed', label: 'What changed' },
+                  { id: 'changed', label: 'The evidence' },
                   { id: 'constrains', label: 'What constrains us' },
                   { id: 'choices', label: 'What the choices cost' }
                 ].map(tab => (
@@ -747,53 +761,97 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
               </div>
 
               {reasoningTab === 'changed' && (
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
-                  <div style={{ background: C.sunken, padding: 14, borderRadius: 8, border: `1px solid ${C.line}` }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: C.ink, marginBottom: 8 }}>
-                      Why the outlook is moving
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: 14 }}>
+                    <div style={{ background: C.sunken, padding: 14, borderRadius: 8, border: `1px solid ${C.line}` }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: C.ink, marginBottom: 10 }}>
+                        What we are observing
+                      </div>
+                      {stability.status === 'VALID' ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                          {signals
+                            .filter(s => stability.contributing_signal_refs.includes(s.signal_id))
+                            .map(s => {
+                              const observed = describeSignalMovement(s);
+                              return (
+                                <div key={s.signal_id}>
+                                  <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: C.ink }}>
+                                    {observed.title}
+                                  </div>
+                                  <div style={{ fontSize: '0.75rem', color: C.demand, fontWeight: 600, marginTop: 1 }}>
+                                    {observed.movement}
+                                  </div>
+                                  {observed.entity && (
+                                    <div style={{ fontSize: '0.6875rem', color: C.faint, marginTop: 1 }}>
+                                      {observed.entity}
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                        </div>
+                      ) : (
+                        <div style={{ fontSize: '0.75rem', color: C.muted, lineHeight: 1.6 }}>
+                          {stability.indeterminate_reason}
+                        </div>
+                      )}
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: C.body, lineHeight: 1.7 }}>
-                      Intent Fusion (IFI-01) decomposes the outlook as baseline{' '}
-                      <strong>+{evaluation.intent_fusion_outlook.baseline_forecast.baseline_lift_pct}%</strong>, commercial intent{' '}
-                      <strong>+{evaluation.intent_fusion_outlook.commercial_intent.intent_effect_pct}%</strong> (
-                      {evaluation.intent_fusion_outlook.commercial_intent.discount_depth}% discount depth), observed signals{' '}
-                      <strong>+{evaluation.intent_fusion_outlook.observed_signals.observed_signal_effect_pct}%</strong>.
-                    </div>
-                    <div style={{ fontSize: '0.6875rem', color: C.faint, marginTop: 8 }}>
-                      Bound to <code>POST /api/v1/intent-fusion/evaluate</code> · Decision State v
-                      {evaluation.intent_fusion_outlook.decision_state_version}
+
+                    <div style={{ background: C.sunken, padding: 14, borderRadius: 8, border: `1px solid ${C.line}` }}>
+                      <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: C.ink, marginBottom: 8 }}>
+                        {CONFIDENCE_VS_STABILITY.heading}
+                      </div>
+                      <p style={{ fontSize: '0.75rem', color: C.body, lineHeight: 1.6, margin: 0 }}>
+                        {CONFIDENCE_VS_STABILITY.body}
+                      </p>
                     </div>
                   </div>
 
-                  <div style={{ background: C.sunken, padding: 14, borderRadius: 8, border: `1px solid ${C.line}` }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: C.ink, marginBottom: 8 }}>
-                      Signals behind the stability score
-                    </div>
-                    {stability.status === 'VALID' ? (
-                      <ul style={{ margin: 0, paddingLeft: 16, fontSize: '0.75rem', color: C.body, lineHeight: 1.7 }}>
-                        {signals
-                          .filter(s => stability.contributing_signal_refs.includes(s.signal_id))
-                          .map(s => (
-                            <li key={s.signal_id}>
-                              <code>{s.signal_id}</code> — {s.signal_type.replace(/_/g, ' ').toLowerCase()}{' '}
-                              ({(s.delta_pct ?? 0) >= 0 ? '+' : ''}{s.delta_pct}% vs baseline)
-                            </li>
-                          ))}
-                      </ul>
-                    ) : (
-                      <div style={{ fontSize: '0.75rem', color: C.muted, lineHeight: 1.6 }}>
-                        {stability.indeterminate_reason}
+                  {/* Engineering provenance stays available, but never competes with the business story. */}
+                  <div>
+                    <button
+                      onClick={() => setShowTechnicalEvidence(!showTechnicalEvidence)}
+                      style={{
+                        background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                        fontSize: '0.6875rem', fontWeight: 600, color: C.muted,
+                        display: 'flex', alignItems: 'center', gap: 5
+                      }}
+                    >
+                      <ChevronRight
+                        size={12}
+                        style={{ transform: showTechnicalEvidence ? 'rotate(90deg)' : undefined, transition: 'transform 0.15s' }}
+                      />
+                      Technical evidence
+                    </button>
+
+                    {showTechnicalEvidence && (
+                      <div style={{
+                        marginTop: 8, padding: '12px 14px', borderRadius: 8,
+                        background: C.sunken, border: `1px solid ${C.line}`,
+                        fontSize: '0.6875rem', color: C.muted, lineHeight: 1.65
+                      }}>
+                        <div>
+                          Outlook decomposition — baseline{' '}
+                          <strong>+{evaluation.intent_fusion_outlook.baseline_forecast.baseline_lift_pct}%</strong>, commercial intent{' '}
+                          <strong>+{evaluation.intent_fusion_outlook.commercial_intent.intent_effect_pct}%</strong> at{' '}
+                          {evaluation.intent_fusion_outlook.commercial_intent.discount_depth}% discount depth, observed signals{' '}
+                          <strong>+{evaluation.intent_fusion_outlook.observed_signals.observed_signal_effect_pct}%</strong>.
+                        </div>
+                        <div style={{ marginTop: 6 }}>
+                          Intent Fusion (IFI-01) via <code>POST /api/v1/intent-fusion/evaluate</code> · Shared Decision State v
+                          {evaluation.intent_fusion_outlook.decision_state_version}
+                        </div>
+                        {stability.status === 'VALID' && stability.contributing_signal_refs.length > 0 && (
+                          <div style={{ marginTop: 6 }}>
+                            Contributing signal references:{' '}
+                            <code>{stability.contributing_signal_refs.join(', ')}</code>
+                          </div>
+                        )}
+                        <div style={{ marginTop: 6 }}>
+                          {stability.confidence_distinction_statement}
+                        </div>
                       </div>
                     )}
-                  </div>
-
-                  <div style={{ background: C.sunken, padding: 14, borderRadius: 8, border: `1px solid ${C.line}` }}>
-                    <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: C.ink, marginBottom: 8 }}>
-                      Stability is not confidence
-                    </div>
-                    <p style={{ fontSize: '0.75rem', color: C.body, lineHeight: 1.6, margin: 0 }}>
-                      {stability.confidence_distinction_statement}
-                    </p>
                   </div>
                 </div>
               )}
@@ -821,7 +879,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
                           {fmt.pp(c.impact_pp)} · {fmt.int(c.impact_units)} units
                         </div>
                         <div style={{ fontSize: '0.625rem', color: C.faint, marginTop: 2 }}>
-                          {c.provenance_basis.replace(/_/g, ' ').toLowerCase()}
+                          {demandLabel('provenance_class', c.provenance_basis)}
                         </div>
                       </div>
                     </div>
@@ -848,7 +906,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
                         }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8, marginBottom: 8 }}>
                             <span style={{ fontWeight: 700, fontSize: '0.8125rem', color: C.ink }}>{alt.action_name}</span>
-                            {isRec && <span style={{ fontSize: '0.625rem', fontWeight: 700, color: '#15803D', background: '#DCFCE7', padding: '1px 6px', borderRadius: 4 }}>RECOMMENDED</span>}
+                            {isRec && <span style={{ fontSize: '0.625rem', fontWeight: 700, color: '#15803D', background: '#DCFCE7', padding: '1px 6px', borderRadius: 4 }}>Recommended</span>}
                           </div>
                           <div style={{ fontSize: '0.75rem', color: C.body, lineHeight: 1.6 }}>
                             <div><strong>Captures:</strong> {alt.what_it_captures}</div>
@@ -906,7 +964,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
                           <span style={{ color: C.body, fontWeight: 600, minWidth: 170 }}>{a.label}</span>
                           <span style={{ color: C.muted, flex: 1, minWidth: 180 }}>{a.value}</span>
                           {provenanceChip(
-                            a.provenance_class.replace(/_/g, ' ').toLowerCase(),
+                            demandLabel('provenance_class', a.provenance_class),
                             a.provenance_class === 'MODELLED_DEMO_ASSUMPTION' ? 'warn' : 'neutral'
                           )}
                         </div>
@@ -1070,7 +1128,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
             {decisionState && (
               <div style={{ fontSize: '0.6875rem', color: C.faint, paddingTop: 10, borderTop: `1px solid ${C.hairline}`, lineHeight: 1.6 }}>
                 Supplier allocation cap <strong style={{ color: C.body }}>+{decisionState.scenario_parameters.supplier_capacity_cap}%</strong>{' '}
-                read from Shared Decision State v{decisionState.state_version}. Not editable here.
+                is read from the current scenario and is not editable here.
               </div>
             )}
           </div>
@@ -1121,7 +1179,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               {provenanceChip('Demonstration pattern')}
               <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: C.ink }}>
-                Regional demand surge with supplier headroom (PAT-OPP-02)
+                Regional demand surge with supplier headroom
               </span>
             </div>
             <button onClick={() => setShowBriefing(true)}
@@ -1166,7 +1224,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
           contractStatus: 'VERIFIED',
           evidence: [
             ...(intervention?.evidence_basis ?? []),
-            `Shared Decision State v${decisionState?.state_version ?? 0} consumed read-only.`
+            'Supplier allocation and capacity read from the current scenario, unchanged by this briefing.'
           ]
         }}
       />
@@ -1216,7 +1274,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 5 }}>
                     <span style={{ fontWeight: 700, fontSize: '0.8125rem', color: C.ink }}>{risk.title}</span>
                     <span style={{
-                      fontSize: '0.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 4,
+                      fontSize: '0.625rem', fontWeight: 700, padding: '1px 6px', borderRadius: 4, whiteSpace: 'nowrap',
                       color: isOptimized ? '#065F46' : '#991B1B',
                       background: isOptimized ? '#D1FAE5' : '#FEE2E2'
                     }}>{isOptimized ? 'Modelled' : 'At risk'}</span>

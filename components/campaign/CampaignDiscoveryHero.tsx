@@ -15,6 +15,7 @@ import {
   Clock
 } from 'lucide-react';
 import { CampaignArchetype } from '@/lib/campaign-archetypes';
+import { label as executiveLabel } from '@/lib/campaign-decision-language';
 
 interface CampaignDiscoveryHeroProps {
   archetype: CampaignArchetype;
@@ -51,6 +52,18 @@ export default function CampaignDiscoveryHero({
   onSelectLens
 }: CampaignDiscoveryHeroProps) {
   const d = archetype.discovery;
+
+  /** The seeded verdict codes, stated as a decision rather than as a status word. */
+  const verdictLabel = (verdict: string) => {
+    switch (verdict) {
+      case 'ACCRETIVE GO': return 'Proceed — value accretive';
+      case 'CONDITIONAL GO': return 'Proceed with conditions';
+      case 'MARGIN RISK': return 'Margin at risk';
+      case 'SUPPLY INFEASIBLE': return 'Not deliverable on current supply';
+      case 'RECONSIDER': return 'Reconsider';
+      default: return verdict;
+    }
+  };
 
   const getVerdictStyle = (verdict: string) => {
     switch (verdict) {
@@ -129,12 +142,11 @@ export default function CampaignDiscoveryHero({
               background: '#FFFFFF',
               border: '1px solid #E2E8F0',
               padding: '3px 8px',
-              borderRadius: 4,
-              fontFamily: 'monospace'
+              borderRadius: 4
             }}
             title="All scenario narratives and metrics in this panel are seeded, uncalibrated demonstration data — not production evidence"
           >
-            SEEDED DEMO MODEL (UNCALIBRATED)
+            Simulated scenario · not calibrated
           </span>
         </div>
 
@@ -235,7 +247,7 @@ export default function CampaignDiscoveryHero({
 
       {/* Headline Metric Cards Grid — seeded scenario narrative */}
       <div style={{ fontSize: '0.7rem', fontWeight: 600, color: '#94A3B8', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: 6 }}>
-        Seeded Scenario Narrative (Demo Model)
+        Simulated scenario narrative
       </div>
       <div
         style={{
@@ -327,7 +339,7 @@ export default function CampaignDiscoveryHero({
             }}
           >
             <VerdictIcon size={18} />
-            {d.decision_verdict}
+            {verdictLabel(d.decision_verdict)}
           </div>
         </div>
 
@@ -361,7 +373,7 @@ export default function CampaignDiscoveryHero({
         </div>
       </div>
 
-      {/* Live Governed Engine Evaluation Strip — CDI-02/03/04 computed for the CURRENT configuration.
+      {/* Live assessment strip — CDI-02/03/04 computed for the CURRENT configuration.
           Each slot renders only its own engine's result; a failed call renders as unavailable,
           never as a number carried over from a previous configuration. */}
       <div
@@ -379,19 +391,19 @@ export default function CampaignDiscoveryHero({
       >
         <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.04em', display: 'inline-flex', alignItems: 'center', gap: 6 }}>
           <Activity size={13} color={evaluationError ? '#D97706' : '#059669'} />
-          Live Engine Evaluation
+          Live assessment
         </span>
 
         {isEvaluating ? (
           <span style={{ fontSize: '0.8rem', color: '#64748B' }}>Evaluating current configuration…</span>
         ) : evaluationError ? (
           <span style={{ fontSize: '0.8rem', color: '#B45309', fontWeight: 600 }}>
-            Unavailable — engine evaluation failed for this configuration
+            Unavailable — CogniX could not assess this configuration
           </span>
         ) : (
           <>
             <span style={{ fontSize: '0.8rem', color: '#334155' }}>
-              Attributable uplift (CDI-02):{' '}
+              Attributable uplift:{' '}
               <strong>
                 {typeof liveEvaluation?.causal?.intervention_uplift_pp === 'number'
                   ? `${liveEvaluation.causal.intervention_uplift_pp >= 0 ? '+' : ''}${liveEvaluation.causal.intervention_uplift_pp.toFixed(1)} pp`
@@ -399,7 +411,7 @@ export default function CampaignDiscoveryHero({
               </strong>
             </span>
             <span style={{ fontSize: '0.8rem', color: '#334155' }}>
-              Contribution delta (CDI-02):{' '}
+              Contribution impact:{' '}
               <strong>
                 {typeof liveEvaluation?.counterfactual?.campaign_delta?.contribution_delta_gbp === 'number'
                   ? `${liveEvaluation.counterfactual.campaign_delta.contribution_delta_gbp >= 0 ? '+' : '-'}£${Math.abs(liveEvaluation.counterfactual.campaign_delta.contribution_delta_gbp).toFixed(0)}`
@@ -407,11 +419,11 @@ export default function CampaignDiscoveryHero({
               </strong>
             </span>
             <span style={{ fontSize: '0.8rem', color: '#334155' }}>
-              Readiness (CDI-04):{' '}
-              <strong>{liveReadiness?.readiness?.state ? String(liveReadiness.readiness.state).replace(/_/g, ' ') : 'unavailable'}</strong>
+              Readiness:{' '}
+              <strong>{liveReadiness?.readiness?.state ? executiveLabel('readiness_state', String(liveReadiness.readiness.state)) : 'unavailable'}</strong>
             </span>
             <span style={{ fontSize: '0.8rem', color: '#334155' }}>
-              Opportunity windows (CDI-03):{' '}
+              Opportunity windows:{' '}
               <strong>
                 {Array.isArray(liveOpportunity?.opportunity_windows?.candidates)
                   ? liveOpportunity.opportunity_windows.candidates.length
