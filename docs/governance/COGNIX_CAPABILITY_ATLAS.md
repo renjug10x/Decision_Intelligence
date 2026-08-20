@@ -18,16 +18,16 @@
 |-------|------|--------|-----------|----------|
 | — | Programme governance (this document set) | **[COMPLETED]** | 2026-08-20 | This document, [`CAPABILITY_KNOWLEDGE_MODEL.md`](CAPABILITY_KNOWLEDGE_MODEL.md), [`CAPABILITY_ATLAS_ARCHITECTURE.md`](../architecture/CAPABILITY_ATLAS_ARCHITECTURE.md), ADR-045…ADR-051, [`MASTER_PLAN.md`](MASTER_PLAN.md) ATL section, [`UX_DESIGN_PRINCIPLES.md`](../ux/UX_DESIGN_PRINCIPLES.md) §6 |
 | `ATL-01` | Capability Discovery, Governance & Information Model | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_01_CAPABILITY_INVENTORY_REPORT.md`](../reports/COGNIX_ATL_01_CAPABILITY_INVENTORY_REPORT.md) (33 capabilities, 9 contradictions, 8 orphans, gaps G1–G6) · [`COGNIX_ATL_01_STORYBOARD_MIGRATION_ASSESSMENT.md`](../reports/COGNIX_ATL_01_STORYBOARD_MIGRATION_ASSESSMENT.md) (26 slides audited, SB-GATE 1/6) |
-| `ATL-02` | Capability Knowledge Backend | **[NOT STARTED]** | — | — |
+| `ATL-02` | Capability Knowledge Backend | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_02_CAPABILITY_KNOWLEDGE_BACKEND_REPORT.md`](../reports/COGNIX_ATL_02_CAPABILITY_KNOWLEDGE_BACKEND_REPORT.md) · `run-atl02-tests.ts` 82/82 · `tsc` 0 · build clean · 7 routes under `/api/v1/atlas/*` |
 | `ATL-03` | Retail & Grocery Knowledge Population | **[NOT STARTED]** | — | — |
 | `ATL-04` | Atlas UX & Structured Search | **[NOT STARTED]** | — | — |
 | `ATL-05` | Internal AI Retrieval & Ask CogniX | **[NOT STARTED]** | — | — |
 | `ATL-06` | Google AI, Grounding & Market Intelligence | **[NOT STARTED]** | — | — |
 | `ATL-07` | Capability Lifecycle Governance & Automation | **[NOT STARTED]** | — | — |
 
-**Current phase:** `ATL-02` — not yet started
-**Last completed Atlas activity:** `ATL-01` completed 2026-08-20
-**Next executable work package:** **`ATL-02`** — **unblocked.** Decision `D1` resolved 2026-08-20 (ADR-052)
+**Current phase:** `ATL-03` — not yet started
+**Last completed Atlas activity:** `ATL-02` completed 2026-08-20
+**Next executable work package:** **`ATL-03`** — Retail & Grocery Knowledge Population
 **Blocked by other CogniX work:** NO
 
 Status vocabulary follows `MASTER_PLAN.md`: `[NOT STARTED]` · `[IN PROGRESS]` · `[BLOCKED]` ·
@@ -270,7 +270,7 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
 
 ---
 
-### `ATL-02` — Capability Knowledge Backend [NOT STARTED]
+### `ATL-02` — Capability Knowledge Backend [COMPLETED]
 
 - **Objective:** Extend the existing registries into a governed capability knowledge layer with
   validation, repository access and read APIs, so that Atlas knowledge is served from data and never
@@ -333,6 +333,8 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
   schema (`ATL-02` to determine, per ADR-052); the `CAP-*` identifier allocation scheme; whether Atlas
   knowledge lives in `config/` beside the registries or in a dedicated content root; the test-runner
   invocation convention for new suites.
+- **Completion Evidence:** [`COGNIX_ATL_02_CAPABILITY_KNOWLEDGE_BACKEND_REPORT.md`](../reports/COGNIX_ATL_02_CAPABILITY_KNOWLEDGE_BACKEND_REPORT.md). `tsc` 0 diagnostics; `run-atl02-tests.ts` 82/82; 23 of 25 existing runners exit-0 with every recorded baseline held exactly, and the two that do not fail **identically on the untouched baseline** (a missing `tsx` dependency in a spawned child process, proven by worktree comparison); `npm run build` clean with all 7 Atlas routes registered.
+- **Handoff:** the identity/knowledge boundary is enforced, not merely documented — V2 bounds the registry summary, test M2 asserts no long-form field name appears in `config/capabilities.ts`, and `?knowledge=false` proves the identity path does not load content. The registry is 241 lines for 8 capabilities. Adding knowledge is one module plus one `knowledge_ref`; adding a capability is one identity entry; neither changes a schema or a route. Three governance defects were found and are recorded in report §4: `cross_domain_platform` is not a domain in `config/domains.ts` (platform capabilities carry `domains: []` and express reach through `platform_reusable`), Atlas audience lenses are a separate vocabulary from the `config/personas.ts` decision lenses (the Sales lens has no product persona), and three invented persona ids were caught by rule V3 before commit. Eight of the 33 inventoried capabilities are seeded — deliberately a contract proof, not a population.
 - **Downstream Dependencies:** unlocks `ATL-03`, `ATL-04`, `ATL-07`. **Next WP:** `ATL-03`.
 
 ---
@@ -343,7 +345,7 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
   within the `retail_grocery` domain and the cross-domain platform set.
 - **Rationale:** The backend is worthless without truthful content, and truthful content is the
   programme's main risk surface.
-- **Hard Dependencies:** `ATL-01` (inventory), `ATL-02` (validator, repository).
+- **Hard Dependencies:** `ATL-01` (inventory) — **[COMPLETED]**; `ATL-02` (validator, repository) — **[COMPLETED]**.
 - **Scope:** description, innovation thesis, usage, testing, architecture, design, use cases, benefits,
   differentiation, demo guidance, market context, evidence, platform reuse, limitations and related
   capabilities — to the completeness tier the capability's maturity requires; Demo Path content for
