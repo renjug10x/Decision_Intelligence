@@ -17,7 +17,7 @@
 | Phase | Name | Status | Completed | Evidence |
 |-------|------|--------|-----------|----------|
 | — | Programme governance (this document set) | **[COMPLETED]** | 2026-08-20 | This document, [`CAPABILITY_KNOWLEDGE_MODEL.md`](CAPABILITY_KNOWLEDGE_MODEL.md), [`CAPABILITY_ATLAS_ARCHITECTURE.md`](../architecture/CAPABILITY_ATLAS_ARCHITECTURE.md), ADR-045…ADR-051, [`MASTER_PLAN.md`](MASTER_PLAN.md) ATL section, [`UX_DESIGN_PRINCIPLES.md`](../ux/UX_DESIGN_PRINCIPLES.md) §6 |
-| `ATL-01` | Capability Discovery, Governance & Information Model | **[NOT STARTED]** | — | — |
+| `ATL-01` | Capability Discovery, Governance & Information Model | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_01_CAPABILITY_INVENTORY_REPORT.md`](../reports/COGNIX_ATL_01_CAPABILITY_INVENTORY_REPORT.md) (33 capabilities, 9 contradictions, 8 orphans, gaps G1–G6) · [`COGNIX_ATL_01_STORYBOARD_MIGRATION_ASSESSMENT.md`](../reports/COGNIX_ATL_01_STORYBOARD_MIGRATION_ASSESSMENT.md) (26 slides audited, SB-GATE 1/6) |
 | `ATL-02` | Capability Knowledge Backend | **[NOT STARTED]** | — | — |
 | `ATL-03` | Retail & Grocery Knowledge Population | **[NOT STARTED]** | — | — |
 | `ATL-04` | Atlas UX & Structured Search | **[NOT STARTED]** | — | — |
@@ -25,9 +25,9 @@
 | `ATL-06` | Google AI, Grounding & Market Intelligence | **[NOT STARTED]** | — | — |
 | `ATL-07` | Capability Lifecycle Governance & Automation | **[NOT STARTED]** | — | — |
 
-**Current phase:** `ATL-01` — not yet started
-**Last completed Atlas activity:** governance recovery onto the authoritative CogniX line (2026-08-20)
-**Next executable work package:** **`ATL-01`**
+**Current phase:** `ATL-02` — not yet started
+**Last completed Atlas activity:** `ATL-01` completed 2026-08-20
+**Next executable work package:** **`ATL-02`** — blocked on decision **D1** only (see the inventory report §12)
 **Blocked by other CogniX work:** NO
 
 Status vocabulary follows `MASTER_PLAN.md`: `[NOT STARTED]` · `[IN PROGRESS]` · `[BLOCKED]` ·
@@ -37,10 +37,12 @@ Status vocabulary follows `MASTER_PLAN.md`: `[NOT STARTED]` · `[IN PROGRESS]` �
 
 Forward references, not broken links. Each is an output of a work package not yet executed.
 
-| Document | Created by | Purpose |
-|----------|-----------|---------|
-| `docs/reports/COGNIX_ATL_01_CAPABILITY_INVENTORY_REPORT.md` | `ATL-01` | Forensic, evidence-cited inventory reconciled against implementation |
-| `docs/reports/COGNIX_ATL_01_STORYBOARD_MIGRATION_ASSESSMENT.md` | `ATL-01` | Dual-version storyboard audit and `SB-GATE` checklist (ADR-051) |
+| Document | Created by | Status |
+|----------|-----------|--------|
+| [`COGNIX_ATL_01_CAPABILITY_INVENTORY_REPORT.md`](../reports/COGNIX_ATL_01_CAPABILITY_INVENTORY_REPORT.md) | `ATL-01` | **Created 2026-08-20** |
+| [`COGNIX_ATL_01_STORYBOARD_MIGRATION_ASSESSMENT.md`](../reports/COGNIX_ATL_01_STORYBOARD_MIGRATION_ASSESSMENT.md) | `ATL-01` | **Created 2026-08-20** |
+
+No forward references remain outstanding.
 
 `ATL-01` reports are placed in `docs/reports/` following the estate's existing convention
 (`COGNIX_<WP>_<SUBJECT>_REPORT.md`).
@@ -154,7 +156,7 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
 
 ---
 
-### `ATL-01` — Capability Discovery, Governance & Information Model [NOT STARTED]
+### `ATL-01` — Capability Discovery, Governance & Information Model [COMPLETED]
 
 - **Objective:** Establish the authoritative Atlas foundation — a forensic, evidence-reconciled
   inventory of what CogniX actually does, reconciled against the existing registries, contracts and
@@ -242,6 +244,18 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
 - **Decisions Outstanding:** whether unregistered capabilities are onboarded to `config/solutions.ts`
   during `ATL-03` or raised as separate non-Atlas work.
 - **Downstream Dependencies:** unlocks `ATL-02`. **Next WP:** `ATL-02`.
+
+#### `ATL-01` Handoff (completed 2026-08-20)
+
+- **Delivered:** [`COGNIX_ATL_01_CAPABILITY_INVENTORY_REPORT.md`](../reports/COGNIX_ATL_01_CAPABILITY_INVENTORY_REPORT.md) and [`COGNIX_ATL_01_STORYBOARD_MIGRATION_ASSESSMENT.md`](../reports/COGNIX_ATL_01_STORYBOARD_MIGRATION_ASSESSMENT.md).
+- **Inventory:** 33 capabilities — 9 registered (4 `SOL-*`, 5 `EXP-*`), 20 governed but **unregistered**, 4 further experience/platform. By implementation status: 21 `implemented`, 5 `partially-implemented`, 5 `simulated`, 2 `concept`.
+- **Principal finding:** the registries describe a fraction of the estate. `CDI-02`…`CDI-08`, `DDF-01` (with Forecast Stability, Decision Gap, Decision Window, Decision Regret), `IFI-01`, `ESF-1`/`-2`/`-3`/`-6` and `WP10-B`/`-C`/`-D` are each contracted, engine-backed, API-exposed, test-covered and reported — and discoverable from no registry.
+- **Orphaned components:** 8, six of them Lidl-era. Waste and supply-chain intelligence exist as code but are unreachable and are **not** inventoried as available capabilities.
+- **Unbacked registry entries:** 0. **Contradictions recorded, none fixed:** 9 (`C-01`…`C-09`).
+- **Gaps:** `G1` no capability carries all three ADR-047 dimensions · `G2` stale lifecycle states · `G3` 20 capabilities without registry identity · `G4` `CuriosityQuestion` content is component-resident · `G5` industry packs are not a domain taxonomy · `G6` a `PAT-*` suffix collision in the canonical pattern store.
+- **`SB-GATE`: 1 of 6 met.** The Architectural Storyboard **must not be retired**; it remains untouched. Two units of historical knowledge need a new home — the four-quadrant value framework and the hub-and-spoke reuse model.
+- **Blocking decision for `ATL-02`:** **D1** — how the 20 unregistered capabilities acquire identity. Recommendation: key Atlas records on work-package identifiers (`CDI-06`, `DDF-01`) as first-class refs, inventing no new registry.
+- **Runtime code changed:** none. Storyboard code untouched. No merge from `origin/main`.
 
 ---
 
