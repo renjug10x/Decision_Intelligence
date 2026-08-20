@@ -2,6 +2,11 @@
 
 This document serves as the project plan and implementation roadmap for refining the Lidl Decision Intelligence POC into a highly-focused, premium retail executive demo.
 
+> **Parallel workstream:** the **CogniX Capability Atlas** programme (`CAT-01`…`CAT-07`) is tracked in
+> [§11](#11-cognix-capability-atlas-parallel-workstream) of this document and governed by
+> [`COGNIX_CAPABILITY_ATLAS.md`](COGNIX_CAPABILITY_ATLAS.md). It runs alongside Phases 1–15 below and
+> changes none of them.
+
 ---
 
 ## 1. Current State Summary
@@ -331,4 +336,78 @@ without assistance. If they cannot explain these in under 5 minutes, the diagram
   - `looker-connector-service`: Governed Semantic Layer wrapper.
   - `gemini-orchestrator-service`: Generative AI handler.
   - `observability-service`: Logging and audit trail collection.
+
+---
+
+## 11. CogniX Capability Atlas (Parallel Workstream)
+
+> **The CogniX Capability Atlas is an independently scheduled workstream. Its existence does not
+> supersede, close, reorder or implicitly deprioritise existing unfinished CogniX work packages.**
+
+### 11.1 Separation statement
+
+- Phases 1–15 above keep their identifiers, sequence and status. Establishing the Atlas has changed,
+  completed, reordered and reinterpreted **none** of them.
+- The Atlas uses the `CAT-nn` namespace specifically so that it cannot collide with the `Phase N`
+  numbering used above.
+- No CAT phase depends on a Phase 1–15 item completing, and no Phase 1–15 item depends on a CAT phase.
+  Atlas work may proceed in parallel whenever dependencies within its own programme allow.
+- Work items from Phases 1–15 must not be moved into the Atlas namespace, and no Atlas phase may be
+  marked complete on the strength of adjacent non-Atlas delivery.
+
+### 11.2 What the Atlas is
+
+The governed knowledge, discovery, explanation and enablement layer for the CogniX Innovation Lab —
+*"Explore what CogniX can do, how capabilities work, where they apply, how to demonstrate them, and how
+they can be reused."* It is not merely a replacement About page; the About section is only its first
+exposure surface. Capability knowledge is backend-driven and is never stored as static JSX/HTML.
+
+Naming note: no occurrence of "CogniX" exists in this repository's code or data today. CogniX is the
+platform identity introduced at the governance layer by this programme. **Renaming this application,
+its packages, its UI or Phases 1–15 is explicitly out of scope for CAT-01…CAT-07.**
+
+### 11.3 Programme phases
+
+| Phase | Name | Purpose | Depends on |
+|-------|------|---------|-----------|
+| **CAT-01** | Capability Discovery, Governance & Information Model | Forensic, evidence-reconciled inventory; taxonomy; schema instantiation; storyboard migration assessment. **No runtime implementation.** | — |
+| **CAT-02** | Capability Knowledge Backend | Canonical model, validator, repository, read APIs, filtering, versioning, provenance, tests. | CAT-01 |
+| **CAT-03** | Retail & Grocery Knowledge Population | Governed records for every inventoried capability, evidence-checked against implementation. | CAT-01, CAT-02 |
+| **CAT-04** | Atlas UX & Structured Search | Search-first landing, capability detail, filters, audience lenses, relationships, Demo Path. Storyboard retirement only if SB-GATE passes. | CAT-02, CAT-03 |
+| **CAT-05** | Internal AI Retrieval & Ask CogniX | Semantic retrieval, internal RAG, AI gateway, citations, guardrails, evaluation tests. Internal knowledge only. | CAT-04 |
+| **CAT-06** | Google AI, Search Grounding & Market Intelligence | Gemini behind the backend, controlled grounding, provenance, internal/external separation, **"Prepare me for a client conversation"**. | CAT-05 |
+| **CAT-07** | Capability Lifecycle Governance & Automation | Completeness, evidence, drift and freshness checks; review dates; publication gates. | CAT-02, CAT-03 (may run parallel to CAT-05/06) |
+
+### 11.4 Current status
+
+**Programme governance:** established (2026-08-20).
+**Current phase:** CAT-01 — NOT STARTED.
+**Last completed work package:** NONE.
+**Next executable work package:** **CAT-01**.
+**Blocked by other CogniX work:** NO.
+
+The authoritative status board is §0 of [`COGNIX_CAPABILITY_ATLAS.md`](COGNIX_CAPABILITY_ATLAS.md).
+This section is a pointer; if the two disagree, the Atlas charter is correct and this section must be
+resynchronised.
+
+### 11.5 Governance documents
+
+| Document | Covers |
+|----------|--------|
+| [`COGNIX_CAPABILITY_ATLAS.md`](COGNIX_CAPABILITY_ATLAS.md) | Programme charter, status board, CAT-01…CAT-07 work-package contracts, SB-GATE, **How to Resume Capability Atlas Work** |
+| [`CAPABILITY_KNOWLEDGE_MODEL.md`](CAPABILITY_KNOWLEDGE_MODEL.md) | Canonical schema, maturity model, field tiers, validation rules, publication readiness, audience lenses, Demo Path, Questions Worth Asking |
+| [`CAPABILITY_ATLAS_ARCHITECTURE.md`](CAPABILITY_ATLAS_ARCHITECTURE.md) | Backend architecture, knowledge store, API surface, domain independence, architecture documentation model, Platform Capability Map, storyboard migration |
+| [`CAPABILITY_ATLAS_CONTENT_STANDARD.md`](CAPABILITY_ATLAS_CONTENT_STANDARD.md) | Truthfulness gate, writing standard, internal-vs-external truth, market intelligence standard, provenance, review and ownership |
+| [`CAPABILITY_ATLAS_SEARCH_AND_AI_MODEL.md`](CAPABILITY_ATLAS_SEARCH_AND_AI_MODEL.md) | Three search levels, Atlas AI Gateway, Gemini architecture, query routing, **"Prepare me for a client conversation"**, evaluation |
+| [`CAPABILITY_ATLAS_UX_SPEC.md`](CAPABILITY_ATLAS_UX_SPEC.md) | Design intent, anti-patterns, progressive disclosure, search-first landing, evidence presentation, accessibility |
+| [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md) | ADR-0001…ADR-0009 |
+
+### 11.6 Observation on existing unfinished work (status unchanged)
+
+Recorded for accuracy while establishing the Atlas; **nothing about it has been altered, resolved or
+absorbed into the Atlas**: Phase 5 (Labour Optimisation Screen, §4 above) has no corresponding
+component in the tree — `components/LabourOptimisation.tsx` does not exist and `app/page.tsx` has no
+`labour` route case. Only an anomaly branch in `lib/query-engine.ts` (~line 386) emits a `labour`
+anomaly type. This remains existing unfinished non-Atlas work and retains its Phase 5 identity and
+position. CAT-01 will record it as a plan/implementation contradiction; resolving it is not Atlas work.
 

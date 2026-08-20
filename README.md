@@ -1,6 +1,21 @@
 # Decision Intelligence
 
+## Project & governance documentation
 
+| Document | Purpose |
+|----------|---------|
+| [`PLAN.md`](PLAN.md) | Master plan. Delivery roadmap, Phases 1–15, design manifest, acceptance criteria. §11 registers the Capability Atlas workstream. |
+| [`COGNIX_CAPABILITY_ATLAS.md`](COGNIX_CAPABILITY_ATLAS.md) | **CogniX Capability Atlas programme charter** — status board, phases `CAT-01`…`CAT-07`, and *How to Resume Capability Atlas Work*. Start here for anything Atlas-related. |
+| [`CAPABILITY_KNOWLEDGE_MODEL.md`](CAPABILITY_KNOWLEDGE_MODEL.md) | Canonical capability schema, maturity model, validation rules, audience lenses. |
+| [`CAPABILITY_ATLAS_ARCHITECTURE.md`](CAPABILITY_ATLAS_ARCHITECTURE.md) | Atlas backend architecture, knowledge store, API surface, storyboard migration. |
+| [`CAPABILITY_ATLAS_CONTENT_STANDARD.md`](CAPABILITY_ATLAS_CONTENT_STANDARD.md) | Content, evidence, provenance and market-intelligence standards. |
+| [`CAPABILITY_ATLAS_SEARCH_AND_AI_MODEL.md`](CAPABILITY_ATLAS_SEARCH_AND_AI_MODEL.md) | Search levels, AI gateway, grounding, query routing, client-conversation preparation. |
+| [`CAPABILITY_ATLAS_UX_SPEC.md`](CAPABILITY_ATLAS_UX_SPEC.md) | Atlas experience design and progressive disclosure. |
+| [`ARCHITECTURE_DECISIONS.md`](ARCHITECTURE_DECISIONS.md) | Architecture Decision Records (ADR-0001 onward). |
+| [`AGENTS.md`](AGENTS.md) | Working instructions for developers and coding agents. |
+
+The Capability Atlas (`CAT-nn`) is a **parallel workstream** to the `PLAN.md` phases. Neither
+supersedes the other — see `PLAN.md` §11.1.
 
 ## Getting started
 
