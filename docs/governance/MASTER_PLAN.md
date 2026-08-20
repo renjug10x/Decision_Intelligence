@@ -446,6 +446,45 @@ Capability-family governance, canonical demand vocabulary, domain principles, th
 
 ---
 
+### Capability Enablement Workstream — CogniX Capability Atlas (ATL)
+
+> **The CogniX Capability Atlas is an independently scheduled workstream. It does not supersede, close, reorder or implicitly deprioritise existing incomplete CogniX work packages.**
+
+**The governed knowledge, discovery, explanation and enablement layer for the CogniX Enterprise Innovation Lab** — *"Explore what CogniX can do, how capabilities work, where they apply, how to demonstrate them, and how they can be reused."*
+
+Programme charter, status board, full work-package specifications, the `SB-GATE` storyboard gate and **How to Resume Capability Atlas Work** are in [`COGNIX_CAPABILITY_ATLAS.md`](COGNIX_CAPABILITY_ATLAS.md). Knowledge model: [`CAPABILITY_KNOWLEDGE_MODEL.md`](CAPABILITY_KNOWLEDGE_MODEL.md). Architecture, search and AI: [`CAPABILITY_ATLAS_ARCHITECTURE.md`](../architecture/CAPABILITY_ATLAS_ARCHITECTURE.md). Architectural rulings: ADR-045 … ADR-051.
+
+**Namespace:** `ATL` is registered alongside `CDI`, `ESF`, `IFI`, `DDF`, `DOT`, `WP10`, `EXP`, `SOL` and `PAT`. It is deliberately **not** `CAT-*`, because `SOL-CAT-04` already exists in the solution registry and would make a `CAT-*` workstream ambiguous to both readers and search.
+
+**Not a second capability model (ADR-045).** The Atlas extends the registries that already exist rather than replacing them: `CognixSolution` / `config/solutions.ts` remains canonical for Demonstration Solutions, `config/experiments.ts` for Innovation Experiments, [`EXPERIMENT_LIFECYCLE.md`](EXPERIMENT_LIFECYCLE.md) for lifecycle states, [`IP_GOVERNANCE.md`](IP_GOVERNANCE.md) for classification, `config/domains.ts` for domains and `config/personas.ts` for decision lenses. A capability keeps exactly one identity — its `SOL-*` or `EXP-*` identifier. The Atlas adds only the knowledge those registries deliberately do not carry: architecture, implementation references, contracts, usage, test procedures, validation evidence, demo paths, client questions and responses, market evidence, competitive context, cross-domain reuse, provenance, retrieval metadata, the capability relationship graph, ownership and review lifecycle, and known limitations.
+
+**Maturity is three orthogonal dimensions, never one (ADR-047):** innovation lifecycle state (owned by `EXPERIMENT_LIFECYCLE.md`), demonstration maturity (owned by `CognixSolution.demoMaturity`), and implementation status (`implemented` / `partially-implemented` / `simulated` / `experimental` / `concept` / `roadmap`, introduced because nothing owned it). They do not imply one another and are always shown together — the direct governance response to the `D-DDF-1` / `D-DDF-2` / `D-DDF-3` defect class and to Principle 12's *No Literal Standing In For A Calculation*.
+
+#### ATL Work Package Specifications:
+
+- **`ATL-01` — Capability Discovery, Governance & Information Model [NOT STARTED]:** Forensic, evidence-reconciled inventory of what CogniX actually does, reconciled against `SOL-*`/`EXP-*`/`PAT-*` registries, `packages/contracts`, the `tests/unit/` runners and the `docs/reports/` evidence base; three-dimension maturity classification at field level; unregistered-capability and orphaned-component detection; taxonomy confirmation as an extension of `config/domains.ts` and `config/personas.ts`; and the ADR-051 dual-version storyboard audit. **No runtime implementation.**
+  - *Hard Dependencies:* none — programme entry point.
+  - *Integration Dependencies:* none. *Enhancement Dependencies:* none.
+- **`ATL-02` — Capability Knowledge Backend [NOT STARTED]:** Canonical knowledge extension bound by reference to existing identifiers; validator; repository abstraction; read APIs under `app/api/v1/atlas/*` with the full filter set; relationship resolution; versioning and provenance; migration of the `components/QuestionsWorthAsking.tsx` `CuriosityQuestion` content into the registry (ADR-046); test runner following the `tests/unit/run-*-tests.ts` convention.
+  - *Hard Dependencies:* `ATL-01`.
+  - *Integration Dependencies:* `config/solutions.ts`, `config/experiments.ts`. *Enhancement Dependencies:* `packages/contracts` conventions.
+- **`ATL-03` — Retail & Grocery Knowledge Population [NOT STARTED]:** Governed knowledge for every inventoried capability in `retail_grocery` and the cross-domain platform set, evidence-checked against implementation and tests. No record may claim a capability that does not exist.
+  - *Hard Dependencies:* `ATL-01`, `ATL-02`.
+- **`ATL-04` — Atlas UX & Structured Search [NOT STARTED]:** Search-first landing, capability detail with progressive disclosure ([`UX_DESIGN_PRINCIPLES.md`](../ux/UX_DESIGN_PRINCIPLES.md) §7), Level 1 deterministic structured search with filters, audience lenses from `config/personas.ts`, relationship view, three-dimension maturity badges, Demo Path, Questions Worth Asking. Storyboard retirement only if `SB-GATE` passes.
+  - *Hard Dependencies:* `ATL-02`, `ATL-03`. *Integration Dependencies:* `SB-GATE` (ADR-051).
+- **`ATL-05` — Internal AI Retrieval & Ask CogniX [NOT STARTED]:** Semantic retrieval over governed capability knowledge only; Atlas AI gateway behind the existing provider abstraction; query routing; per-claim citations; guardrails; evaluation suite. **No external web access in this phase.**
+  - *Hard Dependencies:* `ATL-03`, `ATL-04`.
+- **`ATL-06` — Google AI, Grounding & Market Intelligence [NOT STARTED]:** Gemini as one adapter behind the gateway; server-side Google Search grounding gated per intent class; market evidence with provenance; strict **From CogniX** / **Market Context** / **AI Interpretation** separation (ADR-048); caching and cost controls; and **"Prepare me for a client conversation"** — an evidence-grounded client preparation pack whose demo-warnings section is mandatory and non-empty whenever a recommended capability is not fully implemented.
+  - *Hard Dependencies:* `ATL-05`, `ATL-03`.
+- **`ATL-07` — Capability Lifecycle Governance & Automation [NOT STARTED]:** Registration during feature development, completeness and architecture-evidence checks, test linkage, demo-readiness checks, market-evidence freshness, source-code drift detection against recorded implementation references, review dates, ownership and publication gates. Automation flags and blocks; it never promotes a maturity state.
+  - *Hard Dependencies:* `ATL-02`, `ATL-03`. May run parallel to `ATL-05` / `ATL-06`.
+
+**Architectural Storyboard disposition (ADR-051).** *Preserve architectural knowledge, not obsolete storyboard implementation.* Two implementations exist on different lines of history — the 12-slide `components/ArchitectureExplorer.tsx` on this line, and a 14-slide version on the abandoned Lidl-era `main`. The historical implementation is **never merged, cherry-picked or ported**; it is a read-only audit source. `ATL-01` audits both, assigns a destination to every unit of retained architectural knowledge, and completes the six-item `SB-GATE` checklist. The current storyboard is not deleted or disabled during `ATL-01`.
+
+**Separation discipline.** No `ATL` phase depends on any non-Atlas work package completing, and no non-Atlas work package depends on an `ATL` phase. No existing work item may be moved into the `ATL` namespace. `ATL-01` **reports** contradictions and pre-existing inconsistencies between governance and implementation; it does not fix them.
+
+---
+
 ### ESF-3 Disposition & Dependency Position
 - **Status:** COMPLETED (provider-neutral connector contract delivered).
 - **Role:** `ESF-3 — External Signal Connector Contract` remains provider-neutral and is NOT deleted, absorbed, or superseded. It defines connector contracts for planning, commerce, weather, events, competitive intel, operational telemetry, and demographic sources.

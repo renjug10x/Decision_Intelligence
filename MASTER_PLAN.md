@@ -31,11 +31,18 @@ PROGRAMME 10 Adaptive Intelligence & Scalable Service Architecture
                  Decision Regret · combined frontier visual · simulation
   Roadmap        DOT-1 … DOT-12 — Demand Observability & Demand Truth     [ROADMAP]
 
+  Parallel       ATL-01 … ATL-07 — CogniX Capability Atlas                 [NOT STARTED]
+  workstream     Governed capability knowledge, discovery, explanation and
+                 enablement layer. Independently scheduled; supersedes and
+                 reorders nothing above. Next executable: ATL-01.
+
 PHASE 11     IP and Innovation Governance
 PHASE 12     Industry Demonstration Packs
 PHASE 13     Innovation Operating Model & Knowledge Capture
 ```
 
 For complete work packages, user stories, test requirements, and exit gates, see [`docs/governance/MASTER_PLAN.md`](docs/governance/MASTER_PLAN.md).
+
+**Capability Atlas governance:** [`docs/governance/COGNIX_CAPABILITY_ATLAS.md`](docs/governance/COGNIX_CAPABILITY_ATLAS.md) · [`docs/governance/CAPABILITY_KNOWLEDGE_MODEL.md`](docs/governance/CAPABILITY_KNOWLEDGE_MODEL.md) · [`docs/architecture/CAPABILITY_ATLAS_ARCHITECTURE.md`](docs/architecture/CAPABILITY_ATLAS_ARCHITECTURE.md) · ADR-045 … ADR-051.
 
 **Demand capability governance:** [`docs/governance/DEMAND_OBSERVABILITY_MODEL.md`](docs/governance/DEMAND_OBSERVABILITY_MODEL.md) · [`docs/reports/COGNIX_DEMAND_DECISION_FRONTIER_PLANNING_REPORT.md`](docs/reports/COGNIX_DEMAND_DECISION_FRONTIER_PLANNING_REPORT.md) · ADR-040 … ADR-043.
