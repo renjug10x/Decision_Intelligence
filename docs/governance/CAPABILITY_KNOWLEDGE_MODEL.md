@@ -1,7 +1,7 @@
 # COGNIX CAPABILITY KNOWLEDGE MODEL
 
 **Document Status:** Approved & Authoritative (design only — not implemented)
-**Version:** 1.0.0
+**Version:** 1.1.0
 **Effective Date:** August 2026
 **Owner:** G10X Enterprise Innovation Lab Architecture Board
 **Implemented by:** `ATL-02` · **Populated by:** `ATL-03` · **Automated by:** `ATL-07`
@@ -23,28 +23,42 @@ already has. It is an extension specification, not a competing model (ADR-045).
 | IP classification and value progression | [`IP_GOVERNANCE.md`](IP_GOVERNANCE.md) |
 | Domain catalogue | `config/domains.ts` (`DOMAIN_CATALOGUE`) |
 | Persona / decision-lens catalogue | `config/personas.ts` (`PERSONA_CATALOGUE`) |
-| Enterprise learning patterns | `config/patterns.ts` |
+| Enterprise learning patterns | `services/learning/src/learning-pattern-store.ts` `CANONICAL_LEARNING_PATTERNS`, served via `v1/learning-patterns`. **Not** `config/patterns.ts`, which `ATL-01` §7.1 found to be a stale duplicate deliberately excluded from the UI by `tests/unit/run-wp10d-tests.ts:159` |
 | Evidence, provenance and honesty rules | [`COGNIX_PRINCIPLES.md`](COGNIX_PRINCIPLES.md) Principle 13 |
 | The Five-Second Rule and word ceiling | [`UX_DESIGN_PRINCIPLES.md`](../ux/UX_DESIGN_PRINCIPLES.md) §3 |
 
 Two consequences are binding:
 
-1. **One capability, one identity.** A capability is identified by its existing `SOL-*` or `EXP-*`
-   identifier. The Atlas never mints a second identity, and a capability present in the Atlas but in no
-   registry is a defect (ADR-045).
-2. **Reference, never copy.** Registry fields are read through the reference, not duplicated into Atlas
-   knowledge. A copied field will drift, and a drifted copy is indistinguishable from a correct one to
-   the reader.
+1. **One capability, one identity — in its own namespace.** A capability is identified by a stable,
+   immutable `CAP-*` identifier denoting *what CogniX can do* (ADR-052). `SOL-*`, `EXP-*`, `PAT-*` and
+   work-package identifiers remain separate governed identities, reached by typed relationship. A
+   `CAP-*` identifier is minted only on implementation evidence; a capability that exists only as a
+   plan is admitted at `implementation status` `roadmap` or `concept` and labelled as such.
+   *(This supersedes ADR-045's original clause that identity is drawn from `SOL-*`/`EXP-*`. `ATL-01`
+   found twenty governed capabilities in no registry, and one work package — `DDF-01` — delivering
+   four independently discoverable capabilities. See ADR-045 Amendment A.)*
+2. **Reference, never copy.** Registry fields are read through the relationship, not duplicated into
+   Atlas knowledge. A copied field will drift, and a drifted copy is indistinguishable from a correct
+   one to the reader.
 
 ---
 
 ## 2. The knowledge extension
 
 ```yaml
-# ── Binding to the existing registry (mandatory) ─────────────────────────────
-capabilityRef:             # 'SOL-PROMO-01' | 'EXP-COMMITMENT-01' | … must resolve
-assetType:                 # demonstration-solution | innovation-experiment |
+# ── Identity (mandatory) ─────────────────────────────────────────────────────
+capabilityId:              # 'CAP-…' — stable, immutable, never reused (ADR-052)
+name:
+capabilityType:            # domain-capability | platform-capability |
                            # enabling-service | governance-control | experience
+
+# ── Relationships to existing governed identities (ADR-052) ──────────────────
+# Many-to-many in both directions. Each entry must resolve. None is mandatory —
+# a capability may have no solution, no experiment and no pattern and still be real.
+demonstratedBy:            # [SOL-*]   — surfaces that demonstrate it
+originatedAs:              # [EXP-*]   — innovation experiments it came from
+evidencedBy:               # [PAT-*]   — learning patterns evidencing it
+deliveredBy:               # [work-package ids] e.g. ['DDF-01'], ['CDI-08','ESF-6']
 
 # ── Narrative the registry does not carry ────────────────────────────────────
 innovationThesis:          # why this is worth exploring at all
@@ -55,8 +69,10 @@ testingInstructions:       # how an engineer verifies it
 # ── Maturity — three orthogonal dimensions (ADR-047) ─────────────────────────
 lifecycleState:            # Concept | Research | Prototype | Pilot Ready |
                            #   Accelerator | Industry Pattern | Retired
-                           #   — owned by EXPERIMENT_LIFECYCLE.md
-demoMaturityRef:           # read from CognixSolution.demoMaturity, not restated
+                           #   — owned by EXPERIMENT_LIFECYCLE.md; resolved through
+                           #   originatedAs where an experiment owns it
+demoMaturityRef:           # resolved through demonstratedBy → CognixSolution.demoMaturity;
+                           #   absent where no solution demonstrates the capability
 implementationStatus:      # implemented | partially-implemented | simulated |
                            #   experimental | concept | roadmap   (see §3)
 fieldStatus:               # [{ field, implementationStatus, note }] — where a part
@@ -176,7 +192,7 @@ durationMins:
 steps:         # [{ action, whatToSay, whatToShow, expectedObservation }]
 prerequisites: # data state, persona, domain pack, keys, demo mode
 warnings:      # MANDATORY when implementationStatus or any fieldStatus is not `implemented`
-followUps:     # [capabilityRef]
+followUps:     # [capabilityId]
 ```
 
 | Path | Shape |
@@ -289,11 +305,15 @@ pre-existing divergence is recorded as an `ATL-01` audit input and is **not** re
 
 Implemented by the `ATL-02` validator, enforced by `ATL-07`.
 
-**V1** `capabilityRef` resolves to an existing `SOL-*` or `EXP-*` entry. Unresolvable fails.
-**V2** No Atlas field duplicates a value the registry owns (ADR-045).
+**V1** `capabilityId` is a unique, well-formed `CAP-*` identifier. Every `demonstratedBy`,
+`originatedAs`, `evidencedBy` and `deliveredBy` entry resolves to an existing governed identity.
+Unresolvable references fail. A record with no relationship of any kind requires an
+`implementationReferences` entry — admission is on evidence (ADR-052).
+**V2** No Atlas field duplicates a value a related registry owns (ADR-045, unamended portion).
+Identifiers are matched in full, never by numeric suffix (`ATL-01` gap `G6`).
 **V3** All `domainId`, persona and tag values exist in `config/domains.ts` / `config/personas.ts` /
 the tag vocabulary. Unknown values fail.
-**V4** Every `relatedCapabilities[].ref` resolves; dangling references fail.
+**V4** Every `relatedCapabilities[].ref` resolves to a `CAP-*` record; dangling references fail.
 **V5** Symmetric relations are symmetric: `depends-on` ⇄ `enables`, `supersedes` ⇄ `superseded-by`.
 **V6** All three maturity dimensions present (ADR-047). `fieldStatus` required where any part differs
 from the whole.
@@ -339,3 +359,4 @@ never promotes (ADR-047). Demotion is legitimate and is recorded, not hidden.
 | Version | Date | Change | WP |
 |---------|------|--------|-----|
 | 1.0.0 | 2026-08-20 | Initial knowledge extension over `CognixSolution` / experiment registries; three-dimension maturity per ADR-047; lenses bound to `config/personas.ts`; Demo Path; Questions Worth Asking bound to the existing `CuriosityQuestion`; market and validation rules. | Atlas governance recovery |
+| 1.1.0 | 2026-08-20 | Capability identity moved to a first-class `CAP-*` namespace with typed relationships to `SOL-*`, `EXP-*`, `PAT-*` and work packages (ADR-052, resolving `ATL-01` decision `D1`). `capabilityRef` replaced by `capabilityId` plus `demonstratedBy` / `originatedAs` / `evidencedBy` / `deliveredBy`. V1, V2 and V4 updated. | `ATL-01` → `ATL-02` |

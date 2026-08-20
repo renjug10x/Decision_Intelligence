@@ -263,6 +263,22 @@ Confirmed as an **extension** of existing configuration; no competing vocabulary
 | **D2** | Whether Atlas knowledge lives in `config/` beside the registries or in a dedicated content root | `ATL-02` scope |
 | **D3** | Whether orphaned Lidl-era components are deleted, revived or left | **Not Atlas work.** Raise as separate non-Atlas work |
 
+### 12.1 `D1` resolution (recorded 2026-08-20)
+
+**Resolved: none of the three options as stated.** The owner approved a fourth — a dedicated
+first-class **`CAP-*`** capability identity namespace, with `SOL-*`, `EXP-*`, `PAT-*` and work-package
+identifiers retained as separate governed identities reached by typed relationship, and a canonical
+`config/capabilities.ts` registry permitted where `ATL-02` judges it justified.
+
+The recommendation in the table above — option (c), keying on work-package identifiers — was **not**
+accepted, and the reason is a cardinality argument this report itself supplies: `DDF-01` delivered four
+independently discoverable capabilities (Forecast Stability, Decision Gap, Decision Window, Decision
+Regret, rows U-10…U-13). Keying on the work package would have made those four unaddressable, which is
+precisely what the Atlas exists to prevent.
+
+Recorded as **ADR-052**, with **ADR-045 Amendment A** narrowing that ADR's original identity clause.
+`ATL-02` is unblocked; the minimal schema and migration approach are `ATL-02`'s to determine.
+
 ---
 
 ## 13. Acceptance criteria verdicts

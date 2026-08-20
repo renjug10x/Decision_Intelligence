@@ -27,7 +27,7 @@
 
 **Current phase:** `ATL-02` — not yet started
 **Last completed Atlas activity:** `ATL-01` completed 2026-08-20
-**Next executable work package:** **`ATL-02`** — blocked on decision **D1** only (see the inventory report §12)
+**Next executable work package:** **`ATL-02`** — **unblocked.** Decision `D1` resolved 2026-08-20 (ADR-052)
 **Blocked by other CogniX work:** NO
 
 Status vocabulary follows `MASTER_PLAN.md`: `[NOT STARTED]` · `[IN PROGRESS]` · `[BLOCKED]` ·
@@ -81,8 +81,19 @@ does not duplicate their fields**:
 | `config/patterns.ts` | Enterprise learning patterns (`PAT-*`) | **Referenced** as evidence |
 | [`COGNIX_PRINCIPLES.md`](COGNIX_PRINCIPLES.md) Principle 13 | Evidence, provenance, no fake intelligence | **Adopted unchanged** — the Atlas content standard is Principle 13 applied to capability knowledge |
 
-**A capability has exactly one identity** — its `SOL-*` or `EXP-*` identifier. The Atlas never mints a
-competing identity. A capability appearing in the Atlas but in no registry is prohibited.
+**A capability has exactly one identity — a stable `CAP-*` identifier** denoting *what CogniX can do*
+(ADR-052). `SOL-*`, `EXP-*`, `PAT-*` and work-package identifiers remain separate governed identities,
+reached from a capability by typed relationship — *demonstrated-by*, *originated-as*, *evidenced-by*,
+*delivered-by*. The relationships are many-to-many in both directions: `DDF-01` delivered four
+capabilities; `CDI-08` and `ESF-6` together deliver one.
+
+A `CAP-*` identifier is minted **only on implementation evidence** — a contract, an engine, a route, a
+test or a report. A capability that exists only as a plan is admitted at `implementation status`
+`roadmap` or `concept` and labelled as such, never as something CogniX can do today.
+
+*(This resolves `ATL-01` decision `D1` and amends ADR-045, whose original clause assumed every
+capability was already registered as a `SOL-*` or `EXP-*`. `ATL-01` found twenty that are not. See
+ADR-045 Amendment A.)*
 
 The knowledge the Atlas adds — architecture, implementation references, contracts, usage, test
 procedures, validation evidence, demo paths, client questions and responses, market evidence,
@@ -269,7 +280,11 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
 - **Hard Dependencies:** `ATL-01` (inventory, taxonomy confirmation).
 - **Integration Dependencies:** existing registries (`config/solutions.ts`, `config/experiments.ts`).
 - **Enhancement Dependencies:** `packages/contracts` conventions.
-- **Scope:** canonical `CapabilityKnowledge` extension type bound by reference to `SOL-*` / `EXP-*`;
+- **Scope:** the `CAP-*` capability identity namespace and — where `ATL-02` judges it justified — a
+  canonical `config/capabilities.ts` registry, established with the **minimal** schema and migration
+  needed to add capability identity **without duplicating** existing `CognixSolution`, experiment,
+  pattern or lifecycle metadata (ADR-052); canonical `CapabilityKnowledge` extension type keyed on
+  `capabilityId` with typed relationships to `SOL-*` / `EXP-*` / `PAT-*` / work packages;
   validator implementing the mandatory/recommended/optional tiers and validation rules of
   [`CAPABILITY_KNOWLEDGE_MODEL.md`](CAPABILITY_KNOWLEDGE_MODEL.md); repository abstraction over the
   registry; read APIs under `app/api/v1/atlas/*` with filtering; relationship resolution; versioning,
@@ -280,8 +295,16 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
 - **Acceptance Criteria:**
   - `AC-ATL-02-1` **[HARD]** No capability prose in any component; components read the API.
   - `AC-ATL-02-2` **[HARD]** The validator rejects a record missing a mandatory field and names it.
-  - `AC-ATL-02-3` **[HARD]** Every capability reference resolves to an existing `SOL-*` or `EXP-*`;
-    a dangling reference fails validation.
+  - `AC-ATL-02-3` **[HARD]** Every `capabilityId` is a unique, well-formed `CAP-*`; every
+    `demonstratedBy` / `originatedAs` / `evidencedBy` / `deliveredBy` entry resolves to an existing
+    governed identity; a dangling reference fails validation.
+  - `AC-ATL-02-8` **[HARD]** No `CognixSolution`, experiment, pattern or lifecycle value is copied into
+    a capability record — each is resolved through its relationship (ADR-045 unamended portion, ADR-052).
+  - `AC-ATL-02-9` **[HARD]** The four `DDF-01` capabilities — Forecast Stability, Decision Gap,
+    Decision Window, Decision Regret — carry four distinct `CAP-*` identifiers, are independently
+    retrievable, and all four resolve `deliveredBy: ['DDF-01']`. This is the cardinality case that
+    decided ADR-052 and is the model's acceptance test.
+  - `AC-ATL-02-10` Identifiers are matched in full, never by numeric suffix (`ATL-01` gap `G6`).
   - `AC-ATL-02-4` **[HARD]** Filtering works for domain, sub-domain, business problem, persona lens,
     lifecycle state, demo maturity, implementation status, cross-domain applicability and tags.
   - `AC-ATL-02-5` **[HARD]** `QuestionsWorthAsking` renders identically from the registry; no
@@ -304,8 +327,12 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
 - **Risks:** over-engineering persistence — ADR-046 permits the simplest version-controlled registry;
   escalation requires a new ADR. Regression in the existing `QuestionsWorthAsking` surface — mitigated
   by `AC-ATL-02-5`.
-- **Decisions Outstanding:** whether Atlas knowledge lives in `config/` beside the registries or in a
-  dedicated content root; the test-runner invocation convention for new suites.
+- **Decisions Resolved:** `D1` — capability identity is a first-class `CAP-*` namespace (ADR-052,
+  approved 2026-08-20).
+- **Decisions Outstanding:** whether a canonical `config/capabilities.ts` is justified and its minimal
+  schema (`ATL-02` to determine, per ADR-052); the `CAP-*` identifier allocation scheme; whether Atlas
+  knowledge lives in `config/` beside the registries or in a dedicated content root; the test-runner
+  invocation convention for new suites.
 - **Downstream Dependencies:** unlocks `ATL-03`, `ATL-04`, `ATL-07`. **Next WP:** `ATL-03`.
 
 ---
