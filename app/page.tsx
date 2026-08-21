@@ -6,6 +6,7 @@ import { useApp } from '@/lib/context';
 import { useAuth } from '@/context/AuthContext';
 import { appRoutes } from '@/config/routes';
 import Sidebar from '@/components/Sidebar';
+import CapabilityAtlas from '@/components/atlas/CapabilityAtlas';
 import InnovationPortfolio from '@/components/InnovationPortfolio';
 import QuestionsWorthAsking from '@/components/QuestionsWorthAsking';
 import ExperimentCanvas from '@/components/ExperimentCanvas';
@@ -167,6 +168,8 @@ export default function App() {
 
   const renderPage = () => {
     switch (currentPage) {
+      case 'atlas':
+        return <CapabilityAtlas />;
       case 'portfolio':
         return (
           <InnovationPortfolio

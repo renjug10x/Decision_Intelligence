@@ -20,14 +20,14 @@
 | `ATL-01` | Capability Discovery, Governance & Information Model | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_01_CAPABILITY_INVENTORY_REPORT.md`](../reports/COGNIX_ATL_01_CAPABILITY_INVENTORY_REPORT.md) (33 capabilities, 9 contradictions, 8 orphans, gaps G1–G6) · [`COGNIX_ATL_01_STORYBOARD_MIGRATION_ASSESSMENT.md`](../reports/COGNIX_ATL_01_STORYBOARD_MIGRATION_ASSESSMENT.md) (26 slides audited, SB-GATE 1/6) |
 | `ATL-02` | Capability Knowledge Backend | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_02_CAPABILITY_KNOWLEDGE_BACKEND_REPORT.md`](../reports/COGNIX_ATL_02_CAPABILITY_KNOWLEDGE_BACKEND_REPORT.md) · `run-atl02-tests.ts` 82/82 · `tsc` 0 · build clean · 7 routes under `/api/v1/atlas/*` |
 | `ATL-03` | Retail & Grocery Knowledge Population | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_03_KNOWLEDGE_POPULATION_REPORT.md`](../reports/COGNIX_ATL_03_KNOWLEDGE_POPULATION_REPORT.md) · 38 capabilities, 38 knowledge modules · `run-atl03-tests.ts` 29/29 · `run-atl02-tests.ts` 119/119 · `tsc` 0 · build clean |
-| `ATL-04` | Atlas UX & Structured Search | **[NOT STARTED]** | — | — |
+| `ATL-04` | Atlas UX & Structured Search | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_04_ATLAS_UX_SEARCH_REPORT.md`](../reports/COGNIX_ATL_04_ATLAS_UX_SEARCH_REPORT.md) · `run-atl04-tests.ts` 54/54 · search-first landing, 4 lenses, 6 filters · validated at 1440/1024/720 · `tsc` 0 · build clean |
 | `ATL-05` | Internal AI Retrieval & Ask CogniX | **[NOT STARTED]** | — | — |
 | `ATL-06` | Google AI, Grounding & Market Intelligence | **[NOT STARTED]** | — | — |
 | `ATL-07` | Capability Lifecycle Governance & Automation | **[NOT STARTED]** | — | — |
 
-**Current phase:** `ATL-04` — not yet started
-**Last completed Atlas activity:** `ATL-03` completed 2026-08-20
-**Next executable work package:** **`ATL-04`** — Atlas UX & Structured Search
+**Current phase:** `ATL-05` — not yet started
+**Last completed Atlas activity:** `ATL-04` completed 2026-08-20
+**Next executable work package:** **`ATL-05`** — Internal AI Retrieval & Ask CogniX
 **Blocked by other CogniX work:** NO
 
 Status vocabulary follows `MASTER_PLAN.md`: `[NOT STARTED]` · `[IN PROGRESS]` · `[BLOCKED]` ·
@@ -380,7 +380,7 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
 
 ---
 
-### `ATL-04` — Atlas UX & Structured Search [NOT STARTED]
+### `ATL-04` — Atlas UX & Structured Search [COMPLETED]
 
 - **Objective:** Deliver the Atlas experience — search-first landing, domain browse, capability detail
   with audience lenses, relationships, Demo Path — and, once `SB-GATE` passes, supersede the
@@ -420,6 +420,8 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
   UX — mitigated by the word ceiling and progressive disclosure.
 - **Decisions Outstanding:** whether the Atlas becomes a top-level shell entry or lives within the
   existing Help/About surface (`UX_DESIGN_PRINCIPLES.md` §3.2 One-Title rules apply either way).
+- **Completion Evidence:** [`COGNIX_ATL_04_ATLAS_UX_SEARCH_REPORT.md`](../reports/COGNIX_ATL_04_ATLAS_UX_SEARCH_REPORT.md). `run-atl04-tests.ts` 54/54; `run-atl03` 29/29 and `run-atl02` 119/119 unchanged; `tsc` 0 diagnostics; build clean; live-rendered at 1440, 1024 and 720 with no horizontal overflow and all three maturity dimensions surviving to the narrowest width.
+- **Handoff:** search is index-backed over governed knowledge and answers real questions — the seven acceptance queries are asserted in the suite. Testing with questions rather than keywords falsified the ATL-02 scorer, which the eight-capability seed had been too small to expose: `how do I test Decision Gap` had ranked Decision *Window* first, and `why did the decision change` matched 36 of 38. Fixed with stopwords, phrase weighting and knowledge indexing — all deterministic, no model. Filter and lens hints come from a **declared lexicon** and are surfaced as dismissible chips naming their trigger phrase, never applied silently. Two items are deliberately incomplete and recorded rather than fudged: Questions Worth Asking binding needs a governance rule for resolving `EXP-*`/`SOL-*` to `CAP-*` (report §6), and `why did the decision change` stays broad because *decision* is the estate's dominant noun — a Level 2 problem for `ATL-05`. **SB-GATE remains 0 of 6 advanced**; the Atlas is a candidate successor surface but no storyboard content was migrated.
 - **Downstream Dependencies:** unlocks `ATL-05`. **Next WP:** `ATL-05`.
 
 ---
@@ -429,7 +431,7 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
 - **Objective:** Add AI-assisted explanation over governed internal capability knowledge, with
   citations, and no external web access.
 - **Rationale:** ADR-049, ADR-050 Levels 2 and 3.
-- **Hard Dependencies:** `ATL-04` (Level 1 search, surfaces), `ATL-03` (content).
+- **Hard Dependencies:** `ATL-04` (Level 1 search, surfaces) — **[COMPLETED]**; `ATL-03` (content) — **[COMPLETED]**.
 - **Scope:** semantic retrieval over Atlas knowledge only; Atlas AI gateway behind the existing
   provider abstraction (`lib/ai-provider.ts`); query routing for CogniX-only and demonstration
   intents; grounded answers with per-claim citations to capability identifiers; audience-sensitive

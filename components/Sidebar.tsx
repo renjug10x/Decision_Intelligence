@@ -66,6 +66,15 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
         </div>
 
         <button
+          className={`nav-item ${currentPage === 'atlas' ? 'active' : ''}`}
+          onClick={() => onNavigate('atlas')}
+          style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
+        >
+          <Layers size={14} color={currentPage === 'atlas' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
+          <span>Capability Atlas</span>
+        </button>
+
+        <button
           className={`nav-item ${currentPage === 'portfolio' ? 'active' : ''}`}
           onClick={() => onNavigate('portfolio')}
           style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
