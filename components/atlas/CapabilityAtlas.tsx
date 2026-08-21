@@ -44,6 +44,7 @@ import AskCogniX from './AskCogniX';
 import CapabilityLandscape from './CapabilityLandscape';
 import ClarificationPanel from './ClarificationPanel';
 import ExplorationContextBar, { type ContextRemoval } from './ExplorationContext';
+import ClientPreparation from './ClientPreparation';
 import PortfolioView from './PortfolioView';
 import QuestionsWorthExploring from './QuestionsWorthExploring';
 import {
@@ -55,6 +56,7 @@ import type {
   ResolvedCapability, AudienceLens, CapabilityType,
   ClarificationChoice, ClarificationResponse, ExplorationContext
 } from '@/packages/contracts/src/capability-atlas-model';
+import { LENS_PROFILES, LENS_NAME } from '@/lib/atlas/lens';
 
 /**
  * The four Atlas reading modes. Deliberately a smaller vocabulary than the nineteen-entry product
@@ -68,12 +70,6 @@ const LENSES: { id: AudienceLens; label: string }[] = [
   { id: 'developer', label: 'Developer' }
 ];
 
-const LENS_NAME: Record<AudienceLens, string> = {
-  'innovation-executive': 'Innovation Executive',
-  sales: 'Sales',
-  architect: 'Architect',
-  developer: 'Developer'
-};
 
 /** Real questions, not keywords. These are the ATL-04 search acceptance queries. */
 const EXAMPLE_QUERIES = [
@@ -128,6 +124,13 @@ export default function CapabilityAtlas({ onOpenSolution, onOpenExperiment }: Pr
   const [clarification, setClarification] = useState<ClarificationResponse | null>(null);
   const [clarifyStep, setClarifyStep] = useState(0);
   const [askSeed, setAskSeed] = useState<string | null>(null);
+  /*
+    Preparation is a FOCUSED WORKSPACE reached from the Atlas, not a fourth destination beside
+    Explore, Portfolio and Questions. ATL-04R's central finding was that three destinations over one
+    estate made them disagree; adding a fourth would repeat it. It is entered from the Atlas and
+    returns to it, carrying the lens and whatever the reader had typed (§6, §35).
+  */
+  const [preparing, setPreparing] = useState<string | null>(null);
   const [selected, setSelected] = useState<ResolvedCapability | null>(null);
   const [loading, setLoading] = useState(true);
   const [clarifying, setClarifying] = useState(false);
@@ -139,6 +142,17 @@ export default function CapabilityAtlas({ onOpenSolution, onOpenExperiment }: Pr
       .catch(e => setError(e.message))
       .finally(() => setLoading(false));
   }, []);
+
+  /*
+    A lens re-orders the estate the reader is looking at, server-side. It is a re-fetch rather than
+    a client-side sort because the ranking signals read authored knowledge the list response does
+    not carry, and because ADR-045's "reorder, never filter" is enforced at the route (the response
+    is a permutation of the same members). The unlensed list is restored when the lens is cleared.
+  */
+  useEffect(() => {
+    const q = buildFilterQuery({ ...(lens ? { lens: [lens] } : {}) });
+    fetchCapabilities(q).then(setAll).catch(() => {});
+  }, [lens]);
 
   const filterQuery = useMemo(() => buildFilterQuery({
     domain: filters.domain,
@@ -261,6 +275,17 @@ export default function CapabilityAtlas({ onOpenSolution, onOpenExperiment }: Pr
     void step(submitted, next, clarifyStep);
   }
 
+  if (preparing !== null) {
+    return (
+      <ClientPreparation
+        lens={lens}
+        seedBrief={preparing || null}
+        onBack={() => setPreparing(null)}
+        onOpenCapability={id => { setPreparing(null); void open(id); }}
+      />
+    );
+  }
+
   if (selected) {
     return (
       <CapabilityDetail
@@ -269,6 +294,7 @@ export default function CapabilityAtlas({ onOpenSolution, onOpenExperiment }: Pr
         onBack={() => setSelected(null)}
         onOpenCapability={open}
         problemLabel={problemLabel}
+        onPrepare={seed => { setSelected(null); setPreparing(seed); }}
       />
     );
   }
@@ -281,13 +307,18 @@ export default function CapabilityAtlas({ onOpenSolution, onOpenExperiment }: Pr
         .filter(r => !scoped || scope.includes(r.capability_id))
         .map(r => {
           const identity = all.find(c => c.capability_id === r.capability_id);
-          return { ...r, platform_reusable: identity?.platform_reusable, domains: identity?.domains };
+          return {
+            ...r,
+            platform_reusable: identity?.platform_reusable,
+            domains: identity?.domains,
+            lens_signals: identity?.lens_signals
+          };
         })
     : all.map(c => ({
         capability_id: c.capability_id, name: c.name, summary: c.summary, score: 0, matches: [],
         lifecycle_state: c.lifecycle_state, demo_maturity: c.demo_maturity,
         implementation_status: c.implementation_status, level: 'structured' as const,
-        platform_reusable: c.platform_reusable, domains: c.domains
+        platform_reusable: c.platform_reusable, domains: c.domains, lens_signals: c.lens_signals
       }));
 
   const activeChips: { label: string; clear: () => void }[] = [];
@@ -405,7 +436,7 @@ export default function CapabilityAtlas({ onOpenSolution, onOpenExperiment }: Pr
               ))}
               {lens && (
                 <span className="atlas-lens-note">
-                  Ordering only — nothing is hidden, and the facts do not change.
+                  {LENS_PROFILES[lens].orientation} The facts do not change, and nothing is hidden.
                 </span>
               )}
             </div>
@@ -431,6 +462,23 @@ export default function CapabilityAtlas({ onOpenSolution, onOpenExperiment }: Pr
               )}
             </div>
           </div>
+
+          {/*
+            ONE entry point on this surface, beside the dimensions rather than repeated across every
+            card and every result. §35 warns against cluttering every surface with the same call to
+            action, and the second entry lives on the capability detail where a reader has already
+            decided a capability matters. Whatever the reader has typed travels with them, so the
+            workspace does not ask again for something already on screen.
+          */}
+          <button type="button" className="atlas-prep-entry" onClick={() => setPreparing(submitted || query || '')}>
+            <Compass size={15} strokeWidth={1.75} />
+            <span>
+              <strong>Prepare me for a client conversation</strong>
+              <span className="atlas-prep-entry-hint">
+                Governed capabilities, an honest demo sequence, and what you must not claim.
+              </span>
+            </span>
+          </button>
 
           <div className="atlas-advanced">
             <button

@@ -38,7 +38,8 @@ import {
   clarify, applyChoice, removeContext, isPlatformQuestion, AREA_DOMINANCE_THRESHOLD
 } from '../../lib/atlas/clarification';
 import { resolvePlatformMetadata, PLATFORM_VERSION } from '../../config/platform-metadata';
-import { MAX_CLARIFICATION_STEPS } from '../../packages/contracts/src/capability-atlas-model';
+import { MAX_CLARIFICATION_STEPS, ATLAS_LENSES } from '../../packages/contracts/src/capability-atlas-model';
+import { LENS_PROFILES } from '../../lib/atlas/lens';
 import type { ExplorationContext } from '../../packages/contracts/src/capability-atlas-model';
 
 const ROOT = join(__dirname, '..', '..');
@@ -351,8 +352,23 @@ async function run() {
     'G11: …and structured filtering is retained behind progressive disclosure rather than removed');
   assert(/View through the lens of/.test(atlasContainer),
     'G12: The persona lens lives inside the Atlas');
-  assert(/Ordering only/.test(atlasContainer),
-    'G13: …and is stated to reorder rather than to hide or to change the facts');
+  /*
+    G13 originally required the lens bar to read "Ordering only". `ATL-06D` removed that sentence
+    because it was an accurate description of a defect: owner evaluation of this very interface
+    found that selecting Sales, Architect or Developer changed the section order and nothing a
+    reader could use (`D-ATL-04R-1`). A note promising the control does little is not something to
+    protect once the control has been made to do something.
+
+    What G13 protects is that the lens does not hide or alter facts, and that the interface says so.
+    Both are now asserted against the governed profile and the corrected wording — the invariance
+    itself is proven field-by-field across the whole registry in `run-atl06d-tests.ts` §B.
+  */
+  assert(/LENS_PROFILES\[lens\]\.orientation/.test(atlasContainer),
+    'G13: The lens bar states what the selected lens actually changes');
+  assert(/The facts do not change, and nothing is hidden/.test(atlasContainer),
+    'G13a: …and states that it changes no fact and hides nothing');
+  assert(ATLAS_LENSES.every(l => LENS_PROFILES[l].orientation.length > 0 && LENS_PROFILES[l].reading_for.length > 0),
+    'G13b: …with every lens declaring what it leads with and what it reads for');
 
   // ── H. About and governance tell the truth ───────────────────────────────
   const meta = resolvePlatformMetadata();

@@ -24,8 +24,13 @@ import type {
 } from '@/packages/contracts/src/capability-atlas-model';
 import type { QueryHint } from '@/lib/atlas/query-understanding';
 import type { CuriosityQuestion } from '@/packages/contracts/src/capability-atlas-model';
+import type { ClientContext, PreparationPack } from '@/packages/contracts/src/atlas-preparation-model';
 
-export type CapabilityListItem = CapabilityIdentity & { demo_maturity: DemoMaturity | null };
+export type CapabilityListItem = CapabilityIdentity & {
+  demo_maturity: DemoMaturity | null;
+  /** Present only when a lens was requested. Why this capability sits where it sits, in words. */
+  lens_signals?: { id: string; rationale: string }[];
+};
 export type AtlasSearchResponse = SearchResponse & { hints: QueryHint[]; expansions?: QueryExpansion[] };
 
 export interface AtlasDomain {
@@ -155,4 +160,40 @@ export async function clarifyQuery(
   }
   const payload = await res.json();
   return payload.data as ClarificationResponse;
+}
+
+/**
+ * Prepare me for a client conversation (ATL-06D).
+ *
+ * `research` defaults to `false` here as it does on the route: the caller must set it deliberately,
+ * so a preparation pack never reaches outward because a component forgot to pass a flag (ADR-056).
+ * `context` carries the accumulated client context between turns, which is what makes a refinement
+ * refine rather than restart (§31).
+ */
+export async function preparePack(request: {
+  brief?: string;
+  refinement?: string;
+  choices?: string[];
+  lens?: AudienceLens | null;
+  context?: Partial<ClientContext>;
+  research?: boolean;
+}): Promise<PreparationPack> {
+  const res = await fetch('/api/v1/atlas/prepare', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({
+      brief: request.brief ?? '',
+      refinement: request.refinement,
+      choices: request.choices,
+      lens: request.lens ?? undefined,
+      context: request.context,
+      research: request.research === true
+    })
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Preparation request failed: ${res.status}`);
+  }
+  const payload = await res.json();
+  return payload.data as PreparationPack;
 }

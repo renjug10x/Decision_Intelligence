@@ -12,6 +12,8 @@ import type { SearchResult } from '@/packages/contracts/src/capability-atlas-mod
 export interface CardCapability extends SearchResult {
   platform_reusable?: boolean;
   domains?: string[];
+  /** Why the active lens placed this capability where it did. Words, never a score (ADR-064). */
+  lens_signals?: { id: string; rationale: string }[];
 }
 
 export default function CapabilityCard({
@@ -51,6 +53,11 @@ export default function CapabilityCard({
           </span>
         )}
         {showWhy && why && <span className="atlas-card-why">{why}</span>}
+        {capability.lens_signals?.length ? (
+          <span className="atlas-card-why atlas-card-lenswhy" title={capability.lens_signals.map(s => s.rationale).join(' ')}>
+            {capability.lens_signals[0].rationale}
+          </span>
+        ) : null}
       </span>
     </button>
   );

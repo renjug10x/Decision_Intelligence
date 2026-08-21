@@ -17,6 +17,9 @@ import { searchCapabilities } from '../../lib/atlas/capability-search';
 import { getCapabilityIndex, clearCapabilityIndex } from '../../lib/atlas/capability-index';
 import { understandQuery, STOPWORDS } from '../../lib/atlas/query-understanding';
 import { GET as getSearch } from '../../app/api/v1/atlas/search/route';
+import { ATLAS_LENSES } from '../../packages/contracts/src/capability-atlas-model';
+import { LENS_PROFILES, DEFAULT_HEADLINES, orderForLens } from '../../lib/atlas/lens';
+import { CAPABILITY_REGISTRY as REGISTRY_FOR_LENS } from '../../config/capabilities';
 import type { CapabilityIdentity } from '../../packages/contracts/src/capability-atlas-model';
 
 const ROOT = join(__dirname, '..', '..');
@@ -170,11 +173,40 @@ async function run() {
     'H3: Implementation truth is carried by shape AND word, not colour alone');
 
   const detail = readFileSync(join(ATLAS_DIR, 'CapabilityDetail.tsx'), 'utf8');
-  assert(/What problem does this solve\?/.test(detail) && /Why does it matter\?/.test(detail) &&
-         /Can I demonstrate it\?/.test(detail) && /Can I reuse it elsewhere\?/.test(detail),
-    'H4: The detail view answers the four required questions above the fold');
-  assert(/LENS_PRIORITY/.test(detail) && /every section below is available under any lens/.test(detail),
-    'H5: Lenses reorder rather than hide — stated in the UI itself');
+
+  /*
+    H4 and H5 originally grepped this component for four literal question strings and for the
+    `LENS_PRIORITY` table that ordered its sections. `ATL-06D` moved both into the governed lens
+    profile (`lib/atlas/lens.ts`, ADR-064), because owner evaluation found that a lens which only
+    reordered sections read as decorative — defect `D-ATL-04R-1`.
+
+    Re-pointed rather than relaxed. What H4 protects is that the detail view answers four questions
+    ABOVE THE FOLD before any disclosure, and what H5 protects is that a lens reorders without
+    hiding. Both are now asserted against the profile itself, which is a stronger check than a
+    string match: the four questions are verified for every lens AND for the neutral default, and
+    the reorder-never-hide rule is verified as a property of `orderForLens` rather than as a
+    sentence in the interface. The original four questions survive as the unlensed default.
+  */
+  assert(/atlas-fourup/.test(detail) && /resolveHeadlines/.test(detail),
+    'H4a: The detail view still answers four questions above the fold, now resolved per lens');
+  const defaultQuestions = DEFAULT_HEADLINES.map(h => h.question);
+  assert(defaultQuestions.includes('What problem does this solve?') &&
+         defaultQuestions.includes('Why does it matter?') &&
+         defaultQuestions.includes('Can I demonstrate it?') &&
+         defaultQuestions.includes('Can I reuse it elsewhere?'),
+    'H4: The four required questions are the neutral default, unchanged when no lens is selected');
+  assert(ATLAS_LENSES.every(l => LENS_PROFILES[l].headlines.length === 4) && DEFAULT_HEADLINES.length === 4,
+    'H4b: …and every lens answers exactly four, so the shape above the fold is constant');
+
+  assert(ATLAS_LENSES.every(l => {
+    const ordered = orderForLens(REGISTRY_FOR_LENS.map(identity => ({
+      identity, demo_maturity: null, relationships: { solutions: [], experiments: [], patterns: [], work_packages: [] },
+      knowledge: null, lens: l, lens_field_order: []
+    })), l);
+    return ordered.length === REGISTRY_FOR_LENS.length;
+  }), 'H5: Lenses reorder rather than hide — a lens ordering is a permutation, asserted not stated');
+  assert(/never changes a fact/.test(detail) && /present under every lens/.test(detail),
+    'H5a: …and the interface says so to the reader');
   assert(/Before you show this/.test(detail),
     'H6: Demo warnings are surfaced to the presenter, not buried in the payload');
 
@@ -190,8 +222,22 @@ async function run() {
   const stripped = atlasCode.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   assert(!/gemini|generative-ai|openai|embedding|grounding/i.test(stripped),
     'I1: No semantic retrieval, provider or grounding code exists in ATL-04');
-  assert(/Planned for ATL-06/.test(detail) && !/client-preparation/.test(stripped),
-    'I2: "Prepare me for a client conversation" is shown as future only, and not simulated');
+  /*
+    I2 originally required the detail view to say "Planned for ATL-06" — a guard against ATL-04
+    simulating a feature it had not built. `ATL-06D` built it, so requiring the placeholder would
+    turn this into an assertion that a later phase never shipped, which the note above I1 already
+    identifies as the wrong thing for a scope guard to become.
+
+    What I2 protects is that the preparation surface is NOT SIMULATED. That is now checked directly
+    and far more strictly: the workspace must obtain its content from the governed API, and must not
+    carry capability knowledge, warnings or recommendations of its own (ADR-046).
+  */
+  const prepSurface = readFileSync(join(ATLAS_DIR, 'ClientPreparation.tsx'), 'utf8');
+  assert(/preparePack\(/.test(prepSurface),
+    'I2: The client-preparation surface obtains its content from the governed API');
+  const prepStripped = prepSurface.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert(!/CAP-[A-Z]/.test(prepStripped),
+    'I2a: …and hardcodes no capability, so nothing on it is simulated');
 
   // ── J. Responsive behaviour is specified, not assumed ─────────────────────
   const css = readFileSync(join(ROOT, 'app', 'globals.css'), 'utf8');

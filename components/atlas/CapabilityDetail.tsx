@@ -7,33 +7,31 @@
  * it matter, can I demonstrate it, can I reuse it elsewhere. Everything deeper is one interaction
  * away and closed by default. Two levels of disclosure, no nested accordions.
  *
- * The active lens reorders and emphasises. It never changes what is stored, never fetches a
- * different record, and never hides the name, summary, the three maturity dimensions or the
- * limitations — a Sales lens must not conceal that a capability is simulated.
+ * ── The lens, corrected (ATL-06D, ADR-064) ─────────────────────────────────
+ * `ATL-04R` shipped the lens as a reordering of the sections below plus a note reading "ordering
+ * only". Owner evaluation found the honest consequence: selecting Developer changed which sections
+ * were listed first and nothing a reader could use. That is defect `D-ATL-04R-1`.
+ *
+ * The lens now decides THE FOUR QUESTIONS ANSWERED ABOVE THE FOLD, which sections lead, which one
+ * is open on arrival, and how much supplementary evidence detail is rendered inline. All four
+ * question sets are readings of the SAME governed fields, resolved by `lib/atlas/lens.ts`, so a
+ * Developer and an executive are shown different questions about one unchanged record.
+ *
+ * `ADR-045` survives unamended: the lens reorders and never hides. Every section is present under
+ * every lens, the name, summary, three maturity dimensions and limitations are never suppressed,
+ * and a Sales lens must not conceal that a capability is simulated — which is why "What must I not
+ * claim?" is one of the four questions Sales is asked first rather than something it can scroll past.
  */
 
-import { useState, useEffect } from 'react';
+import { Fragment, useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, ArrowLeft, Repeat, ExternalLink } from 'lucide-react';
 import MaturityTriad from './MaturityTriad';
 import CapabilityVisual from './visuals/CapabilityVisual';
 import { fetchQuestions } from '@/lib/atlas-client';
 import type { CuriosityQuestion } from '@/packages/contracts/src/capability-atlas-model';
 import type { ResolvedCapability, AudienceLens } from '@/packages/contracts/src/capability-atlas-model';
+import { lensProfile, resolveHeadlines, LENS_NAME } from '@/lib/atlas/lens';
 
-/** Which sections each lens brings forward. Presentation priority only. */
-const LENS_PRIORITY: Record<AudienceLens, string[]> = {
-  'innovation-executive': ['thesis', 'curiosity', 'reuse', 'evidence', 'limitations', 'relationships'],
-  'sales': ['demo', 'usecases', 'curiosity', 'questions', 'limitations', 'relationships'],
-  'architect': ['architecture', 'contracts', 'relationships', 'decisions', 'limitations'],
-  'developer': ['implementation', 'testing', 'contracts', 'limitations', 'usage']
-};
-
-const LENS_NAME: Record<AudienceLens, string> = {
-  'innovation-executive': 'Innovation Executive',
-  'sales': 'Sales',
-  'architect': 'Architect',
-  'developer': 'Developer'
-};
 
 /**
  * Clamp on a word boundary. The first sentence of an innovation thesis is often the problem
@@ -44,6 +42,16 @@ function clamp(text: string, max: number): string {
   const cut = text.slice(0, max);
   return cut.slice(0, cut.lastIndexOf(' ')).replace(/[,;:]$/, '') + '…';
 }
+
+/**
+ * Shown where a lens reads evidence at `referenced` depth. It NAMES the deeper view rather than
+ * quietly withholding it: a reader who wants symbols, observers and observation dates is told
+ * exactly which lens renders them. Signposting is not hiding, and the distinction is the whole of
+ * ADR-045 — an executive is not shown a repository symbol first, and is never prevented from
+ * seeing one (ATL-06D §25, §32).
+ */
+const DEPTH_NOTE =
+  'Symbols, observation dates and observers are rendered inline under the Architect and Developer lenses.';
 
 interface SectionSpec { id: string; title: string; meta?: string; render: () => React.ReactNode; }
 
@@ -70,7 +78,8 @@ export default function CapabilityDetail({
   lens,
   onBack,
   onOpenCapability,
-  problemLabel
+  problemLabel,
+  onPrepare
 }: {
   capability: ResolvedCapability;
   lens: AudienceLens | null;
@@ -78,9 +87,17 @@ export default function CapabilityDetail({
   onOpenCapability: (id: string) => void;
   /** Governed display label for a `bp-*` identifier. Falls back to the identifier when absent. */
   problemLabel?: (id: string) => string;
+  /** Opens the ATL-06D preparation workspace seeded with this capability. */
+  onPrepare?: (seed: string) => void;
 }) {
   const { identity, knowledge, relationships, demo_maturity } = capability;
-  const priority = lens ? LENS_PRIORITY[lens] ?? [] : [];
+
+  // The lens decides the questions, the lead sections and the disclosure state. It decides nothing
+  // about what the record contains — every section below is built before the lens is consulted.
+  const profile = lensProfile(lens);
+  const priority = profile?.lead_sections ?? [];
+  const headlines = resolveHeadlines(capability, lens);
+  const detailedEvidence = profile?.evidence_depth === 'detailed';
 
   // Questions Worth Asking are governed objects with EXPLICIT capability links. They are fetched,
   // never derived here from a shared solution or experiment (owner decision, 2026-08-20).
@@ -89,8 +106,6 @@ export default function CapabilityDetail({
     fetchQuestions(identity.capability_id).then(setQuestions).catch(() => setQuestions([]));
   }, [identity.capability_id]);
 
-  const demoReady = demo_maturity !== null && (knowledge?.demo_scenarios.length ?? 0) > 0;
-  const notFullyReal = identity.implementation_status !== 'implemented';
   const reuseDomains = knowledge?.cross_domain_applicability.filter(a => a.applicability !== 'not-assessed') ?? [];
 
   const sections: SectionSpec[] = [];
@@ -200,15 +215,18 @@ export default function CapabilityDetail({
       id: 'implementation', title: 'Where it is implemented',
       meta: `${knowledge.implementation_references.length} references`,
       render: () => (
-        <ul className="atlas-list">
-          {knowledge.implementation_references.map((r, i) => (
-            <li key={i}>
-              <span className="atlas-mono">{r.path}</span>
-              {r.symbol && <> · <span className="atlas-mono">{r.symbol}</span></>}
-              {r.note && <> — {r.note}</>}
-            </li>
-          ))}
-        </ul>
+        <>
+          <ul className="atlas-list">
+            {knowledge.implementation_references.map((r, i) => (
+              <li key={i}>
+                <span className="atlas-mono">{r.path}</span>
+                {detailedEvidence && r.symbol && <> · <span className="atlas-mono">{r.symbol}</span></>}
+                {detailedEvidence && r.note && <> — {r.note}</>}
+              </li>
+            ))}
+          </ul>
+          {!detailedEvidence && <p className="atlas-depth-note">{DEPTH_NOTE}</p>}
+        </>
       )
     });
   }
@@ -233,6 +251,11 @@ export default function CapabilityDetail({
             <li key={i}>
               <span className="atlas-mono">{e.kind}</span> {e.ref}
               <br /><span style={{ color: 'var(--text-secondary)' }}>{e.outcome}</span>
+              {detailedEvidence && (
+                <><br /><span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                  {e.observed_at} · {e.observed_by}
+                </span></>
+              )}
             </li>
           ))}
         </ul>
@@ -318,10 +341,17 @@ export default function CapabilityDetail({
     relationships.solutions.length > 0 || relationships.experiments.length > 0 ||
     relationships.patterns.length > 0 || relationships.work_packages.length > 0;
 
-  const ordered = [
-    ...priority.map(id => sections.find(s => s.id === id)).filter((s): s is SectionSpec => Boolean(s)),
-    ...sections.filter(s => !priority.includes(s.id))
-  ];
+  /*
+    Two groups, and neither is a filter. `lead` is what this lens came for; `rest` is everything
+    else on the record, present and reachable under every lens. Grouping is what makes the
+    reordering legible — an unlabelled reshuffle is the thing ATL-04R shipped and the reason the
+    control read as decorative (D-ATL-04R-1).
+  */
+  const lead = priority
+    .map(id => sections.find(s => s.id === id))
+    .filter((s): s is SectionSpec => Boolean(s));
+  const rest = sections.filter(s => !lead.includes(s));
+  const ordered = [...lead, ...rest];
 
   return (
     <div className="atlas">
@@ -339,42 +369,22 @@ export default function CapabilityDetail({
         />
       </div>
 
-      {/* The four questions, answered before any disclosure */}
+      {/*
+        The four questions, answered before any disclosure — and WHICH four is what the lens
+        decides. An executive is asked why this is different and how far it has travelled; a
+        developer is asked whether it is actually built and how to verify it. Both are readings of
+        the same governed record, resolved by `lib/atlas/lens.ts`, which is why neither can state a
+        fact the other cannot see (ADR-064).
+      */}
       <div className="atlas-fourup">
-        <div className="atlas-q">
-          <p className="atlas-q-label">What problem does this solve?</p>
-          <div className={identity.business_problems.length ? 'atlas-q-answer' : 'atlas-q-answer atlas-q-answer--muted'}>
-            {identity.business_problems.length
-              ? identity.business_problems.map(b => (problemLabel ? problemLabel(b) : b.replace(/^bp-/, '').replace(/-/g, ' '))).join(', ')
-              : 'no business problem recorded'}
+        {headlines.map(h => (
+          <div className="atlas-q" key={h.id}>
+            <p className="atlas-q-label">{h.question}</p>
+            <div className={h.answered ? 'atlas-q-answer' : 'atlas-q-answer atlas-q-answer--muted'}>
+              {clamp(h.answer, 190)}
+            </div>
           </div>
-        </div>
-        <div className="atlas-q">
-          <p className="atlas-q-label">Why does it matter?</p>
-          <div className={knowledge?.innovation_thesis ? 'atlas-q-answer' : 'atlas-q-answer atlas-q-answer--muted'}>
-            {knowledge?.innovation_thesis
-              ? clamp(knowledge.innovation_thesis, 170)
-              : 'no innovation thesis recorded'}
-          </div>
-        </div>
-        <div className="atlas-q">
-          <p className="atlas-q-label">Can I demonstrate it?</p>
-          <div className={demoReady ? 'atlas-q-answer' : 'atlas-q-answer atlas-q-answer--muted'}>
-            {demoReady
-              ? `Yes — ${knowledge!.demo_scenarios.map(d => `${d.duration_mins} min`).join(', ')}${notFullyReal ? '. Warnings apply.' : ''}`
-              : (knowledge?.demo_scenarios.length
-                  ? `Demo path exists, but no solution surface carries it${notFullyReal ? '. Warnings apply.' : ''}`
-                  : 'No demo path recorded')}
-          </div>
-        </div>
-        <div className="atlas-q">
-          <p className="atlas-q-label">Can I reuse it elsewhere?</p>
-          <div className={identity.platform_reusable ? 'atlas-q-answer' : 'atlas-q-answer atlas-q-answer--muted'}>
-            {identity.platform_reusable
-              ? `Yes — ${reuseDomains.length} domain${reuseDomains.length === 1 ? '' : 's'} assessed`
-              : 'Not classified as reusable'}
-          </div>
-        </div>
+        ))}
       </div>
 
       {/*
@@ -387,16 +397,33 @@ export default function CapabilityDetail({
       */}
       {knowledge?.visualisation && <CapabilityVisual visual={knowledge.visualisation} />}
 
-      {lens && (
-        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '10px 0 18px' }}>
-          Ordered for the <strong style={{ color: 'var(--text-secondary)' }}>{LENS_NAME[lens]}</strong> lens.
-          Nothing is hidden — every section below is available under any lens.
+      {profile && (
+        <p className="atlas-lens-reading">
+          Read as <strong>{profile.name}</strong> — {profile.reading_for}.
+          <span className="atlas-lens-reading-rule">
+            The lens chooses the questions and the order. It never changes a fact: every section is
+            present under every lens.
+          </span>
         </p>
       )}
 
-      <div style={{ marginTop: lens ? 0 : 22 }}>
+      <div style={{ marginTop: profile ? 0 : 22 }}>
+        {profile && lead.length > 0 && (
+          <div className="atlas-section-group">{profile.orientation}</div>
+        )}
         {ordered.map((s, i) => (
-          <Section key={s.id} spec={s} prioritised={priority.includes(s.id)} defaultOpen={i === 0} />
+          <Fragment key={s.id}>
+            {profile && rest.length > 0 && i === lead.length && (
+              <div className="atlas-section-group atlas-section-group--rest">
+                Everything else on this record, unchanged by the lens
+              </div>
+            )}
+            <Section
+              spec={s}
+              prioritised={priority.includes(s.id)}
+              defaultOpen={profile ? profile.open_on_arrival.includes(s.id) : i === 0}
+            />
+          </Fragment>
         ))}
       </div>
 
@@ -448,14 +475,23 @@ export default function CapabilityDetail({
         </div>
       )}
 
-      <div className="atlas-future">
-        <ExternalLink size={15} strokeWidth={1.75} color="var(--text-muted)" style={{ flexShrink: 0 }} />
-        <span className="atlas-future-text">
-          <strong style={{ color: 'var(--text-secondary)' }}>Prepare me for a client conversation</strong> — an
-          evidence-grounded preparation pack combining this capability with market research. Planned for ATL-06D;
-          not yet available, and deliberately not simulated here.
-        </span>
-      </div>
+      {/*
+        The contextual entry (§35). A reader who has read this far has decided the capability
+        matters, which is the moment the preparation workspace is useful — and the reason it is
+        here rather than on every card in the landscape.
+      */}
+      {onPrepare && (
+        <button type="button" className="atlas-prep-entry" onClick={() => onPrepare(identity.name)}>
+          <ExternalLink size={15} strokeWidth={1.75} style={{ flexShrink: 0 }} />
+          <span>
+            <strong>Prepare me for a client conversation about this</strong>
+            <span className="atlas-prep-entry-hint">
+              Builds a pack around {identity.name} and whatever else the conversation needs — with
+              its limitations and demonstration warnings carried through.
+            </span>
+          </span>
+        </button>
+      )}
     </div>
   );
 }
