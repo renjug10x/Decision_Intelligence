@@ -18,6 +18,12 @@
  * verdict. A claim without those never reaches this component: it was dropped at admission, and the
  * count of what was dropped is shown so the omission is visible rather than invisible.
  *
+ * ATL-06C makes the third class a reading rather than a template, and shows its working. Each
+ * interpretation says whether it was derived deterministically from a governed record or generated
+ * by a provider and verified, and lists the premises it stands on. Readings the provider proposed
+ * and verification refused are listed with the rule they broke — the same discipline ATL-06B applies
+ * to rejected sources, because a refused reading a reader cannot see is a refusal they cannot check.
+ *
  * ATL-06B adds the two things a reader needs in order to distrust this section intelligently: how it
  * was searched, and what was thrown away. The queries actually run are shown; so is the number of
  * model sentences discarded for carrying no grounding support, which is the difference between
@@ -26,7 +32,7 @@
  * substitute is not permitted (ADR-055).
  */
 
-import { ExternalLink, ShieldCheck, Globe, Lightbulb, AlertTriangle, Search, Filter } from 'lucide-react';
+import { ExternalLink, ShieldCheck, Globe, Lightbulb, AlertTriangle, Search, Filter, ShieldOff } from 'lucide-react';
 import type {
   ContradictionRecord, EvidenceClass, GroundedEnvelope
 } from '@/packages/contracts/src/atlas-grounding-model';
@@ -109,6 +115,8 @@ export default function EvidenceClasses({
   // work it out.
   const contradicting = new Set(contradictions.map(c => c.market_context));
   const transparency = grounding.search_transparency ?? null;
+  const audit = grounding.interpretation_audit ?? null;
+  const premiseById = new Map((audit?.premises ?? []).map(p => [p.premise_id, p]));
 
   return (
     <div className="atlas-ev">
@@ -210,6 +218,9 @@ export default function EvidenceClasses({
         {interpretation.available ? (
           interpretation.statements.map((s, i) => (
             <div key={i} className="atlas-ev-claim">
+              <span className={`atlas-ev-origin atlas-ev-origin--${s.origin ?? 'templated'}`}>
+                {s.origin === 'generated' ? 'generated · verified' : 'derived from the record'}
+              </span>
               <p>{s.text}</p>
               <div className="atlas-ask-cites">
                 {s.rests_on.map(id => (
@@ -218,10 +229,37 @@ export default function EvidenceClasses({
                   </button>
                 ))}
               </div>
+              {s.premises && s.premises.length > 0 && (
+                <p className="atlas-ev-premises">
+                  Verified against {s.premises.map(id => {
+                    const p = premiseById.get(id);
+                    return p ? `${p.premise_id} ${p.kind === 'governed' ? p.label : p.label}` : id;
+                  }).join(' · ')}
+                </p>
+              )}
             </div>
           ))
         ) : (
           <p className="atlas-ev-absent">{interpretation.absence_reason}</p>
+        )}
+
+        {audit && audit.dropped.length > 0 && (
+          <div className="atlas-ev-ledger">
+            <span className="atlas-ev-rowlabel">
+              <ShieldOff size={10} strokeWidth={2} /> Proposed and refused — {audit.dropped.length} of {audit.proposed}
+            </span>
+            {audit.dropped.map((d, i) => (
+              <div key={i} className="atlas-ev-ledger-row">
+                <span className={`atlas-ev-reason atlas-ev-reason--${d.reason}`}>{d.reason.replace(/-/g, ' ')}</span>
+                <span className="atlas-ev-ledger-claim">“{d.text.length > 160 ? `${d.text.slice(0, 160)}…` : d.text}”</span>
+                <span className="atlas-ev-ledger-detail">{d.detail}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {audit && audit.notice && interpretation.available && (
+          <p className="atlas-ev-absent">{audit.notice}</p>
         )}
       </div>
     </div>

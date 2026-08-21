@@ -523,8 +523,21 @@ async function run() {
     'L1: ATL-06 is split into four specified work packages');
   assert(/\| `ATL-06A` \|/.test(charter) && /\*\*\[COMPLETED\]\*\*/.test(charter.split('| `ATL-06A` |')[1].split('\n')[0]),
     'L2: The status board records ATL-06A as completed with evidence');
-  assert(/`ATL-06B`\*\* — /.test(charter) || /Next executable work package:\*\* \*\*`ATL-06B`/.test(charter),
-    'L3: The next executable work package is ATL-06B');
+  // ATL-06C correction. This assertion previously named `ATL-06B` literally, which made it a test of
+  // a pointer designed to move every phase rather than of an invariant — it went stale the moment
+  // ATL-06B completed. It now asserts the property the original was reaching for, and asserts it
+  // more strictly: the board's declared next phase must be the FIRST phase that is not completed.
+  // A board that drifts, skips a phase, or advertises a phase whose predecessor is unfinished now
+  // fails, which the literal check could never catch.
+  const boardRows = [...charter.matchAll(/^\| `(ATL-[0-9A-D]+)` \|[^|]*\|\s*\*\*\[([A-Z \u2014-]+)\]\*\*/gm)]
+    .map(m => ({ phase: m[1], status: m[2].trim() }));
+  const declaredNext = charter.match(/\*\*Next executable work package:\*\* \*\*`(ATL-[0-9A-D]+)`\*\*/)?.[1];
+  const firstUnfinished = boardRows.find(r => r.status !== 'COMPLETED');
+  assert(boardRows.length >= 7 && declaredNext !== undefined && firstUnfinished !== undefined &&
+    declaredNext === firstUnfinished.phase &&
+    boardRows.slice(0, boardRows.indexOf(firstUnfinished)).every(r => r.status === 'COMPLETED'),
+    'L3: The board\u2019s declared next work package is the first phase that is not completed, and every phase before it is',
+    `declared ${declaredNext}, first unfinished ${firstUnfinished?.phase} (${firstUnfinished?.status})`);
   const master = readFileSync(join(ROOT, 'docs', 'governance', 'MASTER_PLAN.md'), 'utf8');
   assert(/`ATL-06A`/.test(master) && /`ATL-06D`/.test(master),
     'L4: The master plan carries the same four-way split');

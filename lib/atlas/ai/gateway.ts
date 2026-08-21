@@ -20,6 +20,8 @@ import { assembleAnswer, type AskAnswer } from './answer';
 import { narrateIfAvailable } from './provider';
 import { groundAnswer, type GroundedAskAnswer } from '../grounding/engine';
 import { ensureGroundingProviderRegistered } from '../grounding/providers/register';
+import { applyInterpretation } from '../interpretation/engine';
+import { ensureInterpretationProviderRegistered } from '../interpretation/register';
 import type { ResolvedCapability, AudienceLens } from '../../../packages/contracts/src/capability-atlas-model';
 
 export interface AskRequest {
@@ -75,13 +77,18 @@ export async function ask(request: AskRequest): Promise<GroundedAskAnswer> {
   // Registration is idempotent and does not by itself configure anything: an adapter with no
   // server-side key reports itself unconfigured and is never selected.
   ensureGroundingProviderRegistered();
+  ensureInterpretationProviderRegistered();
 
-  const grounding = await groundAnswer({
+  const grounded = await groundAnswer({
     question: request.question,
     answer,
     resolved,
     researchRequested: request.research === true
   });
+
+  // ATL-06C. Reads only what ATL-06A admitted; rejected claims are not in the premise set and are
+  // never reachable from the interpretation path.
+  const grounding = await applyInterpretation({ question: request.question, envelope: grounded });
 
   return { ...answer, grounding };
 }

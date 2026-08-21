@@ -1498,6 +1498,16 @@ code, pre {
 .atlas-ev-reason--asserts-cognix-fact { background: var(--danger-light); color: var(--danger); border-color: transparent; }
 .atlas-ev-reason--stale-source, .atlas-ev-reason--undated-source { background: var(--warning-light); color: var(--warning); border-color: transparent; }
 
+.atlas-ev-origin {
+  display: inline-block; font-size: 0.5625rem; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase; padding: 2px 7px; border-radius: 999px; margin-bottom: 6px;
+}
+.atlas-ev-origin--templated { background: var(--bg-elevated); color: var(--text-muted); }
+.atlas-ev-origin--generated { background: var(--warning-light); color: var(--warning); }
+.atlas-ev-premises { font-size: 0.625rem; color: var(--text-muted); margin: 6px 0 0; line-height: 1.5; }
+.atlas-ev-reason--echoes-rejected-claim,
+.atlas-ev-reason--unsupported-quantity { background: var(--danger-light); color: var(--danger); border-color: transparent; }
+
 .atlas-ev-searchqueries { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 6px; }
 .atlas-ev-query {
   font-size: 0.625rem; color: var(--text-secondary); padding: 2px 8px;

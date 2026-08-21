@@ -14,6 +14,9 @@ import { ensureGroundingProviderRegistered } from '@/lib/atlas/grounding/provide
 import { GROUNDING_MODELS, PROVIDER_NAME } from '@/lib/atlas/grounding/providers/google-search-grounding';
 import { SOURCE_TIER_BY_HOST } from '@/lib/atlas/grounding/providers/source-resolution';
 import { DEFAULT_CACHE_TTL_MS, DEFAULT_CALL_BUDGET, liveCallCount } from '@/lib/atlas/grounding/providers/grounding-cache';
+import { ensureInterpretationProviderRegistered, interpretationProviderStatus } from '@/lib/atlas/interpretation/register';
+import { INTERPRETATION_CALL_BUDGET, interpretationCallCount } from '@/lib/atlas/interpretation/engine';
+import { MAX_INTERPRETATION_LENGTH } from '@/lib/atlas/interpretation/verification';
 
 /**
  * The declared external-grounding policy (ATL-06A).
@@ -27,7 +30,9 @@ import { DEFAULT_CACHE_TTL_MS, DEFAULT_CALL_BUDGET, liveCallCount } from '@/lib/
  */
 export async function GET() {
   ensureGroundingProviderRegistered();
+  ensureInterpretationProviderRegistered();
   const provider = activeGroundingProvider();
+  const interpretation = interpretationProviderStatus();
   return ok('capability-atlas-grounding-policy', {
     policy_version: GROUNDING_POLICY_VERSION,
     evidence_classes: EVIDENCE_CLASSES.map(c => ({ id: c, label: EVIDENCE_CLASS_LABEL[c] })),
@@ -70,13 +75,31 @@ export async function GET() {
     },
     cost_control: { cache_ttl_ms: DEFAULT_CACHE_TTL_MS, call_budget: DEFAULT_CALL_BUDGET, live_calls_this_process: liveCallCount() },
     claim_traceability: 'Only response segments carrying a grounding support that names a retrieved source become market claims. Ungrounded model text is discarded and counted, never shown.',
+    interpretation: {
+      configured: interpretation.configured,
+      adapter: interpretation.name,
+      premise_sources: ['From CogniX statements', 'admitted Market Context statements'],
+      excluded_from_reasoning: 'Rejected claims and discarded ungrounded segments are audit material. They are not part of the premise set and are unreachable from the interpretation path.',
+      verification_rules: [
+        'cites at least one governed CogniX premise',
+        'every cited premise id resolves',
+        'asserts no CogniX capability fact',
+        'reproduces no claim that failed source admission',
+        'introduces no number a cited premise does not contain',
+        'names no organisation a cited premise does not mention',
+        'carries no markup',
+        `is at most ${MAX_INTERPRETATION_LENGTH} characters`
+      ],
+      on_failure: 'the reading is dropped and recorded with the rule it broke; it is never hedged or shown with a caveat',
+      call_budget: INTERPRETATION_CALL_BUDGET,
+      calls_this_process: interpretationCallCount()
+    },
     delivered_by: ['ATL-06A', 'ATL-06B'],
     not_yet_delivered: {
       // Level 2 semantic retrieval sat in ATL-06B as originally chartered. The owner's 2026-08-21
       // redefinition scoped ATL-06B to Grounded Market Intelligence, so it is undelivered and
       // currently unassigned rather than quietly dropped.
       'ATL-06B': 'Level 2 semantic retrieval over governed capability knowledge — descoped from ATL-06B on owner decision and not yet assigned to a phase',
-      'ATL-06C': 'AI Interpretation and hybrid reasoning over the three evidence classes',
       'ATL-06D': 'client conversation pack'
     }
   });

@@ -24,13 +24,23 @@
 | `ATL-05` | Internal AI Retrieval & Ask CogniX | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md`](../reports/COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md) · `run-atl05-tests.ts` 54/54 · internal-only retrieval, no provider adapter · `tsc` 0 · build clean |
 | `ATL-06A` | External Grounding & Provenance Architecture | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md`](../reports/COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md) · `run-atl06a-tests.ts` 115/115 · ADR-053, ADR-054 · policy published at `/api/v1/atlas/grounding` · no provider, no network call · `tsc` 0 · build clean |
 | `ATL-06B` | Grounded Market Intelligence | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md`](../reports/COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md) · `run-atl06b-tests.ts` 123/123 · `run-atl06a-tests.ts` 115/115 **unchanged** · ADR-055, ADR-056 · Google Search grounding behind the ATL-06A gate, user-initiated · `tsc` 0 · build clean |
-| `ATL-06C` | AI Interpretation & Hybrid Reasoning | **[NOT STARTED]** | — | — |
+| `ATL-06C` | AI Explanation & Hybrid Reasoning | **[COMPLETED — LIVE VALIDATION PENDING]** | 2026-08-21 | [`COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md`](../reports/COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md) · `run-atl06c-tests.ts` 86/86 · `run-atl06a` 115 / `run-atl06b` 123 **unchanged** · ADR-057, ADR-058 · request contract live-validated against `generativelanguage.googleapis.com`; **no credentialed round trip performed — no key in this environment** |
 | `ATL-06D` | Client Conversation Pack | **[NOT STARTED]** | — | — |
 | `ATL-07` | Capability Lifecycle Governance & Automation | **[NOT STARTED]** | — | — |
 
-**Current phase:** `ATL-06C` — not yet started
-**Last completed Atlas activity:** `ATL-06B` completed 2026-08-21
-**Next executable work package:** **`ATL-06C`** — AI Interpretation & Hybrid Reasoning
+**Current phase:** `ATL-06C` — implementation complete, live validation pending
+**Last completed Atlas activity:** `ATL-06C` implementation completed 2026-08-21 — **live validation pending**
+**Next executable work package:** **`ATL-06C`** — close live validation: run `scripts/atlas-live-grounding-check.ts` with a credential
+**Next implementation work package:** `ATL-06D` — Client Conversation Pack
+
+> **`ATL-06C` is implementation-complete and live-validation-pending.** Every acceptance criterion is
+> met against recorded fixtures and against the **live** `generativelanguage.googleapis.com` endpoint
+> for the request contract — Google's own schema validator accepts `tools: [{ googleSearch: {} }]` and
+> the structured `responseSchema`, rejecting only the credential, while an unknown tool name is
+> rejected as an unknown field. What has **not** happened is a credentialed round trip: this
+> environment holds no `GEMINI_API_KEY`. Run
+> `GEMINI_API_KEY=… npx tsx scripts/atlas-live-grounding-check.ts "<question>"` to close it. The
+> phase is not marked `[COMPLETED]` until that is done.
 
 > **`ATL-06` was split into four on owner decision, 2026-08-21.** The single phase carried provider
 > integration, external grounding, provenance, three-class evidence separation, a market corpus and
@@ -172,7 +182,8 @@ ATL-01  Capability Discovery, Governance & Information Model     (no runtime cod
                                               │   (contract, policy, admission, contradiction; no provider)
                                               └──► ATL-06B Grounded Market Intelligence
                                                        │   (provider, retrieval, admission, Market Context)
-                                                       └──► ATL-06C AI Interpretation & Hybrid Reasoning
+                                                       └──► ATL-06C AI Explanation & Hybrid Reasoning
+                                                                │   (premises, verification, refusal ledger)
                                                                 │
                                                                 └──► ATL-06D Client Conversation Pack
    ATL-02 + ATL-03 ──────────────────────► ATL-07  Lifecycle Governance & Automation
@@ -626,41 +637,71 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
 
 ---
 
-### `ATL-06C` — AI Interpretation & Hybrid Reasoning [NOT STARTED]
+### `ATL-06C` — AI Explanation & Hybrid Reasoning [COMPLETED — LIVE VALIDATION PENDING]
 
-- **Objective:** Deliver the third ADR-048 evidence class as a reasoning capability rather than a
-  template — interpretation that reads governed CogniX evidence and admitted market context together,
-  and that can be trusted because of what it is forbidden to say.
-- **Rationale:** ADR-048, ADR-053. `ATL-06A` emits an interpretation only where one can be templated
-  from a contradiction, because anything broader needs a provider. `ATL-06B` supplies the provider and
-  the admitted market evidence. Interpretation is gated separately from market evidence deliberately:
-  a sourced claim and a judgement drawn from it are different risks, and collapsing them is how a
-  market expectation becomes a capability claim.
-- **Hard Dependencies:** `ATL-06A`, `ATL-06B`.
-- **Scope:** provider-generated interpretation constrained to rest on cited governed statements and
-  admitted claims; per-statement citation of both classes; refusal where an interpretation would
-  require an uncited premise; evaluation of interpretation quality and of its failure modes.
-- **Non-Scope:** any interpretation asserting a CogniX capability fact without citing the From-CogniX
-  statement it rests on; any interpretation resting on a rejected claim; the client conversation pack.
+*Implementation delivered 2026-08-21; evidence in [`COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md`](../reports/COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md). The request contract is validated against the live Gemini endpoint; **no credentialed round trip has been performed** because this environment holds no key.*
+
+- **Objective:** Make the third ADR-048 evidence class a reading rather than a template, and make it
+  trustworthy by what it is forbidden to say.
+- **Rationale:** ADR-048, ADR-049, ADR-053, **ADR-057**, **ADR-058**.
+- **Hard Dependencies:** `ATL-06A` — **[COMPLETED]**; `ATL-06B` — **[COMPLETED]**.
+- **Scope:** the premise set, built only from governed statements and **admitted** market claims; an
+  interpretation provider seam separate from the grounding seam, with a Gemini adapter carrying **no
+  search tool** and structured output; per-statement verification against declared rules with a
+  visible refusal ledger; degradation to the `ATL-06A` templated reading; the Level 2 semantic
+  retrieval evaluation (ADR-058); a live validation script; correction of the `ATL-06A` mutable-pointer
+  assertion.
+- **Non-Scope:** the client conversation pack (`ATL-06D`); any change to the `ATL-06A` admission gate
+  or the `ATL-06B` retrieval path; shipping an alias vocabulary or an embedding index; populating
+  `external_evidence`.
 - **Acceptance Criteria:**
   - `AC-ATL-06C-1` **[HARD]** Every interpretation statement cites at least one governed CogniX
-    statement, and cites every market claim it reads. An uncitable interpretation is not emitted.
-  - `AC-ATL-06C-2` **[HARD]** An interpretation may never assert a CogniX capability fact; the
-    contradiction precedence of ADR-053 is preserved unchanged.
-  - `AC-ATL-06C-3` **[HARD]** With the provider off, interpretation degrades to the `ATL-06A`
-    templated form and says so; no interpretation is generated from a fallback path.
-  - `AC-ATL-06C-4` A rejected claim can never appear inside an interpretation, directly or by
-    paraphrase.
-- **Test Requirements:** `tests/unit/run-atl06c-tests.ts`; `run-atl06a-tests.ts` and
-  `run-atl06b-tests.ts` green **unchanged**.
-- **Exit Gate:** an interpretation a reader can act on, in which every premise is visible and every
-  premise is either governed or sourced.
+    premise and every market premise it reads. An uncitable reading is not emitted.
+  - `AC-ATL-06C-2` **[HARD]** An interpretation may never assert a CogniX capability fact; ADR-053
+    contradiction precedence is preserved unchanged.
+  - `AC-ATL-06C-3` **[HARD]** With the provider off or failing, interpretation degrades to the
+    `ATL-06A` templated form and says so. Nothing is generated from a fallback path.
+  - `AC-ATL-06C-4` **[HARD]** **Only admitted external claims may enter reasoning.** Rejected claims
+    and discarded ungrounded segments are audit-only and are structurally unreachable from the
+    premise set; a reading that reproduces one is refused (ADR-057).
+  - `AC-ATL-06C-5` **[HARD]** **From CogniX**, **Market Context** and **AI Interpretation** remain
+    structurally and visually separate; interpretation mutates no other class.
+  - `AC-ATL-06C-6` **[HARD]** A reading introducing a number, organisation or publisher that no cited
+    premise contains is refused, not hedged, and the refusal is shown with the rule it broke.
+  - `AC-ATL-06C-7` **[HARD]** `run-atl06a-tests.ts` and `run-atl06b-tests.ts` pass unchanged in
+    substance; the `ATL-06A` mutable-pointer assertion is **strengthened to an invariant**, never
+    relaxed.
+  - `AC-ATL-06C-8` Level 2 semantic retrieval is evaluated on evidence before any embedding index is
+    introduced (ADR-058).
+  - `AC-ATL-06C-9` **[HARD, OUTSTANDING]** At least one real Gemini/Search grounding round trip is
+    performed against a live credential before the phase is marked `[COMPLETED]`.
+- **Test Requirements:** `tests/unit/run-atl06c-tests.ts`; earlier suites green; the live check run
+  via `scripts/atlas-live-grounding-check.ts`.
+- **Exit Gate:** an explanation a reader can act on, in which every premise is visible and every
+  premise is either governed or sourced — **and one real grounded round trip on the record.**
 - **Implementation Allowed:** YES. **Commit/Push Permitted:** yes.
+- **Handoff:** the premise set is assembled by construction rather than by instruction — the module
+  that builds it never reads `rejected_claims` or `search_transparency`, so no prompt, parameter or
+  provider can reach refused evidence. Verification checks eight declared rules in order from
+  structural to semantic and **drops** rather than hedges; the two that carry the weight are
+  `echoes-rejected-claim`, which catches a provider reproducing refused evidence from its own
+  training data, and `unsupported-quantity`, because a reader forgets the sentence and remembers the
+  figure. The interpretation adapter is a **separate seam** from the grounding adapter and has no
+  search tool: it may read what was admitted and may not go and look. Templated readings are kept
+  alongside generated ones because only the templated ones can be re-derived without a provider.
+  **Level 2 is deferred on measurement, not preference** (ADR-058): Level 1 finds the intended
+  capability in the top three for 10 of 18 business-phrased questions, a 22-entry declared alias
+  vocabulary lifts that to 18 of 18, and the alias layer is **recommended and deliberately not
+  shipped** because governed vocabulary is not invented inside an unauthorised phase.
 - **Risks:** fluent interpretation is the most persuasive way to publish an ungoverned claim —
-  mitigated by requiring a citation per premise and by refusing rather than hedging.
-- **Decisions Outstanding:** whether interpretation is generated per answer or per contradiction;
-  whether `external_evidence` corpus population belongs here or in a later phase.
-- **Downstream Dependencies:** unlocks `ATL-06D`. **Next WP:** `ATL-06D`.
+  mitigated by requiring a citation per premise, refusing rather than hedging, and showing the
+  refusal ledger; the un-run live round trip — mitigated by validating the request contract against
+  the live endpoint with a negative control, and by declining to mark the phase complete.
+- **Decisions Outstanding:** whether to authorise the **alias vocabulary** measured in ADR-058
+  (top-three recall stays at 56% until it is); which phase owns `external_evidence` corpus
+  population; whether interpretation should carry its own user-facing control as external research
+  does — it reaches outward for nothing, so it currently runs whenever a provider is configured.
+- **Downstream Dependencies:** unlocks `ATL-06D`. **Next WP:** `ATL-06D`, once `AC-ATL-06C-9` is closed.
 
 ---
 

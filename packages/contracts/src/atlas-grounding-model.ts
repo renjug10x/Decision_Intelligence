@@ -234,6 +234,10 @@ export interface AIInterpretationStatement {
   rests_on: CapabilityId[];
   /** Source URLs of the market claims this interpretation reads, if any. */
   informed_by: string[];
+  /** ATL-06C. The premise ids this statement was verified against. */
+  premises?: string[];
+  /** ATL-06C. `templated` is the ATL-06A deterministic reading; `generated` survived verification. */
+  origin?: 'templated' | 'generated';
 }
 
 export interface FromCogniXBlock {
@@ -251,6 +255,66 @@ export interface MarketContextBlock {
   available: boolean;
   absence_reason: string | null;
   statements: MarketContextStatement[];
+}
+
+// ── Interpretation premises and verification (ATL-06C, ADR-057) ─────────────
+
+export type PremiseKind = 'governed' | 'market';
+
+/**
+ * A statement an interpretation is allowed to reason from.
+ *
+ * The premise set is built ONLY from `FromCogniXBlock.statements` and the **admitted**
+ * `MarketContextBlock.statements`. Rejected claims and discarded ungrounded segments are not
+ * premises and are not reachable from here — they live in `rejected_claims` and
+ * `search_transparency`, which exist to be audited, not to be reasoned from (ADR-057).
+ */
+export interface InterpretationPremise {
+  /** `G1`…`Gn` for governed, `M1`…`Mn` for market. Short so a model can cite them reliably. */
+  premise_id: string;
+  kind: PremiseKind;
+  text: string;
+  /** `CAP-*` for a governed premise; the source url for a market premise. */
+  citation: string;
+  label: string;
+}
+
+export type InterpretationDropReason =
+  | 'no-governed-premise'
+  | 'unknown-premise'
+  | 'asserts-cognix-fact'
+  | 'unsupported-quantity'
+  | 'echoes-rejected-claim'
+  | 'unsupported-publisher'
+  | 'empty'
+  | 'markup'
+  | 'too-long';
+
+/** An interpretation the provider proposed and verification refused. Recorded, never rendered as an answer. */
+export interface DroppedInterpretation {
+  text: string;
+  reason: InterpretationDropReason;
+  detail: string;
+}
+
+/**
+ * How the AI Interpretation class was produced, and what was refused on the way.
+ *
+ * `origin` distinguishes the two legitimate states: `templated` is the ATL-06A reading, derived
+ * deterministically from a contradiction; `generated` is a provider reading that survived
+ * verification. A reader is entitled to know which they are looking at, because they carry different
+ * risk and only one of them can be reproduced without a provider.
+ */
+export interface InterpretationAudit {
+  provider: string | null;
+  model: string | null;
+  origin: 'templated' | 'generated' | 'none';
+  premises: InterpretationPremise[];
+  proposed: number;
+  verified: number;
+  dropped: DroppedInterpretation[];
+  degraded: boolean;
+  notice: string | null;
 }
 
 export interface AIInterpretationBlock {
@@ -320,4 +384,6 @@ export interface GroundedEnvelope {
    * search was performed, which is a different statement from a search that found nothing.
    */
   search_transparency?: GroundingSearchTransparency | null;
+  /** ATL-06C. How the interpretation class was produced and what verification refused. */
+  interpretation_audit?: InterpretationAudit | null;
 }
