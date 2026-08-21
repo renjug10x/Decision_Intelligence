@@ -164,9 +164,31 @@ right call"*, by exactly that factor and no other adjustment.
 
 ---
 
-## 5. The live validation, precisely
+## 5. The live validation — attempted, and still open
 
-`AC-ATL-06C-9` is **not met**. What is on the record instead:
+`AC-ATL-06C-9` is **not met**. The owner authorised the round trip against a runtime-provided
+`GEMINI_API_KEY`; **that credential does not reach this session**, and the check below was run to
+establish that rather than assumed:
+
+| Check | Result |
+|---|---|
+| `process.env.GEMINI_API_KEY` | absent |
+| Any env var matching `GEMINI` / `GOOGLE` / `GENAI` / `API_KEY` | none — the only Google-adjacent variable is `CLOUDSDK_AUTH_ACCESS_TOKEN` |
+| `.env` / `.env.local` anywhere in the repo | none; only `.env.example` |
+| Both adapters' own `isConfigured()` | `false` |
+| `CLOUDSDK_AUTH_ACCESS_TOKEN` against the Gemini API | `401 ACCESS_TOKEN_TYPE_UNSUPPORTED` — not an OAuth token this service accepts, and no project is configured |
+
+Two things follow, and the second is worth flagging as an estate finding rather than a session
+inconvenience. First, **no live round trip was performed and none is claimed.** Second, this estate
+currently has **no server-side path to a Gemini credential at all**: `README.md` records that the key
+is entered by the user in the platform-setup UI, and `lib/context.tsx` holds it client-side, which the
+legacy `/api/ask` and `/api/briefing` routes accept from a request body. ADR-044 and ADR-049 forbid
+that for governed content, so `ATL-06B` and `ATL-06C` read `process.env.GEMINI_API_KEY` following the
+CDI-01 precedent — a variable **no deployment in this repository currently sets**. Closing
+`AC-ATL-06C-9` therefore needs the variable provisioned on the server, not merely a key pasted into
+the UI.
+
+### What is on the record instead
 
 **The request contract is validated against the live production service.** Posting to
 `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent` with a
@@ -186,27 +208,50 @@ names, and it accepts both request shapes this estate sends, failing only on the
 `ATL-06B` used the legacy `googleSearchRetrieval` form against a current model, this is where it would
 have shown.
 
-**What has not happened:** a credentialed round trip. No real search has been run, no real page has
-been resolved, no real publication date has been parsed from a live publisher, and no real model
-output has passed through verification. Close it with:
+### The closure is one command
+
+`scripts/atlas-live-grounding-check.ts` was rewritten so that closing this criterion is a single run
+rather than an exercise in judgement. It encodes **the three scenarios the owner specified** and
+records what actually happens:
+
+| Scenario | Expectation |
+|---|---|
+| `S1` current grocery demand-forecasting market question | provider called; every admitted claim fully provenanced |
+| `S2` current forecast-uncertainty / decision-support market question | as above |
+| `S3` internal *"how does Decision Gap work"*, **research requested** | provider **not called at all**; market context explicitly absent |
+
+`S3` is the load-bearing one, and it is instrumented rather than inferred: the real adapter is wrapped
+in a counting proxy, so "external research was not invoked unnecessarily" is a measured call count of
+zero, not a reading of the output.
+
+Beyond the scenarios it captures, on real responses: **contract drift** against what the fixtures
+assume — is `groundingMetadata` present, is `segment` an object with byte indices, is the field
+`groundingChunkIndices` or the SDK's misspelled `groundingChunckIndices`, does `web.domain` appear,
+are URIs vertex redirects; **byte-offset extraction**, verified by slicing the passage the service
+actually returned and reporting how many segments a JavaScript string slice *would* have corrupted;
+**redirect resolution** per source with host, publisher, tier and latency; **how many real publishers
+carry a machine-readable publication date**; admission and rejection by reason; discarded ungrounded
+prose; Search Suggestions presence; per-scenario latency; and **failure behaviour**, observed by
+calling a non-existent model and confirming the error reports a status and never echoes the
+credential.
 
 ```
-GEMINI_API_KEY=… npx tsx scripts/atlas-live-grounding-check.ts "<question>"
+GEMINI_API_KEY=… npx tsx scripts/atlas-live-grounding-check.ts --out live-evidence.json
 ```
 
-Stage 2 prints the full ledger — queries run, claims admitted with provenance and currency, claims
-rejected with reasons, ungrounded sentences discarded, interpretation proposed/verified/dropped.
+It exits non-zero if any check fails, prints `AC-ATL-06C-9 can be closed` only when none does, and
+refuses to write the evidence file if the credential appears anywhere in it.
 
 **The two surprises to expect**, both consequences of ADR-055 rather than defects: fewer sources than
 expected will carry a machine-readable publication date, so more claims will be refused as
 `undated-source` than a naive integration would show; and redirect resolution adds a page fetch per
-source, which may exceed the surrounding request budget. Both are visible in the ledger.
+source, which may exceed the surrounding request budget. Both are measured and reported by the script.
+**If the live contract differs from the fixtures, the implementation is what changes** — the admission
+rules are not relaxed to accommodate a provider.
 
 The check is a **script, not a test** (`J4`). A validation that needs a credential and spends quota
-does not belong in a suite that runs on every change; and reporting the round trip as "skipped" rather
-than "passed" when no key is present is the difference between a gate and a formality.
-
----
+does not belong in a suite that runs on every change; and reporting the round trip as *skipped* rather
+than *passed* when no key is present is the difference between a gate and a formality.
 
 ## 6. The corrected `ATL-06A` assertion
 
@@ -233,7 +278,7 @@ that suite was touched, and it passes at 115/115.
 | Check | Result |
 |-------|--------|
 | `npx tsc --noEmit` | **0 diagnostics** |
-| `npx tsx tests/unit/run-atl06c-tests.ts` | **86 passed, 0 failed** |
+| `npx tsx tests/unit/run-atl06c-tests.ts` | **109 passed, 0 failed** |
 | `npx tsx tests/unit/run-atl06b-tests.ts` | **123 passed — unchanged** |
 | `npx tsx tests/unit/run-atl06a-tests.ts` | **115 passed — unchanged in count; L3 strengthened** |
 | `run-atl05` / `run-atl04` / `run-atl03` / `run-atl02` | 54 / 54 / 29 / 119 — unchanged |
@@ -257,9 +302,12 @@ interpretation class where it belongs.
 
 ## 8. Findings and honest limitations
 
-1. **`AC-ATL-06C-9` is open.** Stated in the status board, the work package, the master plan and §5.
-   The phase is `[COMPLETED — LIVE VALIDATION PENDING]`, and the board's next executable action is
-   closing it.
+1. **`AC-ATL-06C-9` is open**, and the reason is now specific rather than environmental: this estate
+   has no server-side path to a Gemini credential — the key is a user-entered, client-held value
+   (`README.md`, `lib/context.tsx`), while ADR-044/ADR-049 require a server-side
+   `process.env.GEMINI_API_KEY` that no deployment here sets. Provisioning that variable is the
+   prerequisite, not a larger quota. The phase stays `[COMPLETED — LIVE VALIDATION PENDING]` and the
+   board's next executable action is closing it.
 2. **Interpretation has no user-facing control.** External research does, because it reaches outward
    (ADR-056). Interpretation reads only what is already on the page and leaks nothing, so it runs
    whenever a provider is configured, bounded by a per-process call budget. Raised as a decision

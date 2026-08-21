@@ -463,8 +463,23 @@ async function run() {
   const script = readFileSync(scriptPath, 'utf8');
   assert(/generativelanguage\.googleapis\.com/.test(script) && /notARealTool/.test(script),
     'J2: …which probes the real endpoint and runs a negative control, so stage 1 proves something');
-  assert(/GEMINI_API_KEY is not set/.test(script),
+  assert(/SKIPPED, NOT PASSED/.test(script) && /AC-ATL-06C-9 remains OPEN/.test(script),
     'J3: …and reports the round trip as skipped rather than passed when no credential is present');
+  assert(/current market approaches to grocery demand forecasting/.test(script) &&
+    /forecast uncertainty in decision support/.test(script) &&
+    /how does Decision Gap work/.test(script),
+    'J3b: The three scenarios AC-ATL-06C-9 requires are encoded in the script, not left to whoever runs it');
+  assert(/expectProviderCalled: false/.test(script) && /countingProvider/.test(script),
+    'J3c: …including the negative one — the internal question proves the provider is not called at all');
+  assert(/contractDrift/.test(script) && /uses_misspelled_groundingChunckIndices/.test(script) &&
+    /web_chunk_has_domain/.test(script),
+    'J3d: The script checks the live wire shape against what the fixtures assume, so drift is detected rather than absorbed');
+  assert(/byteOffsetEvidence/.test(script) && /string_slice_would_differ/.test(script),
+    'J3e: …and verifies byte-offset extraction against the passage the service actually returned');
+  assert(/sourceEvidence/.test(script) && /with_date/.test(script),
+    'J3f: …and records whether real publishers carry a machine-readable publication date');
+  assert(/leaks_credential/.test(script) && /Refusing to write evidence/.test(script),
+    'J3g: …and refuses to emit evidence that contains the credential');
   assert(!readdirSync(join(ROOT, 'tests', 'unit')).some(f => /live/i.test(f)),
     'J4: It is deliberately not a unit test — a check that spends quota does not belong in a suite that runs on every change');
 

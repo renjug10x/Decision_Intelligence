@@ -24,7 +24,7 @@
 | `ATL-05` | Internal AI Retrieval & Ask CogniX | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md`](../reports/COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md) · `run-atl05-tests.ts` 54/54 · internal-only retrieval, no provider adapter · `tsc` 0 · build clean |
 | `ATL-06A` | External Grounding & Provenance Architecture | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md`](../reports/COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md) · `run-atl06a-tests.ts` 115/115 · ADR-053, ADR-054 · policy published at `/api/v1/atlas/grounding` · no provider, no network call · `tsc` 0 · build clean |
 | `ATL-06B` | Grounded Market Intelligence | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md`](../reports/COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md) · `run-atl06b-tests.ts` 123/123 · `run-atl06a-tests.ts` 115/115 **unchanged** · ADR-055, ADR-056 · Google Search grounding behind the ATL-06A gate, user-initiated · `tsc` 0 · build clean |
-| `ATL-06C` | AI Explanation & Hybrid Reasoning | **[COMPLETED — LIVE VALIDATION PENDING]** | 2026-08-21 | [`COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md`](../reports/COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md) · `run-atl06c-tests.ts` 103/103 · `run-atl06a` 115 / `run-atl06b` 123 **unchanged** · ADR-057, ADR-058, ADR-059 · request contract live-validated against `generativelanguage.googleapis.com`; **no credentialed round trip performed — no key in this environment** |
+| `ATL-06C` | AI Explanation & Hybrid Reasoning | **[COMPLETED — LIVE VALIDATION PENDING]** | 2026-08-21 | [`COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md`](../reports/COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md) · `run-atl06c-tests.ts` 109/109 · `run-atl06a` 115 / `run-atl06b` 123 **unchanged** · ADR-057, ADR-058, ADR-059 · request contract live-validated against `generativelanguage.googleapis.com`; **no credentialed round trip performed — no key in this environment** |
 | `ATL-06D` | Client Conversation Pack | **[NOT STARTED]** | — | — |
 | `ATL-07` | Capability Lifecycle Governance & Automation | **[NOT STARTED]** | — | — |
 
@@ -41,6 +41,17 @@
 > environment holds no `GEMINI_API_KEY`. Run
 > `GEMINI_API_KEY=… npx tsx scripts/atlas-live-grounding-check.ts "<question>"` to close it. The
 > phase is not marked `[COMPLETED]` until that is done.
+>
+> **Attempted 2026-08-21 and still open.** The credential does not reach the build session: no
+> `GEMINI_API_KEY`, no `.env` file, both adapters report `isConfigured(): false`, and the runtime's
+> `CLOUDSDK_AUTH_ACCESS_TOKEN` is refused by the Gemini API as `ACCESS_TOKEN_TYPE_UNSUPPORTED`. The
+> underlying cause is an estate gap, not a session one: this repository holds the Gemini key as a
+> **user-entered, client-side** value (`README.md`, `lib/context.tsx`), while ADR-044 and ADR-049
+> require a server-side variable for governed content — one that **no deployment here currently
+> sets**. Provisioning `GEMINI_API_KEY` on the server is the prerequisite. The check script now
+> encodes all three required scenarios, captures contract drift, byte-offset extraction, redirect
+> resolution, publisher/date availability, admission and rejection, discarded prose, Search
+> Suggestions, latency and failure behaviour, and exits non-zero unless every check passes.
 
 > **`ATL-06` was split into four on owner decision, 2026-08-21.** The single phase carried provider
 > integration, external grounding, provenance, three-class evidence separation, a market corpus and
