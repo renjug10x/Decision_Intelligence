@@ -24,7 +24,11 @@ export const STOPWORDS = new Set([
   'for', 'from', 'had', 'has', 'have', 'how', 'i', 'if', 'in', 'into', 'is', 'it', 'its', 'me',
   'my', 'of', 'on', 'or', 'our', 'shall', 'should', 'show', 'so', 'that', 'the', 'their', 'them',
   'then', 'there', 'these', 'they', 'this', 'to', 'us', 'was', 'we', 'were', 'what', 'when',
-  'where', 'which', 'who', 'why', 'will', 'with', 'would', 'you', 'your'
+  'where', 'which', 'who', 'why', 'will', 'with', 'would', 'you', 'your',
+  // Quantifiers and pro-forms: grammatical, not discriminating, in a capability corpus.
+  'all', 'any', 'also', 'both', 'each', 'else', 'every', 'everything', 'just', 'more', 'most',
+  'much', 'no', 'none', 'nothing', 'only', 'other', 'others', 'own', 'same', 'some', 'something',
+  'such', 'thing', 'things', 'very'
 ]);
 
 /** A hint the searcher is shown and can dismiss. Never applied silently. */

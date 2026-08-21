@@ -250,6 +250,49 @@ export interface CapabilityKnowledge {
   related_governance: string[];
 }
 
+// ── Curiosity questions — first-class governed knowledge objects ─────────────
+
+/**
+ * A Question Worth Asking. Owner decision (2026-08-20): curiosity questions are governed
+ * knowledge objects in their own right, not a presentation detail of one screen and not a
+ * field copied into every capability record.
+ *
+ * Relationships are many-to-many across three namespaces and are **explicit**:
+ *
+ *   related_solutions / related_experiments  — PRESERVED PROVENANCE. These are the targets the
+ *       question has always carried and they are not re-derived or dropped.
+ *
+ *   related_capabilities — ADDED ONLY WHERE CAPABILITY SEMANTICS OR EVIDENCE SUPPORT IT, each
+ *       carrying a written rationale. A capability link is NEVER inferred from a shared solution
+ *       or experiment reference: `SOL-PROMO-01` is demonstrated by several capabilities, so
+ *       deriving links transitively would attach a question to capabilities it does not ask
+ *       about. The rationale field exists so that every link can be audited as deliberate.
+ */
+export interface CuriosityQuestionCapabilityLink {
+  ref: CapabilityId;
+  /** Why this question is genuinely about this capability. Never "shares a solution". */
+  rationale: string;
+}
+
+export interface CuriosityQuestion {
+  question_id: string;
+  question: string;
+  category: string;
+  /** Why the question is worth asking, with the situation that prompts it. */
+  why_asking: string;
+  summary_narrative: string;
+  evidence_points: string[];
+
+  /** Preserved provenance — many-to-many. */
+  related_solutions: SolutionId[];
+  related_experiments: ExperimentId[];
+  /** Explicit capability links only, each with a rationale. */
+  related_capabilities: CuriosityQuestionCapabilityLink[];
+
+  owner: string;
+  reviewed_at: string;
+}
+
 // ── Resolved view (what the API returns) ─────────────────────────────────────
 
 /**

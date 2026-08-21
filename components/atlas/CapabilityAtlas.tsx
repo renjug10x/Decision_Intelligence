@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Search, X, Compass, Loader2 } from 'lucide-react';
 import CapabilityCard, { type CardCapability } from './CapabilityCard';
 import CapabilityDetail from './CapabilityDetail';
+import AskCogniX from './AskCogniX';
 import {
   fetchCapabilities, fetchCapability, fetchDomains, searchAtlas, buildFilterQuery,
   type CapabilityListItem, type AtlasDomain, type AtlasSearchResponse
@@ -282,6 +283,10 @@ export default function CapabilityAtlas() {
             )}
           </div>
         )}
+      </div>
+
+      <div style={{ marginTop: 22 }}>
+        <AskCogniX lens={lens} onOpenCapability={open} />
       </div>
 
       <div className="atlas-resultbar">

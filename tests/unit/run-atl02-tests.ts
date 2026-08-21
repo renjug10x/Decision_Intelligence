@@ -256,10 +256,15 @@ async function runTests() {
   assert(CURIOSITY_QUESTIONS.length === originalCount,
     'G3: AC-ATL-02-5 — all four curiosity questions survived the migration',
     `found ${CURIOSITY_QUESTIONS.length}`);
-  assert(CURIOSITY_QUESTIONS.every(q => q.question && q.whyAsking && q.evidencePoints.length > 0),
+  // The owner decision of 2026-08-20 upgraded these into first-class governed knowledge objects.
+  // The assertions still guard what they always guarded: content preserved, routing preserved.
+  assert(CURIOSITY_QUESTIONS.every(q => q.question && q.why_asking && q.evidence_points.length > 0),
     'G4: Migrated question records retain question, rationale and evidence — no content lost');
-  assert(CURIOSITY_QUESTIONS.every(q => q.targetExperimentId.startsWith('EXP-') && q.targetSolutionId.startsWith('SOL-')),
-    'G5: Migrated records still route to real experiment and solution identifiers');
+  assert(CURIOSITY_QUESTIONS.every(q =>
+      q.related_experiments.every(e => e.startsWith('EXP-')) &&
+      q.related_solutions.every(sl => sl.startsWith('SOL-')) &&
+      q.related_experiments.length > 0 && q.related_solutions.length > 0),
+    'G5: Solution and experiment provenance is preserved, not dropped or re-derived');
 
   // ── H. AC-ATL-02-4 — filtering across every required dimension ────────────
   const repo = capabilityRepository;

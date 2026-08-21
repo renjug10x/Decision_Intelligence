@@ -1356,3 +1356,85 @@ code, pre {
   .atlas-card-head { flex-direction: column; gap: 8px; }
   .atlas-detail-head h1 { font-size: 1.375rem; }
 }
+
+/* ── Ask CogniX (ATL-05) — a secondary affordance, never the front door ──── */
+.atlas-ask-open {
+  display: inline-flex; align-items: center; gap: 7px;
+  border: 1px solid var(--border); background: var(--bg-card);
+  border-radius: var(--radius-full); padding: 7px 14px;
+  font-size: 0.8125rem; color: var(--text-secondary);
+  cursor: pointer; font-family: inherit; transition: var(--transition);
+}
+.atlas-ask-open:hover { border-color: var(--accent); color: var(--accent); }
+
+.atlas-ask { margin: 26px 0 0; border: 1px solid var(--border); border-radius: var(--radius-lg); overflow: hidden; }
+.atlas-ask-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 14px 16px; background: var(--bg-subtle); border-bottom: 1px solid var(--border);
+}
+.atlas-ask-title { font-size: 0.875rem; font-weight: 650; color: var(--text-primary); }
+.atlas-ask-body { padding: 16px; }
+.atlas-ask-input {
+  display: flex; gap: 10px; align-items: center;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-md);
+  background: var(--bg-input); padding: 0 12px; height: 44px;
+}
+.atlas-ask-input:focus-within { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
+.atlas-ask-input input {
+  flex: 1; border: none; outline: none; background: transparent; height: 100%;
+  font-size: 0.875rem; font-family: inherit; color: var(--text-primary);
+}
+.atlas-ask-go {
+  border: none; background: var(--text-primary); color: var(--text-inverse);
+  border-radius: var(--radius-sm); padding: 6px 14px; font-size: 0.75rem;
+  font-weight: 600; cursor: pointer; font-family: inherit;
+}
+.atlas-ask-go:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.atlas-ask-framing {
+  font-size: 0.875rem; color: var(--text-primary); font-weight: 500;
+  line-height: 1.55; margin: 18px 0 4px;
+}
+.atlas-ask-outcome {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.625rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em;
+  border-radius: var(--radius-sm); padding: 3px 8px; margin-bottom: 10px;
+}
+.atlas-ask-outcome--answered { background: var(--success-light); color: var(--success); }
+.atlas-ask-outcome--ambiguous { background: var(--accent-light); color: var(--accent); }
+.atlas-ask-outcome--partial { background: var(--warning-light); color: var(--warning); }
+.atlas-ask-outcome--gap { background: var(--bg-elevated); color: var(--text-muted); }
+
+.atlas-ask-notice {
+  border-left: 2px solid var(--border-strong); padding: 8px 0 8px 12px;
+  margin: 12px 0; font-size: 0.8125rem; color: var(--text-secondary); line-height: 1.55;
+}
+.atlas-ask-notice--external { border-left-color: var(--warning); }
+.atlas-ask-notice--gap { border-left-color: var(--text-muted); }
+
+.atlas-ask-section { border-top: 1px solid var(--border); padding: 14px 0 4px; }
+.atlas-ask-section:first-of-type { border-top: none; }
+.atlas-ask-section-head { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 6px; }
+.atlas-ask-section h4 { font-size: 0.875rem; font-weight: 650; color: var(--text-primary); margin: 0; }
+.atlas-ask-section p { font-size: 0.8125rem; color: var(--text-secondary); line-height: 1.6; margin: 0 0 8px; }
+.atlas-ask-reading {
+  font-size: 0.6875rem; color: var(--text-muted); font-style: italic; margin: 0 0 8px;
+}
+.atlas-ask-cites { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 4px; }
+.atlas-cite {
+  display: inline-flex; align-items: center; gap: 5px;
+  border: 1px solid var(--border); background: var(--bg-elevated);
+  border-radius: var(--radius-sm); padding: 3px 8px;
+  font-size: 0.6875rem; color: var(--text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  cursor: pointer; transition: var(--transition);
+}
+.atlas-cite:hover { border-color: var(--accent); color: var(--accent); }
+.atlas-cite-kind {
+  font-size: 0.5625rem; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.05em; color: var(--text-muted);
+}
+@media (max-width: 720px) {
+  .atlas-ask-head { flex-direction: column; align-items: flex-start; gap: 8px; }
+  .atlas-ask-input { height: 42px; }
+}

@@ -28,7 +28,7 @@ export default function QuestionsWorthAsking({
       event_type: 'QUESTION_EXPLORED',
       source: 'QuestionsWorthAsking.tsx',
       page: 'curiosity',
-      metadata: { question_id: activeQuestion.id, category: activeQuestion.category }
+      metadata: { question_id: activeQuestion.question_id, category: activeQuestion.category }
     });
   }, [activeQuestion]);
 
@@ -55,10 +55,10 @@ export default function QuestionsWorthAsking({
         {/* Left: Questions List */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {CURIOSITY_QUESTIONS.map(q => {
-            const isSelected = activeQuestion.id === q.id;
+            const isSelected = activeQuestion.question_id === q.question_id;
             return (
               <div
-                key={q.id}
+                key={q.question_id}
                 onClick={() => handleSelectQuestion(q)}
                 style={{
                   background: '#FFFFFF',
@@ -108,7 +108,7 @@ export default function QuestionsWorthAsking({
 
           <div style={{ background: 'var(--bg-subtle)', padding: '14px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginBottom: 18 }}>
             <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              {activeQuestion.whyAsking}
+              {activeQuestion.why_asking}
             </p>
           </div>
 
@@ -117,7 +117,7 @@ export default function QuestionsWorthAsking({
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 20 }}>
-            {activeQuestion.evidencePoints.map((ev, idx) => (
+            {activeQuestion.evidence_points.map((ev, idx) => (
               <div key={idx} style={{ fontSize: '0.8125rem', color: 'var(--text-primary)', padding: '6px 10px', background: '#FFFFFF', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
                 • {ev}
               </div>
@@ -126,7 +126,7 @@ export default function QuestionsWorthAsking({
 
           <div style={{ display: 'flex', gap: 8 }}>
             <button
-              onClick={() => onSelectSolution(activeQuestion.targetSolutionId)}
+              onClick={() => onSelectSolution(activeQuestion.related_solutions[0])}
               style={{
                 flex: 1,
                 padding: '8px 12px',
@@ -147,7 +147,7 @@ export default function QuestionsWorthAsking({
             </button>
 
             <button
-              onClick={() => onSelectExperiment(activeQuestion.targetExperimentId)}
+              onClick={() => onSelectExperiment(activeQuestion.related_experiments[0])}
               style={{
                 flex: 1,
                 padding: '8px 12px',

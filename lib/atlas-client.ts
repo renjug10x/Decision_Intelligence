@@ -14,6 +14,7 @@ import type {
   AudienceLens
 } from '@/packages/contracts/src/capability-atlas-model';
 import type { QueryHint } from '@/lib/atlas/query-understanding';
+import type { CuriosityQuestion } from '@/packages/contracts/src/capability-atlas-model';
 
 export type CapabilityListItem = CapabilityIdentity & { demo_maturity: DemoMaturity | null };
 export type AtlasSearchResponse = SearchResponse & { hints: QueryHint[] };
@@ -76,4 +77,8 @@ export function searchAtlas(q: string, query = ''): Promise<AtlasSearchResponse>
   const params = new URLSearchParams(query);
   params.set('q', q);
   return get(`/api/v1/atlas/search?${params.toString()}`);
+}
+
+export function fetchQuestions(capabilityId?: string): Promise<CuriosityQuestion[]> {
+  return get(`/api/v1/atlas/questions${capabilityId ? `?capability_id=${encodeURIComponent(capabilityId)}` : ''}`);
 }

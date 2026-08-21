@@ -12,15 +12,17 @@
  * limitations — a Sales lens must not conceal that a capability is simulated.
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, ArrowLeft, Repeat, ExternalLink } from 'lucide-react';
 import MaturityTriad from './MaturityTriad';
+import { fetchQuestions } from '@/lib/atlas-client';
+import type { CuriosityQuestion } from '@/packages/contracts/src/capability-atlas-model';
 import type { ResolvedCapability, AudienceLens } from '@/packages/contracts/src/capability-atlas-model';
 
 /** Which sections each lens brings forward. Presentation priority only. */
 const LENS_PRIORITY: Record<AudienceLens, string[]> = {
-  'innovation-executive': ['thesis', 'reuse', 'evidence', 'limitations', 'relationships'],
-  'sales': ['demo', 'usecases', 'questions', 'limitations', 'relationships'],
+  'innovation-executive': ['thesis', 'curiosity', 'reuse', 'evidence', 'limitations', 'relationships'],
+  'sales': ['demo', 'usecases', 'curiosity', 'questions', 'limitations', 'relationships'],
   'architect': ['architecture', 'contracts', 'relationships', 'decisions', 'limitations'],
   'developer': ['implementation', 'testing', 'contracts', 'limitations', 'usage']
 };
@@ -75,6 +77,13 @@ export default function CapabilityDetail({
 }) {
   const { identity, knowledge, relationships, demo_maturity } = capability;
   const priority = lens ? LENS_PRIORITY[lens] ?? [] : [];
+
+  // Questions Worth Asking are governed objects with EXPLICIT capability links. They are fetched,
+  // never derived here from a shared solution or experiment (owner decision, 2026-08-20).
+  const [questions, setQuestions] = useState<CuriosityQuestion[]>([]);
+  useEffect(() => {
+    fetchQuestions(identity.capability_id).then(setQuestions).catch(() => setQuestions([]));
+  }, [identity.capability_id]);
 
   const demoReady = demo_maturity !== null && (knowledge?.demo_scenarios.length ?? 0) > 0;
   const notFullyReal = identity.implementation_status !== 'implemented';
@@ -251,6 +260,26 @@ export default function CapabilityDetail({
               <strong style={{ color: 'var(--text-primary)' }}>{a.domain_id.replace(/_/g, ' ')}</strong>
               {' '}<span className="atlas-dim">{a.applicability}</span>
               <br />{a.rationale}
+            </li>
+          ))}
+        </ul>
+      )
+    });
+  }
+  if (questions.length) {
+    sections.push({
+      id: 'curiosity', title: 'Questions worth asking', meta: `${questions.length}`,
+      render: () => (
+        <ul className="atlas-list">
+          {questions.map(q => (
+            <li key={q.question_id}>
+              <strong style={{ color: 'var(--text-primary)' }}>“{q.question}”</strong>
+              <br />{q.why_asking}
+              <br /><span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>
+                Linked to this capability because: {
+                  q.related_capabilities.find(r => r.ref === identity.capability_id)?.rationale
+                }
+              </span>
             </li>
           ))}
         </ul>

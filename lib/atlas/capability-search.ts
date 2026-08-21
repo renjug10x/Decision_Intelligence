@@ -57,6 +57,23 @@ export const IDENTIFIER_MATCH_MULTIPLIER = 5;
 /** An adjacent-word phrase hit outranks the sum of its parts: "Decision Gap" beats "decision". */
 export const PHRASE_MATCH_MULTIPLIER = 4;
 
+/**
+ * Word-boundary containment.
+ *
+ * Plain substring matching makes short words catastrophic: `all` matches "actually", "recall"
+ * and "small", so a nonsense query scores against half the corpus on incidental prose. Anchoring
+ * to word boundaries is what makes a low-weight prose match mean something.
+ */
+const boundaryCache = new Map<string, RegExp>();
+function containsWord(text: string, token: string): boolean {
+  let re = boundaryCache.get(token);
+  if (!re) {
+    re = new RegExp(`(?:^|[^a-z0-9])${token.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:[^a-z0-9]|$)`, 'i');
+    boundaryCache.set(token, re);
+  }
+  return re.test(text);
+}
+
 function excerpt(value: string, token: string): string {
   const i = value.toLowerCase().indexOf(token);
   if (i < 0) return value.slice(0, 80);
@@ -129,7 +146,7 @@ export function searchCapabilities(
       // 2. Adjacent-word phrases. "decision gap" must beat "decision".
       for (const phrase of q.phrases) {
         for (const [field, text] of Object.entries(fields)) {
-          if (text.includes(phrase)) {
+          if (containsWord(text, phrase)) {
             record(field, (FIELD_WEIGHTS[field] ?? 1) * PHRASE_MATCH_MULTIPLIER, text, phrase);
           }
         }
@@ -137,7 +154,7 @@ export function searchCapabilities(
       // 3. Content words, stopwords already removed.
       for (const term of q.terms) {
         for (const [field, text] of Object.entries(fields)) {
-          if (text.includes(term)) record(field, FIELD_WEIGHTS[field] ?? 1, text, term);
+          if (containsWord(text, term)) record(field, FIELD_WEIGHTS[field] ?? 1, text, term);
         }
       }
       if (score === 0) continue;

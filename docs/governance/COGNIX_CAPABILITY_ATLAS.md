@@ -21,13 +21,13 @@
 | `ATL-02` | Capability Knowledge Backend | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_02_CAPABILITY_KNOWLEDGE_BACKEND_REPORT.md`](../reports/COGNIX_ATL_02_CAPABILITY_KNOWLEDGE_BACKEND_REPORT.md) · `run-atl02-tests.ts` 82/82 · `tsc` 0 · build clean · 7 routes under `/api/v1/atlas/*` |
 | `ATL-03` | Retail & Grocery Knowledge Population | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_03_KNOWLEDGE_POPULATION_REPORT.md`](../reports/COGNIX_ATL_03_KNOWLEDGE_POPULATION_REPORT.md) · 38 capabilities, 38 knowledge modules · `run-atl03-tests.ts` 29/29 · `run-atl02-tests.ts` 119/119 · `tsc` 0 · build clean |
 | `ATL-04` | Atlas UX & Structured Search | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_04_ATLAS_UX_SEARCH_REPORT.md`](../reports/COGNIX_ATL_04_ATLAS_UX_SEARCH_REPORT.md) · `run-atl04-tests.ts` 54/54 · search-first landing, 4 lenses, 6 filters · validated at 1440/1024/720 · `tsc` 0 · build clean |
-| `ATL-05` | Internal AI Retrieval & Ask CogniX | **[NOT STARTED]** | — | — |
+| `ATL-05` | Internal AI Retrieval & Ask CogniX | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md`](../reports/COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md) · `run-atl05-tests.ts` 54/54 · internal-only retrieval, no provider adapter · `tsc` 0 · build clean |
 | `ATL-06` | Google AI, Grounding & Market Intelligence | **[NOT STARTED]** | — | — |
 | `ATL-07` | Capability Lifecycle Governance & Automation | **[NOT STARTED]** | — | — |
 
-**Current phase:** `ATL-05` — not yet started
-**Last completed Atlas activity:** `ATL-04` completed 2026-08-20
-**Next executable work package:** **`ATL-05`** — Internal AI Retrieval & Ask CogniX
+**Current phase:** `ATL-06` — not yet started
+**Last completed Atlas activity:** `ATL-05` completed 2026-08-20
+**Next executable work package:** **`ATL-06`** — Google AI, Grounding & Market Intelligence
 **Blocked by other CogniX work:** NO
 
 Status vocabulary follows `MASTER_PLAN.md`: `[NOT STARTED]` · `[IN PROGRESS]` · `[BLOCKED]` ·
@@ -426,7 +426,7 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
 
 ---
 
-### `ATL-05` — Internal AI Retrieval & Ask CogniX [NOT STARTED]
+### `ATL-05` — Internal AI Retrieval & Ask CogniX [COMPLETED]
 
 - **Objective:** Add AI-assisted explanation over governed internal capability knowledge, with
   citations, and no external web access.
@@ -455,6 +455,8 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
 - **Risks:** ungrounded generation — mitigated by `AC-ATL-05-2`/`-4`; key handling — the estate's
   server-side-only convention (ADR-044) must not be weakened.
 - **Decisions Outstanding:** embedding provider; whether the index is committed or built at startup.
+- **Completion Evidence:** [`COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md`](../reports/COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md). `run-atl05-tests.ts` 54/54; `run-atl04` 54, `run-atl03` 29 and `run-atl02` 119 unchanged; `tsc` 0 diagnostics; build clean with `/api/v1/atlas/ask` and `/api/v1/atlas/questions` registered.
+- **Handoff:** Ask CogniX answers only from governed CogniX records — no `fetch`, no URL, no provider SDK and no embedding code exists anywhere in `lib/atlas/ai/`. Its refusals are the load-bearing behaviour: an unsupported question returns a stated gap saying nothing was inferred, and an external-knowledge question states that the internal Atlas cannot substantiate that portion and names `ATL-06`. **Ambiguity is answered rather than resolved arbitrarily** — *why did the decision change* returns four grounded readings side by side, each with its own citation and all three maturity dimensions, while a clear question is still answered directly so ambiguity is never manufactured. No provider adapter ships; every answer states that it is assembled from governed records rather than narrated, and a failing provider degrades the same way. Level 2 semantic retrieval is **not** shipped because an embedding provider is a provider; the interface is provider-shaped and the answer reports `retrievalLevel: 'structured'` rather than claiming otherwise. Two defects were found by testing refusal cases: short words matched inside longer ones (`all` inside "actually"), fixed with word-boundary matching, and a prose-only match could ground an assertion, fixed with a declared discriminating-field requirement. **Owner decision implemented:** curiosity questions are first-class governed objects with explicit, rationale-carrying capability links that are never derived transitively from a shared solution or experiment — proven by test A7. **SB-GATE remains 0 of 6 advanced.**
 - **Downstream Dependencies:** unlocks `ATL-06`. **Next WP:** `ATL-06`.
 
 ---
@@ -464,7 +466,7 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
 - **Objective:** Add controlled external reasoning and current market evidence behind the CogniX
   backend, and deliver **"Prepare me for a client conversation"**.
 - **Rationale:** ADR-048, ADR-049.
-- **Hard Dependencies:** `ATL-05` (gateway, retrieval, guardrails), `ATL-03` (market context fields).
+- **Hard Dependencies:** `ATL-05` (gateway, retrieval, guardrails) — **[COMPLETED]**; `ATL-03` (market context fields) — **[COMPLETED]**.
 - **Scope:** Gemini behind the Atlas gateway as one adapter; Google Search grounding, server-side only,
   gated per intent class; market research retrieval with provenance; strict three-class evidence
   separation; comparative and market-research routes; confidence and evidence controls; caching and
