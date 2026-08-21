@@ -357,6 +357,8 @@ export interface CapabilityFilter {
 
 /** Which field produced a Level 1 match. Returned so ranking is inspectable (ADR-050). */
 export interface SearchMatch {
+  /** Set when this match came from an alias-expanded term rather than the searcher's own words. */
+  via_alias?: string;
   field: string;
   weight: number;
   excerpt: string;
@@ -402,6 +404,49 @@ export interface ValidationReport {
   checked: number;
   errors: ValidationIssue[];
   warnings: ValidationIssue[];
+}
+
+// ── Governed search vocabulary (ADR-058, ADR-059) ────────────────────────────
+
+export const VOCABULARY_ALIAS_ID_PATTERN = /^VOC-\d{3}$/;
+
+/**
+ * One governed mapping from how a business person asks for something to the vocabulary the corpus
+ * actually uses.
+ *
+ * This is CONTENT, not configuration, and it is shaped like every other governed record in the
+ * estate: it carries an owner, a review date, a written rationale, and — the load-bearing field —
+ * `evidenced_by`, the capabilities whose governed text actually contains the terms it introduces.
+ * An alias that cannot name a capability whose text uses its terms is inventing vocabulary, which is
+ * the failure ATL-01 caught in the taxonomy and rule V3 has forbidden ever since (ADR-059).
+ *
+ * `governed_terms` are single lowercase tokens because they are injected into Level 1's term pass.
+ * A multi-word concept is expressed as its component tokens, so the search stays one deterministic
+ * mechanism rather than growing a second phrase syntax.
+ */
+export interface VocabularyAlias {
+  alias_id: string;
+  /** The business phrasing, lowercase. Matched as a substring of the query. */
+  phrase: string;
+  /** Governed tokens added to the query when the phrase is present. */
+  governed_terms: string[];
+  /** Why this mapping is legitimate, in a sentence a reviewer can disagree with. */
+  rationale: string;
+  /** Capabilities whose governed text uses these terms. Checked by rule W6. */
+  evidenced_by: CapabilityId[];
+  owner: string;
+  reviewed_at: string;
+}
+
+/**
+ * An alias that fired on a query. Returned with the search response and rendered to the searcher,
+ * so an expansion is never invisible: the reader sees which phrase fired, what it added and why.
+ */
+export interface QueryExpansion {
+  alias_id: string;
+  phrase: string;
+  governed_terms: string[];
+  rationale: string;
 }
 
 export const SUMMARY_MAX_LENGTH = 240;

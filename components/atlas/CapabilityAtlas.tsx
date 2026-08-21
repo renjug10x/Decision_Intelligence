@@ -255,6 +255,18 @@ export default function CapabilityAtlas() {
           </div>
         </div>
 
+        {(results?.expansions?.length ?? 0) > 0 && (
+          <p className="atlas-expansions">
+            <span className="atlas-expansions-label">Also searched</span>
+            {results!.expansions!.map(e => (
+              <span key={e.alias_id} className="atlas-expansion" title={e.rationale}>
+                {e.governed_terms.join(', ')}
+                <span className="atlas-expansion-from">from “{e.phrase}”</span>
+              </span>
+            ))}
+          </p>
+        )}
+
         {(activeChips.length > 0 || (results?.hints.length ?? 0) > 0) && (
           <div className="atlas-activefilters">
             {results?.hints.map((h, i) => (

@@ -136,13 +136,31 @@ read, argue with and revert. "The vector said so" is not an explanation an archi
 on. Embeddings become right when a failure is shown to be **conceptual** rather than lexical; this
 evaluation found none.
 
-**The alias layer is recommended and deliberately not shipped.** It is governed content — business
-language mapped onto capability terminology — and this estate does not invent governed content inside
-a work package that was not authorised to create it, the rule that produced `ATL-01`'s taxonomy
-correction. The prototype ships as an evaluation fixture consumed by no runtime module (`G7`), so the
-comparison stays reproducible and the decision stays yours. **Until it is authorised, top-three recall
-on business-phrased questions stays at 56%** — recorded, and asserted on every test run so it cannot
-drift unnoticed.
+**The alias layer was recommended, then authorised and implemented** (owner decision 2026-08-21,
+ADR-059). It is governed content, so it is shaped like one: 22 aliases in `content/atlas/vocabulary.ts`,
+each with an identifier, owner, review date, written rationale and the capabilities that evidence its
+terms, validated by rules W1–W8 and published at `GET /api/v1/atlas/vocabulary`.
+
+**Rule W6 earned its place immediately.** Every governed term an alias introduces must appear in the
+governed text of a capability the alias names — and W6 rejected **six** of the prototype's terms:
+*hindsight*, *urgency*, *volatility*, *provenance*, *precedent*, *stale*. None of them exists in this
+corpus; the prototype had been quietly inventing vocabulary, exactly the failure `ATL-01` caught in the
+taxonomy. Replacing them with the words the records actually use also produced a better result: for
+*"how long before this recommendation goes off"* the corpus's own *half-life* — straight out of the
+capability's name — beat the invented *stale* it replaced.
+
+| Configuration | top-1 | top-3 | absent entirely |
+|---|---|---|---|
+| Level 1, expansion off (the measured baseline, still reproducible) | 6 / 18 | **10 / 18** | 3 |
+| Level 1 + governed vocabulary, as shipped | 16 / 18 | **18 / 18** | 0 |
+
+**The vocabulary is not hidden in scoring.** The searcher's own words and the vocabulary's
+contribution stay in separate fields through query understanding and into the search response, which
+returns which alias fired, what it added and why; the Atlas renders it as *"Also searched: expiry,
+decay — from 'goes off'"*. A match reached only through the vocabulary is attributed to the alias that
+reached it. And an alias-driven hit is discounted to a published **0.75** of a direct hit, asserted
+head-to-head: searching *regret* scores higher than reaching Decision Regret through *"was it the
+right call"*, by exactly that factor and no other adjustment.
 
 ---
 

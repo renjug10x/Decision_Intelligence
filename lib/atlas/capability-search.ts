@@ -20,6 +20,7 @@ import type {
 } from '../../packages/contracts/src/capability-atlas-model';
 import type { CapabilityIndex } from './capability-index';
 import { understandQuery, type QueryHint } from './query-understanding';
+import type { QueryExpansion } from '../../packages/contracts/src/capability-atlas-model';
 
 /**
  * Documented field weights. Ranking is explainable because these are published.
@@ -56,6 +57,14 @@ export const FIELD_WEIGHTS: Record<string, number> = {
 export const IDENTIFIER_MATCH_MULTIPLIER = 5;
 /** An adjacent-word phrase hit outranks the sum of its parts: "Decision Gap" beats "decision". */
 export const PHRASE_MATCH_MULTIPLIER = 4;
+/**
+ * A hit on a term the governed vocabulary supplied, rather than one the searcher typed.
+ *
+ * Below 1 deliberately and published for the same reason the field weights are: a capability the
+ * searcher actually named must outrank one the vocabulary reached for them. The alias closes a
+ * lexical gap; it does not get to win an argument with the searcher's own words (ADR-059).
+ */
+export const ALIAS_TERM_WEIGHT_FACTOR = 0.75;
 
 /**
  * Word-boundary containment.
@@ -90,6 +99,8 @@ export interface SearchOptions {
   index?: CapabilityIndex;
   /** Apply the declared hints as filters. The UI shows them either way. */
   applyHints?: boolean;
+  /** Default true. Set false to measure or reproduce unexpanded Level 1 behaviour (ADR-059). */
+  expandAliases?: boolean;
 }
 
 function identityFields(c: CapabilityIdentity): Record<string, string> {
@@ -110,8 +121,8 @@ export function searchCapabilities(
   filter: CapabilityFilter,
   ctx: SearchContext,
   options: SearchOptions = {}
-): SearchResponse & { hints: QueryHint[] } {
-  const q = understandQuery(query);
+): SearchResponse & { hints: QueryHint[]; expansions: QueryExpansion[] } {
+  const q = understandQuery(query, { expandAliases: options.expandAliases });
   const results: SearchResult[] = [];
 
   const indexById = new Map((options.index ?? []).map(e => [e.identity.capability_id, e]));
@@ -127,10 +138,12 @@ export function searchCapabilities(
     const matches: SearchMatch[] = [];
     let score = 0;
 
-    const record = (field: string, weight: number, text: string, token: string) => {
+    const record = (field: string, weight: number, text: string, token: string, viaAlias?: string) => {
       score += weight;
       if (!matches.some(m => m.field === field)) {
-        matches.push({ field, weight, excerpt: excerpt(text, token) });
+        // A direct match is recorded first and keeps the field, so `via_alias` appears only where
+        // the vocabulary was the ONLY reason the capability matched at all.
+        matches.push(viaAlias ? { field, weight, excerpt: excerpt(text, token), via_alias: viaAlias } : { field, weight, excerpt: excerpt(text, token) });
       }
     };
 
@@ -155,6 +168,16 @@ export function searchCapabilities(
       for (const term of q.terms) {
         for (const [field, text] of Object.entries(fields)) {
           if (containsWord(text, term)) record(field, FIELD_WEIGHTS[field] ?? 1, text, term);
+        }
+      }
+      // 4. Governed vocabulary. Discounted and attributed, so an alias-driven hit is visibly a
+      //    different kind of evidence from a word the searcher chose.
+      for (const term of q.alias_terms) {
+        const alias = q.expansions.find(e => e.governed_terms.includes(term));
+        for (const [field, text] of Object.entries(fields)) {
+          if (containsWord(text, term)) {
+            record(field, (FIELD_WEIGHTS[field] ?? 1) * ALIAS_TERM_WEIGHT_FACTOR, text, term, alias?.alias_id);
+          }
         }
       }
       if (score === 0) continue;
@@ -183,7 +206,8 @@ export function searchCapabilities(
     results,
     suggestion: results.length === 0 ? suggestRelaxation(filter, query) : null,
     applied_filters: filter,
-    hints: q.hints
+    hints: q.hints,
+    expansions: q.expansions
   };
 }
 

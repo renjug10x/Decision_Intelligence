@@ -24,7 +24,7 @@
 | `ATL-05` | Internal AI Retrieval & Ask CogniX | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md`](../reports/COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md) · `run-atl05-tests.ts` 54/54 · internal-only retrieval, no provider adapter · `tsc` 0 · build clean |
 | `ATL-06A` | External Grounding & Provenance Architecture | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md`](../reports/COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md) · `run-atl06a-tests.ts` 115/115 · ADR-053, ADR-054 · policy published at `/api/v1/atlas/grounding` · no provider, no network call · `tsc` 0 · build clean |
 | `ATL-06B` | Grounded Market Intelligence | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md`](../reports/COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md) · `run-atl06b-tests.ts` 123/123 · `run-atl06a-tests.ts` 115/115 **unchanged** · ADR-055, ADR-056 · Google Search grounding behind the ATL-06A gate, user-initiated · `tsc` 0 · build clean |
-| `ATL-06C` | AI Explanation & Hybrid Reasoning | **[COMPLETED — LIVE VALIDATION PENDING]** | 2026-08-21 | [`COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md`](../reports/COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md) · `run-atl06c-tests.ts` 86/86 · `run-atl06a` 115 / `run-atl06b` 123 **unchanged** · ADR-057, ADR-058 · request contract live-validated against `generativelanguage.googleapis.com`; **no credentialed round trip performed — no key in this environment** |
+| `ATL-06C` | AI Explanation & Hybrid Reasoning | **[COMPLETED — LIVE VALIDATION PENDING]** | 2026-08-21 | [`COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md`](../reports/COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md) · `run-atl06c-tests.ts` 103/103 · `run-atl06a` 115 / `run-atl06b` 123 **unchanged** · ADR-057, ADR-058, ADR-059 · request contract live-validated against `generativelanguage.googleapis.com`; **no credentialed round trip performed — no key in this environment** |
 | `ATL-06D` | Client Conversation Pack | **[NOT STARTED]** | — | — |
 | `ATL-07` | Capability Lifecycle Governance & Automation | **[NOT STARTED]** | — | — |
 
@@ -697,10 +697,20 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
   mitigated by requiring a citation per premise, refusing rather than hedging, and showing the
   refusal ledger; the un-run live round trip — mitigated by validating the request contract against
   the live endpoint with a negative control, and by declining to mark the phase complete.
-- **Decisions Outstanding:** whether to authorise the **alias vocabulary** measured in ADR-058
-  (top-three recall stays at 56% until it is); which phase owns `external_evidence` corpus
-  population; whether interpretation should carry its own user-facing control as external research
-  does — it reaches outward for nothing, so it currently runs whenever a provider is configured.
+- **Owner decision, 2026-08-21 — alias vocabulary authorised and implemented (ADR-059).** The
+  measured remedy from ADR-058 is now `content/atlas/vocabulary.ts`: 22 governed aliases, each with
+  an owner, review date, written rationale and `evidenced_by` capabilities, validated by rules
+  W1–W8. Rule **W6** — every governed term must appear in the governed text of a capability the
+  alias names — rejected six terms from the measured prototype (*hindsight*, *urgency*,
+  *volatility*, *provenance*, *precedent*, *stale*), none of which exists in this corpus; they were
+  replaced with the corpus's own words. Top-three recall on the eighteen business-phrased questions
+  moves **10/18 → 18/18** and first place **6/18 → 16/18**. Expansions are returned with every
+  search response and rendered, and an alias-driven hit is discounted to a published 0.75 of a
+  direct hit, so a capability the searcher named always outranks one the vocabulary reached.
+  Published at `GET /api/v1/atlas/vocabulary`.
+- **Decisions Outstanding:** which phase owns `external_evidence` corpus population; whether
+  interpretation should carry its own user-facing control as external research does — it reaches
+  outward for nothing, so it currently runs whenever a provider is configured.
 - **Downstream Dependencies:** unlocks `ATL-06D`. **Next WP:** `ATL-06D`, once `AC-ATL-06C-9` is closed.
 
 ---

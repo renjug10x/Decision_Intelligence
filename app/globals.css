@@ -1417,6 +1417,19 @@ code, pre {
    standing label and its own accent, and an absent class is rendered as absent with its reason —
    never omitted, because an omitted market section reads as a reassuring one. */
 
+.atlas-expansions {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px;
+  margin: 10px 0 0; font-size: 0.6875rem; color: var(--text-muted);
+}
+.atlas-expansions-label {
+  text-transform: uppercase; letter-spacing: 0.06em; font-weight: 700; font-size: 0.5625rem;
+}
+.atlas-expansion {
+  display: inline-flex; align-items: baseline; gap: 6px; padding: 2px 8px;
+  border: 1px dashed var(--border-strong); border-radius: 999px; color: var(--text-secondary);
+}
+.atlas-expansion-from { color: var(--text-muted); font-style: italic; }
+
 .atlas-ev { margin-top: 18px; }
 .atlas-ev-routing {
   font-size: 0.6875rem; color: var(--text-muted); line-height: 1.55;

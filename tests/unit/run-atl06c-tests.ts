@@ -59,7 +59,12 @@ import type { ResolvedCapability } from '../../packages/contracts/src/capability
 import type { GroundedEnvelope } from '../../packages/contracts/src/atlas-grounding-model';
 
 import { FIXTURES, SOURCE_FETCHER, NOW } from '../fixtures/atlas-grounding/gemini-grounding-fixtures';
-import { LEVEL2_CASES, expandWithAliasPrototype } from '../fixtures/atlas-grounding/level2-evaluation';
+import { LEVEL2_CASES } from '../fixtures/atlas-grounding/level2-evaluation';
+import { SEARCH_VOCABULARY, SEARCH_VOCABULARY_BY_LENGTH } from '../../content/atlas/vocabulary';
+import { validateVocabulary } from '../../lib/atlas/vocabulary-validator';
+import { understandQuery } from '../../lib/atlas/query-understanding';
+import { ALIAS_TERM_WEIGHT_FACTOR, FIELD_WEIGHTS } from '../../lib/atlas/capability-search';
+import { GET as vocabularyRoute } from '../../app/api/v1/atlas/vocabulary/route';
 
 const ROOT = join(__dirname, '..', '..');
 let passed = 0, failed = 0;
@@ -314,37 +319,103 @@ async function run() {
   assert(separated.ai_interpretation.evidence_class === 'ai-interpretation',
     'F4: The reading stays inside its own class');
 
-  // ── G. Is Level 2 semantic retrieval actually required? (ADR-058) ────────
+  // ── G. Level 2 evaluation, and the governed vocabulary that answered it ──
   const identities = capabilityRepository.listIdentities();
   const index = await getCapabilityIndex(identities);
   const ctx = { resolveDemoMaturity: (c: any) => capabilityRepository.resolveDemoMaturity(c) };
-  const rank = (q: string, want: string) =>
-    searchCapabilities(identities, q, {}, ctx, { index }).results.map(r => r.capability_id).indexOf(want);
+  const rankWith = (q: string, want: string, expandAliases: boolean) =>
+    searchCapabilities(identities, q, {}, ctx, { index, expandAliases }).results
+      .map(r => r.capability_id).indexOf(want);
 
-  const baseline = LEVEL2_CASES.map(c => rank(c.question, c.expect));
-  const aliased = LEVEL2_CASES.map(c => rank(expandWithAliasPrototype(c.question), c.expect));
+  const baseline = LEVEL2_CASES.map(c => rankWith(c.question, c.expect, false));
+  const shipped = LEVEL2_CASES.map(c => rankWith(c.question, c.expect, true));
   const top3 = (ranks: number[]) => ranks.filter(r => r >= 0 && r < 3).length;
   const top1 = (ranks: number[]) => ranks.filter(r => r === 0).length;
 
-  assert(LEVEL2_CASES.length === 18 && baseline.length === 18,
+  assert(LEVEL2_CASES.length === 18,
     'G1: The Level 2 evaluation set is eighteen business-phrased questions with one intended capability each');
-  assert(top3(baseline) <= 12 && top3(baseline) >= 8,
-    `G2: Level 1 alone finds the intended capability in the top three for ${top3(baseline)} of 18 — a real and measurable gap`,
+  assert(top3(baseline) === 10 && top1(baseline) === 6,
+    `G2: Unexpanded Level 1 finds the intended capability in the top three for ${top3(baseline)} of 18 — the measured baseline, still reproducible`,
     `top1 ${top1(baseline)}, top3 ${top3(baseline)}`);
-  assert(baseline.filter(r => r < 0).length >= 2,
-    'G3: …and for several the capability is absent from the results entirely, which is lexical failure, not ranking failure');
-  assert(top3(aliased) >= 17,
-    `G4: A 22-entry declared alias vocabulary lifts that to ${top3(aliased)} of 18 — the failures are vocabulary, not semantics`,
-    `top1 ${top1(aliased)}, top3 ${top3(aliased)}`);
-  assert(top1(aliased) > top1(baseline) + 8,
-    'G5: …and it moves the intended capability to first place, which ranking alone was not doing');
+  assert(baseline.filter(r => r < 0).length === 3,
+    'G3: …and for three it is absent from the results entirely, which is lexical failure, not ranking failure');
+  assert(top3(shipped) === 18 && shipped.every(r => r >= 0),
+    `G4: The governed vocabulary lifts that to ${top3(shipped)} of 18, with no capability absent`,
+    `top1 ${top1(shipped)}, top3 ${top3(shipped)}`);
+  assert(top1(shipped) >= top1(baseline) + 8,
+    `G5: …and moves the intended capability to first place for ${top1(shipped)} of 18, which ranking alone was not doing`);
   const runtimeFiles = readdirSync(join(ROOT, 'lib', 'atlas')).join(' ');
   assert(!/embedding|vector/i.test(runtimeFiles),
-    'G6: No embedding index was introduced on the strength of an unmeasured assumption');
-  const aliasConsumers = ['lib/atlas/capability-search.ts', 'lib/atlas/query-understanding.ts']
-    .map(f => readFileSync(join(ROOT, f), 'utf8')).join('\n');
-  assert(!/ALIAS_PROTOTYPE|level2-evaluation/.test(aliasConsumers),
-    'G7: The alias prototype is evidence for a decision, not a shipped feature — governed vocabulary is not invented inside an unauthorised phase');
+    'G6: No embedding index was introduced — the measured failures were lexical and were closed lexically (ADR-058)');
+
+  // ── G′. The vocabulary is governed content, not a scoring tweak (ADR-059) ─
+  const vocabReport = validateVocabulary(SEARCH_VOCABULARY, { identities, index });
+  assert(vocabReport.valid && vocabReport.checked === 22,
+    'G7: All 22 governed aliases validate', vocabReport.errors.map(e => `${e.rule} ${e.capability_id}`).join(', '));
+  assert(SEARCH_VOCABULARY.every(a => a.owner && /^\d{4}-\d{2}-\d{2}$/.test(a.reviewed_at) && a.rationale.length >= 40),
+    'G8: Every alias carries an owner, a review date and a written rationale — it is a record, not a config line');
+  assert(SEARCH_VOCABULARY.every(a => a.evidenced_by.length > 0),
+    'G9: …and names the capabilities whose governed text uses the terms it introduces');
+
+  // W6 is the rule that keeps this honest: prove it rejects an invented term.
+  const inventedTerm = validateVocabulary([{
+    alias_id: 'VOC-999', phrase: 'made up phrasing', governed_terms: ['zzznotacorpusword'],
+    rationale: 'A deliberately invented mapping used to prove the validator refuses vocabulary the corpus does not have.',
+    evidenced_by: ['CAP-DECISION-GAP'], owner: 'test', reviewed_at: '2026-08-21'
+  }], { identities, index });
+  assert(!inventedTerm.valid && inventedTerm.errors[0].rule === 'W6',
+    'G10: An alias introducing a term the corpus does not contain is REFUSED — governed vocabulary is mapped, never invented');
+  const unevidenced = validateVocabulary([{
+    alias_id: 'VOC-998', phrase: 'another phrasing', governed_terms: ['regret'],
+    rationale: 'A real term pointed at a capability whose text does not contain it, proving evidence is checked per alias.',
+    evidenced_by: ['CAP-AUTH-PLATFORM-SETUP'], owner: 'test', reviewed_at: '2026-08-21'
+  }], { identities, index });
+  assert(!unevidenced.valid && unevidenced.errors[0].rule === 'W6',
+    'G11: …and a real term is still refused where the named capability does not use it');
+
+  // Expansion is reported, not silent.
+  const expanded = understandQuery('how long before this recommendation goes off');
+  assert(expanded.expansions.length === 1 && expanded.expansions[0].alias_id === 'VOC-014',
+    'G12: A firing alias is reported with its identifier');
+  assert(expanded.expansions[0].rationale.length > 40 && expanded.expansions[0].phrase === 'goes off',
+    'G13: …with the phrase that fired and the rationale, so the searcher can see why');
+  assert(!expanded.terms.includes('expiry') && expanded.alias_terms.includes('expiry'),
+    'G14: Alias terms are kept SEPARATE from the searcher’s own words rather than merged into them');
+  assert(understandQuery('how long before this recommendation goes off', { expandAliases: false }).expansions.length === 0,
+    'G15: Expansion is switchable, so the unexpanded baseline stays reproducible');
+
+  const aliasResult = searchCapabilities(identities, 'how long before this recommendation goes off', {}, ctx, { index });
+  assert(aliasResult.expansions.length === 1,
+    'G16: The search response carries the expansion, so a surface can render it (ADR-050 inspectability)');
+  const viaAlias = aliasResult.results
+    .find(r => r.capability_id === 'CAP-DECISION-CONTRACT')?.matches.some(m => m.via_alias === 'VOC-014');
+  assert(viaAlias === true,
+    'G17: …and a match reached only through the vocabulary is attributed to the alias that reached it');
+  assert(ALIAS_TERM_WEIGHT_FACTOR < 1,
+    'G18: An alias-driven hit is discounted, so a capability the searcher actually named outranks one the vocabulary reached');
+
+  // The searcher's own word must win a head-to-head against an alias-supplied one.
+  const direct = searchCapabilities(identities, 'regret', {}, ctx, { index });
+  const viaPhrase = searchCapabilities(identities, 'was it the right call', {}, ctx, { index });
+  const directScore = direct.results.find(r => r.capability_id === 'CAP-DECISION-REGRET')?.score ?? 0;
+  const aliasScore = viaPhrase.results.find(r => r.capability_id === 'CAP-DECISION-REGRET')?.score ?? 0;
+  assert(directScore > aliasScore,
+    'G19: …proven head to head — searching the governed word scores higher than reaching it through an alias',
+    `direct ${directScore} vs alias ${aliasScore}`);
+  assert(Math.abs(aliasScore - directScore * ALIAS_TERM_WEIGHT_FACTOR) < 0.001,
+    'G20: …by exactly the published factor, not by an undocumented adjustment');
+
+  assert(SEARCH_VOCABULARY_BY_LENGTH[0].phrase.length >= SEARCH_VOCABULARY_BY_LENGTH[1].phrase.length,
+    'G21: Overlapping phrasings resolve longest-first, so the most specific entry wins');
+  assert(Object.keys(FIELD_WEIGHTS).length > 10,
+    'G22: Field weights remain published — the vocabulary did not move ranking into an opaque place');
+
+  const vocabBody = await (await vocabularyRoute()).json();
+  assert(vocabBody.status === 'success' && vocabBody.data.aliases.length === 22,
+    'G23: The vocabulary is published, so a searcher can read every mapping that can change their results');
+  assert(vocabBody.data.aliases.every((a: any) => a.rationale && a.evidenced_by.length > 0) &&
+    vocabBody.data.validation.valid === true,
+    'G24: …with rationale, evidence and its validation state');
 
   // ── H. ATL-06A and ATL-06B are unchanged ────────────────────────────────
   const gateFiles = ['policy.ts', 'provenance.ts', 'contradiction.ts']

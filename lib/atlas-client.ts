@@ -7,6 +7,7 @@
  */
 
 import type {
+  QueryExpansion,
   CapabilityIdentity,
   ResolvedCapability,
   DemoMaturity,
@@ -17,7 +18,7 @@ import type { QueryHint } from '@/lib/atlas/query-understanding';
 import type { CuriosityQuestion } from '@/packages/contracts/src/capability-atlas-model';
 
 export type CapabilityListItem = CapabilityIdentity & { demo_maturity: DemoMaturity | null };
-export type AtlasSearchResponse = SearchResponse & { hints: QueryHint[] };
+export type AtlasSearchResponse = SearchResponse & { hints: QueryHint[]; expansions?: QueryExpansion[] };
 
 export interface AtlasDomain {
   category: string;

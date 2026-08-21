@@ -10,10 +10,17 @@
  * capability. They are not paraphrases of the ATL-04 acceptance queries — those already pass, which
  * is why they cannot answer this question.
  *
- * `ALIAS_PROTOTYPE` is the control. It is a **prototype and is deliberately not shipped**: it maps
- * business phrasing onto governed vocabulary, which is governed content, and governed content is not
- * invented inside a work package that was not authorised to create it. It exists here so the
- * comparison in ADR-058 is reproducible rather than asserted.
+ * The control was an un-shipped alias prototype, which reached 18 of 18. The owner then authorised
+ * the approach, and the prototype was **replaced** by the governed vocabulary in
+ * `content/atlas/vocabulary.ts` (ADR-059). The replacement was not a rename: validation rule W6
+ * requires every term an alias introduces to appear in the governed text of a capability the alias
+ * names, and it rejected six prototype terms outright — *hindsight*, *urgency*, *volatility*,
+ * *provenance*, *precedent*, *stale*. None of them is in the corpus. They were replaced with the
+ * words the records actually use, and one of those substitutions — *half-life*, straight out of the
+ * capability's own name — proved better than the term it replaced.
+ *
+ * The cases below are therefore run twice on every test run: once with expansion off, which
+ * reproduces the measured baseline, and once with the shipped vocabulary.
  */
 
 export interface Level2Case {
@@ -44,35 +51,3 @@ export const LEVEL2_CASES: Level2Case[] = [
   { question: 'can I plug our own data feed into this', expect: 'CAP-SIGNAL-CONNECTOR', gap: 'vocabulary' },
   { question: 'does the discount actually pay for itself', expect: 'CAP-PROMOTION-INTELLIGENCE', gap: 'vocabulary' }
 ];
-
-/** PROTOTYPE ONLY — not shipped, not consumed by any runtime module. See ADR-058. */
-export const ALIAS_PROTOTYPE: [string, string][] = [
-  ['right call afterwards', 'regret hindsight'],
-  ['was it the right call', 'regret'],
-  ['done nothing', 'counterfactual baseline'],
-  ['what would have happened', 'counterfactual'],
-  ['still time', 'window closes urgency'],
-  ['not move again', 'stability volatility'],
-  ['different versions', 'shared decision state single source'],
-  ['same situation', 'shared decision state'],
-  ['promise', 'commitment'],
-  ['knock on effects', 'ripple propagation'],
-  ['where this number came from', 'provenance attestation observation'],
-  ['last time we tried', 'memory precedent'],
-  ['trade offs', 'frontier pareto objectives'],
-  ['goes off', 'half-life expiry decision contract'],
-  ['go wrong', 'pre-mortem resilience readiness'],
-  ['break the number down', 'decomposition timeline drivers'],
-  ['what is driving it', 'decomposition drivers'],
-  ['shops near', 'catchment micro-market'],
-  ['same mistake twice', 'learning loop'],
-  ['not thought of', 'curiosity questions'],
-  ['plug our own data feed', 'connector adapter ingestion'],
-  ['pay for itself', 'promotion uplift']
-];
-
-export function expandWithAliasPrototype(question: string): string {
-  const lower = question.toLowerCase();
-  const extra = ALIAS_PROTOTYPE.filter(([phrase]) => lower.includes(phrase)).map(([, terms]) => terms);
-  return extra.length > 0 ? `${question} ${extra.join(' ')}` : question;
-}

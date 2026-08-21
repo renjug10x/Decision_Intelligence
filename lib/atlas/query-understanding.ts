@@ -14,9 +14,19 @@
  * Point 3 is a DECLARED LEXICON, not inference. Every mapping below is written down, auditable
  * and reversible, and it is surfaced to the user as an explicit hint rather than silently
  * applied — the searcher is told "showing reusable capabilities" and can remove it.
+ *
+ * A fourth problem was measured at `ATL-06C` and is solved the same way. Business phrasing and
+ * governed vocabulary often share no words at all: *"the right call afterwards"* never meets
+ * *regret*, *"goes off"* never meets *expiry*. The governed vocabulary in
+ * `content/atlas/vocabulary.ts` maps one onto the other, and the expansion is **reported, never
+ * silent** — an alias that quietly rewrote a query would defeat ADR-050's inspectability
+ * requirement more thoroughly than bad ranking ever could (ADR-059).
  */
 
-import type { CapabilityFilter, AudienceLens } from '../../packages/contracts/src/capability-atlas-model';
+import type {
+  CapabilityFilter, AudienceLens, QueryExpansion
+} from '../../packages/contracts/src/capability-atlas-model';
+import { SEARCH_VOCABULARY_BY_LENGTH } from '../../content/atlas/vocabulary';
 
 /** Function words carrying no discriminating power in a capability corpus. */
 export const STOPWORDS = new Set([
@@ -77,19 +87,31 @@ const LENS_LEXICON: { phrases: string[]; lens: AudienceLens; label: string }[] =
 export interface UnderstoodQuery {
   /** Whole governed identifiers, matched by equality (AC-ATL-02-10). */
   identifiers: string[];
-  /** Content words, stopwords removed. */
+  /** Content words, stopwords removed. THE SEARCHER'S OWN WORDS — never alias-expanded. */
   terms: string[];
   /** Adjacent content-word pairs, used for phrase boosting. */
   phrases: string[];
   /** Declared hints the UI shows and the user can dismiss. */
   hints: QueryHint[];
+  /**
+   * Governed terms contributed by the vocabulary, kept SEPARATE from `terms` so a match can be
+   * attributed and weighted differently. A searcher's own word always outranks one we supplied.
+   */
+  alias_terms: string[];
+  /** Which alias fired, what it added and why. Rendered to the searcher (ADR-059). */
+  expansions: QueryExpansion[];
   /** True when the query was entirely function words. */
   empty: boolean;
 }
 
+export interface UnderstandOptions {
+  /** Default true. Set false to measure or reproduce unexpanded Level 1 behaviour. */
+  expandAliases?: boolean;
+}
+
 const IDENTIFIER_PATTERN = /\b[A-Z]{2,}(?:-[A-Z0-9]+)+\b/g;
 
-export function understandQuery(raw: string): UnderstoodQuery {
+export function understandQuery(raw: string, options: UnderstandOptions = {}): UnderstoodQuery {
   const lower = raw.toLowerCase().trim();
 
   const identifiers = (raw.toUpperCase().match(IDENTIFIER_PATTERN) ?? []).map(i => i.toLowerCase());
@@ -117,12 +139,34 @@ export function understandQuery(raw: string): UnderstoodQuery {
   const phrases: string[] = [];
   for (let i = 0; i < words.length - 1; i++) phrases.push(`${words[i]} ${words[i + 1]}`);
 
+  // Governed vocabulary. Longest phrase first, so the most specific entry wins where two overlap,
+  // and a term the searcher already used is never re-added as an alias term — it is theirs.
+  const expansions: QueryExpansion[] = [];
+  const aliasTerms: string[] = [];
+  if (options.expandAliases !== false) {
+    const own = new Set(words);
+    for (const entry of SEARCH_VOCABULARY_BY_LENGTH) {
+      if (!lower.includes(entry.phrase)) continue;
+      const added = entry.governed_terms.filter(t => !own.has(t) && !aliasTerms.includes(t));
+      if (added.length === 0) continue;
+      aliasTerms.push(...added);
+      expansions.push({
+        alias_id: entry.alias_id,
+        phrase: entry.phrase,
+        governed_terms: added,
+        rationale: entry.rationale
+      });
+    }
+  }
+
   return {
     identifiers,
     terms: words,
     phrases,
     hints,
-    empty: identifiers.length === 0 && words.length === 0
+    alias_terms: aliasTerms,
+    expansions,
+    empty: identifiers.length === 0 && words.length === 0 && aliasTerms.length === 0
   };
 }
 
