@@ -87,4 +87,23 @@ export const knowledge = defineKnowledge({
   related_governance: [
     'docs/governance/MASTER_PLAN.md'
   ],
+
+  /**
+   * Three binding steps happen before anything is assessed, and seeing them in order explains why a
+   * review months later is possible at all: validity is judged against a basis that cannot have
+   * moved. The chain also shows where it stops — a state against evolving signals, never a
+   * countdown, which is the boundary owner ruling W2 draws.
+   */
+  visualisation: {
+    kind: 'flow',
+    concept: 'Binding a Decision to Its Basis',
+    nodes: [
+      { label: 'Basis bound by digest', detail: 'Every input held by reference and digest', role: 'stage' },
+      { label: 'Verbatim snapshot', detail: 'The basis kept exactly as it stood', role: 'stage' },
+      { label: 'Assumptions and triggers', detail: 'Explicit conditions carried by the contract', role: 'stage' },
+      { label: 'Validity assessment', detail: 'A state as signals evolve, never a countdown', role: 'stage' }
+    ],
+    description:
+      'An ordered chain: the decision basis is bound by reference and digest, snapshotted verbatim, and its assumptions and reconsideration triggers are declared, before validity is assessed against evolving signals and reported as a state rather than a duration.'
+  },
 });

@@ -343,7 +343,14 @@ async function run() {
 
   assert(LEVEL2_CASES.length === 18,
     'G1: The Level 2 evaluation set is eighteen business-phrased questions with one intended capability each');
-  assert(top3(baseline) === 10 && top1(baseline) === 6,
+  // The top-three figure is the `ATL-06C` measurement and is unchanged. The top-one figure moved
+  // from 6 to 7 at `ATL-04R`, when ADR-062 fixed a mechanical defect in Level 1: the corpus is
+  // written in the singular and `containsWord` anchors to word boundaries, so a plural query
+  // matched nothing at all. Normalising the searcher's own word promoted one intended capability
+  // to first place WITHOUT the vocabulary. The lexical gap ADR-059 closed is untouched — three
+  // capabilities are still absent from the unexpanded baseline (G3), which is what made the
+  // vocabulary necessary and still does.
+  assert(top3(baseline) === 10 && top1(baseline) === 7,
     `G2: Unexpanded Level 1 finds the intended capability in the top three for ${top3(baseline)} of 18 — the measured baseline, still reproducible`,
     `top1 ${top1(baseline)}, top3 ${top3(baseline)}`);
   assert(baseline.filter(r => r < 0).length === 3,

@@ -94,4 +94,25 @@ export const knowledge = defineKnowledge({
   related_governance: [
     'docs/governance/DEMAND_OBSERVABILITY_MODEL.md'
   ],
+
+  /**
+   * Regret is a difference, not a figure. The standing limitation on this capability is that the
+   * absolute values are uncalibrated while the ordering between alternatives is defensible, so
+   * setting the chosen alternative against the best one shows exactly the defensible part, and
+   * carries no magnitude at all. It also keeps the materiality floor in view, so nobody narrates
+   * a winner the engine declined to name.
+   */
+  visualisation: {
+    kind: 'comparison',
+    concept: 'Decision Regret',
+    nodes: [
+      { label: 'Shared inputs', detail: 'Exposed demand, revision probability, window and unit economics', role: 'evidence' },
+      { label: 'The alternative chosen', detail: 'One of Act Now, Wait or Do Nothing', role: 'current' },
+      { label: 'The best alternative', detail: 'The strongest expected value of the three, on those same inputs', role: 'adjusted' },
+      { label: 'Relative regret', detail: 'The distance between them: zero for the winner, never negative', role: 'outcome' },
+      { label: 'Materiality floor', detail: 'Where the alternatives do not separate materially, no winner is named', role: 'outcome' }
+    ],
+    description:
+      'Act Now, Wait and Do Nothing are priced from one shared set of inputs. The alternative chosen is set against the best of the three, and the distance between them is the relative regret: zero for the winner by construction and never negative. Where the alternatives do not separate materially, no winner is named.'
+  },
 });

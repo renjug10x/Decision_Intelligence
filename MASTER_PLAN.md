@@ -31,11 +31,16 @@ PROGRAMME 10 Adaptive Intelligence & Scalable Service Architecture
                  Decision Regret · combined frontier visual · simulation
   Roadmap        DOT-1 … DOT-12 — Demand Observability & Demand Truth     [ROADMAP]
 
-  Parallel       ATL-01 — Capability Discovery & Information Model         [COMPLETED]
-                 ATL-02 … ATL-07 — CogniX Capability Atlas                 [NOT STARTED]
+  Parallel       ATL-01 … ATL-05 — CogniX Capability Atlas                 [COMPLETED]
+                 ATL-04R — Unified Capability Exploration Experience        [COMPLETED]
+                 ATL-06A · ATL-06B — Grounding & Market Intelligence        [COMPLETED]
+                 ATL-06C — AI Explanation & Hybrid Reasoning   [COMPLETED — LIVE
+                                                                VALIDATION PENDING]
+                 ATL-06D · ATL-07 — Client Pack · Lifecycle Governance     [NOT STARTED]
   workstream     Governed capability knowledge, discovery, explanation and
                  enablement layer. Independently scheduled; supersedes and
-                 reorders nothing above. Next executable: ATL-02.
+                 reorders nothing above. Next executable: ATL-06C — close live
+                 validation with a credential (AC-ATL-06C-9 remains open).
 
 PHASE 11     IP and Innovation Governance
 PHASE 12     Industry Demonstration Packs

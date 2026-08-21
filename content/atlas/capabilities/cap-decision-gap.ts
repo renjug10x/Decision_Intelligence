@@ -111,5 +111,24 @@ export const knowledge: CapabilityKnowledge = {
     { ref: 'CAP-SHARED-DECISION-STATE', relation: 'depends-on' }
   ],
   related_decisions: ['ADR-041'],
-  related_governance: ['docs/governance/DEMAND_OBSERVABILITY_MODEL.md']
+  related_governance: ['docs/governance/DEMAND_OBSERVABILITY_MODEL.md'],
+
+  /**
+   * The gap is a distance, and prose has to hold both frontiers in the reader's head before that
+   * distance means anything. Drawing the two positions on one track makes the exposure legible at
+   * once, and the span between them is the concept itself: exposed demand IS the distance, not a
+   * third position, which is why only the two frontiers are carried as nodes. The evidence both
+   * frontiers share, and the binding constraints holding the executable one where it is, are named
+   * in the text equivalent — where they are read as context rather than as endpoints of the gap.
+   */
+  visualisation: {
+    kind: 'gap',
+    concept: 'Decision Gap',
+    nodes: [
+      { label: 'Executable demand frontier', detail: 'What the organisation is actually able to capture', role: 'current' },
+      { label: 'Emerging demand frontier', detail: 'What the same evidence says demand is becoming', role: 'adjusted' }
+    ],
+    description:
+      'The executable demand frontier, what the organisation is actually able to capture, is set against the emerging demand frontier, what the same evidence says demand is becoming. Both are read from one contextualised demand outlook, so the distance between them is not two forecasts disagreeing: it is exposed demand, the Decision Gap, and it is where the commercial decision lives. Alongside it the capability names and ranks the binding constraints holding the executable frontier where it is.'
+  }
 };

@@ -12,7 +12,7 @@ export const knowledge = defineKnowledge({
   innovation_thesis:
     'A capability catalogue answers a question the visitor has already formed. A good question forms the question for them, which is why curiosity is the primary UX rather than navigation.',
   usage_instructions:
-    'Open Questions Worth Asking from the shell. Select a question to see why it is being asked, the evidence behind it, and the experiment or solution that answers it.',
+    'Open the Capability Atlas and choose the Questions view. Select a question to see why it is being asked, the evidence behind it, the capabilities that answer it with the reason each is linked, and the experiment or solution that demonstrates it.',
   testing_instructions:
     'Run npx tsx tests/unit/run-atl02-tests.ts. Assertions G3 to G5 verify that all four question records survived the ADR-046 migration with their routing and evidence intact.',
   field_status: [
@@ -27,7 +27,7 @@ export const knowledge = defineKnowledge({
     'Route to target experiment or solution'
   ],
   implementation_references: [
-    { path: 'components/QuestionsWorthAsking.tsx', note: 'Renderer' },
+    { path: 'components/atlas/QuestionsWorthExploring.tsx', note: 'Renderer, inside the Atlas since ATL-04R; reads the registry through /api/v1/atlas/questions' },
     { path: 'content/atlas/curiosity-questions.ts', symbol: 'CURIOSITY_QUESTIONS', note: 'Content registry, ADR-046 migration target' }
   ],
   validation_evidence: [

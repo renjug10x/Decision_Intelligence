@@ -110,5 +110,24 @@ export const knowledge: CapabilityKnowledge = {
     { ref: 'CAP-DECISION-REGRET', relation: 'complements' }
   ],
   related_decisions: ['ADR-042'],
-  related_governance: ['docs/ux/UX_DESIGN_PRINCIPLES.md']
+  related_governance: ['docs/ux/UX_DESIGN_PRINCIPLES.md'],
+
+  /**
+   * The window's credibility rests on a fail-closed derivation, and that reads faster as a shape
+   * than as a predicate: INDETERMINATE is a real terminus of the chain, not a fallback that quietly
+   * supplies a deadline. Deliberately a pipeline and not a decay — the window closes because a
+   * declared cut-off arrives, not because the decision is losing value (ADR-042).
+   */
+  visualisation: {
+    kind: 'flow',
+    concept: 'Deriving the Decision Window',
+    nodes: [
+      { label: 'Declared constraint', detail: 'Declared by a named party, never inferred', role: 'stage' },
+      { label: 'Basis classified', detail: 'Declared operational constraint, or modelled demo assumption', role: 'stage' },
+      { label: 'Window, or INDETERMINATE', detail: 'No declared constraint, no duration published', role: 'stage' },
+      { label: 'Decision-frontier marker', detail: 'Placed on the trajectory chart', role: 'stage' }
+    ],
+    description:
+      'An ordered derivation: a declared intervention constraint is classified by basis, then either yields a window or resolves to INDETERMINATE where nothing was declared, and only a derived window reaches the trajectory chart as a decision-frontier marker.'
+  }
 };

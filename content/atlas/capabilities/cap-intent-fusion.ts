@@ -86,4 +86,24 @@ export const knowledge = defineKnowledge({
   related_governance: [
     'docs/governance/INTENT_FUSION_INTELLIGENCE.md'
   ],
+
+  /**
+   * Intent and signal arrive from different places and neither means much alone, so prose has to
+   * carry both to the same point before the outlook makes sense. Drawing them meeting shows the
+   * fusion is done in the contract rather than in a planner's head. The two sources are the only
+   * ones this capability's knowledge names; no signal category is invented to make the fan look
+   * wider, and the decomposition is deliberately not drawn as a third source — it is a property of
+   * the fused outlook, so it is carried on the outlook rather than shown feeding into it.
+   */
+  visualisation: {
+    kind: 'convergence',
+    concept: 'Contextualised Decision Outlook',
+    nodes: [
+      { label: 'Commercial intent registered', detail: 'The plan as the organisation has declared it', role: 'evidence' },
+      { label: 'Enterprise signal stream', detail: 'What the environment is actually doing', role: 'evidence' },
+      { label: 'Contextualised outlook', detail: 'Held in a contract, and decomposable to the signals that moved it', role: 'outcome' }
+    ],
+    description:
+      'Two sources of evidence meet in one judgement. A registered commercial intent and the enterprise signal stream converge into a contextualised decision outlook, so the plan is read against what the environment is actually doing rather than in isolation. Because the fusion happens in a contract rather than in a planner\'s head, the outlook decomposes into the contributing signals that moved it, and the reading can be inspected afterwards.'
+  },
 });

@@ -87,4 +87,25 @@ export const knowledge = defineKnowledge({
   related_governance: [
     'docs/governance/ENTERPRISE_SIGNAL_MODEL.md'
   ],
+
+  /**
+   * The order is the argument. Classification and provenance stamping happen before anything
+   * consumes the signal, which is precisely why a downstream claim stays traceable after the
+   * number has been copied somewhere else — prose states that as a principle, the pipeline shows
+   * it as a position. The first stage also keeps the standing limitation in view: the stream in
+   * this estate is synthetic.
+   */
+  visualisation: {
+    kind: 'flow',
+    concept: 'Carrying Provenance on the Datum',
+    nodes: [
+      { label: 'Generation or ingestion', detail: 'The world service today, with no production feed connected', role: 'stage' },
+      { label: 'Taxonomy classification', detail: 'Placed within the closed signal taxonomy', role: 'stage' },
+      { label: 'Source and provenance stamped', detail: 'Carried on the datum, never on the page', role: 'stage' },
+      { label: 'Same-origin proxy', detail: 'One route the estate reads the stream through', role: 'stage' },
+      { label: 'Consumption by engines', detail: 'Every capability reads evidence through this one contract', role: 'stage' }
+    ],
+    description:
+      'An ordered pipeline: a signal is generated or ingested, classified within the closed taxonomy, then stamped with its source classification and provenance before it is served through the same-origin proxy and consumed by capability engines. The stamping sits ahead of consumption, so provenance travels on the datum rather than on the page and survives being copied. In this estate the first stage is the synthetic world service; no production feed is connected.'
+  },
 });

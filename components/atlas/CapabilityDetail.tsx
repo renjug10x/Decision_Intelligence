@@ -15,6 +15,7 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, ArrowLeft, Repeat, ExternalLink } from 'lucide-react';
 import MaturityTriad from './MaturityTriad';
+import CapabilityVisual from './visuals/CapabilityVisual';
 import { fetchQuestions } from '@/lib/atlas-client';
 import type { CuriosityQuestion } from '@/packages/contracts/src/capability-atlas-model';
 import type { ResolvedCapability, AudienceLens } from '@/packages/contracts/src/capability-atlas-model';
@@ -68,12 +69,15 @@ export default function CapabilityDetail({
   capability,
   lens,
   onBack,
-  onOpenCapability
+  onOpenCapability,
+  problemLabel
 }: {
   capability: ResolvedCapability;
   lens: AudienceLens | null;
   onBack: () => void;
   onOpenCapability: (id: string) => void;
+  /** Governed display label for a `bp-*` identifier. Falls back to the identifier when absent. */
+  problemLabel?: (id: string) => string;
 }) {
   const { identity, knowledge, relationships, demo_maturity } = capability;
   const priority = lens ? LENS_PRIORITY[lens] ?? [] : [];
@@ -341,7 +345,7 @@ export default function CapabilityDetail({
           <p className="atlas-q-label">What problem does this solve?</p>
           <div className={identity.business_problems.length ? 'atlas-q-answer' : 'atlas-q-answer atlas-q-answer--muted'}>
             {identity.business_problems.length
-              ? identity.business_problems.map(b => b.replace(/^bp-/, '').replace(/-/g, ' ')).join(', ')
+              ? identity.business_problems.map(b => (problemLabel ? problemLabel(b) : b.replace(/^bp-/, '').replace(/-/g, ' '))).join(', ')
               : 'no business problem recorded'}
           </div>
         </div>
@@ -372,6 +376,16 @@ export default function CapabilityDetail({
           </div>
         </div>
       </div>
+
+      {/*
+        The explanatory visual sits here — above every disclosed section and immediately after the
+        four questions — because its job is comprehension, not decoration. A relationship, a flow or
+        a distance is understood faster as structure than as a paragraph, so the reader meets it
+        while they are still deciding whether this capability is the one they wanted. It is absent
+        on most capabilities, which is correct: a visual is authored only where it explains
+        something the prose does not explain better (ADR-063).
+      */}
+      {knowledge?.visualisation && <CapabilityVisual visual={knowledge.visualisation} />}
 
       {lens && (
         <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '10px 0 18px' }}>

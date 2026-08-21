@@ -721,3 +721,126 @@ the Atlas still adds only the knowledge they do not carry.
   - **Expansion is reported, never silent.** The searcher's own words and the vocabulary's contribution are kept in **separate fields** through query understanding and into the search response, which returns which alias fired, what it added and why. The surface renders it. An alias-driven match is attributed to the alias that reached it.
 - **An alias never outranks the searcher.** Expanded terms score at a published factor of **0.75** of a direct hit, so a capability the searcher actually named always beats one the vocabulary reached for them. The vocabulary closes a lexical gap; it does not get to win an argument with the words a person chose. This is asserted head-to-head, not merely documented.
 - **Consequences:** Top-three recall on business-phrased questions moves from **10/18 to 18/18**, and first-place from 6/18 to 16/18, with no embedding index, no vector dependency, no provider and no network call — and both figures are re-measured on every test run, with expansion switchable off so the baseline stays reproducible. The estate keeps what embeddings would have cost it: Level 1 stands alone, and every rule that changes what a searcher finds is a line a human can read, argue with and revert. The cost is a maintained list. That cost is deliberate: a list someone has to justify entries in is the mechanism, not an overhead on it.
+
+---
+
+### ADR-060: Persona And Domain Are Exploration Dimensions Of The Atlas, Not Global Application State (`ATL-04R`)
+
+- **Status:** Approved & **Implemented** (`ATL-04R`, 2026-08-21). Enforcement in `app/page.tsx`, `components/atlas/CapabilityAtlas.tsx`, `content/atlas/capability-areas.ts`; evidence in [`COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md`](../reports/COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md).
+- **Context:** The shell carried two global header selectors: Domain Context and Persona. Both asserted
+  session-wide state. A persona selector says *the user IS this persona for this session*; a domain
+  selector says *the application HAS this domain identity*. Neither claim is true of an innovation
+  atlas. The people who use it need to read one capability as an executive and then as an architect,
+  in the same minute, and a capability's reach ACROSS domains is one of the things they are trying to
+  understand — so making domain an application identity hides the answer to a question the Atlas
+  exists to answer. The selectors were also disconnected from the Atlas entirely: `CapabilityAtlas`
+  never read `role` or `activeDomainId`, so the two most prominent controls in the product did nothing
+  on the surface they appeared to govern.
+- **Decision:** Both become exploration dimensions inside the Capability Atlas, and neither becomes
+  identity. A user does not become a persona; they view governed records **through the lens of** one
+  of four audience lenses, switchable freely and at no cost. Domain is a filter over an exploration,
+  not a property of the session. The four-value `AudienceLens` vocabulary stays deliberately separate
+  from the nineteen-entry product persona catalogue, as ADR-045 requires: a persona is who a
+  capability SERVES, a lens is who is READING, and collapsing them would either invent a sales persona
+  in the product or lose the Sales lens.
+- **A lens reorders and never hides.** `LENS_FIELD_ORDER` changes emphasis; `NEVER_SUPPRESSED` keeps
+  name, summary, the three maturity dimensions and known limitations present under every lens. There
+  is no per-persona copy of any capability record, and there never will be.
+- **No authentication role is introduced.** Exploration is not authorisation. Nothing about the lens
+  reaches the identity system, and the removal of the header selector removed a writer of `role`
+  rather than a reader of it.
+- **Consequences:** `DOMAIN_SELECTED` and `PERSONA_SELECTED` remain members of the canonical journey
+  event union and are emitted from the Atlas with new `source` values, so the discovery funnel stays
+  measurable — the control was retired, not the observation. Any future surface tempted to ask "which
+  persona is the user?" must instead ask "which lens is the reader using right now?", and must accept
+  that the answer can change on the next click.
+
+---
+
+### ADR-061: Ambiguous Exploration Is Resolved By Deterministic Progressive Clarification, Not By Guessing And Not By A Model (`ATL-04R`)
+
+- **Status:** Approved & **Implemented** (`ATL-04R`, 2026-08-21). Enforcement in `lib/atlas/clarification.ts`, `app/api/v1/atlas/clarify/route.ts`, `content/atlas/capability-areas.ts`; evidence in [`COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md`](../reports/COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md).
+- **Context:** Level 1 answered every query identically: score, sort, render. For a precise query that
+  is correct. For *"what capabilities does CogniX have on promotions?"* it returned two dozen
+  capabilities spread across several problem spaces with no indication that the question had more than
+  one reading — a large flat result set standing in for an answer, which is the behaviour that made
+  the Atlas feel like a search engine rather than a place to explore.
+- **Decision:** Where a question is genuinely open, the Atlas ASKS. Clarification is assembled entirely
+  from governed records — capability areas and their declared aspects, the existing `LENS_LEXICON` and
+  `FILTER_LEXICON`, the governed alias vocabulary and the domain catalogue — and is decided by counting
+  those structures. No model, no provider, no credential, no network call, no embedding.
+- **Five rules bound it, and they are asserted rather than intended:** it never asks for something the
+  query already declared; it never asks more than twice; a choice may only narrow to capabilities the
+  query already reached, so it cannot widen a result set or introduce a capability from elsewhere;
+  every inference is returned marked `inferred` and is removable, so nothing is applied silently; and
+  prepared responses are shortcuts rather than restrictions, with free text accepted at every step.
+- **Confidence is qualitative and stays that way.** `IntentState` has four values and no percentage.
+  Nothing in the estate calibrates a confidence number, and printing an uncalibrated one to make the
+  interface look decisive is the unsupported-metric failure Principle 12 forbids.
+- **Consequences:** Clarification works when everything else is unavailable, which is the property that
+  makes it safe to put in front of the whole Atlas — it is how a reader reaches everything else. The
+  cost is that it can only be as good as the governed area aspects behind it: a clarification the
+  corpus cannot express is a content gap to be authored, not a prompt to be tuned. That is the intended
+  trade.
+
+---
+
+### ADR-062: A Plural Query Reaching Nothing Is A Mechanical Defect And Is Fixed Mechanically (`ATL-04R`)
+
+- **Status:** Approved & **Implemented** (`ATL-04R`, 2026-08-21). Enforcement in `lib/atlas/query-understanding.ts`, `lib/atlas/capability-search.ts`; evidence in [`COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md`](../reports/COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md).
+- **Context:** `ATL-04R` measured a defect that had been in Level 1 since `ATL-04` and had never been
+  seen because nobody had queried the plural. The corpus is written in the singular and `containsWord`
+  anchors to word boundaries, so `promotions` returned **nothing** while `promotion` returned five
+  capabilities; `decisions` returned nothing against twenty-six for `decision`; `capabilities`
+  returned one against twenty-four. The first acceptance scenario for the clarification engine is
+  literally *"What capabilities does CogniX have on Promotions?"*, and it was surfacing the wrong
+  capability areas entirely — not because ranking was wrong, but because the words never met.
+- **Decision:** Normalise the searcher's own word morphologically, by declared English rules, and only
+  ever by ADDING a form. The searcher's word is never removed or rewritten, so nothing that matched
+  before stops matching. A form-derived hit carries `FORM_TERM_WEIGHT_FACTOR` (0.9) and is attributed
+  through `SearchMatch.via_form`, so the reader sees that `promotions` reached `promotion`.
+- **The weighting order is now three-tiered and published:** a word the searcher wrote exactly, then
+  the same word in another form (0.9), then a term the governed vocabulary supplied (0.75). A record
+  the searcher actually named still outranks one anything else reached for them.
+- **`cognix` becomes a stopword** for the reason the other stopwords are: in a corpus where every
+  record is a CogniX capability it matches everything and therefore discriminates nothing.
+- **This is not a substitute for the governed vocabulary (ADR-059).** Twenty aliases were NOT added for
+  words the corpus already contains; conversely, normalisation reaches no capability whose text shares
+  no term with the query. The `ATL-06C` measurement holds: three of eighteen business-phrased questions
+  are still absent from the unexpanded baseline, which is the lexical gap only governed vocabulary
+  closes. The recorded baseline moved on one axis only — top-one from 6 of 18 to 7 — and
+  `run-atl06c-tests.ts` G2 records the new figure and why it moved.
+- **Consequences:** Level 1 stays one deterministic mechanism with no second phrase syntax. The risk is
+  over-normalisation of a word that is not a plural, which the rules decline to touch (`analysis`,
+  `bus`, `-ss`, `-us`, `-is`) and which the suite asserts.
+
+---
+
+### ADR-063: Explanatory Visuals Are Configuration Carried By Capability Knowledge, And Carry No Numbers (`ATL-04R`)
+
+- **Status:** Approved & **Implemented** (`ATL-04R`, 2026-08-21). Enforcement in `packages/contracts/src/capability-atlas-model.ts`, `components/atlas/visuals/CapabilityVisual.tsx`, `lib/atlas/landscape-validator.ts`; evidence in [`COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md`](../reports/COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md).
+- **Context:** A relationship, a flow, a distance or a comparison is understood faster as structure
+  than as a paragraph, and the Atlas explains exactly those things. The estate also has a worked
+  example of how visual explanation goes wrong: the Architectural Storyboard's twelve slides were
+  hand-written JSX carrying twelve fabricated outcome constants — *"98% Audit Score"*, *"£12.4M
+  National ROI"* — every one of which `ATL-01` marked Discard.
+- **Decision:** A visual is a `VisualSpec` on a capability's knowledge module, and the component is a
+  renderer. That is ADR-046 applied to pictures: a diagram authored inside a component is capability
+  knowledge in JSX, which is the thing the Atlas backend exists to prevent.
+- **The schema cannot express a number, deliberately.** There is no value, no axis and no scale, so no
+  bar can be sized to a figure and no node can carry one. Rule L7 additionally rejects a quantity
+  smuggled into a label. Where governed quantitative evidence exists it is cited as evidence, in
+  words, beside the visual.
+- **A text equivalent is mandatory, not an attribute.** `description` is required by the schema and
+  rendered as visible text; the graphic is `aria-hidden`. A reader who cannot see the visual reads
+  what it says rather than what it is.
+- **The pattern set is closed and shrinks.** Six patterns were designed; four shipped. `half-life` was
+  drafted for `CAP-DECISION-CONTRACT` and refused by that capability's own record — *Decision Half-Life
+  publishes validity states and refuses any duration, countdown, expiry estimate or decay curve* (owner
+  ruling W2) — so the capability took a `flow` and the pattern was deleted rather than left available
+  for someone to reach for. `relationship` was deleted because nothing used it. A pattern with no
+  caller is a framework, not an explanation.
+- **Consequences:** Visuals are authored where they explain and absent elsewhere — ten of thirty-eight
+  capabilities carry one, and that distribution is the intended one. Because the specs are governed
+  data rather than page markup, `ATL-06D` can embed the same visuals in client-facing output without
+  re-authoring them, which was the second reason for the boundary.

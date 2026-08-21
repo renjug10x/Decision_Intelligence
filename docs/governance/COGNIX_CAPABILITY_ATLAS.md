@@ -21,6 +21,7 @@
 | `ATL-02` | Capability Knowledge Backend | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_02_CAPABILITY_KNOWLEDGE_BACKEND_REPORT.md`](../reports/COGNIX_ATL_02_CAPABILITY_KNOWLEDGE_BACKEND_REPORT.md) · `run-atl02-tests.ts` 82/82 · `tsc` 0 · build clean · 7 routes under `/api/v1/atlas/*` |
 | `ATL-03` | Retail & Grocery Knowledge Population | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_03_KNOWLEDGE_POPULATION_REPORT.md`](../reports/COGNIX_ATL_03_KNOWLEDGE_POPULATION_REPORT.md) · 38 capabilities, 38 knowledge modules · `run-atl03-tests.ts` 29/29 · `run-atl02-tests.ts` 119/119 · `tsc` 0 · build clean |
 | `ATL-04` | Atlas UX & Structured Search | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_04_ATLAS_UX_SEARCH_REPORT.md`](../reports/COGNIX_ATL_04_ATLAS_UX_SEARCH_REPORT.md) · `run-atl04-tests.ts` 54/54 · search-first landing, 4 lenses, 6 filters · validated at 1440/1024/720 · `tsc` 0 · build clean |
+| `ATL-04R` | Unified Capability Exploration Experience | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md`](../reports/COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md) · `run-atl04r-tests.ts` 116/116 · `run-atl04-tests.ts` 54/54 **unchanged** · ADR-060…ADR-063 · one Atlas (Portfolio and Questions folded in), 7 governed capability areas partitioning the registry, deterministic progressive clarification, persona lens and domain as exploration dimensions, visual explainability on 10 capabilities, About retired to a header surface, Governance renamed Observability & Governance · SB-GATE 1/6 → **3/6**, storyboard retained · validated at 1440/1024/720 · `tsc` 0 · build clean |
 | `ATL-05` | Internal AI Retrieval & Ask CogniX | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md`](../reports/COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md) · `run-atl05-tests.ts` 54/54 · internal-only retrieval, no provider adapter · `tsc` 0 · build clean |
 | `ATL-06A` | External Grounding & Provenance Architecture | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md`](../reports/COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md) · `run-atl06a-tests.ts` 115/115 · ADR-053, ADR-054 · policy published at `/api/v1/atlas/grounding` · no provider, no network call · `tsc` 0 · build clean |
 | `ATL-06B` | Grounded Market Intelligence | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md`](../reports/COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md) · `run-atl06b-tests.ts` 123/123 · `run-atl06a-tests.ts` 115/115 **unchanged** · ADR-055, ADR-056 · Google Search grounding behind the ATL-06A gate, user-initiated · `tsc` 0 · build clean |
@@ -29,9 +30,19 @@
 | `ATL-07` | Capability Lifecycle Governance & Automation | **[NOT STARTED]** | — | — |
 
 **Current phase:** `ATL-06C` — implementation complete, live validation pending
-**Last completed Atlas activity:** `ATL-06C` implementation completed 2026-08-21 — **live validation pending**
+**Last completed Atlas activity:** `ATL-04R` completed 2026-08-21. `ATL-06C` remains **live-validation-pending** and is unchanged by it
 **Next executable work package:** **`ATL-06C`** — close live validation: run `scripts/atlas-live-grounding-check.ts` with a credential
 **Next implementation work package:** `ATL-06D` — Client Conversation Pack
+
+> **`ATL-04R` is a refinement of `ATL-04`, inserted after it and completed before `ATL-06D`.** It does
+> not reopen `ATL-04`, whose history stands: `ATL-04` proved the backend-driven Atlas, the structured
+> discovery model and the first UI, and its acceptance criteria remain met. What evaluation of the
+> working interface then showed was that the information architecture was sound but the interaction
+> architecture exposed too many controls, fragmented Capability Atlas, Portfolio and Questions into
+> separate experiences, and behaved more like a searchable catalogue than an innovation exploration
+> environment. `ATL-04R` addresses that and nothing else; the Atlas backend, capability registry,
+> knowledge corpus, deterministic search, Questions Worth Asking model, Ask CogniX trust boundaries
+> and grounding architecture are unchanged apart from one proven Level 1 defect (ADR-062).
 
 > **`ATL-06C` is implementation-complete and live-validation-pending.** Every acceptance criterion is
 > met against recorded fixtures and against the **live** `generativelanguage.googleapis.com` endpoint
@@ -489,6 +500,87 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
 
 ---
 
+### `ATL-04R` — Unified Capability Exploration Experience [COMPLETED]
+
+- **Objective:** Turn the working Atlas from a technically sound search-and-filter catalogue into a
+  coherent, visually explanatory, persona-aware, question-led exploration environment, without
+  weakening any governed knowledge, retrieval or trust boundary beneath it.
+- **Rationale:** `ATL-04` successfully proved the backend-driven Atlas, structured discovery model and
+  first UI. Evaluation of the working interface showed that the information architecture was sound,
+  but the interaction architecture exposed too many controls, fragmented Capability Atlas, Portfolio
+  and Questions into separate experiences, and behaved more like a searchable catalogue than an
+  innovation exploration environment.
+- **Hard Dependencies:** `ATL-02` — **[COMPLETED]**, `ATL-03` — **[COMPLETED]**,
+  `ATL-04` — **[COMPLETED]**.
+- **Integration Dependencies:** `SB-GATE` (ADR-051). `ATL-05`/`ATL-06A`/`ATL-06B`/`ATL-06C` trust
+  boundaries, which this work package consumes and must not weaken.
+- **Scope:** One Capability Atlas absorbing Portfolio and Questions Worth Asking as views; removal of
+  the `Explore` sidebar grouping and of the global Domain and Persona header selectors; persona as an
+  in-Atlas lens and domain as an in-Atlas exploration dimension; a governed capability-area landscape
+  partitioning the registry; deterministic progressive clarification for ambiguous questions; a
+  governed business-problem catalogue; a visual explainability framework driven by capability
+  knowledge; filters behind progressive disclosure; About retired as a destination and replaced by a
+  lightweight header surface over one governed platform-metadata source; Governance renamed and
+  reorganised as Observability & Governance.
+- **Non-Scope:** `ATL-06D` in any form — no client conversation pack, no meeting preparation, no
+  client research, no client persona generation, no sales briefing packs. No new persona service, no
+  new domain service, no conversation framework, no visualisation DSL. No storyboard retirement.
+- **Acceptance Criteria:**
+  - `AC-ATL-04R-1` **[HARD]** Capability Atlas is the single discovery destination. The `Explore`
+    grouping and the Portfolio and Questions sidebar entries are gone, and no governed data or useful
+    functionality is lost with them.
+  - `AC-ATL-04R-2` **[HARD]** The global Domain and Persona selectors are removed. A user does not
+    become a persona; they read one governed record through four lenses, freely switchable, and a
+    lens reorders without hiding or changing any fact.
+  - `AC-ATL-04R-3` **[HARD]** Capability areas are governed content that PARTITIONS the registry —
+    every capability in exactly one area — and no area is invented to complete a grid.
+  - `AC-ATL-04R-4` **[HARD]** An ambiguous question raises a clarification rather than a large flat
+    result set; a clear question does not. Clarification is deterministic, requires no provider or
+    credential, is bounded to two steps, offers prepared responses and free text, never manufactures a
+    persona or domain, and never narrows to a capability the query did not reach.
+  - `AC-ATL-04R-5` **[HARD]** Inferred context is visible, labelled as inferred and removable. Nothing
+    is applied silently.
+  - `AC-ATL-04R-6` **[HARD]** Visuals are configuration carried by governed capability knowledge, not
+    diagrams authored in components; none introduces a metric the estate does not hold; each carries a
+    text equivalent.
+  - `AC-ATL-04R-7` **[HARD]** Innovation lifecycle, demonstration maturity and implementation status
+    remain three separate dimensions on every new surface (ADR-047), and simulated or partial
+    capabilities are not presented as operational.
+  - `AC-ATL-04R-8` **[HARD]** About is not a navigation destination. The header surface shows only
+    governed platform metadata, states absent values as absent, and claims no certification.
+  - `AC-ATL-04R-9` **[HARD]** Governance is renamed Observability & Governance and reorganised around
+    user questions, absorbing the live diagnostics that were trapped behind About.
+  - `AC-ATL-04R-10` **[HARD]** The Architectural Storyboard is not deleted or disabled. `SB-GATE` is
+    advanced only where evidence supports it.
+  - `AC-ATL-04R-11` **[HARD]** `ATL-06D` is not started, and no placeholder pretends to be operational.
+  - `AC-ATL-04R-12` **[HARD]** `ATL-06C` remains `[COMPLETED — LIVE VALIDATION PENDING]` with
+    `AC-ATL-06C-9` open. No provider validation is weakened to advance the programme.
+- **Test Requirements:** `tests/unit/run-atl04r-tests.ts` following the estate convention, covering the
+  landscape partition and its validation rules, the clarification engine against every acceptance
+  scenario, visual configuration and its accessible equivalents, navigation removal, truth
+  dimensions, About and Observability & Governance, and the ADR-062 lexical fix. Every prior ATL suite
+  re-run unchanged.
+- **Exit Gate:** `npx tsc --noEmit` clean; `run-atl04r-tests.ts` green; `run-atl02`, `run-atl03`,
+  `run-atl04`, `run-atl05`, `run-atl06a`, `run-atl06b`, `run-atl06c` unchanged; `npm run build` clean;
+  browser validation at 1440/1024/720.
+- **Implementation Allowed:** YES. **Commit/Push Permitted:** yes.
+- **Risks:** A UX refinement that quietly relaxes a knowledge boundary is the principal risk, and it is
+  guarded structurally: the ADR-046 component checks now run recursively over `components/atlas/**`,
+  and clarification is asserted to contain no provider call. The second risk is a landscape that
+  drifts out of partition as the registry grows; rule L3 fails the suite if it does.
+- **Decisions Outstanding:** none.
+- **Completion Evidence:** [`COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md`](../reports/COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md) ·
+  `run-atl04r-tests.ts` 116/116 · ADR-060, ADR-061, ADR-062, ADR-063 · `tsc` 0 · build clean ·
+  validated at 1440/1024/720 · `SB-GATE` 1/6 → 3/6 with the storyboard retained.
+- **Handoff:** The Atlas is one exploration environment. `ATL-06C` live validation remains the next
+  executable work package and is untouched by this refinement; `ATL-06D` remains next for
+  implementation and now has an obvious natural entry point in the capability detail, which continues
+  to state that it is planned and not yet available rather than simulating it.
+- **Downstream Dependencies:** unlocks nothing new; removes the interaction-architecture debt
+  `ATL-06D` would otherwise inherit. **Next WP:** `ATL-06C` (close live validation), then `ATL-06D`.
+
+---
+
 ### `ATL-05` — Internal AI Retrieval & Ask CogniX [COMPLETED]
 
 - **Objective:** Add AI-assisted explanation over governed internal capability knowledge, with
@@ -851,15 +943,32 @@ source, inspected via `git show origin/main:<path>`.
 The storyboard is not deleted or disabled during `ATL-01`. It may be retired only when every item is
 true and ticked in the `ATL-01` storyboard assessment:
 
-- [ ] **SB-GATE-1** Both versions audited slide by slide, each unit of knowledge carrying a
-      retain/discard decision.
-- [ ] **SB-GATE-2** Every retained unit verifiably present at its destination.
-- [ ] **SB-GATE-3** Destinations reachable from the Atlas or from governance, not only from a file.
+- [x] **SB-GATE-1** Both versions audited slide by slide, each unit of knowledge carrying a
+      retain/discard decision. — **MET at `ATL-01`**, §2/§3/§4 of the migration assessment.
+- [ ] **SB-GATE-2** Every retained unit verifiably present at its destination. — **NOT MET.** `ATL-03`
+      populated the capability corpus, but the two units the assessment recorded as homeless (§3.1 the
+      four-quadrant value framework, §3.2 the hub-and-spoke reuse model) still exist nowhere.
+- [x] **SB-GATE-3** Destinations reachable from the Atlas or from governance, not only from a file. —
+      **MET at `ATL-04R`.** Capability knowledge is reachable through seven governed capability areas
+      that partition the registry, and platform architecture is reachable under
+      Observability & Governance → Architecture. The assessment recorded this as blocked on "the
+      `ATL-04` Atlas surface"; that surface now organises the estate rather than listing it.
 - [ ] **SB-GATE-4** Persona journeys, the enterprise blueprint, the recommendation lifecycle, the
       governance-and-trust narrative and the constrained-reasoning narrative each have a named
-      successor surface.
-- [ ] **SB-GATE-5** Presenter notes and demo timings preserved as Demo Path content.
-- [ ] **SB-GATE-6** Retirement proposed in a work package that also names the navigation successor.
+      successor surface. — **PARTIALLY MET, unchanged.** 11 of 12. Slides 6 and 7 (supply chain,
+      executive briefing) still have no successor because those capabilities remain orphaned.
+- [ ] **SB-GATE-5** Presenter notes and demo timings preserved as Demo Path content. — **NOT MET.**
+      The 60 prose units in the storyboard's narrative panel have not been migrated into Demo Paths.
+      `ATL-04R` did not attempt this and does not claim it.
+- [x] **SB-GATE-6** Retirement proposed in a work package that also names the navigation successor. —
+      **MET at `ATL-04R`**, which proposes eventual retirement and names the successor: the Capability
+      Atlas for capability architecture, and Observability & Governance → Architecture for the
+      platform account. The storyboard is hosted there in the interim.
+
+**State: 3 of 6.** The gate is not met, so the rule below applies and **the Architectural Storyboard
+is retained**. `ATL-04R` moved it out of the default tab of a module named "About" and into
+Observability & Governance, labelled as retired in the registry and simulated in implementation. That
+is a change of placement and honesty, not a retirement.
 
 If the gate cannot be met, the storyboard remains and the Atlas coexists with it.
 

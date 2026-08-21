@@ -246,11 +246,17 @@ async function runTests() {
     'F10: V3 — an unknown domain is refused; the taxonomy is closed and owned by config/domains.ts');
 
   // ── G. AC-ATL-02-1 / AC-ATL-02-5 — the ADR-046 migration ──────────────────
-  const componentSource = readFileSync(join(ROOT, 'components', 'QuestionsWorthAsking.tsx'), 'utf8');
+  // `ATL-04R` folded the standalone Questions page into the Atlas, so this reads the Atlas renderer.
+  // Both assertions still guard exactly what they always guarded — no authored capability content in
+  // the component, and the content read from the governed registry rather than owned by the screen.
+  // G2 is now STRICTER than it was: the old surface imported `content/atlas/curiosity-questions`
+  // directly into a client component, and the replacement reads it through `/api/v1/atlas/questions`,
+  // which is the ADR-046 boundary the rest of the Atlas has always observed.
+  const componentSource = readFileSync(join(ROOT, 'components', 'atlas', 'QuestionsWorthExploring.tsx'), 'utf8');
   assert(!componentSource.includes('whyAsking:') && !componentSource.includes('evidencePoints:'),
     'G1: AC-ATL-02-1 — no capability content is authored inside the component (ADR-046)');
-  assert(componentSource.includes("from '@/content/atlas/curiosity-questions'"),
-    'G2: The component reads the registry rather than owning the content');
+  assert(componentSource.includes('fetchQuestions') && !componentSource.includes("from '@/content/atlas/curiosity-questions'"),
+    'G2: The component reads the registry through the Atlas API rather than owning the content');
 
   const originalCount = 4;
   assert(CURIOSITY_QUESTIONS.length === originalCount,

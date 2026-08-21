@@ -12,7 +12,15 @@ import type {
   ResolvedCapability,
   DemoMaturity,
   SearchResponse,
-  AudienceLens
+  AudienceLens,
+  ImplementationStatus,
+  LifecycleState,
+  CapabilityAreaAspect,
+  BusinessProblem,
+  PlatformMetadata,
+  ExplorationContext,
+  ClarificationChoice,
+  ClarificationResponse
 } from '@/packages/contracts/src/capability-atlas-model';
 import type { QueryHint } from '@/lib/atlas/query-understanding';
 import type { CuriosityQuestion } from '@/packages/contracts/src/capability-atlas-model';
@@ -82,4 +90,69 @@ export function searchAtlas(q: string, query = ''): Promise<AtlasSearchResponse>
 
 export function fetchQuestions(capabilityId?: string): Promise<CuriosityQuestion[]> {
   return get(`/api/v1/atlas/questions${capabilityId ? `?capability_id=${encodeURIComponent(capabilityId)}` : ''}`);
+}
+
+// ── ATL-04R: landscape, clarification and platform identity ──────────────────
+
+export interface AtlasAreaMember {
+  capability_id: string;
+  name: string;
+  summary: string;
+  implementation_status: ImplementationStatus;
+  lifecycle_state: LifecycleState | null;
+  demo_maturity: DemoMaturity | null;
+  platform_reusable: boolean;
+  domains: string[];
+  business_problems: string[];
+}
+
+export interface AtlasArea {
+  area_id: string;
+  name: string;
+  problem_space: string;
+  what_cognix_does: string;
+  invitation: string;
+  rationale: string;
+  aspects: CapabilityAreaAspect[];
+  capability_count: number;
+  reusable_count: number;
+  implemented_count: number;
+  members: AtlasAreaMember[];
+}
+
+export interface AtlasLandscape {
+  areas: AtlasArea[];
+  business_problems: BusinessProblem[];
+  validation: { valid: boolean; checked: number; errors: { rule: string; message: string }[] };
+}
+
+export function fetchLandscape(): Promise<AtlasLandscape> {
+  return get('/api/v1/atlas/areas');
+}
+
+export function fetchPlatformMetadata(): Promise<PlatformMetadata> {
+  return get('/api/v1/platform');
+}
+
+/**
+ * One clarification step. POST because the accumulated context is a structure; deterministic, so
+ * this call never depends on a provider or a credential.
+ */
+export async function clarifyQuery(
+  query: string,
+  context?: ExplorationContext,
+  step = 0,
+  answer?: { choices?: ClarificationChoice[]; refinement?: string }
+): Promise<ClarificationResponse> {
+  const res = await fetch('/api/v1/atlas/clarify', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify({ query, context, step, ...answer })
+  });
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({}));
+    throw new Error(body.message || `Atlas request failed: ${res.status}`);
+  }
+  const payload = await res.json();
+  return payload.data as ClarificationResponse;
 }

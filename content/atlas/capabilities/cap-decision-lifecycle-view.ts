@@ -12,7 +12,7 @@ export const knowledge = defineKnowledge({
   innovation_thesis:
     'Trust in a recommendation depends on being able to see the path that produced it. Narrating the path is the minimum; binding it to the running path is the goal.',
   usage_instructions:
-    'Open the Decision Lifecycle tab in the Help shell.',
+    'Open this capability in the Capability Atlas. The six governed stages are rendered from `architecture_flow` in the “How it works” section; the standalone static tab was retired at `ATL-04R`.',
   testing_instructions:
     'No runner exists; the surface is static.',
   field_status: [
@@ -29,10 +29,10 @@ export const knowledge = defineKnowledge({
     'Governed write-back'
   ],
   implementation_references: [
-    { path: 'components/Help.tsx', note: 'Lifecycle tab' }
+    { path: 'components/atlas/CapabilityDetail.tsx', symbol: 'architecture', note: 'The six stages are now rendered from this record rather than restated in a component' }
   ],
   validation_evidence: [
-    { kind: 'code', ref: 'components/Help.tsx', outcome: 'Static six-stage lifecycle description.', observed_at: '2026-08-20', observed_by: 'ATL-03 reconciliation' },
+    { kind: 'code', ref: 'components/Help.tsx', outcome: 'Static six-stage lifecycle description. Surface retired at ATL-04R; the stages survive as this record\u2019s architecture_flow.', observed_at: '2026-08-21', observed_by: 'ATL-04R migration' },
     { kind: 'report', ref: 'docs/reports/COGNIX_ATL_01_CAPABILITY_INVENTORY_REPORT.md', outcome: 'Recorded as E-05.', observed_at: '2026-08-20', observed_by: 'ATL-03 reconciliation' }
   ],
   known_limitations: [

@@ -85,4 +85,25 @@ export const knowledge = defineKnowledge({
   related_governance: [
     'docs/governance/ENTERPRISE_SIGNAL_MODEL.md'
   ],
+  /**
+   * Correspondence reads as one yes-or-no in prose, when it is in fact several independent
+   * predicates in a fixed order, each able to refuse on its own. Laid out as a chain, source
+   * authority and comparability are visibly separate gates rather than one judgement, and refusal
+   * is a terminus of the chain — which is what fail-closed means, and why a near miss is named
+   * instead of approximated.
+   */
+  visualisation: {
+    kind: 'flow',
+    concept: 'Admitting an Observation',
+    nodes: [
+      { label: 'Observation submitted', detail: 'Arrives with a declared grain and window', role: 'stage' },
+      { label: 'Source authority check', detail: 'Whether the source carries authority to attest', role: 'stage' },
+      { label: 'Metric to signal type', detail: 'Checked against a closed declared table', role: 'stage' },
+      { label: 'Grain token identity', detail: 'Exact token match on every contracted dimension', role: 'stage' },
+      { label: 'Observation-window coverage', detail: 'Whether the window observed is the window contracted', role: 'stage' },
+      { label: 'Verdict, or fail closed', detail: 'Comparable, or refused with the failing dimension named', role: 'stage' }
+    ],
+    description:
+      'An ordered admission chain: an observation arrives with a declared grain and window, its source is checked for authority, its metric is matched to a signal type against a closed declared table, its grain tokens must be identical on every contracted dimension, and its window must cover the one contracted. Only then is a comparability verdict issued. Any gate that fails refuses the observation and names the failing dimension rather than approximating it.'
+  },
 });

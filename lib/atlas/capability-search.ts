@@ -67,6 +67,17 @@ export const PHRASE_MATCH_MULTIPLIER = 4;
 export const ALIAS_TERM_WEIGHT_FACTOR = 0.75;
 
 /**
+ * A hit on a different grammatical form of the searcher's own word — they typed "promotions", the
+ * record says "promotion" (ADR-062).
+ *
+ * Discounted, but less than an alias is: the word is still theirs, and only its ending changed.
+ * Placed above `ALIAS_TERM_WEIGHT_FACTOR` and below 1 so the ordering of evidence stays legible —
+ * a word the searcher wrote exactly, then a word they wrote in another form, then a word the
+ * governed vocabulary reached for them.
+ */
+export const FORM_TERM_WEIGHT_FACTOR = 0.9;
+
+/**
  * Word-boundary containment.
  *
  * Plain substring matching makes short words catastrophic: `all` matches "actually", "recall"
@@ -138,12 +149,22 @@ export function searchCapabilities(
     const matches: SearchMatch[] = [];
     let score = 0;
 
-    const record = (field: string, weight: number, text: string, token: string, viaAlias?: string) => {
+    const record = (
+      field: string,
+      weight: number,
+      text: string,
+      token: string,
+      attribution?: { alias?: string; form?: string }
+    ) => {
       score += weight;
       if (!matches.some(m => m.field === field)) {
-        // A direct match is recorded first and keeps the field, so `via_alias` appears only where
-        // the vocabulary was the ONLY reason the capability matched at all.
-        matches.push(viaAlias ? { field, weight, excerpt: excerpt(text, token), via_alias: viaAlias } : { field, weight, excerpt: excerpt(text, token) });
+        // A direct match is recorded first and keeps the field, so `via_alias` and `via_form`
+        // appear only where the vocabulary or a normalised form was the ONLY reason the
+        // capability matched at all.
+        const base = { field, weight, excerpt: excerpt(text, token) };
+        if (attribution?.alias) matches.push({ ...base, via_alias: attribution.alias });
+        else if (attribution?.form) matches.push({ ...base, via_form: attribution.form });
+        else matches.push(base);
       }
     };
 
@@ -170,13 +191,22 @@ export function searchCapabilities(
           if (containsWord(text, term)) record(field, FIELD_WEIGHTS[field] ?? 1, text, term);
         }
       }
-      // 4. Governed vocabulary. Discounted and attributed, so an alias-driven hit is visibly a
+      // 4. The searcher's own words in another grammatical form (ADR-062). Discounted lightly and
+      //    attributed back to the word they typed, so "promotions" visibly reached "promotion".
+      for (const morph of q.morphs) {
+        for (const [field, text] of Object.entries(fields)) {
+          if (containsWord(text, morph.form)) {
+            record(field, (FIELD_WEIGHTS[field] ?? 1) * FORM_TERM_WEIGHT_FACTOR, text, morph.form, { form: morph.from });
+          }
+        }
+      }
+      // 5. Governed vocabulary. Discounted and attributed, so an alias-driven hit is visibly a
       //    different kind of evidence from a word the searcher chose.
       for (const term of q.alias_terms) {
         const alias = q.expansions.find(e => e.governed_terms.includes(term));
         for (const [field, text] of Object.entries(fields)) {
           if (containsWord(text, term)) {
-            record(field, (FIELD_WEIGHTS[field] ?? 1) * ALIAS_TERM_WEIGHT_FACTOR, text, term, alias?.alias_id);
+            record(field, (FIELD_WEIGHTS[field] ?? 1) * ALIAS_TERM_WEIGHT_FACTOR, text, term, { alias: alias?.alias_id });
           }
         }
       }

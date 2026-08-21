@@ -24,7 +24,7 @@
  * wait on a network round trip. Left off, this surface behaves exactly as it did at ATL-05.
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { MessageSquare, X, CornerDownLeft, Loader2 } from 'lucide-react';
 import MaturityTriad from './MaturityTriad';
 import type { AudienceLens } from '@/packages/contracts/src/capability-atlas-model';
@@ -41,10 +41,20 @@ const OUTCOME_LABEL: Record<AskAnswer['outcome'], string> = {
 
 export default function AskCogniX({
   lens,
-  onOpenCapability
+  onOpenCapability,
+  seedQuestion = null
 }: {
   lens: AudienceLens | null;
   onOpenCapability: (id: string) => void;
+  /**
+   * A question routed here by an explicit act elsewhere in the Atlas — "Ask CogniX this question"
+   * on a curiosity question, or "Ask CogniX instead" when deterministic exploration found nothing.
+   *
+   * It opens the panel and fills the field. It does NOT submit: the reader still presses the
+   * button, so a question is never sent to the reasoning path without them asking for it. The
+   * default remains closed, which is what keeps the Atlas search-first rather than chat-first.
+   */
+  seedQuestion?: string | null;
 }) {
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState('');
@@ -52,6 +62,12 @@ export default function AskCogniX({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [research, setResearch] = useState(false);
+
+  useEffect(() => {
+    if (!seedQuestion) return;
+    setOpen(true);
+    setQuestion(seedQuestion);
+  }, [seedQuestion]);
 
   const submit = async () => {
     if (!question.trim()) return;

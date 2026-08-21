@@ -75,4 +75,23 @@ export const knowledge = defineKnowledge({
   related_governance: [
     'docs/governance/EXPERIMENT_MODEL.md'
   ],
+  /**
+   * The whole claim here is that a decision is made in one function and paid for in another, and
+   * prose can only name the orders of consequence one at a time. The chain shows the distance
+   * travelled — from the magnitude set in marketing to the margin consequence — in a single read.
+   * Deliberately carries no magnitudes: those are modelled and uncalibrated, so what the visual
+   * commits to is the function affected and the direction of effect, which is the defensible part.
+   */
+  visualisation: {
+    kind: 'flow',
+    concept: 'Orders of Consequence',
+    nodes: [
+      { label: 'Decision magnitude', detail: 'The commercial change being proposed', role: 'stage' },
+      { label: 'First-order effect', detail: 'Felt in the function that made the decision', role: 'stage' },
+      { label: 'Second-order effect', detail: 'An adjacent function, such as distribution-centre labour', role: 'stage' },
+      { label: 'Third-order margin consequence', detail: 'Where the net-margin cost of the decision lands', role: 'stage' }
+    ],
+    description:
+      'An ordered propagation outward: a decision magnitude produces a first-order effect in the function that decided, a second-order effect in an adjacent function such as distribution-centre labour, and a third-order consequence in net margin. Each layer names the function affected and the direction of effect, not a calibrated figure.'
+  },
 });

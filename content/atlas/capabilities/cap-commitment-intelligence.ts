@@ -80,4 +80,23 @@ export const knowledge = defineKnowledge({
   related_governance: [
     'docs/governance/EXPERIMENT_MODEL.md'
   ],
+  /**
+   * The claim is that a promise breaks somewhere upstream of the customer, and prose can only name
+   * the chain stages one at a time. Ordered, the propagation puts the breaking stage exactly where it
+   * sits — after the capacity that fails to meet the commitment, before the time still left — which is
+   * what makes the lead time an interval a COO can act inside rather than a headline figure.
+   */
+  visualisation: {
+    kind: 'flow',
+    concept: 'Where the Promise Breaks First',
+    nodes: [
+      { label: 'Commercial commitment declared', detail: 'The promise the enterprise has made to the customer', role: 'stage' },
+      { label: 'Demand projection', detail: 'What that commitment will ask the operating chain to serve', role: 'stage' },
+      { label: 'Capacity per chain stage', detail: 'What each stage can actually serve, from the synthetic enterprise world', role: 'stage' },
+      { label: 'First breaking stage', detail: 'The earliest stage where committed demand exceeds served capacity', role: 'stage' },
+      { label: 'Lead time before impact', detail: 'How far ahead of the customer the break is visible; derived from scenario parameters', role: 'stage' }
+    ],
+    description:
+      'An ordered propagation along the operating chain: a declared commercial commitment becomes a demand projection, which is set against the capacity each chain stage can serve, so the first stage at which committed demand exceeds served capacity is named rather than a generic warning being raised. The chain ends in the lead time by which that break is visible before the customer experiences it. Chain capacity comes from the synthetic enterprise world and the lead time is derived from scenario parameters, not from measured operational data.'
+  },
 });

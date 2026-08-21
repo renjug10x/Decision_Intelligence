@@ -130,5 +130,24 @@ export const knowledge: CapabilityKnowledge = {
     { ref: 'CAP-INTENT-FUSION', relation: 'depends-on' }
   ],
   related_decisions: ['ADR-040'],
-  related_governance: ['docs/governance/DEMAND_OBSERVABILITY_MODEL.md']
+  related_governance: ['docs/governance/DEMAND_OBSERVABILITY_MODEL.md'],
+  /**
+   * The whole capability rests on a distinction prose has to assert twice before it lands: stability
+   * is not accuracy. Setting the two questions against each other on the one body of evidence shows
+   * why the backward-looking one would need a backtest this capability does not have, and keeps
+   * INDETERMINATE in view as a real reading rather than a missing score — which is D-DDF-2 not returning.
+   */
+  visualisation: {
+    kind: 'comparison',
+    concept: 'Stability, Not Accuracy',
+    nodes: [
+      { label: 'Observed signal divergence', detail: 'Measured across the declared signal types, never a model confidence constant', role: 'evidence' },
+      { label: 'Past model accuracy', detail: 'A backward-looking question needing a backtest, and not what this reports', role: 'current' },
+      { label: 'Whether the outlook moves', detail: 'The forward question the planner is actually asking', role: 'adjusted' },
+      { label: 'Stability state and direction', detail: 'Tells a planner whether to act now or wait for the next signal', role: 'outcome' },
+      { label: 'INDETERMINATE, not a score', detail: 'Insufficient evidence is reported as such rather than defaulting to a favourable reading', role: 'outcome' }
+    ],
+    description:
+      'Two different questions are set against each other on one body of evidence. Observed divergence across the enterprise signal stream, rather than a model confidence constant, is read to answer whether the demand outlook is about to move — the forward question a planner is asking — and not how accurate the model has been, which is a backward-looking question that would need a backtest and is not what this reports. The reading resolves to a stability state and a revision direction, which is what tells a planner to act now or wait for the next signal. Where the evidence is insufficient it resolves to INDETERMINATE rather than defaulting to a favourable reading.'
+  }
 };

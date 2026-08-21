@@ -38,7 +38,12 @@ export const STOPWORDS = new Set([
   // Quantifiers and pro-forms: grammatical, not discriminating, in a capability corpus.
   'all', 'any', 'also', 'both', 'each', 'else', 'every', 'everything', 'just', 'more', 'most',
   'much', 'no', 'none', 'nothing', 'only', 'other', 'others', 'own', 'same', 'some', 'something',
-  'such', 'thing', 'things', 'very'
+  'such', 'thing', 'things', 'very',
+  // The product's own name. Every record in the corpus is a CogniX capability, so `cognix` is the
+  // purest possible case of the rule above: it matches everything and therefore discriminates
+  // nothing. Left in, it let "what capabilities does CogniX have on promotions?" score the whole
+  // estate on the two words that carried no question (ADR-062).
+  'cognix'
 ]);
 
 /** A hint the searcher is shown and can dismiss. Never applied silently. */
@@ -84,6 +89,49 @@ const LENS_LEXICON: { phrases: string[]; lens: AudienceLens; label: string }[] =
     lens: 'innovation-executive', label: 'Innovation Executive lens' }
 ];
 
+/**
+ * Declared morphological normalisation (ADR-062).
+ *
+ * `ATL-04R` measured a defect that had been in Level 1 since `ATL-04` and had never been visible
+ * because nobody had queried the plural: `promotions` returned NOTHING while `promotion` returned
+ * five capabilities, `decisions` returned nothing while `decision` returned twenty-six, and
+ * `capabilities` returned one against twenty-four. The corpus is written in the singular and
+ * `containsWord` anchors to word boundaries, so a plural query simply misses every record.
+ *
+ * That is a mechanical failure, not a semantic one, so it is fixed mechanically rather than by
+ * adding twenty vocabulary aliases for words the corpus already contains. The rules below are
+ * DECLARED and English-specific, and they only ever ADD a form — the searcher's own word is never
+ * removed or rewritten, so nothing that matched before stops matching.
+ *
+ * A form-derived hit is discounted and attributed for exactly the reason an alias-driven one is:
+ * the reader can see that `promotions` reached `promotion`, and a record the searcher named
+ * verbatim still outranks one reached by normalisation.
+ */
+const IRREGULAR_SINGULARS: Record<string, string> = {
+  analyses: 'analysis',
+  bases: 'basis',
+  crises: 'crisis',
+  hypotheses: 'hypothesis',
+  theses: 'thesis',
+  criteria: 'criterion',
+  data: 'datum',
+  people: 'person'
+};
+
+/** The singular of a plural content word, or `null` where the word is not a plural we recognise. */
+export function singularize(word: string): string | null {
+  if (word.length < 4) return null;
+  const irregular = IRREGULAR_SINGULARS[word];
+  if (irregular) return irregular;
+  if (!word.endsWith('s') || word.endsWith('ss') || word.endsWith('us') || word.endsWith('is')) return null;
+  // capabilities -> capability, opportunities -> opportunity
+  if (word.endsWith('ies') && word.length > 4) return `${word.slice(0, -3)}y`;
+  // analyses handled above; boxes -> box, watches -> watch, dishes -> dish
+  if (/(?:ch|sh|s|x|z)es$/.test(word)) return word.slice(0, -2);
+  // promotions -> promotion, signals -> signal, decisions -> decision
+  return word.slice(0, -1);
+}
+
 export interface UnderstoodQuery {
   /** Whole governed identifiers, matched by equality (AC-ATL-02-10). */
   identifiers: string[];
@@ -98,6 +146,11 @@ export interface UnderstoodQuery {
    * attributed and weighted differently. A searcher's own word always outranks one we supplied.
    */
   alias_terms: string[];
+  /**
+   * Singular forms of the searcher's own plural words, kept separate from `terms` so a
+   * form-derived match can be discounted and attributed back to the word they typed (ADR-062).
+   */
+  morphs: { form: string; from: string }[];
   /** Which alias fired, what it added and why. Rendered to the searcher (ADR-059). */
   expansions: QueryExpansion[];
   /** True when the query was entirely function words. */
@@ -139,6 +192,17 @@ export function understandQuery(raw: string, options: UnderstandOptions = {}): U
   const phrases: string[] = [];
   for (let i = 0; i < words.length - 1; i++) phrases.push(`${words[i]} ${words[i + 1]}`);
 
+  // Morphological forms. Only added where the singular is not already a word the searcher used,
+  // so a query containing both "promotion" and "promotions" is not double-counted.
+  const ownWords = new Set(words);
+  const morphs: { form: string; from: string }[] = [];
+  for (const w of words) {
+    const singular = singularize(w);
+    if (singular && !ownWords.has(singular) && !morphs.some(m => m.form === singular)) {
+      morphs.push({ form: singular, from: w });
+    }
+  }
+
   // Governed vocabulary. Longest phrase first, so the most specific entry wins where two overlap,
   // and a term the searcher already used is never re-added as an alias term — it is theirs.
   const expansions: QueryExpansion[] = [];
@@ -165,6 +229,7 @@ export function understandQuery(raw: string, options: UnderstandOptions = {}): U
     phrases,
     hints,
     alias_terms: aliasTerms,
+    morphs,
     expansions,
     empty: identifiers.length === 0 && words.length === 0 && aliasTerms.length === 0
   };

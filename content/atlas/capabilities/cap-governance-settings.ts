@@ -12,7 +12,7 @@ export const knowledge = defineKnowledge({
   innovation_thesis:
     'A governance surface that cannot be honest about which of its switches are real is itself a governance problem.',
   usage_instructions:
-    'Open the governance surface to review thresholds, AI options and scope settings.',
+    'Open Observability & Governance. Detection thresholds, human-in-the-loop controls and notification filtering are under “How is CogniX governed?”; access scoping is there too and is labelled as simulated.',
   testing_instructions:
     'No dedicated runner exists. Recorded coverage gap.',
   field_status: [
@@ -26,10 +26,10 @@ export const knowledge = defineKnowledge({
     'Effect on downstream surfaces where wired'
   ],
   implementation_references: [
-    { path: 'components/Settings.tsx', note: 'Governance surface' }
+    { path: 'components/ObservabilityGovernance.tsx', note: 'Governance surface, renamed and reorganised at ATL-04R' }
   ],
   validation_evidence: [
-    { kind: 'code', ref: 'components/Settings.tsx', outcome: '615-line surface.', observed_at: '2026-08-20', observed_by: 'ATL-03 reconciliation' },
+    { kind: 'code', ref: 'components/ObservabilityGovernance.tsx', outcome: 'Governance controls that bind to application state; three fabricated integration surfaces removed at ATL-04R.', observed_at: '2026-08-21', observed_by: 'ATL-04R migration' },
     { kind: 'report', ref: 'docs/reports/COGNIX_ATL_01_CAPABILITY_INVENTORY_REPORT.md', outcome: 'Recorded as E-10, partially implemented.', observed_at: '2026-08-20', observed_by: 'ATL-03 reconciliation' }
   ],
   known_limitations: [

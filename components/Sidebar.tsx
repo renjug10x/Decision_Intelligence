@@ -1,7 +1,7 @@
 'use client';
 import {
-  Compass, HelpCircle, Layers, GitBranch, Database,
-  Tag, TrendingUp, Package, Box, Settings as SettingsIcon, HelpCircle as HelpIcon,
+  Compass, Layers, GitBranch, Database,
+  Tag, TrendingUp, Package, Box, Settings as SettingsIcon,
   LogOut, Briefcase, Store, Target
 } from 'lucide-react';
 import { useApp } from '@/lib/context';
@@ -27,8 +27,10 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
   const roleMeta = ROLE_META[role] || ROLE_META.exec;
 
   const handleWordmarkClick = () => {
+    // The event type is unchanged — it is a member of the frozen canonical union and the discovery
+    // funnel is measured through it. Only the surface it opens moved.
     trackJourneyEvent({ event_type: 'PORTFOLIO_OPENED', source: 'wordmark_home', page: currentPage });
-    onNavigate('portfolio');
+    onNavigate('atlas');
   };
 
   return (
@@ -60,36 +62,20 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       {/* Navigation Groups */}
       <nav className="sidebar-nav" style={{ padding: '14px 10px' }}>
         
-        {/* Explore Section */}
-        <div className="nav-section-label" style={{ color: 'var(--text-muted)', fontSize: '0.625rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0 8px 6px' }}>
-          Explore
-        </div>
-
+        {/*
+          ATL-04R: the "Explore" grouping is gone, and with it the Portfolio and Questions entries.
+          Three sidebar destinations over one governed estate made them read as three products; they
+          are now views inside the Capability Atlas, which is the single discovery destination. The
+          Atlas needs no group heading of its own — a heading over one item is a category, not
+          navigation.
+        */}
         <button
           className={`nav-item ${currentPage === 'atlas' ? 'active' : ''}`}
           onClick={() => onNavigate('atlas')}
           style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
         >
-          <Layers size={14} color={currentPage === 'atlas' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
+          <Compass size={14} color={currentPage === 'atlas' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
           <span>Capability Atlas</span>
-        </button>
-
-        <button
-          className={`nav-item ${currentPage === 'portfolio' ? 'active' : ''}`}
-          onClick={() => onNavigate('portfolio')}
-          style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
-        >
-          <Compass size={14} color={currentPage === 'portfolio' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
-          <span>Portfolio</span>
-        </button>
-
-        <button
-          className={`nav-item ${currentPage === 'curiosity' ? 'active' : ''}`}
-          onClick={() => onNavigate('curiosity')}
-          style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
-        >
-          <HelpCircle size={14} color={currentPage === 'curiosity' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
-          <span>Questions</span>
         </button>
 
         {/* Experiments Section */}
@@ -187,20 +173,19 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
       {/* Footer: De-emphasized Admin & Exit Demo */}
       <div className="sidebar-footer" style={{ padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
+        {/*
+          ATL-04R: About is no longer a destination. What sat behind it was a five-tab module whose
+          default tab was a retired storyboard; its live diagnostics moved into Observability &
+          Governance and its identification role became a header control. What remains here is one
+          entry, named for what it now contains.
+        */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
           <button
             onClick={() => onNavigate('settings')}
-            title="IP & Governance Settings"
-            style={{ flex: 1, padding: '5px 8px', fontSize: '0.75rem', borderRadius: 4, background: '#FFFFFF', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+            title="Observability & Governance"
+            style={{ flex: 1, padding: '6px 8px', fontSize: '0.75rem', borderRadius: 4, background: '#FFFFFF', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
           >
-            <SettingsIcon size={12} /> Governance
-          </button>
-          <button
-            onClick={() => onNavigate('help')}
-            title="About CogniX Studio"
-            style={{ flex: 1, padding: '5px 8px', fontSize: '0.75rem', borderRadius: 4, background: '#FFFFFF', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
-          >
-            <HelpIcon size={12} /> About
+            <SettingsIcon size={12} /> Observability &amp; Governance
           </button>
         </div>
 

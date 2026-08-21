@@ -7,15 +7,13 @@ import { useAuth } from '@/context/AuthContext';
 import { appRoutes } from '@/config/routes';
 import Sidebar from '@/components/Sidebar';
 import CapabilityAtlas from '@/components/atlas/CapabilityAtlas';
-import InnovationPortfolio from '@/components/InnovationPortfolio';
-import QuestionsWorthAsking from '@/components/QuestionsWorthAsking';
+import AboutSurface from '@/components/AboutSurface';
 import ExperimentCanvas from '@/components/ExperimentCanvas';
 import CategoryIntelligence from '@/components/CategoryIntelligence';
 import PromotionPlanner from '@/components/PromotionPlanner';
 import Forecasting from '@/components/Forecasting';
-import Settings from '@/components/Settings';
+import ObservabilityGovernance from '@/components/ObservabilityGovernance';
 import AvailabilityIntelligence from '@/components/AvailabilityIntelligence';
-import Help from '@/components/Help';
 import CommitmentIntelligence from '@/components/CommitmentIntelligence';
 import DecisionRippleIntelligence from '@/components/DecisionRippleIntelligence';
 import EnterpriseMemory from '@/components/EnterpriseMemory';
@@ -23,19 +21,20 @@ import OpportunityIntelligence from '@/components/OpportunityIntelligence';
 import CampaignDecisionCanvas from '@/components/CampaignDecisionCanvas';
 import { EXPERIMENT_REGISTRY } from '@/config/experiments';
 import { env } from '@/config/environment';
-import { DOMAIN_CATALOGUE, getDomainById, DEFAULT_DOMAIN_ID } from '@/config/domains';
-import { PERSONA_CATALOGUE, getPersonaById } from '@/config/personas';
 import ShellToast, { ToastMessage } from '@/components/ShellToast';
 import { trackJourneyEvent, updateTelemetryContext } from '@/lib/journey-client';
 
 export default function App() {
   const router = useRouter();
   const { user, isLoading: authLoading } = useAuth();
-  const { role, setRole, platformSetupComplete } = useApp();
-  
-  const [currentPage, setCurrentPage] = useState<string>('portfolio');
+  const { platformSetupComplete } = useApp();
+
+  /*
+   * ATL-04R: the Atlas is the landing surface. Portfolio and Questions are views inside it rather
+   * than pages beside it, so `currentPage` no longer starts on a destination that has been removed.
+   */
+  const [currentPage, setCurrentPage] = useState<string>('atlas');
   const [selectedExperimentId, setSelectedExperimentId] = useState<string>('EXP-COMMITMENT-01');
-  const [activeDomainId, setActiveDomainId] = useState<string>(DEFAULT_DOMAIN_ID);
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
   // Telemetry Session Start
@@ -43,7 +42,7 @@ export default function App() {
     trackJourneyEvent({
       event_type: 'SESSION_STARTED',
       source: 'app_init',
-      page: 'portfolio',
+      page: 'atlas',
       metadata: { environment: 'demo_lab' }
     });
   }, []);
@@ -96,66 +95,21 @@ export default function App() {
     else if (solId === 'SOL-CAT-04') setCurrentPage('solution-category');
   };
 
-  const handleDomainChange = (domainId: string) => {
-    const domain = getDomainById(domainId);
-    const activeTarget = domain && domain.status === 'coming_soon' ? 'retail_grocery' : domainId;
-    
-    updateTelemetryContext({ domain_id: domainId });
-    trackJourneyEvent({
-      event_type: 'DOMAIN_SELECTED',
-      source: 'topbar_domain_select',
-      page: currentPage,
-      metadata: {
-        requested_domain: domainId,
-        active_domain: activeTarget,
-        availability_status: domain ? domain.status : 'active'
-      }
-    });
-
-    if (domain && domain.status === 'coming_soon') {
-      setToast({
-        id: `domain_${domain.id}_${Date.now()}`,
-        title: `${domain.name}`,
-        message: `Domain experience coming soon. CogniX experiments and demonstration solutions for ${domain.name} are planned for a future innovation pack.`,
-        teaser: domain.teaser,
-        type: 'coming_soon',
-        actionText: 'Stay in Retail & Grocery',
-        onAction: () => setActiveDomainId('retail_grocery')
-      });
-      // Do not switch active domain away from working retail_grocery
-    } else {
-      setActiveDomainId(domainId);
-    }
-  };
-
-  const handlePersonaChange = (personaId: string) => {
-    const persona = getPersonaById(personaId);
-    const prevPersona = role;
-
-    updateTelemetryContext({ persona_id: personaId });
-    trackJourneyEvent({
-      event_type: 'PERSONA_SELECTED',
-      source: 'topbar_persona_select',
-      page: currentPage,
-      previous_state: { persona_id: prevPersona },
-      new_state: { persona_id: personaId },
-      metadata: {
-        adaptive_behaviour_enabled: false,
-        persona_status: persona ? persona.status : 'active'
-      }
-    });
-
-    setRole(personaId as any);
-    if (persona && persona.status === 'coming_soon') {
-      setToast({
-        id: `persona_${persona.id}_${Date.now()}`,
-        title: `Persona Selected: ${persona.name}`,
-        message: `Adaptive decision behaviour for ${persona.name} will be enabled in a future intelligence phase.`,
-        teaser: persona.decisionLens,
-        type: 'coming_soon'
-      });
-    }
-  };
+  /*
+   * ATL-04R removed `handleDomainChange` and `handlePersonaChange` along with the two global header
+   * selectors that drove them.
+   *
+   * The reason is a product principle, not a tidy-up. A global persona selector states that the user
+   * IS a persona for the session; a global domain selector states that the application HAS a domain
+   * identity. Neither is true of an innovation atlas, where the same person needs to read the same
+   * capability as an executive and then as an architect, and where a capability's reach across
+   * domains is one of the things they are trying to understand. Both are now exploration dimensions
+   * inside the Capability Atlas, changeable as often as the reader likes and never session-wide.
+   *
+   * `DOMAIN_SELECTED` and `PERSONA_SELECTED` remain members of the canonical event union and are
+   * still emitted — from the Atlas, with their own source values — so the discovery funnel does not
+   * go dark. What was retired is the control, not the observation.
+   */
 
   const handleNotificationClick = () => {
     setToast({
@@ -168,21 +122,16 @@ export default function App() {
 
   const renderPage = () => {
     switch (currentPage) {
+      // `portfolio` and `curiosity` are kept as aliases rather than deleted: they were the app's
+      // landing key and its default branch, and a stale reference to either must land somewhere real
+      // instead of falling through to an empty switch.
       case 'atlas':
-        return <CapabilityAtlas />;
       case 'portfolio':
-        return (
-          <InnovationPortfolio
-            onSelectExperiment={handleNavigateToExperiment}
-            onSelectSolution={handleNavigateToSolution}
-            onNavigateToCuriosity={() => setCurrentPage('curiosity')}
-          />
-        );
       case 'curiosity':
         return (
-          <QuestionsWorthAsking
-            onSelectExperiment={handleNavigateToExperiment}
-            onSelectSolution={handleNavigateToSolution}
+          <CapabilityAtlas
+            onOpenSolution={handleNavigateToSolution}
+            onOpenExperiment={handleNavigateToExperiment}
           />
         );
       case 'commitment-intelligence':
@@ -211,17 +160,15 @@ export default function App() {
         return (
           <ExperimentCanvas
             experiment={selectedExperiment}
-            onBackToPortfolio={() => setCurrentPage('portfolio')}
+            onBackToPortfolio={() => setCurrentPage('atlas')}
           />
         );
-      case 'settings':       return <Settings />;
-      case 'help':           return <Help />;
-      default:               
+      case 'settings':       return <ObservabilityGovernance />;
+      default:
         return (
-          <InnovationPortfolio
-            onSelectExperiment={handleNavigateToExperiment}
-            onSelectSolution={handleNavigateToSolution}
-            onNavigateToCuriosity={() => setCurrentPage('curiosity')}
+          <CapabilityAtlas
+            onOpenSolution={handleNavigateToSolution}
+            onOpenExperiment={handleNavigateToExperiment}
           />
         );
     }
@@ -241,49 +188,12 @@ export default function App() {
           </div>
 
           <div className="topbar-right" style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
-            {/* Domain Context Selector */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>Domain Context:</span>
-              <select
-                className="select"
-                value={activeDomainId}
-                onChange={e => handleDomainChange(e.target.value)}
-                title="Choose innovation domain"
-                style={{ width: 175, height: 28, padding: '2px 6px', fontSize: '0.75rem', background: '#F8FAFC', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 4 }}
-              >
-                {DOMAIN_CATALOGUE.map(cat => (
-                  <optgroup key={cat.category} label={cat.category}>
-                    {cat.items.map(item => (
-                      <option key={item.id} value={item.id}>
-                        {item.name} {item.status === 'coming_soon' ? '(Coming Soon)' : '[Active]'}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </div>
-
-            {/* Persona / Decision Perspective Switcher */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontWeight: 500, whiteSpace: 'nowrap' }}>Persona:</span>
-              <select
-                className="select"
-                value={role}
-                onChange={e => handlePersonaChange(e.target.value)}
-                title="Choose decision perspective"
-                style={{ width: 165, height: 28, padding: '2px 6px', fontSize: '0.75rem', background: '#F8FAFC', color: 'var(--text-primary)', border: '1px solid var(--border)', borderRadius: 4 }}
-              >
-                {PERSONA_CATALOGUE.map(cat => (
-                  <optgroup key={cat.category} label={cat.category}>
-                    {cat.items.map(item => (
-                      <option key={item.id} value={item.id}>
-                        {item.name} {item.status === 'coming_soon' ? '(Coming Soon)' : ''}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-              </select>
-            </div>
+            {/*
+              ATL-04R: the Domain Context and Persona selectors were removed from here. Both are now
+              exploration dimensions inside the Capability Atlas. About became this control — platform
+              identification is a header affordance, not a navigation destination.
+            */}
+            <AboutSurface />
 
             {/* Notifications Button (No fake red dot) */}
             <div style={{ position: 'relative' }}>

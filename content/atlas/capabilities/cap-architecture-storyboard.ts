@@ -12,7 +12,7 @@ export const knowledge = defineKnowledge({
   innovation_thesis:
     'Architecture explained once, well, is worth more than architecture documented everywhere. That was the storyboard\'s premise, and it holds even though this implementation is being superseded.',
   usage_instructions:
-    'Open the Architecture Storyboard tab in the Help shell and step through the twelve slides.',
+    'Open Observability & Governance and choose Architecture. The storyboard is retained there, labelled as retired and simulated, until the storyboard retirement gate is satisfied.',
   testing_instructions:
     'No runner exists and none is warranted: the surface makes no engine or API call.',
   field_status: [
@@ -27,7 +27,7 @@ export const knowledge = defineKnowledge({
   ],
   implementation_references: [
     { path: 'components/ArchitectureExplorer.tsx', symbol: 'SLIDES', note: 'Twelve static slides, zero fetch calls, zero engine imports' },
-    { path: 'components/Help.tsx', note: 'Host shell' }
+    { path: 'components/ObservabilityGovernance.tsx', note: 'Host surface since ATL-04R; it is no longer the default tab of a module named About' }
   ],
   validation_evidence: [
     { kind: 'code', ref: 'components/ArchitectureExplorer.tsx', outcome: '1,546 lines; ATL-01 confirmed zero fetch calls and zero engine imports.', observed_at: '2026-08-20', observed_by: 'ATL-03 reconciliation' },
