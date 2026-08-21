@@ -11,6 +11,11 @@
  *   - answer from outside governed knowledge (external topics are declared unanswerable),
  *   - fill a gap (an unsupported question returns a stated gap),
  *   - hide maturity truth (lifecycle, demo and implementation travel with each cited claim).
+ *
+ * ATL-06A adds the ADR-048 evidence classes below the governed answer. The answer above them is
+ * unchanged: the same sections, the same citations, the same maturity triads. What is new is that
+ * the governed block is now labelled as one of three classes, and that Market Context and AI
+ * Interpretation are shown as explicitly absent, with the reason, rather than left out.
  */
 
 import { useState } from 'react';
@@ -18,6 +23,8 @@ import { MessageSquare, X, CornerDownLeft, Loader2 } from 'lucide-react';
 import MaturityTriad from './MaturityTriad';
 import type { AudienceLens } from '@/packages/contracts/src/capability-atlas-model';
 import type { AskAnswer } from '@/lib/atlas/ai/answer';
+import type { GroundedAskAnswer } from '@/lib/atlas/grounding/engine';
+import EvidenceClasses, { EvidenceClassHead } from './EvidenceClasses';
 
 const OUTCOME_LABEL: Record<AskAnswer['outcome'], string> = {
   answered: 'Grounded answer',
@@ -35,7 +42,7 @@ export default function AskCogniX({
 }) {
   const [open, setOpen] = useState(false);
   const [question, setQuestion] = useState('');
-  const [answer, setAnswer] = useState<AskAnswer | null>(null);
+  const [answer, setAnswer] = useState<GroundedAskAnswer | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,7 +57,7 @@ export default function AskCogniX({
       });
       const payload = await res.json();
       if (!res.ok) throw new Error(payload.message || 'Ask CogniX failed');
-      setAnswer(payload.data as AskAnswer);
+      setAnswer(payload.data as GroundedAskAnswer);
     } catch (e: any) { setError(e.message); }
     finally { setLoading(false); }
   };
@@ -116,40 +123,49 @@ export default function AskCogniX({
               <p className="atlas-ask-notice atlas-ask-notice--gap">{answer.gapNotice}</p>
             )}
 
-            {answer.sections.map((s, i) => {
-              const interpretation = answer.interpretations.find(x => x.capability_id === s.maturity?.capability_id);
-              return (
-                <div key={i} className="atlas-ask-section">
-                  <div className="atlas-ask-section-head">
-                    <h4>{s.heading}</h4>
-                    {s.maturity && (
-                      <MaturityTriad
-                        lifecycle={s.maturity.lifecycle_state}
-                        demoMaturity={s.maturity.demo_maturity}
-                        implementation={s.maturity.implementation_status}
-                      />
-                    )}
-                  </div>
-                  {interpretation && (
-                    <p className="atlas-ask-reading">Reading: {interpretation.why_this_reading}</p>
-                  )}
-                  <p>{s.text}</p>
-                  <div className="atlas-ask-cites">
-                    {s.citations.map((c, j) => (
-                      <button
-                        key={j}
-                        type="button"
-                        className="atlas-cite"
-                        title={c.label}
-                        onClick={() => { if (c.kind === 'capability') onOpenCapability(c.ref); }}
-                      >
-                        <span className="atlas-cite-kind">{c.kind}</span>{c.ref}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+            {answer.sections.length > 0 && (
+              <div className="atlas-ev-block atlas-ev-block--cognix">
+                <EvidenceClassHead cls="from-cognix" />
+                {answer.sections.map((s, i) => {
+                  const interpretation = answer.interpretations.find(x => x.capability_id === s.maturity?.capability_id);
+                  return (
+                    <div key={i} className="atlas-ask-section">
+                      <div className="atlas-ask-section-head">
+                        <h4>{s.heading}</h4>
+                        {s.maturity && (
+                          <MaturityTriad
+                            lifecycle={s.maturity.lifecycle_state}
+                            demoMaturity={s.maturity.demo_maturity}
+                            implementation={s.maturity.implementation_status}
+                          />
+                        )}
+                      </div>
+                      {interpretation && (
+                        <p className="atlas-ask-reading">Reading: {interpretation.why_this_reading}</p>
+                      )}
+                      <p>{s.text}</p>
+                      <div className="atlas-ask-cites">
+                        {s.citations.map((c, j) => (
+                          <button
+                            key={j}
+                            type="button"
+                            className="atlas-cite"
+                            title={c.label}
+                            onClick={() => { if (c.kind === 'capability') onOpenCapability(c.ref); }}
+                          >
+                            <span className="atlas-cite-kind">{c.kind}</span>{c.ref}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {answer.grounding && (
+              <EvidenceClasses grounding={answer.grounding} onOpenCapability={onOpenCapability} />
+            )}
 
             {answer.questionsWorthAsking.length > 0 && (
               <div className="atlas-ask-section">

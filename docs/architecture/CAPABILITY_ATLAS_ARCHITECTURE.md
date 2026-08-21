@@ -4,7 +4,7 @@
 **Version:** 1.0.0
 **Effective Date:** August 2026
 **Owner:** G10X Principal Architecture Group
-**Implemented by:** `ATL-02` (backend) · `ATL-04` (Level 1) · `ATL-05` (Level 2/3) · `ATL-06` (grounding)
+**Implemented by:** `ATL-02` (backend) · `ATL-04` (Level 1) · `ATL-05` (Level 2/3) · `ATL-06A` (grounding contract, provenance, contradiction precedence) · `ATL-06B` (provider, retrieval) · `ATL-06C` (market evidence) · `ATL-06D` (client pack)
 **Governing decisions:** ADR-002, ADR-006, ADR-018, ADR-044, ADR-045 … ADR-051
 
 ---
@@ -36,7 +36,7 @@ config/solutions.ts  config/experiments.ts  config/domains.ts
                                             config/patterns.ts
 ```
 
-With the AI layer added at `ATL-05` / `ATL-06`:
+With the AI layer added at `ATL-05` / the `ATL-06*` phases:
 
 ```text
    Atlas UI ──► Atlas Backend API ──► Capability Service ──► Registry
@@ -121,7 +121,8 @@ Proposed; exact shapes settled in `ATL-02`.
 | `GET /api/v1/atlas/evidence` | Evidence refs, filterable | `ATL-02` |
 | `GET /api/v1/atlas/search` | Structured (L1); semantic added at `ATL-05` | `ATL-02` / `ATL-05` |
 | `POST /api/v1/atlas/ask` | Ask CogniX — grounded answer with citations | `ATL-05` |
-| `POST /api/v1/atlas/client-preparation` | "Prepare me for a client conversation" | `ATL-06` |
+| `GET /api/v1/atlas/grounding` | The declared external-grounding policy — intents, allowlist, tiers, freshness bounds, contradiction rule, provider status | `ATL-06A` |
+| `POST /api/v1/atlas/client-preparation` | "Prepare me for a client conversation" | `ATL-06D` |
 
 Routes follow the estate's existing `app/api/v1/*` convention.
 
@@ -204,9 +205,9 @@ Every result is traceable to the record and field that matched. Results are merg
 documented policy and the response marks which level produced each result. A missing index or
 unavailable embedding provider returns Level 1 results and says so.
 
-### 7.3 Level 3 — Ask CogniX (`ATL-05`, extended in `ATL-06`)
+### 7.3 Level 3 — Ask CogniX (`ATL-05`, extended in `ATL-06A`/`ATL-06B`)
 
-Answers are generated only from retrieved governed content plus, at `ATL-06`, labelled external
+Answers are generated only from retrieved governed content plus, at `ATL-06B`, labelled external
 evidence. The model is never a source of CogniX facts. Every sentence asserting a CogniX capability
 fact carries a citation to a capability ref. Answers are audience-sensitive — the same question under a
 Sales lens leads with outcomes and demo narrative, under an Architect lens with services and contracts —
@@ -250,40 +251,63 @@ is returned in the response so the UI can show it and `ATL-07` can audit it.
 
 ---
 
-## 10. Google AI and controlled grounding (`ATL-06`, ADR-048/049)
+## 10. Controlled grounding (`ATL-06A` implemented · `ATL-06B` provider, ADR-048/049/053/054)
 
 ```text
 User Question
      │
      ▼
-Atlas AI Gateway ──► Query / Intent Classification
+Atlas AI Gateway ──► Intent Classification (ATL-06A, fails safe to internal-only)
      │                          │
-     ├──────────────────────────┴──────────────────────────┐
-     ▼                                                     ▼
-CogniX Knowledge Retrieval                        External Research
-     │                                             (Google Search Grounding)
-     └──────────────────────┬──────────────────────────────┘
+     │            internal-only │ external-permitted / external-required
+     ▼                          ▼
+CogniX Knowledge Retrieval   Grounding Provider (ATL-06B — none configured today)
+     │                          │
+     │                          ▼
+     │                   Source Admission (ATL-06A)
+     │                   allowlist · tier · provenance completeness
+     │                   date plausibility · per-topic freshness
+     │                   rejects a claim asserting a CogniX fact
+     │                          │
+     │                   admitted │ rejected ──► recorded with reason, shown as a count
+     └──────────────────────┬─────┘
                             ▼
-                    Provider Reasoning (Gemini adapter)
+                Contradiction Detection (ATL-06A, ADR-053)
+                governed constraints × claim assertions, per dimension
                             │
                             ▼
-                  Grounded Atlas Response
-                  ┌─────────┴──────────┐
-            CogniX Evidence        Web Sources
+                     Grounded Envelope
+     ┌──────────────────────┼──────────────────────┐
+ From CogniX          Market Context         AI Interpretation
+ governed, cited      sourced, dated         rests on a cited
+ AUTHORITATIVE        never redefines        governed statement
 ```
 
-Controls: grounding is server-side only and gated per intent class, never global · every external claim
-returns with source, publisher and retrieval date or is dropped · responses separate **From CogniX** /
-**Market Context** / **AI Interpretation** structurally and visually · market evidence is cached with
-its provenance under the freshness windows in `CAPABILITY_KNOWLEDGE_MODEL.md` §7.3 · a trusted-source
-policy governs citable domains, recorded at `ATL-06` · disabling grounding leaves every Atlas surface
-functional on internal knowledge.
+**What `ATL-06A` established, and what it deliberately did not.** The admission gate, the three-class
+envelope, the contradiction rule and the refusal path are implemented and tested with **no provider
+adapter in existence**. That ordering is the architecture: the first adapter built would otherwise
+become the specification for everything after it. `ATL-06B` adds a provider behind
+`ExternalGroundingProvider` without touching admission, contradiction handling, envelope assembly or
+any surface, and cannot weaken any of them — a hostile adapter is subject to the same gate as a
+well-behaved one, which is asserted directly in `tests/unit/run-atl06a-tests.ts`.
+
+**Controls.** Grounding is server-side only and gated per intent class, never global · classification
+fails safe toward internal-only, and an `internal-only` question never reaches a provider at all ·
+every external claim carries source url, publisher, title, publication date and retrieval date or is
+**not rendered at all**, with the rejection recorded and its reason shown · responses separate
+**From CogniX** / **Market Context** / **AI Interpretation** structurally in the payload and visually
+on the surface · currency bounds are declared per topic class and an expired source is dropped rather
+than caveated · a contradiction resolves into three separated classes with the governed fact
+authoritative, and no contract field can hold a merged statement · a question answerable only from
+external evidence is refused when none can be admitted · the whole policy is published at
+`GET /api/v1/atlas/grounding` from the constants the engine reads · disabling grounding leaves every
+Atlas surface functional on internal knowledge, with absence stated rather than omitted.
 
 ---
 
 ## 11. Evaluation
 
-`ATL-05` and `ATL-06` each ship an evaluation suite run by the estate's test convention.
+`ATL-05` and each `ATL-06*` phase ship an evaluation suite run by the estate's test convention.
 
 | Test | Asserts |
 |------|---------|
@@ -295,7 +319,9 @@ functional on internal knowledge.
 | Provider swap | Replacing the adapter changes no retrieval, record or UI behaviour |
 | Routing | Each intent class routes per §9; misclassification fails safe |
 | Client-prep completeness | All required sections present; warnings non-empty when a non-implemented capability is recommended |
-| Egress | No external network call from any `ATL-05` path |
+| Egress | No external network call from any `ATL-05` or `ATL-06A` path; no credential read in the grounding layer |
+| Contradiction precedence | External evidence disagreeing with a governed fact separates into three classes; no merged statement is producible |
+| Governed-fact integrity | A hostile adapter changes no governed record and no From CogniX statement |
 
 ---
 

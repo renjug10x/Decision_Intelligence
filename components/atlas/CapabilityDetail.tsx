@@ -438,7 +438,7 @@ export default function CapabilityDetail({
         <ExternalLink size={15} strokeWidth={1.75} color="var(--text-muted)" style={{ flexShrink: 0 }} />
         <span className="atlas-future-text">
           <strong style={{ color: 'var(--text-secondary)' }}>Prepare me for a client conversation</strong> — an
-          evidence-grounded preparation pack combining this capability with market research. Planned for ATL-06;
+          evidence-grounded preparation pack combining this capability with market research. Planned for ATL-06D;
           not yet available, and deliberately not simulated here.
         </span>
       </div>

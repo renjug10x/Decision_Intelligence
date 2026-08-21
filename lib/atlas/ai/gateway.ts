@@ -4,6 +4,12 @@
  * One server-side entry point that owns retrieval orchestration, answer assembly, guardrails and
  * provenance. Everything it touches is governed CogniX knowledge; it makes no network call and
  * imports no provider SDK.
+ *
+ * ATL-06A adds the grounding envelope, and adds it ADDITIVELY. `assembleAnswer` is called with the
+ * same inputs it received before and its result is returned unchanged; the envelope is attached
+ * beside it. With no grounding provider configured — the state of this estate today — every ATL-05
+ * field is byte-identical to what ATL-05 produced, which is asserted directly in
+ * `tests/unit/run-atl06a-tests.ts` rather than assumed.
  */
 
 import { capabilityRepository } from '../../../services/atlas/src/capability-registry';
@@ -12,6 +18,7 @@ import { CURIOSITY_QUESTIONS } from '../../../content/atlas/curiosity-questions'
 import { retrieve } from './retrieval';
 import { assembleAnswer, type AskAnswer } from './answer';
 import { narrateIfAvailable } from './provider';
+import { groundAnswer, type GroundedAskAnswer } from '../grounding/engine';
 import type { ResolvedCapability, AudienceLens } from '../../../packages/contracts/src/capability-atlas-model';
 
 export interface AskRequest {
@@ -19,7 +26,7 @@ export interface AskRequest {
   lens?: AudienceLens;
 }
 
-export async function ask(request: AskRequest): Promise<AskAnswer> {
+export async function ask(request: AskRequest): Promise<GroundedAskAnswer> {
   const identities = capabilityRepository.listIdentities();
   const index = await getCapabilityIndex(identities);
 
@@ -47,10 +54,16 @@ export async function ask(request: AskRequest): Promise<AskAnswer> {
     lens: request.lens
   });
 
-  return assembleAnswer({
+  const answer = assembleAnswer({
     question: request.question,
     retrieval,
     resolved,
     degradationNotice: narration.notice
   });
+
+  // ADR-048's three evidence classes. Policy decides whether external knowledge is permitted at
+  // all; the answer above is not altered either way (ADR-053).
+  const grounding = await groundAnswer({ question: request.question, answer, resolved });
+
+  return { ...answer, grounding };
 }

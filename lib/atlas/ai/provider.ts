@@ -10,7 +10,7 @@
  * capability content from a fallback path, because a fabricated capability claim is fabricated
  * input to a governed contract.
  *
- * ATL-05 ships NO provider adapter. The interface exists so ATL-06 can add one behind it without
+ * ATL-05 ships NO provider adapter. The interface exists so ATL-06B can add one behind it without
  * touching retrieval, answer assembly or any surface.
  */
 

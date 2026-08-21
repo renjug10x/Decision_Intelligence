@@ -3,7 +3,7 @@
  *
  * The corpus is the capability knowledge store and the curiosity-question registry. NOTHING ELSE.
  * There is no web retrieval, no search grounding and no external market evidence anywhere in this
- * module — those belong to ATL-06 and are deliberately absent rather than stubbed.
+ * module — those belong to ATL-06B and are deliberately absent rather than stubbed.
  *
  * Retrieval sits behind an interface so ATL-05's Level 2 embedding retriever can be added later
  * without changing answer assembly. The retriever shipped here is deterministic and local.
@@ -35,7 +35,7 @@ export interface RetrievalResult {
 /**
  * Declared markers of a question that needs CURRENT EXTERNAL knowledge. The Atlas cannot
  * substantiate these from governed records, and saying so is the correct answer — not guessing.
- * ATL-06 owns external grounding.
+ * ATL-06A owns the grounding contract; ATL-06B owns retrieval.
  */
 const EXTERNAL_KNOWLEDGE_MARKERS: { phrases: string[]; topic: string }[] = [
   { phrases: ['market', 'competitor', 'competitors', 'competitive landscape', 'vendor', 'vendors'], topic: 'market and competitor landscape' },

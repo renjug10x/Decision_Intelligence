@@ -96,3 +96,4 @@ export * from './memory-model';
 export * from './attested-observation-model';
 export * from './demand-decision-frontier-model';
 export * from './capability-atlas-model';
+export * from './atlas-grounding-model';

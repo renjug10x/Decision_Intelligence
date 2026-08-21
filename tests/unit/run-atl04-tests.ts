@@ -179,7 +179,12 @@ async function run() {
     'H6: Demo warnings are surfaced to the presenter, not buried in the payload');
 
   // ── I. ATL-05/06 scope is not pre-empted ──────────────────────────────────
-  const atlasCode = uiSource + readFileSync(join(ROOT, 'lib', 'atlas', 'capability-search.ts'), 'utf8') +
+  // Scoped to the files ATL-04 owns. ATL-05 later added AskCogniX and ATL-06A added EvidenceClasses;
+  // both legitimately name grounding, and folding them in would turn this scope guard into an
+  // assertion that later phases never shipped — which is not what it was written to protect.
+  const ATL04_UI = ['CapabilityAtlas.tsx', 'CapabilityCard.tsx', 'CapabilityDetail.tsx', 'MaturityTriad.tsx'];
+  const atl04UiSource = ATL04_UI.map(f => readFileSync(join(ATLAS_DIR, f), 'utf8')).join('\n');
+  const atlasCode = atl04UiSource + readFileSync(join(ROOT, 'lib', 'atlas', 'capability-search.ts'), 'utf8') +
                     readFileSync(join(ROOT, 'lib', 'atlas', 'capability-index.ts'), 'utf8') +
                     readFileSync(join(ROOT, 'lib', 'atlas', 'query-understanding.ts'), 'utf8');
   const stripped = atlasCode.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');

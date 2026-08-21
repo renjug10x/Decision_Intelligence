@@ -17,7 +17,7 @@
  *
  *   3. EXTERNAL KNOWLEDGE IS REFUSED, NOT APPROXIMATED. Where a question needs current market or
  *      competitor knowledge, the answer states that the internal Atlas cannot substantiate that
- *      portion and names ATL-06 as the owner. No external claim is made.
+ *      portion and names the phase that owns it. No external claim is made.
  */
 
 import type {
@@ -151,7 +151,7 @@ export function assembleAnswer(input: AssembleInput): AskAnswer {
   const { question, retrieval, resolved, degradationNotice } = input;
 
   const externalKnowledgeNotice = retrieval.requiresExternalKnowledge
-    ? `The internal Atlas cannot substantiate the ${retrieval.externalTopics.join(' and ')} part of this question. CogniX-owned records describe what CogniX does; they hold no external market or competitor evidence. External research and grounding are owned by ATL-06 and are not available yet.`
+    ? `The internal Atlas cannot substantiate the ${retrieval.externalTopics.join(' and ')} part of this question. CogniX-owned records describe what CogniX does; they hold no external market or competitor evidence. External retrieval and grounding are owned by ATL-06B and are not available yet.`
     : null;
 
   const questionsWorthAsking = retrieval.questions.map(q => ({
