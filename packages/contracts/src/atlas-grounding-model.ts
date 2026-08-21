@@ -263,7 +263,9 @@ export interface AIInterpretationBlock {
 export type GroundingRefusalReason =
   | 'insufficient-grounding'
   | 'no-grounding-provider'
-  | 'all-claims-rejected';
+  | 'all-claims-rejected'
+  /** ATL-06B. External research is user-initiated; the reader did not ask for it. */
+  | 'research-not-requested';
 
 /**
  * Stated when the question needed external evidence that could not be admitted. A refusal is an
@@ -274,6 +276,30 @@ export interface GroundingRefusal {
   reason: GroundingRefusalReason;
   message: string;
   topics: string[];
+}
+
+/**
+ * Search transparency (ATL-06B).
+ *
+ * A reader who is shown market evidence is entitled to see how it was looked for, not only what came
+ * back. `queries` are the searches the provider actually ran. `discarded_ungrounded_segments` counts
+ * the sentences the model produced that carried **no grounding support** and were therefore thrown
+ * away rather than presented — the single most important number on this object, because it is the
+ * difference between grounded evidence and model recall wearing a citation.
+ *
+ * `search_entry_point_html` is Google's own Search Suggestions markup. Where a provider returns it,
+ * displaying it is a condition of using Grounding with Google Search, and substituting a
+ * hand-rolled equivalent is not permitted (ADR-055).
+ */
+export interface GroundingSearchTransparency {
+  queries: string[];
+  search_entry_point_html: string | null;
+  provider_model: string | null;
+  cache: 'hit' | 'miss' | 'not-cached';
+  /** Model sentences with no grounding support, discarded rather than shown. */
+  discarded_ungrounded_segments: number;
+  /** Grounding chunks whose real publisher could not be resolved from the redirect. */
+  unresolved_sources: number;
 }
 
 export interface GroundedEnvelope {
@@ -289,4 +315,9 @@ export interface GroundedEnvelope {
   provider: string | null;
   /** Policy version the envelope was produced under, so a stored answer is re-checkable. */
   policy_version: string;
+  /**
+   * ATL-06B. Present only when an external grounding provider actually ran. `null` records that no
+   * search was performed, which is a different statement from a search that found nothing.
+   */
+  search_transparency?: GroundingSearchTransparency | null;
 }

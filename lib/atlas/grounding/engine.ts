@@ -23,7 +23,7 @@ import {
   EVIDENCE_CLASS_LABEL,
   type ExternalClaim, type FromCogniXStatement, type GroundedEnvelope,
   type GroundingRefusal, type MarketContextStatement, type RejectedClaim,
-  type AIInterpretationStatement
+  type AIInterpretationStatement, type GroundingSearchTransparency
 } from '../../../packages/contracts/src/atlas-grounding-model';
 import type { ResolvedCapability } from '../../../packages/contracts/src/capability-atlas-model';
 import type { AskAnswer } from '../ai/answer';
@@ -38,6 +38,16 @@ export interface GroundInput {
   resolved: ResolvedCapability[];
   /** Injected so freshness is testable without waiting for a source to age. */
   now?: Date;
+  /**
+   * ATL-06B. Whether the READER asked for external research on this question.
+   *
+   * It can only ever make the gate stricter: policy still decides whether external evidence is
+   * permissible at all, and this decides whether it was wanted. The default is `true`, meaning
+   * "the caller imposes no restriction beyond policy" — which is exactly the ATL-06A contract, and
+   * is why `run-atl06a-tests.ts` passes unchanged. The user-facing entry point, `ask()`, requires an
+   * explicit opt-in and defaults to `false`; the Atlas never reaches outward on its own (ADR-056).
+   */
+  researchRequested?: boolean;
 }
 
 function fromCogniXStatements(answer: AskAnswer, resolved: ResolvedCapability[]): FromCogniXStatement[] {
@@ -64,8 +74,10 @@ function fromCogniXStatements(answer: AskAnswer, resolved: ResolvedCapability[])
 
 export async function groundAnswer(input: GroundInput): Promise<GroundedEnvelope> {
   const now = input.now ?? new Date();
+  const researchRequested = input.researchRequested !== false;
   const decision = classifyQuestion(input.question);
   const provider = activeGroundingProvider();
+  const externalAllowed = decision.external_allowed && researchRequested;
 
   const fromCogniX = fromCogniXStatements(input.answer, input.resolved);
 
@@ -73,16 +85,28 @@ export async function groundAnswer(input: GroundInput): Promise<GroundedEnvelope
   // what makes AC-ATL-06-7 hold regardless of what an adapter would have volunteered.
   let retrieved: ExternalClaim[] = [];
   let providerFailed = false;
-  if (decision.external_allowed && provider) {
+  let transparency: GroundingSearchTransparency | null = null;
+  if (externalAllowed && provider) {
+    const request = {
+      question: input.question,
+      topics: decision.topics,
+      capability_ids: fromCogniX.map(s => s.capability_id),
+      capabilities: fromCogniX.map(s => ({ id: s.capability_id, name: s.capability_name }))
+    };
     try {
-      retrieved = await provider.retrieve({
-        question: input.question,
-        topics: decision.topics,
-        capability_ids: fromCogniX.map(s => s.capability_id)
-      });
+      // ATL-06B providers account for how they searched. ATL-06A adapters do not, and are still
+      // valid: the richer call is preferred where implemented and never required.
+      if (provider.retrieveGrounded) {
+        const result = await provider.retrieveGrounded(request);
+        retrieved = result.claims;
+        transparency = result.transparency;
+      } else {
+        retrieved = await provider.retrieve(request);
+      }
     } catch {
       providerFailed = true;
       retrieved = [];
+      transparency = null;
     }
   }
 
@@ -90,7 +114,7 @@ export async function groundAnswer(input: GroundInput): Promise<GroundedEnvelope
   const rejected: RejectedClaim[] = [];
   const market: MarketContextStatement[] = [];
   for (const claim of retrieved) {
-    const result = admitClaim(claim, decision.external_allowed, now);
+    const result = admitClaim(claim, externalAllowed, now);
     if (!result.admitted || !result.freshness) {
       if (result.rejection) rejected.push(result.rejection);
       continue;
@@ -109,20 +133,34 @@ export async function groundAnswer(input: GroundInput): Promise<GroundedEnvelope
 
   // Interpretation exists only where it rests on a governed statement. In ATL-06A the only such
   // case is a contradiction, whose interpretation is templated from the governed record and cites it.
-  const interpretations: AIInterpretationStatement[] = contradictions.map(c => ({
-    text: c.ai_interpretation,
-    rests_on: [c.cognix_citation],
-    informed_by: [c.market_source.url]
-  }));
+  // One claim can disagree with several records on the same dimension, and the templated reading is
+  // then word-for-word identical. Two identical paragraphs teach a reader nothing the second time,
+  // so the statement is emitted once and cites every record it rests on.
+  const interpretations: AIInterpretationStatement[] = [];
+  for (const c of contradictions) {
+    const existing = interpretations.find(i => i.text === c.ai_interpretation);
+    if (existing) {
+      if (!existing.rests_on.includes(c.cognix_citation)) existing.rests_on.push(c.cognix_citation);
+      if (!existing.informed_by.includes(c.market_source.url)) existing.informed_by.push(c.market_source.url);
+      continue;
+    }
+    interpretations.push({
+      text: c.ai_interpretation,
+      rests_on: [c.cognix_citation],
+      informed_by: [c.market_source.url]
+    });
+  }
 
   const marketAbsenceReason = market.length > 0
     ? null
     : !decision.external_allowed
       ? `${EVIDENCE_CLASS_LABEL['market-context']} is not shown because this question is answered from governed CogniX records only. ${decision.reason}`
-      : providerFailed
+      : !researchRequested
+        ? 'External research was not requested for this question, so nothing was looked up. The Atlas does not search outward on its own; ask again with external research enabled to include sourced market context.'
+        : providerFailed
         ? 'External grounding was attempted and the provider was unavailable. No market evidence is shown, and none has been substituted from memory.'
         : !provider
-          ? 'No external grounding provider is configured, so no market evidence has been retrieved. This section is empty because nothing was looked up, not because nothing exists. External retrieval is delivered by ATL-06B and the market corpus by ATL-06C.'
+          ? 'No external grounding provider is configured on this server, so no market evidence has been retrieved. This section is empty because nothing was looked up, not because nothing exists. External retrieval is delivered by ATL-06B and needs a provider credential present in the server environment.'
           : rejected.length > 0
             ? `External evidence was retrieved and none of it met the source-admission standard. ${rejected.length} claim(s) were dropped rather than shown: ${[...new Set(rejected.map(r => r.reason))].join(', ')}.`
             : 'External grounding returned no evidence for this question.';
@@ -132,7 +170,13 @@ export async function groundAnswer(input: GroundInput): Promise<GroundedEnvelope
     : 'No interpretation is offered. An interpretation is only emitted where it rests on a governed CogniX statement it can cite, and nothing in this answer required one.';
 
   let refusal: GroundingRefusal | null = null;
-  if (decision.intent === 'external-required' && admitted.length === 0) {
+  if (decision.intent === 'external-required' && !researchRequested) {
+    refusal = {
+      reason: 'research-not-requested',
+      topics: decision.topics,
+      message: `This question can only be answered with ${decision.topics.join(' and ')}, which governed CogniX records do not hold. External research is user-initiated and was not requested, so nothing was looked up and nothing has been inferred.`
+    };
+  } else if (decision.intent === 'external-required' && admitted.length === 0) {
     const reason = !provider
       ? 'no-grounding-provider' as const
       : rejected.length > 0 ? 'all-claims-rejected' as const : 'insufficient-grounding' as const;
@@ -165,8 +209,9 @@ export async function groundAnswer(input: GroundInput): Promise<GroundedEnvelope
     contradictions,
     rejected_claims: rejected,
     refusal,
-    provider: provider?.name ?? null,
-    policy_version: GROUNDING_POLICY_VERSION
+    provider: externalAllowed ? provider?.name ?? null : null,
+    policy_version: GROUNDING_POLICY_VERSION,
+    search_transparency: transparency
   };
 }
 

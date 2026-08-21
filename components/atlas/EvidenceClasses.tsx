@@ -17,9 +17,16 @@
  * Every market claim renders its publisher, url, publication date, retrieval date and currency
  * verdict. A claim without those never reaches this component: it was dropped at admission, and the
  * count of what was dropped is shown so the omission is visible rather than invisible.
+ *
+ * ATL-06B adds the two things a reader needs in order to distrust this section intelligently: how it
+ * was searched, and what was thrown away. The queries actually run are shown; so is the number of
+ * model sentences discarded for carrying no grounding support, which is the difference between
+ * evidence and recall. Where the provider returns Google's Search Suggestions markup, it is rendered
+ * as supplied — that is a condition of using Grounding with Google Search, and a hand-rolled
+ * substitute is not permitted (ADR-055).
  */
 
-import { ExternalLink, ShieldCheck, Globe, Lightbulb, AlertTriangle } from 'lucide-react';
+import { ExternalLink, ShieldCheck, Globe, Lightbulb, AlertTriangle, Search, Filter } from 'lucide-react';
 import type {
   ContradictionRecord, EvidenceClass, GroundedEnvelope
 } from '@/packages/contracts/src/atlas-grounding-model';
@@ -101,6 +108,7 @@ export default function EvidenceClasses({
   // duplication, so the second appearance says why it is there rather than leaving the reader to
   // work it out.
   const contradicting = new Set(contradictions.map(c => c.market_context));
+  const transparency = grounding.search_transparency ?? null;
 
   return (
     <div className="atlas-ev">
@@ -155,10 +163,45 @@ export default function EvidenceClasses({
           <p className="atlas-ev-absent">{market.absence_reason}</p>
         )}
         {grounding.rejected_claims.length > 0 && (
-          <p className="atlas-ev-absent">
-            {grounding.rejected_claims.length} retrieved claim(s) were not shown because they failed source
-            admission: {[...new Set(grounding.rejected_claims.map(r => r.reason.replace(/-/g, ' ')))].join(', ')}.
-          </p>
+          <div className="atlas-ev-ledger">
+            <span className="atlas-ev-rowlabel">
+              <Filter size={10} strokeWidth={2} /> Retrieved and not shown — {grounding.rejected_claims.length}
+            </span>
+            {grounding.rejected_claims.map((r, i) => (
+              <div key={i} className="atlas-ev-ledger-row">
+                <span className={`atlas-ev-reason atlas-ev-reason--${r.reason}`}>{r.reason.replace(/-/g, ' ')}</span>
+                <span className="atlas-ev-ledger-claim">“{r.claim.length > 160 ? `${r.claim.slice(0, 160)}…` : r.claim}”</span>
+                <span className="atlas-ev-ledger-detail">{r.detail}</span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {transparency && (
+          <div className="atlas-ev-search">
+            <span className="atlas-ev-rowlabel"><Search size={10} strokeWidth={2} /> How this was searched</span>
+            {transparency.queries.length > 0 && (
+              <p className="atlas-ev-searchqueries">
+                {transparency.queries.map((q, i) => <span key={i} className="atlas-ev-query">{q}</span>)}
+              </p>
+            )}
+            <p className="atlas-ev-absent">
+              {transparency.discarded_ungrounded_segments > 0
+                ? `${transparency.discarded_ungrounded_segments} model sentence(s) carried no grounding support and were discarded rather than shown as market evidence.`
+                : 'Every sentence shown above is traced to a retrieved source; nothing was carried over from model memory.'}
+              {transparency.unresolved_sources > 0 &&
+                ` ${transparency.unresolved_sources} source(s) could not be resolved to a publisher and were dropped.`}
+              {transparency.cache === 'hit' && ' Served from the research cache rather than a new search.'}
+            </p>
+            {transparency.search_entry_point_html && (
+              // Google's own Search Suggestions markup, rendered as supplied because displaying it
+              // unaltered is a condition of using Grounding with Google Search (ADR-055).
+              <div
+                className="atlas-ev-suggestions"
+                dangerouslySetInnerHTML={{ __html: transparency.search_entry_point_html }}
+              />
+            )}
+          </div>
         )}
       </div>
 

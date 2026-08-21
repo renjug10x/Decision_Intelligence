@@ -19,11 +19,20 @@ import { retrieve } from './retrieval';
 import { assembleAnswer, type AskAnswer } from './answer';
 import { narrateIfAvailable } from './provider';
 import { groundAnswer, type GroundedAskAnswer } from '../grounding/engine';
+import { ensureGroundingProviderRegistered } from '../grounding/providers/register';
 import type { ResolvedCapability, AudienceLens } from '../../../packages/contracts/src/capability-atlas-model';
 
 export interface AskRequest {
   question: string;
   lens?: AudienceLens;
+  /**
+   * ATL-06B. Whether the reader asked for external market research on this question.
+   *
+   * Defaults to `false` and must be set deliberately. The Atlas answers from governed records unless
+   * a person asks it to look outward, so no ordinary question spends a quota, leaks a topic to a
+   * search engine, or waits on a network round trip (ADR-056).
+   */
+  research?: boolean;
 }
 
 export async function ask(request: AskRequest): Promise<GroundedAskAnswer> {
@@ -63,7 +72,16 @@ export async function ask(request: AskRequest): Promise<GroundedAskAnswer> {
 
   // ADR-048's three evidence classes. Policy decides whether external knowledge is permitted at
   // all; the answer above is not altered either way (ADR-053).
-  const grounding = await groundAnswer({ question: request.question, answer, resolved });
+  // Registration is idempotent and does not by itself configure anything: an adapter with no
+  // server-side key reports itself unconfigured and is never selected.
+  ensureGroundingProviderRegistered();
+
+  const grounding = await groundAnswer({
+    question: request.question,
+    answer,
+    resolved,
+    researchRequested: request.research === true
+  });
 
   return { ...answer, grounding };
 }

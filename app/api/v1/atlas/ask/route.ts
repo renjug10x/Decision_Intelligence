@@ -4,9 +4,17 @@ import { ATLAS_LENSES, type AudienceLens } from '@/packages/contracts/src/capabi
 import { ok } from '../_shared';
 
 /**
- * Ask CogniX (ATL-05). Retrieval and reasoning stay strictly inside governed CogniX knowledge:
- * no web retrieval, no search grounding, no external market evidence. Where a question needs
- * current external knowledge the answer says the internal Atlas cannot substantiate it.
+ * Ask CogniX (ATL-05, extended by ATL-06A/ATL-06B).
+ *
+ * The governed answer is unchanged: retrieval and reasoning stay strictly inside CogniX knowledge.
+ * ATL-06B adds external market research as an EXPLICIT, PER-REQUEST OPT-IN — `research: true`, absent
+ * or false by default. Without it nothing is looked up, no provider is called and no topic leaves
+ * the server, and the answer is exactly the ATL-05 answer with the market section shown as
+ * explicitly absent (ADR-056).
+ *
+ * `research: true` is a request, not a grant. The ATL-06A policy still decides whether external
+ * evidence is permissible for the question at all, and a question about what CogniX does is
+ * answered from governed records however emphatically research was asked for.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -26,7 +34,8 @@ export async function POST(request: NextRequest) {
         timestamp: new Date().toISOString()
       }, { status: 400 });
     }
-    const answer = await ask({ question, lens: lensRaw as AudienceLens | undefined });
+    const research = body.research === true;
+    const answer = await ask({ question, lens: lensRaw as AudienceLens | undefined, research });
     return ok('capability-atlas-ask', answer);
   } catch (e: any) {
     return NextResponse.json({

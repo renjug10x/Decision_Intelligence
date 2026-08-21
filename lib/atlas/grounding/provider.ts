@@ -14,7 +14,9 @@
  * record, a log or an envelope, and no field on any type in this layer can carry one.
  */
 
-import type { ExternalClaim } from '../../../packages/contracts/src/atlas-grounding-model';
+import type {
+  ExternalClaim, GroundingSearchTransparency
+} from '../../../packages/contracts/src/atlas-grounding-model';
 
 export interface GroundingRequest {
   question: string;
@@ -22,12 +24,37 @@ export interface GroundingRequest {
   topics: string[];
   /** Capabilities the internal answer is about, so a provider can scope its retrieval. */
   capability_ids: string[];
+  /**
+   * ATL-06B, optional. The same capabilities with their names, so an adapter can relate a claim to
+   * the ones it actually mentions instead of to all of them. Optional so an ATL-06A adapter, which
+   * has only `capability_ids`, keeps behaving exactly as it did.
+   */
+  capabilities?: { id: string; name: string }[];
+}
+
+/**
+ * ATL-06B. What a grounding provider returns when it can also account for HOW it searched.
+ *
+ * `claims` are candidates, not evidence — they still pass the unmodified ATL-06A admission gate.
+ * `transparency` is what makes the retrieval auditable: the queries actually run, the model that ran
+ * them, whether the answer came from cache, and how many model sentences were discarded for
+ * carrying no grounding support at all.
+ */
+export interface GroundingRetrieval {
+  claims: ExternalClaim[];
+  transparency: GroundingSearchTransparency;
 }
 
 export interface ExternalGroundingProvider {
   readonly name: string;
   isConfigured(): boolean;
   retrieve(request: GroundingRequest): Promise<ExternalClaim[]>;
+  /**
+   * ATL-06B, optional. A provider that can account for its search implements this and the engine
+   * prefers it. Left optional so an adapter written against the ATL-06A seam keeps working
+   * unchanged — which is the property `run-atl06a-tests.ts` asserts and must keep asserting.
+   */
+  retrieveGrounded?(request: GroundingRequest): Promise<GroundingRetrieval>;
 }
 
 const providers: ExternalGroundingProvider[] = [];

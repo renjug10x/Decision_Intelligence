@@ -23,14 +23,14 @@
 | `ATL-04` | Atlas UX & Structured Search | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_04_ATLAS_UX_SEARCH_REPORT.md`](../reports/COGNIX_ATL_04_ATLAS_UX_SEARCH_REPORT.md) · `run-atl04-tests.ts` 54/54 · search-first landing, 4 lenses, 6 filters · validated at 1440/1024/720 · `tsc` 0 · build clean |
 | `ATL-05` | Internal AI Retrieval & Ask CogniX | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md`](../reports/COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md) · `run-atl05-tests.ts` 54/54 · internal-only retrieval, no provider adapter · `tsc` 0 · build clean |
 | `ATL-06A` | External Grounding & Provenance Architecture | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md`](../reports/COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md) · `run-atl06a-tests.ts` 115/115 · ADR-053, ADR-054 · policy published at `/api/v1/atlas/grounding` · no provider, no network call · `tsc` 0 · build clean |
-| `ATL-06B` | Google AI Provider & Semantic Retrieval | **[NOT STARTED]** | — | — |
-| `ATL-06C` | Market Intelligence | **[NOT STARTED]** | — | — |
+| `ATL-06B` | Grounded Market Intelligence | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md`](../reports/COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md) · `run-atl06b-tests.ts` 123/123 · `run-atl06a-tests.ts` 115/115 **unchanged** · ADR-055, ADR-056 · Google Search grounding behind the ATL-06A gate, user-initiated · `tsc` 0 · build clean |
+| `ATL-06C` | AI Interpretation & Hybrid Reasoning | **[NOT STARTED]** | — | — |
 | `ATL-06D` | Client Conversation Pack | **[NOT STARTED]** | — | — |
 | `ATL-07` | Capability Lifecycle Governance & Automation | **[NOT STARTED]** | — | — |
 
-**Current phase:** `ATL-06B` — not yet started
-**Last completed Atlas activity:** `ATL-06A` completed 2026-08-21
-**Next executable work package:** **`ATL-06B`** — Google AI Provider & Semantic Retrieval
+**Current phase:** `ATL-06C` — not yet started
+**Last completed Atlas activity:** `ATL-06B` completed 2026-08-21
+**Next executable work package:** **`ATL-06C`** — AI Interpretation & Hybrid Reasoning
 
 > **`ATL-06` was split into four on owner decision, 2026-08-21.** The single phase carried provider
 > integration, external grounding, provenance, three-class evidence separation, a market corpus and
@@ -39,6 +39,15 @@
 > facto specification. `ATL-06A` therefore establishes and tests the contract with no adapter shipped;
 > `ATL-06B` adds the provider behind it; `ATL-06C` supplies market content; `ATL-06D` assembles the
 > pack. Sequencing is strict: **`ATL-06A` → `ATL-06B` → `ATL-06C` → `ATL-06D`**.
+
+> **Owner decision, 2026-08-21 — `ATL-06B` and `ATL-06C` redefined.** `ATL-06B` is **Grounded Market
+> Intelligence**: the provider, external retrieval, source admission and rejection, freshness and the
+> visible **Market Context** evidence class. **AI Interpretation moves to `ATL-06C`**, which now owns
+> hybrid reasoning across the three classes rather than market content — market evidence and the
+> judgement drawn from it are different risks and are gated separately. Two consequences are recorded
+> rather than absorbed: `ATL-06C` no longer means "market corpus", and **Level 2 semantic retrieval,
+> chartered under the earlier `ATL-06B`, is descoped and not yet assigned to a phase**. It is
+> reported as undelivered at `GET /api/v1/atlas/grounding` so it cannot be lost by renaming.
 **Blocked by other CogniX work:** NO
 
 Status vocabulary follows `MASTER_PLAN.md`: `[NOT STARTED]` · `[IN PROGRESS]` · `[BLOCKED]` ·
@@ -161,9 +170,9 @@ ATL-01  Capability Discovery, Governance & Information Model     (no runtime cod
                                      │
                                      └──► ATL-06A External Grounding & Provenance Architecture
                                               │   (contract, policy, admission, contradiction; no provider)
-                                              └──► ATL-06B Google AI Provider & Semantic Retrieval
-                                                       │
-                                                       └──► ATL-06C Market Intelligence
+                                              └──► ATL-06B Grounded Market Intelligence
+                                                       │   (provider, retrieval, admission, Market Context)
+                                                       └──► ATL-06C AI Interpretation & Hybrid Reasoning
                                                                 │
                                                                 └──► ATL-06D Client Conversation Pack
    ATL-02 + ATL-03 ──────────────────────► ATL-07  Lifecycle Governance & Automation
@@ -547,76 +556,110 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
   constraint* on the same dimension, so a record with nothing to protect raises nothing.
 - **Decisions Outstanding:** none for `ATL-06A`. Trusted-domain allowlist extension and
   market-evidence cache TTL pass to `ATL-06C`.
-- **Downstream Dependencies:** unlocks `ATL-06B`. **Next WP:** `ATL-06B`.
+- **Downstream Dependencies:** unlocks **`ATL-06B`** — Grounded Market Intelligence. **Next WP:** `ATL-06B`.
 
 ---
 
-### `ATL-06B` — Google AI Provider & Semantic Retrieval [NOT STARTED]
+### `ATL-06B` — Grounded Market Intelligence [COMPLETED]
 
-- **Objective:** Add Gemini as one adapter behind the Atlas gateway, and Level 2 semantic retrieval
-  over governed capability knowledge only.
-- **Rationale:** ADR-049, ADR-050. `ATL-05` shipped no adapter because an embedding retriever is a
-  provider; `ATL-06A` shipped no adapter because the contract had to be provable first. Both
-  interfaces now exist and are asserted against, so the adapter is an addition rather than a design.
+*Delivered 2026-08-21; evidence in [`COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md`](../reports/COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md). Owner-redefined from "Google AI Provider & Semantic Retrieval" on 2026-08-21; Level 2 semantic retrieval descoped and unassigned.*
+
+- **Objective:** Put a real Google Search grounding provider behind the `ATL-06A` seam, and make the
+  **Market Context** evidence class real — retrieved, admitted, dated, sourced and visible.
+- **Rationale:** ADR-048, ADR-049, ADR-054, **ADR-055**, **ADR-056**.
 - **Hard Dependencies:** `ATL-06A` — **[COMPLETED]**; `ATL-05` — **[COMPLETED]**.
-- **Scope:** a Gemini adapter behind `AtlasAIProvider`; a grounding adapter behind
-  `ExternalGroundingProvider`; server-side Google Search grounding gated by the `ATL-06A` intent
-  classes; Level 2 embedding retrieval over governed capability knowledge with every result traceable
-  to the record and field that matched; caching and cost control; a second or fake adapter under test.
-- **Non-Scope:** any browser-side provider or grounding call; any capability claim sourced from the
-  web; any weakening of the `ATL-06A` admission gate; market evidence content.
+- **Scope:** the server-side Google Search grounding adapter behind `ExternalGroundingProvider`;
+  grounded-segment extraction; source resolution and page-derived provenance; per-topic freshness and
+  source admission/rejection surfaced to the reader; user-initiated research control; caching and a
+  call budget; the visible Market Context class with its rejection ledger and search transparency; a
+  recorded evaluation set covering the adversarial cases.
+- **Non-Scope:** AI Interpretation and hybrid reasoning (`ATL-06C`); the client conversation pack
+  (`ATL-06D`); populating `external_evidence` across the corpus; **Level 2 semantic retrieval**, which
+  this redefinition descopes and which remains unassigned; any change to the `ATL-06A` admission gate.
 - **Acceptance Criteria:**
-  - `AC-ATL-06B-1` **[HARD]** No browser-side call to any Gemini or Google Search endpoint; the key
-    is resolved server-side only and appears in no record, log, fixture or error path.
-  - `AC-ATL-06B-2` **[HARD]** Swapping the provider adapter changes no retrieval, record or UI
-    behaviour — proven by a second or fake adapter under test.
-  - `AC-ATL-06B-3` **[HARD]** **Turning the provider off must not make CogniX less trustworthy than
-    `ATL-05`.** With the adapter removed, every answer is identical to the `ATL-05` answer and every
-    degradation is stated.
-  - `AC-ATL-06B-4` **[HARD]** Every claim the adapter supplies passes the unmodified `ATL-06A`
-    admission gate; `run-atl06a-tests.ts` passes unchanged.
-  - `AC-ATL-06B-5` Level 2 results are traceable to the governed record and field that matched, and
-    Level 2 degrades to Level 1 with the degradation stated (ADR-050).
-- **Test Requirements:** `tests/unit/run-atl06b-tests.ts` including provider swap, provider-off
-  equivalence with `ATL-05`, grounding gate integrity and retrieval traceability; `run-atl06a-tests.ts`
-  and `run-atl05-tests.ts` green **unchanged**.
-- **Exit Gate:** the provider adds reach without adding authority — every governed answer is what it
-  was before, and everything new carries provenance that survives the `ATL-06A` gate.
+  - `AC-ATL-06B-1` **[HARD]** No browser-side call to any Gemini or Google Search endpoint. The key is
+    resolved from the server environment at call time, is never accepted from a request body, and
+    appears in no claim, envelope, cache entry, notice, log or error message.
+  - `AC-ATL-06B-2` **[HARD]** **Every externally presented market claim is traceable to admitted
+    grounding evidence.** A response segment becomes a claim only where a grounding support names a
+    retrieved source; ungrounded model text is discarded, counted and reported (ADR-055).
+  - `AC-ATL-06B-3` **[HARD]** Publisher, title and publication date are read from the resolved source
+    page, never supplied by the model. What the page does not state stays empty and is refused.
+  - `AC-ATL-06B-4` **[HARD]** External research runs only on explicit per-question user request, and
+    only where the `ATL-06A` intent policy already permits it. Internal search and the internal Ask
+    CogniX path never invoke a provider (ADR-056).
+  - `AC-ATL-06B-5` **[HARD]** **Turning the provider off must not make CogniX less trustworthy or less
+    functional than `ATL-05`** — proven by recomputing the governed answer from the `ATL-05` modules
+    and comparing byte for byte, with the provider absent and present.
+  - `AC-ATL-06B-6` **[HARD]** `run-atl06a-tests.ts` passes **unchanged**; the allowlist, admissible
+    tiers, freshness bounds and contradiction rule are not widened to admit this phase's evidence.
+  - `AC-ATL-06B-7` **[HARD]** Adversarial retrieval is refused correctly: contradictory-but-credible
+    evidence is admitted and separated; agreeable-but-inadmissible evidence is rejected; stale,
+    undated, non-allowlisted, duplicate, vendor-marketing and CogniX-asserting claims are each
+    rejected by name; provider failure and absent grounding metadata yield stated absence.
+  - `AC-ATL-06B-8` Cost is bounded: repeat questions are cached, empty retrievals are not, and live
+    call counts are published.
+- **Test Requirements:** `tests/unit/run-atl06b-tests.ts` over a recorded evaluation set; existing
+  regression green with `run-atl06a-tests.ts` **unchanged**.
+- **Exit Gate:** with a key present the Atlas can cite the market; with no key it is the `ATL-05`
+  Atlas exactly; and in both states the reader can see what was searched, what was admitted, what was
+  rejected and why.
 - **Implementation Allowed:** YES. **Commit/Push Permitted:** yes.
-- **Risks:** provider latency and cost — mitigated by intent-class gating and caching; a provider
-  becoming load-bearing — mitigated by `AC-ATL-06B-3`.
-- **Decisions Outstanding:** cache TTL; quota policy.
+- **Handoff:** the adapter calls the documented REST contract rather than the installed
+  `@google/generative-ai@0.24.1`, whose published grounding types are wrong in four ways that would
+  silently yield zero supports — recorded in ADR-055 and asserted in test against the installed
+  package. No dependency was added. Segment offsets are sliced as **bytes**, because a string slice
+  corrupts any passage containing a non-ASCII character. `GroundingChunkWeb.domain` is not populated
+  by the Gemini Developer API, so the publisher is obtained by following the grounding redirect and
+  reading the page — which also supplies the publication date, and supplies **nothing** where the page
+  is silent. Claims are scoped to the capabilities the governed answer was built from, so a market
+  claim cannot raise a contradiction against a capability nobody was discussing. `external_evidence`
+  remains empty corpus-wide: this phase proves the pipeline on an evaluation set, it does not populate
+  a corpus.
+- **Risks:** with a live key, fewer claims survive than a naive integration would show — accepted, and
+  the discarded count is displayed so thinness is legible rather than mysterious; third-party markup
+  is injected for Google Search Suggestions — confined to that one field and asserted as the only
+  such injection.
+- **Decisions Outstanding:** which phase owns **Level 2 semantic retrieval**; whether the trusted-source
+  allowlist is extended, and by whom, now that `ATL-06C` is no longer the market-content phase.
 - **Downstream Dependencies:** unlocks `ATL-06C`. **Next WP:** `ATL-06C`.
 
 ---
 
-### `ATL-06C` — Market Intelligence [NOT STARTED]
+### `ATL-06C` — AI Interpretation & Hybrid Reasoning [NOT STARTED]
 
-- **Objective:** Populate real, sourced market evidence, and extend the trusted-source allowlist on
-  evidence rather than convenience.
-- **Rationale:** ADR-048, ADR-054. `external_evidence` is empty corpus-wide because no market study
-  has been performed. An architecture that admits evidence is not evidence.
-- **Hard Dependencies:** `ATL-06A` (admission gate), `ATL-06B` (retrieval).
-- **Scope:** commissioned market and competitor evidence with full provenance; population of
-  `external_evidence` on capability knowledge records; allowlist extension with a recorded
-  justification per publisher; comparative and market-research routes; evidence-freshness review.
-- **Non-Scope:** any market claim becoming a capability fact; any generic *"AI improves forecasting"*
-  claim; the client conversation pack.
+- **Objective:** Deliver the third ADR-048 evidence class as a reasoning capability rather than a
+  template — interpretation that reads governed CogniX evidence and admitted market context together,
+  and that can be trusted because of what it is forbidden to say.
+- **Rationale:** ADR-048, ADR-053. `ATL-06A` emits an interpretation only where one can be templated
+  from a contradiction, because anything broader needs a provider. `ATL-06B` supplies the provider and
+  the admitted market evidence. Interpretation is gated separately from market evidence deliberately:
+  a sourced claim and a judgement drawn from it are different risks, and collapsing them is how a
+  market expectation becomes a capability claim.
+- **Hard Dependencies:** `ATL-06A`, `ATL-06B`.
+- **Scope:** provider-generated interpretation constrained to rest on cited governed statements and
+  admitted claims; per-statement citation of both classes; refusal where an interpretation would
+  require an uncited premise; evaluation of interpretation quality and of its failure modes.
+- **Non-Scope:** any interpretation asserting a CogniX capability fact without citing the From-CogniX
+  statement it rests on; any interpretation resting on a rejected claim; the client conversation pack.
 - **Acceptance Criteria:**
-  - `AC-ATL-06C-1` **[HARD]** **Market information augments the Atlas and never becomes Atlas truth.**
-    No market claim alters a capability record, a maturity dimension or a governed statement.
-  - `AC-ATL-06C-2` **[HARD]** Every populated `external_evidence` entry passes the `ATL-06A`
-    admission gate, including its currency bound.
-  - `AC-ATL-06C-3` **[HARD]** Every allowlist addition carries a written justification; the list is
-    never extended to make a specific claim admissible.
-  - `AC-ATL-06C-4` A generic market claim that cannot be sourced to a specific finding is not
-    recorded, for the reason `D-DDF-2` failed.
-- **Test Requirements:** `tests/unit/run-atl06c-tests.ts`; `run-atl06a-tests.ts` green unchanged.
-- **Exit Gate:** market evidence exists, is current, is sourced, and moved nothing inside the
-  governed corpus.
+  - `AC-ATL-06C-1` **[HARD]** Every interpretation statement cites at least one governed CogniX
+    statement, and cites every market claim it reads. An uncitable interpretation is not emitted.
+  - `AC-ATL-06C-2` **[HARD]** An interpretation may never assert a CogniX capability fact; the
+    contradiction precedence of ADR-053 is preserved unchanged.
+  - `AC-ATL-06C-3` **[HARD]** With the provider off, interpretation degrades to the `ATL-06A`
+    templated form and says so; no interpretation is generated from a fallback path.
+  - `AC-ATL-06C-4` A rejected claim can never appear inside an interpretation, directly or by
+    paraphrase.
+- **Test Requirements:** `tests/unit/run-atl06c-tests.ts`; `run-atl06a-tests.ts` and
+  `run-atl06b-tests.ts` green **unchanged**.
+- **Exit Gate:** an interpretation a reader can act on, in which every premise is visible and every
+  premise is either governed or sourced.
 - **Implementation Allowed:** YES. **Commit/Push Permitted:** yes.
-- **Risks:** evidence decay — mitigated by the `ATL-06A` freshness bounds and `ATL-07` review dates.
-- **Decisions Outstanding:** market-evidence cache TTL; review cadence.
+- **Risks:** fluent interpretation is the most persuasive way to publish an ungoverned claim —
+  mitigated by requiring a citation per premise and by refusing rather than hedging.
+- **Decisions Outstanding:** whether interpretation is generated per answer or per contradiction;
+  whether `external_evidence` corpus population belongs here or in a later phase.
 - **Downstream Dependencies:** unlocks `ATL-06D`. **Next WP:** `ATL-06D`.
 
 ---

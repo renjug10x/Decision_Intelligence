@@ -10,6 +10,10 @@ import {
 import { TRUSTED_SOURCE_HOSTS } from '@/lib/atlas/grounding/provenance';
 import { CLAIM_ASSERTION_MARKERS } from '@/lib/atlas/grounding/contradiction';
 import { activeGroundingProvider } from '@/lib/atlas/grounding/provider';
+import { ensureGroundingProviderRegistered } from '@/lib/atlas/grounding/providers/register';
+import { GROUNDING_MODELS, PROVIDER_NAME } from '@/lib/atlas/grounding/providers/google-search-grounding';
+import { SOURCE_TIER_BY_HOST } from '@/lib/atlas/grounding/providers/source-resolution';
+import { DEFAULT_CACHE_TTL_MS, DEFAULT_CALL_BUDGET, liveCallCount } from '@/lib/atlas/grounding/providers/grounding-cache';
 
 /**
  * The declared external-grounding policy (ATL-06A).
@@ -22,6 +26,7 @@ import { activeGroundingProvider } from '@/lib/atlas/grounding/provider';
  * endpoint or credential would be used, and no code path in this layer can read one (ADR-049).
  */
 export async function GET() {
+  ensureGroundingProviderRegistered();
   const provider = activeGroundingProvider();
   return ok('capability-atlas-grounding-policy', {
     policy_version: GROUNDING_POLICY_VERSION,
@@ -37,7 +42,9 @@ export async function GET() {
       all_tiers: SOURCE_TIERS,
       admissible_tiers: ADMISSIBLE_SOURCE_TIERS,
       required_provenance: ['url', 'publisher', 'title', 'published_at', 'retrieved_at', 'tier', 'retrieval_method'],
-      undated_sources: 'inadmissible — a publication date is never inferred'
+      undated_sources: 'inadmissible — a publication date is never inferred',
+      tier_by_host: SOURCE_TIER_BY_HOST,
+      provenance_origin: 'Publisher, title and publication date are read from the source page itself after following the grounding redirect. They are never supplied by the model.'
     },
     freshness: {
       topic_max_age_days: TOPIC_MAX_AGE_DAYS,
@@ -49,11 +56,27 @@ export async function GET() {
       rule: 'Where external evidence disagrees with a governed CogniX fact, the governed fact is authoritative and the disagreement is rendered as three separated evidence classes. No merged or reconciled statement is produced.',
       assertion_markers: CLAIM_ASSERTION_MARKERS
     },
-    provider: { configured: provider !== null, name: provider?.name ?? null },
-    delivered_by: 'ATL-06A',
+    provider: {
+      configured: provider !== null,
+      name: provider?.name ?? null,
+      adapter: PROVIDER_NAME,
+      models: [...GROUNDING_MODELS],
+      credential: 'resolved from the server environment at call time; never accepted from a request body, never written to a record, a cache entry, a notice or an error message'
+    },
+    research_control: {
+      mode: 'user-initiated',
+      default: false,
+      rule: 'External research runs only when a reader asks for it on that question, and only where the intent policy already permits external evidence. Internal search and Ask CogniX never call a provider.'
+    },
+    cost_control: { cache_ttl_ms: DEFAULT_CACHE_TTL_MS, call_budget: DEFAULT_CALL_BUDGET, live_calls_this_process: liveCallCount() },
+    claim_traceability: 'Only response segments carrying a grounding support that names a retrieved source become market claims. Ungrounded model text is discarded and counted, never shown.',
+    delivered_by: ['ATL-06A', 'ATL-06B'],
     not_yet_delivered: {
-      'ATL-06B': 'external grounding provider and semantic retrieval',
-      'ATL-06C': 'market intelligence corpus',
+      // Level 2 semantic retrieval sat in ATL-06B as originally chartered. The owner's 2026-08-21
+      // redefinition scoped ATL-06B to Grounded Market Intelligence, so it is undelivered and
+      // currently unassigned rather than quietly dropped.
+      'ATL-06B': 'Level 2 semantic retrieval over governed capability knowledge — descoped from ATL-06B on owner decision and not yet assigned to a phase',
+      'ATL-06C': 'AI Interpretation and hybrid reasoning over the three evidence classes',
       'ATL-06D': 'client conversation pack'
     }
   });

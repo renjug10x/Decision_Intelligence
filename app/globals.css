@@ -1470,6 +1470,41 @@ code, pre {
 .atlas-ev-fresh--aging { background: var(--warning-light); color: var(--warning); }
 .atlas-ev-fresh--stale { background: var(--bg-elevated); color: var(--text-muted); }
 
+/* ── External research controls and transparency (ATL-06B) ────────────────── */
+
+.atlas-research-toggle {
+  display: flex; align-items: flex-start; gap: 9px; margin: 12px 0 0;
+  padding: 10px 12px; border: 1px solid var(--border); border-radius: var(--radius-md);
+  cursor: pointer; background: var(--bg-elevated);
+}
+.atlas-research-toggle input { margin-top: 2px; flex: none; cursor: pointer; }
+.atlas-research-toggle > span { display: flex; flex-direction: column; gap: 3px; }
+.atlas-research-toggle strong { font-size: 0.75rem; font-weight: 650; color: var(--text-primary); }
+.atlas-research-hint { font-size: 0.6875rem; color: var(--text-muted); line-height: 1.5; }
+
+.atlas-ev-ledger, .atlas-ev-search {
+  margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--border);
+}
+.atlas-ev-ledger-row {
+  display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; margin-top: 7px;
+}
+.atlas-ev-ledger-claim { font-size: 0.75rem; color: var(--text-secondary); line-height: 1.5; }
+.atlas-ev-ledger-detail { font-size: 0.625rem; color: var(--text-muted); line-height: 1.5; flex-basis: 100%; }
+.atlas-ev-reason {
+  flex: none; font-size: 0.5625rem; font-weight: 700; letter-spacing: 0.05em;
+  text-transform: uppercase; padding: 2px 7px; border-radius: 999px;
+  background: var(--bg-elevated); color: var(--text-muted); border: 1px solid var(--border);
+}
+.atlas-ev-reason--asserts-cognix-fact { background: var(--danger-light); color: var(--danger); border-color: transparent; }
+.atlas-ev-reason--stale-source, .atlas-ev-reason--undated-source { background: var(--warning-light); color: var(--warning); border-color: transparent; }
+
+.atlas-ev-searchqueries { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 6px; }
+.atlas-ev-query {
+  font-size: 0.625rem; color: var(--text-secondary); padding: 2px 8px;
+  border: 1px solid var(--border); border-radius: 999px; background: var(--bg-base);
+}
+.atlas-ev-suggestions { margin-top: 8px; overflow-x: auto; max-width: 100%; }
+
 .atlas-contradiction + .atlas-contradiction { margin-top: 14px; border-top: 1px solid var(--border); padding-top: 14px; }
 .atlas-contradiction-head {
   display: flex; gap: 7px; align-items: flex-start;
@@ -1515,4 +1550,6 @@ code, pre {
   .atlas-ask-input { height: 42px; }
   .atlas-ev-head { flex-direction: column; gap: 4px; }
   .atlas-ev-source { gap: 4px 8px; }
+  .atlas-ev-ledger-row { gap: 4px; }
+  .atlas-research-toggle { padding: 9px 10px; }
 }

@@ -151,7 +151,7 @@ export function assembleAnswer(input: AssembleInput): AskAnswer {
   const { question, retrieval, resolved, degradationNotice } = input;
 
   const externalKnowledgeNotice = retrieval.requiresExternalKnowledge
-    ? `The internal Atlas cannot substantiate the ${retrieval.externalTopics.join(' and ')} part of this question. CogniX-owned records describe what CogniX does; they hold no external market or competitor evidence. External retrieval and grounding are owned by ATL-06B and are not available yet.`
+    ? `The internal Atlas cannot substantiate the ${retrieval.externalTopics.join(' and ')} part of this question. CogniX-owned records describe what CogniX does; they hold no external market or competitor evidence. External retrieval and grounding are delivered by ATL-06B and require a grounding provider configured on the server.`
     : null;
 
   const questionsWorthAsking = retrieval.questions.map(q => ({

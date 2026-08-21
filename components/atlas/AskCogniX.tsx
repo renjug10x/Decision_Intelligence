@@ -16,6 +16,12 @@
  * unchanged: the same sections, the same citations, the same maturity triads. What is new is that
  * the governed block is now labelled as one of three classes, and that Market Context and AI
  * Interpretation are shown as explicitly absent, with the reason, rather than left out.
+ *
+ * ATL-06B adds external research, and adds it as a DELIBERATE ACT. The control below is off by
+ * default and has to be turned on for each question. That is not caution for its own sake: an Atlas
+ * that searched the web whenever it felt underfed would spend quota on questions it can already
+ * answer, send the reader's wording to a search engine without being asked, and make every answer
+ * wait on a network round trip. Left off, this surface behaves exactly as it did at ATL-05.
  */
 
 import { useState } from 'react';
@@ -45,6 +51,7 @@ export default function AskCogniX({
   const [answer, setAnswer] = useState<GroundedAskAnswer | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [research, setResearch] = useState(false);
 
   const submit = async () => {
     if (!question.trim()) return;
@@ -53,7 +60,7 @@ export default function AskCogniX({
       const res = await fetch('/api/v1/atlas/ask', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question, lens: lens ?? undefined })
+        body: JSON.stringify({ question, lens: lens ?? undefined, research })
       });
       const payload = await res.json();
       if (!res.ok) throw new Error(payload.message || 'Ask CogniX failed');
@@ -99,6 +106,21 @@ export default function AskCogniX({
             {loading ? <Loader2 size={12} /> : <>Ask <CornerDownLeft size={11} /></>}
           </button>
         </div>
+
+        <label className="atlas-research-toggle">
+          <input
+            type="checkbox"
+            checked={research}
+            onChange={e => setResearch(e.target.checked)}
+          />
+          <span>
+            <strong>Include external market research</strong>
+            <span className="atlas-research-hint">
+              Off by default. When on, a governed research question may also search the web for market
+              context. What CogniX does is always answered from governed records either way.
+            </span>
+          </span>
+        </label>
 
         {error && <p className="atlas-ask-notice atlas-ask-notice--gap">{error}</p>}
 
