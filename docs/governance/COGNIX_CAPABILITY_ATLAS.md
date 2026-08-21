@@ -26,13 +26,13 @@
 | `ATL-06A` | External Grounding & Provenance Architecture | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md`](../reports/COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md) · `run-atl06a-tests.ts` 115/115 · ADR-053, ADR-054 · policy published at `/api/v1/atlas/grounding` · no provider, no network call · `tsc` 0 · build clean |
 | `ATL-06B` | Grounded Market Intelligence | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md`](../reports/COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md) · `run-atl06b-tests.ts` 123/123 · `run-atl06a-tests.ts` 115/115 **unchanged** · ADR-055, ADR-056 · Google Search grounding behind the ATL-06A gate, user-initiated · `tsc` 0 · build clean |
 | `ATL-06C` | AI Explanation & Hybrid Reasoning | **[COMPLETED — LIVE VALIDATION PENDING]** | 2026-08-21 | [`COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md`](../reports/COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md) · `run-atl06c-tests.ts` 121/121 · `run-atl06a` 115 / `run-atl06b` 123 **unchanged** · ADR-057, ADR-058, ADR-059 · request contract live-validated against `generativelanguage.googleapis.com`; **no credentialed round trip performed — no key in this environment** |
-| `ATL-06D` | Client Conversation Pack | **[NOT STARTED]** | — | — |
+| `ATL-06D` | Client Conversation Pack | **[COMPLETED — INHERITED LIVE VALIDATION PENDING]** | 2026-08-21 | [`COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md`](../reports/COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md) · `run-atl06d-tests.ts` 96/96 · every earlier suite green (`atl04` 58 and `atl04r` 118 with four assertions **re-pointed, not relaxed**) · ADR-064, ADR-065, ADR-066 · preparation reached from the Atlas, recommendation by accumulated rationale, demo steps quoted never written, warnings structural and lens-invariant, research default OFF through the unmodified ATL-06A gate · **`D-ATL-04R-1` persona residual corrected and browser-verified** · **`AC-ATL-06C-9` inherited and NOT closed — no credential reached this environment** · `tsc` 0 · build clean |
 | `ATL-07` | Capability Lifecycle Governance & Automation | **[NOT STARTED]** | — | — |
 
 **Current phase:** `ATL-06C` — implementation complete, live validation pending
-**Last completed Atlas activity:** `ATL-04R` completed 2026-08-21. `ATL-06C` remains **live-validation-pending** and is unchanged by it
-**Next executable work package:** **`ATL-06C`** — close live validation: run `scripts/atlas-live-grounding-check.ts` with a credential
-**Next implementation work package:** `ATL-06D` — Client Conversation Pack
+**Last completed Atlas activity:** `ATL-06D` completed 2026-08-21, correcting `D-ATL-04R-1` on the way. Its deterministic layers are evidenced; its market-evidence path inherits `ATL-06C`'s open live validation
+**Next executable work package:** **`ATL-06C` / `AC-ATL-06C-9`** — close live validation: run `GEMINI_API_KEY=… npx tsx scripts/atlas-live-grounding-check.ts` in an environment holding the credential. Attempted again during `ATL-06D`; Stage 1 passed, Stage 2 skipped, no key present
+**Next implementation work package:** `ATL-07` — Capability Lifecycle Governance & Automation
 
 > **`ATL-04R` is a refinement of `ATL-04`, inserted after it and completed before `ATL-06D`.** It does
 > not reopen `ATL-04`, whose history stands: `ATL-04` proved the backend-driven Atlas, the structured
@@ -830,11 +830,12 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
 - **Decisions Outstanding:** which phase owns `external_evidence` corpus population; whether
   interpretation should carry its own user-facing control as external research does — it reaches
   outward for nothing, so it currently runs whenever a provider is configured.
-- **Downstream Dependencies:** unlocks `ATL-06D`. **Next WP:** `ATL-06D`, once `AC-ATL-06C-9` is closed.
+- **Downstream Dependencies:** unlocks `ATL-06D`. **Next WP:** `ATL-07`. `AC-ATL-06C-9` is still open and is
+  now inherited by `ATL-06D` as `AC-ATL-06D-6`; closing it remains the board's next executable action.
 
 ---
 
-### `ATL-06D` — Client Conversation Pack [NOT STARTED]
+### `ATL-06D` — Client Conversation Pack [COMPLETED — INHERITED LIVE VALIDATION PENDING]
 
 - **Objective:** Deliver **"Prepare me for a client conversation"** — an evidence-grounded preparation
   pack a seller can use unedited.
@@ -880,17 +881,62 @@ returns an evidence-grounded preparation pack containing **all** of:
     internal knowledge and the market section is shown as explicitly absent, never omitted silently.
   - `AC-ATL-06D-3` **[HARD]** Every CogniX claim in the pack is governed and cited; every market claim
     is sourced; the three evidence classes remain separated throughout.
-  - `AC-ATL-06D-4` A capability recommended for a demonstration carries its real Demo Path
-    prerequisites and warnings, not a summarised version of them.
-- **Test Requirements:** `tests/unit/run-atl06d-tests.ts` including pack completeness, mandatory
-  warnings, grounding-unavailable behaviour and class separation; all earlier suites green unchanged.
-- **Exit Gate:** a seller preparing for a real meeting gets a pack they can use unedited, in which
-  every CogniX claim is governed, every market claim is sourced, and every limitation is stated.
+  - `AC-ATL-06D-4` **[MET]** A capability recommended for a demonstration carries its real Demo Path
+    prerequisites and warnings, not a summarised version of them. Every demonstration step in every
+    tested pack is traceable to an authored step on that capability; fabricated steps: **0** (§E4).
+  - `AC-ATL-06D-1` **[MET]** Rule `P2` refuses a pack recommending a non-`implemented` capability with
+    no demonstration warning, and the route returns 500 rather than a page (ADR-066).
+  - `AC-ATL-06D-2` **[MET]** With grounding unavailable or research off, the pack is produced from
+    internal knowledge and Market Context is a rendered absence carrying its reason (§F1–F3).
+  - `AC-ATL-06D-3` **[MET]** Every capability claim is a governed statement carrying its three ADR-047
+    dimensions; market claims reach the pack only through the unmodified ATL-06A gate; the three
+    classes are never merged.
+  - `AC-ATL-06D-5` **[MET]** *(added by this phase)* Selecting a lens materially changes the
+    information hierarchy while every capability fact stays identical. Asserted field-by-field across
+    38 capabilities × 4 lenses and browser-verified on `CAP-DECISION-GAP` (ADR-064).
+  - `AC-ATL-06D-6` **[INHERITED, OUTSTANDING]** `AC-ATL-06C-9` is not closed. No `GEMINI_API_KEY`
+    reached this environment; `scripts/atlas-live-grounding-check.ts` Stage 2 was skipped, not passed.
+    The Market Context path is built and gated but has never run against a real search.
+- **Test Requirements:** `tests/unit/run-atl06d-tests.ts` — **96/96**, covering the six §39 scenarios,
+  lens materiality, fact invariance under lens, recommendation rationale, sequencing without
+  fabrication, sales integrity, opt-in research and failure behaviour. All earlier suites green:
+  `atl02` 119 · `atl03` 29 · `atl04` 58 · `atl04r` 118 · `atl05` 54 · `atl06a` 115 · `atl06b` 123 ·
+  `atl06c` 121. `tsc` 0 · build clean.
+- **Exit Gate:** **met for the deterministic layers.** A seller gets a pack in which every CogniX
+  claim is governed, every limitation is stated, and every prohibition carries the honest sentence to
+  use instead. Not met for market evidence, which has never been validated live — see
+  `AC-ATL-06D-6`.
 - **Implementation Allowed:** YES. **Commit/Push Permitted:** yes.
-- **Risks:** persuasiveness pressure to soften a limitation — mitigated by `AC-ATL-06D-1` making the
-  warnings section mandatory and non-empty rather than discretionary.
-- **Decisions Outstanding:** pack export format.
-- **Downstream Dependencies:** none. **Next WP:** `ATL-07`.
+- **Risks:** persuasiveness pressure to soften a limitation — mitigated structurally rather than
+  editorially (ADR-066). The residual risk is that a future change is argued for on the grounds that
+  it makes the pack more persuasive; the rules in `atlas-preparation-model.ts` are the record of what
+  was decided before anyone was in that room.
+- **Decisions Outstanding:** pack export format · whether `data_sources` population is owned by
+  `ATL-07` or a content pass — it is populated on 3 of 38 capabilities and directly limits how many
+  synthetic-data warnings and §21 prohibitions can fire.
+- **Downstream Dependencies:** none. **Next WP:** `ATL-07`, with closing `AC-ATL-06C-9` as the board's
+  next executable action.
+
+#### `D-ATL-04R-1` — persona-lens residual [CORRECTED in `ATL-06D`]
+
+Recorded here rather than by reopening `ATL-04R`. Owner evaluation of the live interface found:
+
+> Selecting Sales, Architect or Developer visibly changes the selected lens, but the overall Atlas
+> experience does not change materially enough from the default Innovation Executive presentation.
+
+**Cause.** `ATL-04R` implemented `ADR-045` literally: the lens reordered the disclosure sections of
+the capability detail and did nothing else. The lens bar said so — *"Ordering only — nothing is
+hidden, and the facts do not change."* A reader selecting Developer met the same four executive
+questions, the same opened section and the same capability ordering as everyone else.
+
+**Correction (ADR-064).** A lens now decides the four questions answered above the fold, which
+sections lead, which one opens on arrival, how much evidence detail renders inline, and the order
+capabilities are offered in. `ADR-045` survives unamended: `orderForLens` returns a permutation, and
+no lens alters identity, lifecycle, demonstration maturity, implementation status, limitations,
+evidence, architecture or demo facts — asserted field-by-field rather than promised.
+
+**Verified in a browser** on `CAP-DECISION-GAP` against the production build (§36): 4/4 distinct
+question sets, 4/4 distinct opened sections, 4/4 distinct section orders.
 
 ---
 

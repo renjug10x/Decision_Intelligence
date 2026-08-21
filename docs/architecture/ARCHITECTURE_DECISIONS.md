@@ -844,3 +844,125 @@ the Atlas still adds only the knowledge they do not carry.
   capabilities carry one, and that distribution is the intended one. Because the specs are governed
   data rather than page markup, `ATL-06D` can embed the same visuals in client-facing output without
   re-authoring them, which was the second reason for the boundary.
+
+---
+
+### ADR-064: A Lens Changes The Questions, Never The Answers (`ATL-06D`)
+
+- **Status:** Approved & **Implemented** (`ATL-06D`, 2026-08-21). Enforcement in `lib/atlas/lens.ts`,
+  `components/atlas/CapabilityDetail.tsx`, `app/api/v1/atlas/capabilities/route.ts`; evidence in
+  [`COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md`](../reports/COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md).
+- **Context:** `ADR-045` established that an audience lens REORDERS AND NEVER HIDES, and `ATL-04R`
+  implemented that literally: the lens reordered the disclosure sections of the capability detail and
+  did nothing else. Owner evaluation of the live interface found the honest consequence, recorded as
+  defect `D-ATL-04R-1`:
+
+  > Selecting Sales, Architect or Developer visibly changes the selected lens, but the overall Atlas
+  > experience does not change materially enough from the default Innovation Executive presentation.
+
+  The interface said so itself. The lens bar carried the note *"Ordering only — nothing is hidden, and
+  the facts do not change."* That sentence was an accurate description of a control that did almost
+  nothing, and a reader who selected **Developer** met the same four executive questions, the same
+  opened section and the same ordering of capabilities as everyone else.
+
+  The tempting repair — let a lens filter, so Sales sees less — is the one that must never be made.
+  A Sales lens that could suppress a limitation is a mechanism for overselling, and `ATL-06D` §20
+  exists precisely to prevent that.
+- **Decision:** A lens decides **which questions are asked**, not which answers are available. The
+  governed `LensProfile` declares, per lens: the four questions answered above the fold, the sections
+  brought forward, the section opened on arrival, how much supplementary evidence detail renders
+  inline, and the ranking signals that order a capability list. Every headline answer is resolved
+  from fields already on the governed record, and `LensHeadline.reads` names those fields so the
+  claim "this is a reading, not a new fact" is auditable rather than asserted.
+
+  Three properties are enforced rather than promised:
+
+  1. `orderForLens` returns a **permutation** — same members, same count. A lens cannot filter,
+     checked at the route boundary and over the whole registry in `run-atl06d-tests.ts` §B.
+  2. No lens alters identity, lifecycle, demonstration maturity, implementation status, limitations,
+     validation evidence, architecture or demo facts — asserted field-by-field, 38 capabilities × 4
+     lenses, rather than trusted to a comment.
+  3. Evidence depth signposts rather than withholds. A `referenced` lens declines to lead an
+     executive with a repository symbol and NAMES the lens that renders it, so nothing is concealed.
+
+  The lens affinity score orders lists and is then discarded. It is not returned by the API, not
+  rendered, and not convertible into a confidence percentage — a lens affinity printed as *"87%
+  relevant"* would be the fabricated-metric failure `ATL-01` recorded and Principle 12 forbids.
+- **Consequences:** `ADR-045` survives unamended and is now materially observable: four lenses
+  produce four different question sets, four different opening sections and four different orderings
+  over one unchanged corpus, verified in a browser on `CAP-DECISION-GAP` (`ATL-06D` §36). Prior
+  assertions that grepped for the replaced strings — `ATL-04` H4/H5 and `ATL-04R` G13 — were
+  re-pointed at the same intent against the governed profile, which is a stricter check than the
+  string match was. `ATL-06D` consumes the same profile for recommendation ranking, so the lens is
+  one governed mechanism rather than two that could disagree.
+
+---
+
+### ADR-065: A Capability Enters A Client Pack By Accumulating Rationale (`ATL-06D`)
+
+- **Status:** Approved & **Implemented** (`ATL-06D`, 2026-08-21). Enforcement in
+  `lib/atlas/preparation/recommend.ts`, `packages/contracts/src/atlas-preparation-model.ts`; evidence in
+  [`COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md`](../reports/COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md).
+- **Context:** A client preparation feature has one obvious implementation: search the corpus for the
+  brief's words and list what comes back. `ATL-06D` §11 and §12 forbid both halves of that — the bare
+  list (*"Recommended: Decision Gap, Intent Fusion, Forecast Stability"*) and the keyword flood
+  (fifteen capabilities because fifteen matched a word). The failure is not cosmetic: a seller who
+  cannot say why a capability is in their pack cannot defend it in the room, and will improvise.
+- **Decision:** Recommendation is **admission by rationale**, not ranking by score. A capability
+  accumulates `RecommendationRationale` entries from governed connections — a declared `bp-*` the
+  client's situation matched, a registered domain, an assessed cross-domain applicability, a
+  published contract for an integration conversation, a demonstration path for a demonstration
+  objective, the reader's lens. A capability that accumulates none is **not recommendable**, so no
+  code path produces the bare list and rule `P1` checks a property construction already guarantees.
+
+  A lens signal alone is never sufficient: it says something about the reader and nothing about the
+  client, so at least one basis must argue from the conversation itself.
+
+  The lead cut is **separation-tested**. Where the sixth capability scores within
+  `LEAD_SEPARATION_RATIO` of the fifth, the field is flat, the cut would be arbitrary, and the pack
+  widens the lead set and says the field is close — the `AMBIGUITY_SEPARATION_RATIO` idea from
+  `ATL-05` applied to selection instead of interpretation.
+- **Consequences:** Scoring reuses the ADR-050 search and the ADR-059 vocabulary rather than
+  introducing a second relevance model. The score orders and is discarded; the reader receives the
+  rationale in words, which is the thing they can actually check. An early version of the intake
+  tokenised `bp-*` labels and matched any word over four characters, which made **platform** — from
+  the label *"Knowing what the platform can do"* — a trigger, so *"integrates with an existing
+  planning platform"* was read as a capability-discovery problem. Declared, reviewable phrase
+  lexicons replaced it; generic words in governed labels are not evidence of a business problem.
+
+---
+
+### ADR-066: Sales Integrity Is A Contract Rule, Not A Copy Review (`ATL-06D`)
+
+- **Status:** Approved & **Implemented** (`ATL-06D`, 2026-08-21). Enforcement in
+  `lib/atlas/preparation/integrity.ts`, `packages/contracts/src/atlas-preparation-model.ts`,
+  `app/api/v1/atlas/prepare/route.ts`; evidence in
+  [`COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md`](../reports/COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md).
+- **Context:** Six phases of this programme were spent making limitations visible. `ATL-06D` is the
+  first surface where a person has a commercial reason to want them quieter, and it arrives at the
+  moment the pack is most useful. A guideline saying "always mention limitations" would not survive
+  that pressure, because nothing checks a guideline.
+- **Decision:** Overselling is prevented **structurally**.
+
+  1. `DemoWarning[]` and `AvoidClaiming[]` are non-optional arrays on `PreparationPack`. Rule `P2`
+     refuses a pack that recommends a non-`implemented` capability carrying no demonstration warning.
+     A pack with violations is a **500 from the route**, not a page with a caveat: it is a document
+     that could mislead a client, so it is not returned.
+  2. Every warning is DERIVED and names the governed field it came from (`derived_from`). A warning
+     that cannot name one is not emitted — §21 forbids inventing warnings to populate a section, so a
+     capability with nothing to warn about produces nothing and the pack is honest about that too.
+  3. Warnings, limitations and maturity are **lens-invariant**, asserted directly: no warning a
+     Developer pack carries is absent from the Sales pack for the same capability.
+  4. `AvoidClaiming.instead` is required. Telling a seller what not to say without giving them the
+     true sentence is advice that gets discarded in the room.
+
+  Scoping by tier is a legibility measure and is bounded by a declared non-negotiable set: status,
+  synthetic-data, open-defect and missing-evidence warnings are never scoped away. Demonstration-path
+  warnings for a demo not in the sequence are, because a wall of warnings nobody reads is how the one
+  that mattered gets missed — measured at 35 warnings across 11 recommendations before scoping.
+- **Consequences:** A preparation pack cannot describe a simulated capability as available, cannot
+  script a demonstration from a capability with no authored demo path, and cannot answer a client
+  question about a non-`implemented` capability without stating its status. Competitive positioning
+  (§19) grounds in CogniX evidence and states that a claim about a named vendor requires market
+  evidence the pack does not hold — it never describes a competitor's functionality and never asserts
+  superiority, both of which would be fabrication about a third party.
