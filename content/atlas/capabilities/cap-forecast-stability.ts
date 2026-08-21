@@ -125,7 +125,9 @@ export const knowledge: CapabilityKnowledge = {
   ],
   external_evidence: [],
   related_capabilities: [
-    { ref: 'CAP-DECISION-GAP', relation: 'enables' }
+    { ref: 'CAP-DECISION-GAP', relation: 'enables' },
+    { ref: 'CAP-DEMAND-FORECAST', relation: 'enables' },
+    { ref: 'CAP-INTENT-FUSION', relation: 'depends-on' }
   ],
   related_decisions: ['ADR-040'],
   related_governance: ['docs/governance/DEMAND_OBSERVABILITY_MODEL.md']

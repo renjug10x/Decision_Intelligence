@@ -19,9 +19,44 @@ import type { CapabilityKnowledge } from '../../../packages/contracts/src/capabi
  * rather than at runtime in a route.
  */
 const KNOWLEDGE_MODULES: Record<string, () => Promise<{ knowledge: CapabilityKnowledge }>> = {
-  'cap-forecast-stability': () => import('../../../content/atlas/capabilities/cap-forecast-stability'),
+  'cap-architecture-storyboard': () => import('../../../content/atlas/capabilities/cap-architecture-storyboard'),
+  'cap-auth-platform-setup': () => import('../../../content/atlas/capabilities/cap-auth-platform-setup'),
+  'cap-campaign-decision': () => import('../../../content/atlas/capabilities/cap-campaign-decision'),
+  'cap-category-intelligence': () => import('../../../content/atlas/capabilities/cap-category-intelligence'),
+  'cap-commitment-intelligence': () => import('../../../content/atlas/capabilities/cap-commitment-intelligence'),
+  'cap-contract-verification': () => import('../../../content/atlas/capabilities/cap-contract-verification'),
+  'cap-counterfactual-baseline': () => import('../../../content/atlas/capabilities/cap-counterfactual-baseline'),
+  'cap-curiosity-questions': () => import('../../../content/atlas/capabilities/cap-curiosity-questions'),
+  'cap-decision-contract': () => import('../../../content/atlas/capabilities/cap-decision-contract'),
   'cap-decision-gap': () => import('../../../content/atlas/capabilities/cap-decision-gap'),
-  'cap-decision-window': () => import('../../../content/atlas/capabilities/cap-decision-window')
+  'cap-decision-lifecycle-view': () => import('../../../content/atlas/capabilities/cap-decision-lifecycle-view'),
+  'cap-decision-readiness': () => import('../../../content/atlas/capabilities/cap-decision-readiness'),
+  'cap-decision-regret': () => import('../../../content/atlas/capabilities/cap-decision-regret'),
+  'cap-decision-ripple': () => import('../../../content/atlas/capabilities/cap-decision-ripple'),
+  'cap-decision-timeline': () => import('../../../content/atlas/capabilities/cap-decision-timeline'),
+  'cap-decision-window': () => import('../../../content/atlas/capabilities/cap-decision-window'),
+  'cap-demand-forecast': () => import('../../../content/atlas/capabilities/cap-demand-forecast'),
+  'cap-domain-persona-context': () => import('../../../content/atlas/capabilities/cap-domain-persona-context'),
+  'cap-enterprise-memory': () => import('../../../content/atlas/capabilities/cap-enterprise-memory'),
+  'cap-enterprise-signal': () => import('../../../content/atlas/capabilities/cap-enterprise-signal'),
+  'cap-experiment-canvas': () => import('../../../content/atlas/capabilities/cap-experiment-canvas'),
+  'cap-forecast-stability': () => import('../../../content/atlas/capabilities/cap-forecast-stability'),
+  'cap-governance-settings': () => import('../../../content/atlas/capabilities/cap-governance-settings'),
+  'cap-innovation-portfolio': () => import('../../../content/atlas/capabilities/cap-innovation-portfolio'),
+  'cap-intent-fusion': () => import('../../../content/atlas/capabilities/cap-intent-fusion'),
+  'cap-journey-telemetry': () => import('../../../content/atlas/capabilities/cap-journey-telemetry'),
+  'cap-learning-loop': () => import('../../../content/atlas/capabilities/cap-learning-loop'),
+  'cap-learning-pattern-registry': () => import('../../../content/atlas/capabilities/cap-learning-pattern-registry'),
+  'cap-memory-learning-api': () => import('../../../content/atlas/capabilities/cap-memory-learning-api'),
+  'cap-observation-correspondence': () => import('../../../content/atlas/capabilities/cap-observation-correspondence'),
+  'cap-opportunity-intelligence': () => import('../../../content/atlas/capabilities/cap-opportunity-intelligence'),
+  'cap-opportunity-window': () => import('../../../content/atlas/capabilities/cap-opportunity-window'),
+  'cap-outcome-frontier': () => import('../../../content/atlas/capabilities/cap-outcome-frontier'),
+  'cap-predictive-inventory': () => import('../../../content/atlas/capabilities/cap-predictive-inventory'),
+  'cap-promotion-intelligence': () => import('../../../content/atlas/capabilities/cap-promotion-intelligence'),
+  'cap-shared-decision-state': () => import('../../../content/atlas/capabilities/cap-shared-decision-state'),
+  'cap-signal-connector': () => import('../../../content/atlas/capabilities/cap-signal-connector'),
+  'cap-signal-simulation': () => import('../../../content/atlas/capabilities/cap-signal-simulation')
 };
 
 const cache = new Map<string, CapabilityKnowledge>();

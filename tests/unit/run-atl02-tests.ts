@@ -386,9 +386,20 @@ async function runTests() {
   assert(rEvidence.data[0].validation_evidence.every((e: any) => e.ref && e.observed_at && e.observed_by),
     'K15: Every evidence ref carries what it demonstrates, when it was observed and by whom');
 
-  const rEvidenceNone = await json(await getEvidence(req('/api/v1/atlas/evidence?capability_id=CAP-DECISION-REGRET')));
+  // Before ATL-03 this asserted that an unauthored capability returned an honest empty. ATL-03
+  // authored knowledge for every capability, so that state no longer exists in the corpus. The
+  // mechanism is still asserted — an unknown id returns empty rather than inventing a record —
+  // and the ATL-03 completion property is asserted alongside it.
+  const rEvidenceNone = await json(await getEvidence(req('/api/v1/atlas/evidence?capability_id=CAP-DOES-NOT-EXIST')));
   assert(rEvidenceNone.data.length === 0,
-    'K16: A capability ATL-03 has not yet authored returns an honest empty, not a fabricated one');
+    'K16: An unknown capability id returns an honest empty, not a fabricated record');
+
+  const rEvidenceAll = await json(await getEvidence(req('/api/v1/atlas/evidence')));
+  assert(rEvidenceAll.data.length === CAPABILITY_REGISTRY.length,
+    'K16b: ATL-03 completion — every registered capability carries evidence',
+    `${rEvidenceAll.data.length} of ${CAPABILITY_REGISTRY.length} capabilities carry evidence`);
+  assert(rEvidenceAll.data.every((d: any) => d.validation_evidence.length > 0),
+    'K16c: Every capability cites at least one evidence reference');
 
   const rSearch = await json(await getSearch(req('/api/v1/atlas/search?q=forecast')));
   assert(rSearch.data.level === 'structured' && rSearch.data.results.length > 0,

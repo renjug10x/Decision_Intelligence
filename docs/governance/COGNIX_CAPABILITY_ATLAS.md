@@ -19,15 +19,15 @@
 | — | Programme governance (this document set) | **[COMPLETED]** | 2026-08-20 | This document, [`CAPABILITY_KNOWLEDGE_MODEL.md`](CAPABILITY_KNOWLEDGE_MODEL.md), [`CAPABILITY_ATLAS_ARCHITECTURE.md`](../architecture/CAPABILITY_ATLAS_ARCHITECTURE.md), ADR-045…ADR-051, [`MASTER_PLAN.md`](MASTER_PLAN.md) ATL section, [`UX_DESIGN_PRINCIPLES.md`](../ux/UX_DESIGN_PRINCIPLES.md) §6 |
 | `ATL-01` | Capability Discovery, Governance & Information Model | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_01_CAPABILITY_INVENTORY_REPORT.md`](../reports/COGNIX_ATL_01_CAPABILITY_INVENTORY_REPORT.md) (33 capabilities, 9 contradictions, 8 orphans, gaps G1–G6) · [`COGNIX_ATL_01_STORYBOARD_MIGRATION_ASSESSMENT.md`](../reports/COGNIX_ATL_01_STORYBOARD_MIGRATION_ASSESSMENT.md) (26 slides audited, SB-GATE 1/6) |
 | `ATL-02` | Capability Knowledge Backend | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_02_CAPABILITY_KNOWLEDGE_BACKEND_REPORT.md`](../reports/COGNIX_ATL_02_CAPABILITY_KNOWLEDGE_BACKEND_REPORT.md) · `run-atl02-tests.ts` 82/82 · `tsc` 0 · build clean · 7 routes under `/api/v1/atlas/*` |
-| `ATL-03` | Retail & Grocery Knowledge Population | **[NOT STARTED]** | — | — |
+| `ATL-03` | Retail & Grocery Knowledge Population | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_03_KNOWLEDGE_POPULATION_REPORT.md`](../reports/COGNIX_ATL_03_KNOWLEDGE_POPULATION_REPORT.md) · 38 capabilities, 38 knowledge modules · `run-atl03-tests.ts` 29/29 · `run-atl02-tests.ts` 119/119 · `tsc` 0 · build clean |
 | `ATL-04` | Atlas UX & Structured Search | **[NOT STARTED]** | — | — |
 | `ATL-05` | Internal AI Retrieval & Ask CogniX | **[NOT STARTED]** | — | — |
 | `ATL-06` | Google AI, Grounding & Market Intelligence | **[NOT STARTED]** | — | — |
 | `ATL-07` | Capability Lifecycle Governance & Automation | **[NOT STARTED]** | — | — |
 
-**Current phase:** `ATL-03` — not yet started
-**Last completed Atlas activity:** `ATL-02` completed 2026-08-20
-**Next executable work package:** **`ATL-03`** — Retail & Grocery Knowledge Population
+**Current phase:** `ATL-04` — not yet started
+**Last completed Atlas activity:** `ATL-03` completed 2026-08-20
+**Next executable work package:** **`ATL-04`** — Atlas UX & Structured Search
 **Blocked by other CogniX work:** NO
 
 Status vocabulary follows `MASTER_PLAN.md`: `[NOT STARTED]` · `[IN PROGRESS]` · `[BLOCKED]` ·
@@ -339,7 +339,7 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
 
 ---
 
-### `ATL-03` — Retail & Grocery Knowledge Population [NOT STARTED]
+### `ATL-03` — Retail & Grocery Knowledge Population [COMPLETED]
 
 - **Objective:** Author governed capability knowledge for every capability inventoried in `ATL-01`
   within the `retail_grocery` domain and the cross-domain platform set.
@@ -374,6 +374,8 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
 - **Risks:** marketing drift and over-claimed maturity — mitigated by `AC-ATL-03-2`/`-3` and automated
   later by `ATL-07`.
 - **Decisions Outstanding:** capability ownership assignment (`owner` values).
+- **Completion Evidence:** [`COGNIX_ATL_03_KNOWLEDGE_POPULATION_REPORT.md`](../reports/COGNIX_ATL_03_KNOWLEDGE_POPULATION_REPORT.md). 38 capabilities registered and 38 knowledge modules authored; `run-atl03-tests.ts` 29/29; `run-atl02-tests.ts` grew from 82 to 119 assertions and passes in full; `tsc` 0 diagnostics; build clean; the two long-standing runner failures reproduce their baseline counts exactly.
+- **Handoff:** the corpus answers, for every capability, what it is, its business problem, all three ADR-047 maturity dimensions, usage, testing, architecture, evidence, demo path, limitations, cross-domain applicability and relationships, with every cited path, runner, report and governance document asserted to exist. Distribution: 29 `implemented`, 6 `partially-implemented`, 3 `simulated`, and **zero** `concept` or `roadmap` — nothing was admitted on documentation alone. The ATL-02 boundary held under population: knowledge content is 5× the registry and no contract, repository, validator or route changed. One genuine defect was found and fixed — Level 1 search conflated governed identifiers by numeric suffix, violating `AC-ATL-02-10`; the tokeniser now matches identifiers whole. Two ADR-052 split candidates (`CDI-07A` → 2, `CDI-07B` → 3) are raised for an owner decision rather than taken unilaterally. `external_evidence` is empty corpus-wide because no market study has been performed; `ATL-06` supplies it.
 - **Downstream Dependencies:** unlocks `ATL-04`. **Next WP:** `ATL-04`.
 
 ---
@@ -384,7 +386,7 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
   with audience lenses, relationships, Demo Path — and, once `SB-GATE` passes, supersede the
   Architectural Storyboard navigation surface.
 - **Rationale:** Discovery is how every audience enters. ADR-050 Level 1.
-- **Hard Dependencies:** `ATL-02` (APIs), `ATL-03` (content).
+- **Hard Dependencies:** `ATL-02` (APIs) — **[COMPLETED]**; `ATL-03` (content) — **[COMPLETED]**.
 - **Integration Dependencies:** `SB-GATE` (ADR-051) — governs storyboard retirement only, not the rest
   of the phase.
 - **Scope:** search-first landing; capability cards; capability detail following the progressive

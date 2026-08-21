@@ -104,8 +104,11 @@ export const knowledge: CapabilityKnowledge = {
   ],
   external_evidence: [],
   related_capabilities: [
+    { ref: 'CAP-DECISION-REGRET', relation: 'complements' },
+    { ref: 'CAP-DECISION-WINDOW', relation: 'complements' },
+    { ref: 'CAP-DEMAND-FORECAST', relation: 'enables' },
     { ref: 'CAP-FORECAST-STABILITY', relation: 'depends-on' },
-    { ref: 'CAP-DECISION-WINDOW', relation: 'complements' }
+    { ref: 'CAP-SHARED-DECISION-STATE', relation: 'depends-on' }
   ],
   related_decisions: ['ADR-041'],
   related_governance: ['docs/governance/DEMAND_OBSERVABILITY_MODEL.md']

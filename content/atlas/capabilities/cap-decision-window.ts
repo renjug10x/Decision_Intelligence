@@ -106,7 +106,8 @@ export const knowledge: CapabilityKnowledge = {
   ],
   external_evidence: [],
   related_capabilities: [
-    { ref: 'CAP-DECISION-GAP', relation: 'complements' }
+    { ref: 'CAP-DECISION-GAP', relation: 'complements' },
+    { ref: 'CAP-DECISION-REGRET', relation: 'complements' }
   ],
   related_decisions: ['ADR-042'],
   related_governance: ['docs/ux/UX_DESIGN_PRINCIPLES.md']
