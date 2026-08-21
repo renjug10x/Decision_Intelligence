@@ -44,7 +44,7 @@ if [[ ! -f .env.images ]]; then
 fi
 
 if [[ ! -f .env ]]; then
-  log "WARNING: ${DEPLOY_DIR}/.env is missing — create it with AUTH_API_URL (GEMINI key is entered in the app UI)."
+  log "WARNING: ${DEPLOY_DIR}/.env is missing — create it with AUTH_API_URL and GEMINI_API_KEY (see .env.example)."
 fi
 
 # shellcheck disable=SC1091
@@ -54,6 +54,14 @@ if [[ -f .env ]]; then
   source .env
 fi
 set +a
+
+# Governed server-side GenAI routes read GEMINI_API_KEY from this environment and never from a
+# request (ADR-044, ADR-049). Absent, they fail closed rather than fabricating, so this warns and
+# does not block — but the Atlas market-research and interpretation layers are inert without it,
+# and the platform-setup UI key does NOT substitute for it (ADR-044 Amendment A).
+if [[ -z "${GEMINI_API_KEY:-}" ]]; then
+  log "WARNING: GEMINI_API_KEY is not set in ${DEPLOY_DIR}/.env — governed GenAI routes (decision-context drafting, Atlas grounded research and interpretation) will refuse rather than generate."
+fi
 
 : "${DI_NEXTJS_IMAGE:?DI_NEXTJS_IMAGE not set in .env.images}"
 : "${DI_NGINX_IMAGE:?DI_NGINX_IMAGE not set in .env.images}"

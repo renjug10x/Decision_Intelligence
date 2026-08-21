@@ -1,6 +1,8 @@
 # EC2 runtime compose — pulls pre-built images from ECR (no local build).
 # Image pins: .env.images (CI). Host .env: AUTH_API_URL, DI_HTTP_PORT (optional).
-# Host nginx proxies di.glassx.ai → 127.0.0.1:8080 (DI_HTTP_PORT). GEMINI key is set in the UI.
+# Host nginx proxies di.glassx.ai → 127.0.0.1:8080 (DI_HTTP_PORT).
+# GEMINI_API_KEY comes from the host .env below and is server-side only; the platform-setup UI key
+# is a separate legacy mechanism serving /api/ask and /api/briefing (ADR-044 Amendment A).
 
 services:
   nextjs-app:

@@ -513,6 +513,40 @@ Each of `ACT_NOW`, `WAIT` and `DO_NOTHING` is consequently reachable as the best
 
 ---
 
+#### ADR-044 Amendment A — two Gemini credentials, and the divergence is technical debt (Atlas runtime configuration, 2026-08-21)
+
+**What the original ruling covered, and what it left implicit.** ADR-044 recorded a *behavioural*
+divergence: the CDI-01 drafting route refuses with `503` where `lib/gemini.ts`'s NLQ and briefing
+routes fall back to mock analytics. It did not record the *credential transport* divergence sitting
+underneath it, and that omission has now cost real time.
+
+**The estate has two Gemini credential paths, and they are not interchangeable.**
+
+| | Legacy demo path | Governed server-side path |
+|---|---|---|
+| Routes | `/api/ask`, `/api/briefing`, `/api/decisions/[id]/approve` | `/api/v1/campaigns/decision-context/suggest` (ADR-044), `/api/v1/atlas/ask` research and interpretation (ATL-06B, ATL-06C) |
+| Where the key lives | entered by the user in platform setup, held in client state (`lib/context.tsx`) | `process.env.GEMINI_API_KEY`, read server-side at call time |
+| How it travels | in the **request body** | it does not travel |
+| On absence | mock analytics | refusal, naming what is missing |
+
+**The debt.** A client-held key transported in a request body is incompatible with ADR-049's rule that
+the provider key is resolved server-side only and appears in no request, record or log. It is retained
+because the demo routes predate that ruling and rewriting them is not this work; it is recorded here so
+it is a known divergence rather than an assumption. **Nothing new may use it**: a governed route
+accepting a key from a request body is a defect, not a precedent.
+
+**The operational consequence, which is what actually bit.** Because deployment documentation said the
+Gemini key "is entered in the app UI", no environment provisioned `GEMINI_API_KEY`, and the governed
+routes were inert in every deployed environment — correctly and silently, since refusal is their
+designed behaviour. `README.md`, `.env.example`, `docker-compose.ec2.yml`, `.gitlab-ci.yml` and
+`ops/ci-deploy-remote.sh` now state which key serves which path, and the deploy script warns when
+`GEMINI_API_KEY` is absent. It warns rather than blocks: the routes fail closed by design, so a missing
+key is a capability gap, not a broken deployment.
+
+**Setting the platform-setup key does not close `AC-ATL-06C-9`.** The Atlas reads the server variable
+and nothing else.
+
+
 ### ADR-045: The Capability Atlas Is the Governed Capability Knowledge Layer, Built On the Existing Registries (ATL)
 - **Status:** Approved — governance registration 2026-08-20. **Not implemented** (`ATL-01` … `ATL-07` planned).
 - **Context:** Knowledge about what CogniX can do is distributed across `config/solutions.ts` (`SOL-*`), `config/experiments.ts` (`EXP-*`), `config/patterns.ts` (`PAT-*`), `config/domains.ts`, `config/personas.ts`, forty-plus `docs/reports/` work-package reports, the `MASTER_PLAN`, and the code itself. Each artefact serves one audience well. No artefact answers, for one capability, the full set: *what is it, why does it exist, how does it work, where is it implemented, how do I test it, how do I demonstrate it, what proves it works, what are its limits, where else does it apply, and what should I say to a client?* A seller, an architect and a developer currently reconstruct that answer by hand, differently each time, and an autonomous agent cannot reconstruct it at all.

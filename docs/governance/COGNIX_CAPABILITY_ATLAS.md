@@ -24,7 +24,7 @@
 | `ATL-05` | Internal AI Retrieval & Ask CogniX | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md`](../reports/COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md) · `run-atl05-tests.ts` 54/54 · internal-only retrieval, no provider adapter · `tsc` 0 · build clean |
 | `ATL-06A` | External Grounding & Provenance Architecture | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md`](../reports/COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md) · `run-atl06a-tests.ts` 115/115 · ADR-053, ADR-054 · policy published at `/api/v1/atlas/grounding` · no provider, no network call · `tsc` 0 · build clean |
 | `ATL-06B` | Grounded Market Intelligence | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md`](../reports/COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md) · `run-atl06b-tests.ts` 123/123 · `run-atl06a-tests.ts` 115/115 **unchanged** · ADR-055, ADR-056 · Google Search grounding behind the ATL-06A gate, user-initiated · `tsc` 0 · build clean |
-| `ATL-06C` | AI Explanation & Hybrid Reasoning | **[COMPLETED — LIVE VALIDATION PENDING]** | 2026-08-21 | [`COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md`](../reports/COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md) · `run-atl06c-tests.ts` 109/109 · `run-atl06a` 115 / `run-atl06b` 123 **unchanged** · ADR-057, ADR-058, ADR-059 · request contract live-validated against `generativelanguage.googleapis.com`; **no credentialed round trip performed — no key in this environment** |
+| `ATL-06C` | AI Explanation & Hybrid Reasoning | **[COMPLETED — LIVE VALIDATION PENDING]** | 2026-08-21 | [`COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md`](../reports/COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md) · `run-atl06c-tests.ts` 121/121 · `run-atl06a` 115 / `run-atl06b` 123 **unchanged** · ADR-057, ADR-058, ADR-059 · request contract live-validated against `generativelanguage.googleapis.com`; **no credentialed round trip performed — no key in this environment** |
 | `ATL-06D` | Client Conversation Pack | **[NOT STARTED]** | — | — |
 | `ATL-07` | Capability Lifecycle Governance & Automation | **[NOT STARTED]** | — | — |
 
@@ -42,16 +42,32 @@
 > `GEMINI_API_KEY=… npx tsx scripts/atlas-live-grounding-check.ts "<question>"` to close it. The
 > phase is not marked `[COMPLETED]` until that is done.
 >
-> **Attempted 2026-08-21 and still open.** The credential does not reach the build session: no
-> `GEMINI_API_KEY`, no `.env` file, both adapters report `isConfigured(): false`, and the runtime's
-> `CLOUDSDK_AUTH_ACCESS_TOKEN` is refused by the Gemini API as `ACCESS_TOKEN_TYPE_UNSUPPORTED`. The
-> underlying cause is an estate gap, not a session one: this repository holds the Gemini key as a
-> **user-entered, client-side** value (`README.md`, `lib/context.tsx`), while ADR-044 and ADR-049
-> require a server-side variable for governed content — one that **no deployment here currently
-> sets**. Provisioning `GEMINI_API_KEY` on the server is the prerequisite. The check script now
-> encodes all three required scenarios, captures contract drift, byte-offset extraction, redirect
-> resolution, publisher/date availability, admission and rejection, discarded prose, Search
-> Suggestions, latency and failure behaviour, and exits non-zero unless every check passes.
+> **Attempted 2026-08-21; the runtime configuration gap is closed, the credential is still absent.**
+>
+> *Configuration — done.* The wiring already existed: `docker-compose.yml` and
+> `docker-compose.ec2.yml` pass `GEMINI_API_KEY` through and `.env.example` documented it. What was
+> wrong was that `README.md`, `docker-compose.ec2.yml`, `.gitlab-ci.yml` and `ops/ci-deploy-remote.sh`
+> all told operators the key "is entered in the app UI", and nothing checked at deploy time — so the
+> variable went unset and the governed routes were inert everywhere, correctly and silently. Those
+> statements are corrected, `.env.example` now names the Atlas routes and the never-rules, and the
+> deploy script warns when the variable is absent (warns, not blocks: the routes fail closed by
+> design). **ADR-044 Amendment A** records the underlying divergence — two Gemini credential paths,
+> the legacy client-supplied-key mechanism retained as **technical debt** and closed to new use. The
+> legacy routes were not touched.
+>
+> *Isolation — proven.* `scripts/atlas-credential-isolation-check.sh` builds with a sentinel and
+> confirms it appears in no client chunk, no build output, and is not inlined into the server build;
+> `run-atl06c-tests.ts` group N calls ten Atlas routes with a sentinel credential set and finds it in
+> none of the response bytes and nothing logged, plus static checks on client components,
+> `next.config.ts`, the two adapter reads, `.env.example` and `.gitignore`.
+>
+> *Credential — still absent.* No `GEMINI_API_KEY` in the session, no `.env` file, both adapters
+> report `isConfigured(): false`, and the runtime's `CLOUDSDK_AUTH_ACCESS_TOKEN` is refused by the
+> Gemini API as `ACCESS_TOKEN_TYPE_UNSUPPORTED`. Nothing is left to build; the round trip needs a key.
+> The check script encodes all three required scenarios and captures contract drift, byte-offset
+> extraction, redirect resolution, publisher/date availability, admission and rejection, discarded
+> prose, Search Suggestions, latency and failure behaviour, exiting non-zero unless every check
+> passes.
 
 > **`ATL-06` was split into four on owner decision, 2026-08-21.** The single phase carried provider
 > integration, external grounding, provenance, three-class evidence separation, a market corpus and

@@ -41,7 +41,15 @@ AUTH_API_URL=https://probx-be.glassx.ai/identity
 DI_HTTP_PORT=8080
 ```
 
-Host nginx (already on the instance) proxies `di.glassx.ai` → `http://127.0.0.1:8080`. The Gemini API key is **not** in `.env` — users enter it in the platform setup UI after login.
+Host nginx (already on the instance) proxies `di.glassx.ai` → `http://127.0.0.1:8080`.
+
+**Gemini keys — there are two, and they are not interchangeable.** The key users enter in the
+platform-setup UI after login is a legacy demo mechanism serving only `/api/ask` and `/api/briefing`.
+Governed server-side routes — Campaign Decision Context drafting (ADR-044) and the Capability Atlas
+grounded research and interpretation layers (ATL-06B, ATL-06C) — read `GEMINI_API_KEY` from the host
+`.env`, never from a request. Without it those routes fail closed and say so; they never fabricate.
+Set `GEMINI_API_KEY` in `DEPLOY_DIR/.env` alongside `AUTH_API_URL`. See `.env.example` and
+ADR-044 Amendment A.
 
 Set `AUTH_API_URL` as a GitLab CI variable too so it is baked into the Next.js build.
 

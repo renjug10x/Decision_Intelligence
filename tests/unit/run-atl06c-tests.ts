@@ -55,6 +55,15 @@ import { getCapabilityIndex } from '../../lib/atlas/capability-index';
 import { searchCapabilities } from '../../lib/atlas/capability-search';
 import { CURIOSITY_QUESTIONS } from '../../content/atlas/curiosity-questions';
 import { GET as groundingRoute } from '../../app/api/v1/atlas/grounding/route';
+import { GET as vocabRoute } from '../../app/api/v1/atlas/vocabulary/route';
+import { GET as capabilitiesRoute } from '../../app/api/v1/atlas/capabilities/route';
+import { GET as searchRoute } from '../../app/api/v1/atlas/search/route';
+import { GET as questionsRoute } from '../../app/api/v1/atlas/questions/route';
+import { GET as domainsRoute } from '../../app/api/v1/atlas/domains/route';
+import { GET as tagsRoute } from '../../app/api/v1/atlas/tags/route';
+import { GET as relationshipsRoute } from '../../app/api/v1/atlas/relationships/route';
+import { GET as evidenceRoute } from '../../app/api/v1/atlas/evidence/route';
+import { POST as askRoute } from '../../app/api/v1/atlas/ask/route';
 import type { ResolvedCapability } from '../../packages/contracts/src/capability-atlas-model';
 import type { GroundedEnvelope } from '../../packages/contracts/src/atlas-grounding-model';
 
@@ -504,6 +513,81 @@ async function run() {
     'K4: The master plan carries the same phase name');
   assert(existsSync(join(ROOT, 'docs', 'reports', 'COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md')),
     'K5: The phase report exists at the path the status board cites');
+
+  // ── N. The credential cannot reach a client, a response or a log ────────
+  //
+  // The build-time half of this proof is `scripts/atlas-credential-isolation-check.sh`, which builds
+  // with a sentinel and searches the emitted client bundle. Source inspection cannot prove what a
+  // build emits; a build cannot prove what a route returns. Both halves are needed.
+  const SENTINEL = 'ATLAS-CREDENTIAL-SENTINEL-DO-NOT-USE';
+  const priorKey = process.env.GEMINI_API_KEY;
+  const captured: string[] = [];
+  const realLog = console.log, realWarn = console.warn, realError = console.error;
+  process.env.GEMINI_API_KEY = SENTINEL;
+  const sink = (...args: unknown[]) => { captured.push(args.map(a => String(a)).join(' ')); };
+  console.log = sink; console.warn = sink; console.error = sink;
+
+  let bodies = '';
+  try {
+    const url = (u: string): any => { const p = new URL(u, 'http://localhost'); return { nextUrl: p, url: p.toString() }; };
+    const responses = await Promise.all([
+      capabilitiesRoute(url('/api/v1/atlas/capabilities')),
+      searchRoute(url('/api/v1/atlas/search?q=decision')),
+      questionsRoute(url('/api/v1/atlas/questions')),
+      domainsRoute(url('/api/v1/atlas/domains')),
+      tagsRoute(url('/api/v1/atlas/tags')),
+      relationshipsRoute(url('/api/v1/atlas/relationships')),
+      evidenceRoute(url('/api/v1/atlas/evidence')),
+      groundingRoute(),
+      vocabRoute(),
+      // Research deliberately off: this proves the response surface is clean, not the provider path.
+      askRoute({ json: async () => ({ question: 'how does Decision Gap work' }), nextUrl: new URL('http://localhost/api/v1/atlas/ask') } as any)
+    ]);
+    bodies = (await Promise.all(responses.map(async r => JSON.stringify(await (r as any).json())))).join('\n');
+  } finally {
+    console.log = realLog; console.warn = realWarn; console.error = realError;
+    if (priorKey === undefined) delete process.env.GEMINI_API_KEY; else process.env.GEMINI_API_KEY = priorKey;
+  }
+
+  console.log(`       (${bodies.length} bytes of Atlas response inspected across ten routes)`);
+  assert(bodies.length > 5000 && !bodies.includes(SENTINEL),
+    'N1: With a sentinel credential set, it appears in NO Atlas API response — ten routes checked');
+  assert(!captured.join('\n').includes(SENTINEL),
+    'N2: …and in nothing those routes logged');
+  assert(process.env.GEMINI_API_KEY === priorKey || (priorKey === undefined && process.env.GEMINI_API_KEY === undefined),
+    'N3: …and the test restored the environment it borrowed');
+
+  const clientComponents = readdirSync(join(ROOT, 'components', 'atlas'))
+    .filter(f => f.endsWith('.tsx'))
+    .map(f => readFileSync(join(ROOT, 'components', 'atlas', f), 'utf8'));
+  assert(clientComponents.every(c => !/GEMINI|process\.env/i.test(c)),
+    'N4: No Atlas client component references the credential or reads process.env at all');
+  const nextConfig = readFileSync(join(ROOT, 'next.config.ts'), 'utf8');
+  const envBlock = nextConfig.slice(nextConfig.indexOf('env:'), nextConfig.indexOf('turbopack'));
+  assert(!/GEMINI/i.test(envBlock),
+    'N5: next.config.ts does not publish the credential to the client bundle through its `env` block');
+  const repoSource = [
+    ...readdirSync(join(ROOT, 'lib', 'atlas', 'grounding', 'providers')).map(f => join(ROOT, 'lib', 'atlas', 'grounding', 'providers', f)),
+    ...readdirSync(join(ROOT, 'lib', 'atlas', 'interpretation')).map(f => join(ROOT, 'lib', 'atlas', 'interpretation', f))
+  ].filter(f => f.endsWith('.ts')).map(f => readFileSync(f, 'utf8')).join('\n')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  assert((repoSource.match(/process\.env\.GEMINI_API_KEY/g) ?? []).length === 2,
+    'N6: The Atlas reads the credential in exactly two places — one per adapter');
+  assert(!/NEXT_PUBLIC_[A-Z_]*GEMINI|GEMINI[A-Z_]*_PUBLIC/i.test(repoSource),
+    'N7: …and never through a NEXT_PUBLIC_* name, which the build would inline into the browser');
+  const envExample = readFileSync(join(ROOT, '.env.example'), 'utf8');
+  assert(/GEMINI_API_KEY=/.test(envExample) && /NEVER accepted from a request body/.test(envExample),
+    'N8: .env.example declares the variable and the rules, with no credential in it');
+  assert(!/AIza[0-9A-Za-z_-]{20,}/.test(envExample),
+    'N9: …and carries no value that looks like a real Google key');
+  const gitignore = readFileSync(join(ROOT, '.gitignore'), 'utf8');
+  assert(/^\.env\*?$|\.env\*/m.test(gitignore),
+    'N10: .env files are git-ignored, so a real key cannot be committed by accident');
+  const deployScript = readFileSync(join(ROOT, 'ops', 'ci-deploy-remote.sh'), 'utf8');
+  assert(/GEMINI_API_KEY is not set/.test(deployScript),
+    'N11: The deploy script warns when the server variable is absent, rather than assuming the UI key covers it');
+  assert(existsSync(join(ROOT, 'scripts', 'atlas-credential-isolation-check.sh')),
+    'N12: The build-time half of the proof ships as a runnable check');
 
   // ── L. No assistant attribution ─────────────────────────────────────────
   const delivered = [

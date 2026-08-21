@@ -273,7 +273,7 @@ push:
         sudo cp /tmp/ci-validate-remote.sh ${DEPLOY_DIR}/ci-validate-remote.sh
         sudo chmod +x ${DEPLOY_DIR}/ci-deploy-remote.sh ${DEPLOY_DIR}/ci-validate-remote.sh
         if [[ ! -f ${DEPLOY_DIR}/.env ]]; then
-          echo \"WARNING: ${DEPLOY_DIR}/.env is missing — create it with AUTH_API_URL (GEMINI key is entered in the app UI).\"
+          echo \"WARNING: ${DEPLOY_DIR}/.env is missing — create it with AUTH_API_URL and GEMINI_API_KEY (see .env.example).\"
         fi
         rm -f /tmp/docker-compose.ec2.yml /tmp/di.env.images /tmp/ci-deploy-remote.sh /tmp/ci-validate-remote.sh
         sudo bash ${DEPLOY_DIR}/ci-deploy-remote.sh \

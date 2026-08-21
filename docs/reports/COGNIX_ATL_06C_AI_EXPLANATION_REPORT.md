@@ -178,15 +178,72 @@ establish that rather than assumed:
 | Both adapters' own `isConfigured()` | `false` |
 | `CLOUDSDK_AUTH_ACCESS_TOKEN` against the Gemini API | `401 ACCESS_TOKEN_TYPE_UNSUPPORTED` — not an OAuth token this service accepts, and no project is configured |
 
-Two things follow, and the second is worth flagging as an estate finding rather than a session
-inconvenience. First, **no live round trip was performed and none is claimed.** Second, this estate
-currently has **no server-side path to a Gemini credential at all**: `README.md` records that the key
-is entered by the user in the platform-setup UI, and `lib/context.tsx` holds it client-side, which the
-legacy `/api/ask` and `/api/briefing` routes accept from a request body. ADR-044 and ADR-049 forbid
-that for governed content, so `ATL-06B` and `ATL-06C` read `process.env.GEMINI_API_KEY` following the
-CDI-01 precedent — a variable **no deployment in this repository currently sets**. Closing
-`AC-ATL-06C-9` therefore needs the variable provisioned on the server, not merely a key pasted into
-the UI.
+**No live round trip was performed and none is claimed.**
+
+### The runtime configuration gap — found, and closed
+
+An earlier reading of this was too strong and is corrected here: `docker-compose.yml` and
+`docker-compose.ec2.yml` **already passed `GEMINI_API_KEY` through to the container**, and
+`.env.example` already documented it as server-side-only. The gap was not the wiring. It was that
+**the deployment documentation told operators the variable was not needed** — `README.md`,
+`docker-compose.ec2.yml`, `.gitlab-ci.yml` and `ops/ci-deploy-remote.sh` all said the Gemini key "is
+entered in the app UI" — and nothing at deploy time checked. So the variable went unset, and the
+governed routes were inert in every environment: correctly and silently, since refusal is their
+designed behaviour, which is exactly why nobody noticed.
+
+The cause is that this estate has **two Gemini credential paths and they are not interchangeable**,
+now recorded as **ADR-044 Amendment A**:
+
+| | Legacy demo path | Governed server-side path |
+|---|---|---|
+| Routes | `/api/ask`, `/api/briefing` | CDI-01 drafting, Atlas research and interpretation |
+| Key lives | entered in platform setup, held in client state | `process.env.GEMINI_API_KEY` |
+| How it travels | in the **request body** | it does not travel |
+| On absence | mock analytics | refusal, naming what is missing |
+
+The client-held key in a request body is incompatible with ADR-049 and is recorded as **technical
+debt**, retained because rewriting those demo routes is not this work. **Nothing new may use it**: a
+governed route accepting a key from a request body is a defect, not a precedent. Setting the
+platform-setup key does not close `AC-ATL-06C-9`.
+
+**Changed, minimally and within existing conventions** — no new mechanism, no redesign:
+
+- `.env.example` — the existing `GEMINI_API_KEY` entry now names the Atlas routes, the four never-rules
+  and the fail-closed behaviour of each route, and states that the platform-setup key does not
+  substitute for it. Still no credential in it.
+- `README.md` — the "key is entered in the UI" line replaced with the two-path explanation.
+- `ops/ci-deploy-remote.sh` — warns when `GEMINI_API_KEY` is absent from the host `.env`. It **warns
+  rather than blocks**: the routes fail closed by design, so a missing key is a capability gap, not a
+  broken deployment.
+- `.gitlab-ci.yml`, `docker-compose.ec2.yml` — the same stale statement corrected.
+- The legacy routes were **not touched**, as instructed.
+
+### Credential isolation, proven rather than asserted
+
+Two halves, because neither alone is a proof. Source inspection cannot show what a build emits; a
+build cannot show what a route returns.
+
+**Build-time** — `scripts/atlas-credential-isolation-check.sh` builds with a unique sentinel in
+`GEMINI_API_KEY` and searches what the build produced. Run on this commit:
+
+```
+PASS  the sentinel appears nowhere in .next/static — the credential cannot reach the browser
+PASS  the sentinel appears nowhere in the build output
+PASS  the sentinel is not inlined into the server build either — it is read from the environment at call time
+PASS  no .env file is tracked in git
+```
+
+The third is the one worth having: an inlined value would be baked into the image rather than read at
+call time, which is a different failure from exposure and would survive a bundle scan.
+
+**Run-time** — twelve assertions in `run-atl06c-tests.ts` group N. With a sentinel credential set,
+**ten Atlas routes** are called and the sentinel appears in none of the 114,233 response bytes, nor in
+anything they logged. Statically: no Atlas client component reads
+`process.env` at all; `next.config.ts` does not publish the credential through its `env` block — the
+mechanism that *does* inline `AUTH_API_URL` into the browser, which is precisely why that block needed
+checking; the Atlas reads the credential in exactly two places, one per adapter, and never under a
+`NEXT_PUBLIC_*` name; `.env.example` carries the rules and no value resembling a real key; `.env` files
+are git-ignored.
 
 ### What is on the record instead
 
@@ -278,7 +335,7 @@ that suite was touched, and it passes at 115/115.
 | Check | Result |
 |-------|--------|
 | `npx tsc --noEmit` | **0 diagnostics** |
-| `npx tsx tests/unit/run-atl06c-tests.ts` | **109 passed, 0 failed** |
+| `npx tsx tests/unit/run-atl06c-tests.ts` | **121 passed, 0 failed** |
 | `npx tsx tests/unit/run-atl06b-tests.ts` | **123 passed — unchanged** |
 | `npx tsx tests/unit/run-atl06a-tests.ts` | **115 passed — unchanged in count; L3 strengthened** |
 | `run-atl05` / `run-atl04` / `run-atl03` / `run-atl02` | 54 / 54 / 29 / 119 — unchanged |
@@ -302,12 +359,11 @@ interpretation class where it belongs.
 
 ## 8. Findings and honest limitations
 
-1. **`AC-ATL-06C-9` is open**, and the reason is now specific rather than environmental: this estate
-   has no server-side path to a Gemini credential — the key is a user-entered, client-held value
-   (`README.md`, `lib/context.tsx`), while ADR-044/ADR-049 require a server-side
-   `process.env.GEMINI_API_KEY` that no deployment here sets. Provisioning that variable is the
-   prerequisite, not a larger quota. The phase stays `[COMPLETED — LIVE VALIDATION PENDING]` and the
-   board's next executable action is closing it.
+1. **`AC-ATL-06C-9` is open, and now only one thing is missing: the key itself.** The runtime
+   configuration gap is closed — the variable is documented, passed through by every compose file that
+   runs the app, warned about at deploy time, and proven unable to reach a client, a response or a log.
+   The credential is still absent from this session (checked again at the end of this work). The phase
+   stays `[COMPLETED — LIVE VALIDATION PENDING]` and the board's next executable action is closing it.
 2. **Interpretation has no user-facing control.** External research does, because it reaches outward
    (ADR-056). Interpretation reads only what is already on the page and leaks nothing, so it runs
    whenever a provider is configured, bounded by a per-process call budget. Raised as a decision
