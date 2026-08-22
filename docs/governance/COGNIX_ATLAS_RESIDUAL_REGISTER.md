@@ -1,7 +1,7 @@
 # COGNIX CAPABILITY ATLAS — RESIDUAL REGISTER
 
 **Document Status:** Approved & Authoritative
-**Version:** 1.0.0
+**Version:** 1.1.0
 **Effective Date:** 22 August 2026
 **Owner:** G10X Enterprise Innovation Lab Architecture Board
 **Governs:** `ATL-FINAL` closure. Reconciled against `ATL-01`…`ATL-07`, `ATL-04R`, the `ATL-07`
@@ -20,6 +20,10 @@ classified once:
 | **OPEN — GOVERNED** | Remains true, is visible in the product or in a check, and is safe to carry. |
 | **FUTURE** | A genuine enhancement, not a defect. Nothing is broken by leaving it. |
 | **OWNER DECISION** | A judgement only the owner can make. Evidence is recorded; the decision is not taken here. |
+
+**Version 1.1.0, 22 August 2026** adds §5 (the final owner review of the twenty-one authored
+assumptions) and §6 (the accepted baseline). R-13 closes; R-12 remains the Atlas's only open owner
+decision.
 
 Nothing in this register was closed by writing data to make a check pass. Where evidence did not
 support a value it was left absent and recorded, which is why the register has open rows at all.
@@ -171,18 +175,36 @@ siblings do carry a state; `CAP-DECISION-LIFECYCLE-VIEW` is `experience`, where 
 R-02 these are not explained by their category. A lifecycle state is an innovation-portfolio judgement
 about how an idea has matured, which no amount of code reading can settle. **Recorded, not invented.**
 
-### R-13 — Twenty authored assumptions await owner confirmation · **OWNER DECISION**
+### R-13 — Twenty authored assumptions awaited owner confirmation · **CLOSED**
 
-R-01's assumptions were written during closure from each capability's recorded architecture,
-description, limitations and implementation. They are accurate to the implementation as read, but they
-are the estate's reading of its own premises rather than the capability owner's declaration.
+**RESOLVED at the final owner review, 2026-08-22.** All twenty-one assumption statements across the
+twenty records were re-checked against implementation, contracts, tests and ADRs rather than against
+the prose that produced them. **Twenty confirmed, one amended, none left undecided.** The full
+capability-by-capability table with the evidence for each verdict is §5 below.
 
-`reviewed_at` was moved on **eleven** records only — those whose cited files had drifted under
-`GOV-REC-3` and which were therefore re-read against the specific change, five of which also received
-an authored assumption. It was **not** moved on the other fifteen. The `GOV-REC-3` remedy names moving
-a review date without reading as the one evasion the check cannot detect, and the reverse restraint is
-the safe one: a date is moved only where a specific re-reading actually happened. The authored
-assumptions come up for owner confirmation at each record's next scheduled review.
+The one amendment was `CAP-DECISION-CONTRACT`. The assumption asserted that *"an input re-derived with
+the same meaning but a different serialisation reads as changed, so the contract assumes upstream
+producers emit a canonical form"*. `artefactDigest` is `sha256Hex(canonicalJson(obj))`, and
+`canonicalize()` in `campaign-decision-contract-model.ts:616` sorts keys and drops `undefined` — so the
+engine canonicalises for the producer and the stated premise was **false about its own mechanism**. The
+real residual premise is narrower and survives: canonicalisation normalises structure, not value, so a
+number re-derived to a different floating-point representation or a timestamp regenerated at a
+different precision still digests as a changed basis. The assumption now says that.
+
+The original wording was authored during closure from each capability's recorded architecture,
+description, limitations and implementation, which is why one of twenty-one was a plausible reading of
+prose that the code contradicted.
+
+`reviewed_at` was moved on **eleven** records at closure — those whose cited files had drifted under
+`GOV-REC-3` and which were therefore re-read against the specific change. It was **not** moved on the
+other fifteen. The `GOV-REC-3` remedy names moving a review date without reading as the one evasion the
+check cannot detect, and the reverse restraint is the safe one: a date is moved only where a specific
+re-reading actually happened.
+
+The owner review of 2026-08-22 was that reading, and it was a reading of the *assumption* against the
+*code*, not of the whole record against its cited files. The dates therefore stay where they are: an
+assumption verdict is not a record review, and conflating them would be the evasion above wearing a
+different hat.
 
 ### R-14 — `GOV-REC-3` cannot see within a day · **OPEN — GOVERNED**
 
@@ -276,3 +298,53 @@ do not sum to it.
   better than a populated one nobody can trace.
 - Do not weaken SB-GATE to retire the storyboard.
 - Do not move `reviewed_at` on the twenty records in R-13 without a human reading them.
+
+---
+
+## 5. Final owner review — the twenty-one assumptions (2026-08-22)
+
+Every assumption authored at `ATL-FINAL` was re-checked against **implementation, contracts, tests and
+ADRs**, not against the record prose that produced it. Verdicts: **20 CONFIRM, 1 AMEND, 0 owner
+decision.**
+
+| Capability | Assumption (abridged) | Evidence checked | Why it matters | Risk if wrong | Verdict |
+|---|---|---|---|---|---|
+| `CAP-CAMPAIGN-DECISION` | The four canvas input areas are sufficient to determine a campaign decision | `CampaignCanvasArea` is a closed union of exactly four members (`campaign-intent-model.ts:42`); `canvas_progress.active_area` drives the whole flow | The canvas is the entry to every CDI engine; its inputs bound what any of them can consider | A client decision turning on a fifth input is silently unrepresentable, not visibly refused | **CONFIRM** |
+| `CAP-CATEGORY-INTELLIGENCE` | Profit and volume are available at the same sub-segment and region grain | `getCategoryPerformance` (`query-engine.ts:140`) runs one `aggregate()` over one `sales` set with one `key` — subcategory when a category is set, else category — for both current and prior periods | The capability's whole claim is a divergence between two series | A divergence across mismatched aggregations is an artefact presented as an insight | **CONFIRM** |
+| `CAP-COMMITMENT-INTELLIGENCE` | Chain stages consume capacity in a fixed declared order, one after another | `stages: ChainStage[]` is an ordered literal array — marketing → demand → supplier → inventory → … (`CommitmentIntelligence.tsx:103`) | "First breaking stage" is only meaningful over a sequence | A parallel-served commitment makes the single first-breach reading wrong | **CONFIRM** |
+| `CAP-COUNTERFACTUAL-BASELINE` | The counterfactual holds no unmodelled concurrent intervention | `campaignDelta(without, predicted, …)` (`campaign-causal-engine.ts:696`) attributes the entire `predicted − without` difference to the campaign | Attribution is the capability | A second initiative running concurrently is scored as campaign effect | **CONFIRM** |
+| `CAP-CURIOSITY-QUESTIONS` | A registered question is worth asking because the estate can route it | `CURIOSITY_QUESTIONS` is a hand-curated content registry of four records, each carrying its own routing refs | The register is the capability | A question added without a route is a dead end the surface cannot detect | **CONFIRM** |
+| `CAP-DECISION-CONTRACT` (1) | ~~Serialisation differences read as changed, so producers must emit canonical form~~ | `artefactDigest = sha256Hex(canonicalJson(obj))`; `canonicalize()` sorts keys and drops `undefined` (`campaign-decision-contract-model.ts:616`) — **the engine canonicalises for the producer** | The digest is what makes a bound basis verifiable | Stated as written it would send integrators to solve a problem the engine already solves, and hide the one it does not | **AMEND** — now: structure is normalised, value is not; a re-derived float or a regenerated timestamp still digests as changed |
+| `CAP-DECISION-CONTRACT` (2) | Reconsideration triggers are declarable in advance | `TriggerClass` is a closed union `T-INTENT \| T-CONSTRAINT \| T-READINESS \| T-SIGNAL \| T-EVIDENCE`; `TriggerOutcome` carries `UNASSESSABLE` for what cannot be evaluated | Half-Life reports movement only along declared dimensions | A basis moving along an undeclared dimension is invisible, and the contract cannot say so | **CONFIRM** |
+| `CAP-DECISION-READINESS` | The six dimensions are independently evaluable | `READINESS_DIMENSION_ORDER` is exactly six; each is assessed in its own block and only then combined via `dimensions.map(d => d.state)` | The verdict must never hide which dimension caused it | A common cause reads as several weak dimensions, leaving aggregation to the reader | **CONFIRM** |
+| `CAP-DECISION-REGRET` | `ACT_NOW` / `WAIT` / `DO_NOTHING` exhaust the alternatives | `action_type` is that closed union (`demand-decision-frontier-model.ts:183`); the fourth value `CHOICE_REQUIRED` is a refusal, not an alternative | Regret is relative to the compared set by construction | An unenumerated option cannot be surfaced however good it would have been | **CONFIRM** |
+| `CAP-DECISION-RIPPLE` | Consequences propagate outward without feeding back | Ordered 1st/2nd/3rd-order layers with no return path (`DecisionRippleIntelligence.tsx:172`) | The layers are read as a cascade | A second-order effect that changes the first-order magnitude is not modelled | **CONFIRM** |
+| `CAP-DECISION-TIMELINE` | Every period is reported under one identity basis | `FLAT_RATE_IDENTITY` is the sole `allocation_profile` throughout `campaign-timeline-engine.ts`; the post-campaign region is `NOT_AVAILABLE` rather than reconciled | A progression across mixed bases compares different things | Mixing bases would make the timeline a comparison of unlike quantities | **CONFIRM** |
+| `CAP-DEMAND-FORECAST` | Stability, gap, window and regret come from one evaluation of one input set | `evaluateDemandDecisionFrontier` is imported once and called once (`Forecasting.tsx:19, 281`) | The four cards are read together | Four independent queries could disagree while appearing to describe one situation | **CONFIRM** |
+| `CAP-EXPERIMENT-CANVAS` | An experiment is fully describable by the registry schema | The canvas renders only registry fields; `ATL-01` gap `G1` records that demo maturity cannot be shown because the schema has no such field | The schema is the real boundary of the capability | Anything the schema omits is unreachable by authoring alone | **CONFIRM** |
+| `CAP-INNOVATION-PORTFOLIO` | The governed registry defines what CogniX has built | `PortfolioView` counts landscape records only; `ATL-01` F1 recorded 20 governed-but-unregistered capabilities before the Atlas existed | Every figure on the surface is a count of records | A capability nobody registered is absent with no sign that it is missing | **CONFIRM** |
+| `CAP-INTENT-FUSION` | Declared intent is an accurate statement of what the organisation is trying to do | `intent-fusion-engine.ts` contains no validation, corroboration or operative-intent test — it reads the environment against the declaration | The outlook is the environment read against a statement | A stale or aspirational intent produces a confident outlook against the wrong plan | **CONFIRM** |
+| `CAP-LEARNING-LOOP` | Prediction and outcome are comparable only on exact grain and basis match | `evaluateComparability` fails closed on authority, empty grain, window mismatch, undeclared metric correspondence and unit mismatch before any comparison is attempted | Silence must not be read as agreement | Adjusting one side to fit the other would manufacture a verdict | **CONFIRM** |
+| `CAP-OBSERVATION-CORRESPONDENCE` | The declared metric-to-signal table is complete for contracted decisions | `METRIC_CORRESPONDENT_SIGNAL_TYPES` is a closed table; an unlisted metric returns `METRIC_CORRESPONDENCE_UNDECLARED` (`campaign-learning-loop-engine.ts:548`) | Correspondence is the gate on comparability | A legitimate correspondence nobody declared is refused — safe, but silent | **CONFIRM** |
+| `CAP-OPPORTUNITY-WINDOW` | Candidate intervals are independently executable | `campaign-opportunity-engine.ts` carries no prior-window, cumulative or history term — each interval is scored on its own factors | Windows are ranked against each other as if unconditioned | The cost of having already run a campaign in an earlier window is not carried | **CONFIRM** |
+| `CAP-OUTCOME-FRONTIER` | The declared objectives capture what the decision trades off | `ConstraintSource` is `HUMAN_DECLARED \| DERIVED_FROM_STATED_OBJECTIVE` — both declared, neither inferred | A Pareto set is only as honest as its axes | An undeclared objective cannot rescue a candidate the frontier shows as dominated | **CONFIRM** |
+| `CAP-PREDICTIVE-INVENTORY` | Buffer failure is determined by lead time and demand velocity at store grain; substitution is not modelled | Exposure is computed from literal arrays; the DC transfer appears only as a recommended **action string**, never as a term in the exposure calculation | Exposure is presented as revenue at risk | A stock-out absorbed elsewhere is still counted as full exposure | **CONFIRM** |
+| `CAP-PROMOTION-INTELLIGENCE` | The lenses are views of one evaluation, not separate analyses | **Zero `fetch(` calls across all six `*Lens.tsx` files** — every lens receives its data as props | One workspace must not disagree with itself | A lens recomputing its own numbers could contradict the others while looking like the same workspace | **CONFIRM** |
+
+**Nothing was rewritten for wording.** The single amendment corrects a statement the code contradicts;
+the other twenty stand exactly as authored.
+
+---
+
+## 6. Baseline
+
+With the assumption review closed and no blocking defect outstanding, the Capability Atlas
+implementation baseline is recorded as:
+
+> ### Implementation Complete — Accepted Baseline
+> `ATL-01` … `ATL-07`, `ATL-04R` and `ATL-FINAL`, accepted 22 August 2026 at the final owner review.
+> Governance clean (0 blocking, `--enforce` exits 0). Estate 35 of 35 runners green. Branch unmerged.
+
+The open rows in §1 are carried **into** the baseline, not resolved by it. R-12 and R-13 were the two
+owner decisions at closure; **R-13 is now closed** by the review above. **R-12 remains open** and is the
+only owner decision the Atlas still carries.

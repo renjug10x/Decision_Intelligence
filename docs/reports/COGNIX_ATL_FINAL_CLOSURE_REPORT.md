@@ -58,10 +58,16 @@ Eighteen residuals were reconciled and classified. Full detail in the register; 
 
 | Class | Count | Rows |
 |-------|-------|------|
-| **CLOSED** | 7 | R-01, R-05, R-06, R-08, R-09, R-10, R-11 |
+| **CLOSED** | 8 | R-01, R-05, R-06, R-08, R-09, R-10, R-11, and R-13 at the final owner review |
 | **OPEN — GOVERNED** | 6 | R-02, R-03 (partly), R-04, R-14, R-15, R-17 |
-| **OWNER DECISION** | 2 | R-12, R-13 |
+| **OWNER DECISION** | 1 | R-12 |
 | **FUTURE** | 3 | R-16, R-18, and the SB-GATE content migration behind R-07 |
+
+> **Updated 2026-08-22 at the final owner review.** R-13 closed: all twenty-one authored assumptions
+> were re-checked against implementation, contracts, tests and ADRs — **20 confirmed, 1 amended, 0 left
+> undecided**. The amendment corrected `CAP-DECISION-CONTRACT`, whose assumption asserted that a
+> re-serialised input reads as changed when `artefactDigest` canonicalises before hashing. R-12 is now
+> the Atlas's only open owner decision. Full table in §5 of the residual register.
 
 Nothing was closed by writing data to make a check pass. The open rows are the evidence of that: had
 the aim been a clean sheet, R-02, R-03 and R-04 were the three easiest to fabricate and are the three

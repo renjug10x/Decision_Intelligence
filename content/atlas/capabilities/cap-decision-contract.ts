@@ -50,7 +50,7 @@ export const knowledge = defineKnowledge({
     { limitation: 'The runner exits non-zero for a pre-existing missing tsx dependency, not a capability defect.', severity: 'medium' }
   ],
   assumptions: [
-    'Evidence identity is assumed to be stable enough to digest. An input re-derived with the same meaning but a different serialisation reads as changed, so the contract assumes upstream producers emit a canonical form.',
+    'Evidence identity is assumed to be stable enough to digest. Structural serialisation differences are handled — the digest is taken over a canonical form that sorts keys and drops undefined — but numeric and temporal identity are not normalised, so an input re-derived to a different floating-point representation or a timestamp regenerated at a different precision reads as a changed basis.',
     'Reconsideration triggers are assumed to be declarable in advance. The contract can only tell you the basis has moved along a dimension somebody named before the decision was taken.'
   ],
   use_cases: [
