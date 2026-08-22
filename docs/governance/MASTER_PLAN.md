@@ -681,6 +681,71 @@ $$\text{Architecture/APIs} \rightarrow \text{Enterprise World} \rightarrow \text
 
 ---
 
+# INNOVATION BACKLOG — REGISTERED, NOT AUTHORISED
+
+> **The [`COGNIX_INNOVATION_BACKLOG.md`](COGNIX_INNOVATION_BACKLOG.md) register is not part of this
+> plan's authorised scope. Nothing in it is committed delivery work.**
+
+**Namespace registration.** `IB` (innovation backlog ideas) is registered alongside `CDI`, `ESF`,
+`IFI`, `DDF`, `DOT`, `WP10`, `ATL`, `CAP`, `EXP`, `SOL` and `PAT`. No existing work item is renamed,
+absorbed, deprecated or moved into it, and no `IB-*` entry is a work package.
+
+**Separation rule, binding.** This Master Plan is the **only** source of authorised delivery scope.
+An idea becomes committed work at the moment it is written into this document as a work package with
+an identifier and a specification — that edit, and no other, is the authorisation. Backlog stages
+(`Idea` → `Research` → `Candidate Experiment` → `Approved` → `Planned` → `In Delivery`) are
+authorisation states, reconciled with [`EXPERIMENT_LIFECYCLE.md`](EXPERIMENT_LIFECYCLE.md) rather
+than competing with it: `Research` and `Retired` are that document's states unchanged, and
+`Candidate Experiment` is the handoff into it at `Concept`. `Approved` means approved *to be
+planned*; it authorises nothing. See **ADR-069**.
+
+**An `IB-*` idea is never a `CAP-*` capability.** It is not registered in `config/capabilities.ts`
+and never appears in Atlas capability search, because the Atlas answers *what CogniX can do*
+(ADR-052) and `ATL-03`'s rule that no record may claim a capability that does not exist is
+unweakened.
+
+**Current register state (2026-08-22):** 13 ideas across 6 themes — Learning & Evidence, Market &
+Product Discovery, Domain Expansion, Data & Integration Fabric, Platform AI Governance, Campaign
+Intelligence. **Ideas at `Approved`, `Planned` or `In Delivery`: zero.** Work packages authorised by
+the register: **none**.
+
+### Demo priority is a separate axis from programme priority
+
+Two facts, both true, neither derived from the other.
+
+- **Existing programme continuation — unchanged.** `ESF-4 — Signal Quality, Confidence & Provenance`
+  is the existing programme's continuation point, as
+  [`COGNIX_MASTER_PLAN_FORENSIC_STATUS_ASSESSMENT.md`](../reports/COGNIX_MASTER_PLAN_FORENSIC_STATUS_ASSESSMENT.md)
+  §7 finds: the only unstarted package whose hard dependency is satisfied, sitting at exactly that
+  point in the frozen post-`CDI-07B` sequence, unblocking the most (`ESF-5`, `DOT-11`), and closing
+  the last unqualified figures on a governed contract (`EnterpriseSignal.quality` / `.confidence`).
+  **Earliest prerequisite-sensitive and highest-value are the same package.** The earlier
+  consolidation-assessment verdict of *"valuable, wrongly positioned as next"* was a sequencing
+  judgement made before admission landed; ruling **G4** made it parallel-eligible **after** `ESF-6`,
+  and that condition is met. Nothing in the backlog reopens, reorders or deprioritises it.
+- **Demo-priority innovation — separate.** `IB-13 — Continuous Live Decision Twin` is prioritised
+  within the register because upcoming client demonstrations would benefit materially from a
+  continuous decision journey rather than a five-day simulated snapshot. It was raised 2026-08-22,
+  **after** `CDI-08`, `ESF-6`, `DDF-01` and `ATL-06D` completed, and is not recorded as having
+  preceded `ESF-4`.
+
+`IB-13` does **not** supersede `ESF-4`: different capability, different contracts
+(`campaign-timeline-model` / `campaign-decision-contract-model` versus `enterprise-signal-model` /
+`external-signal-connector-model`), no overlap, neither blocking the other. `IB-13` **can** be
+authorised independently — its hard dependencies `CDI-02`, `CDI-05` and `CDI-07A` are all
+`[COMPLETED]`. The owner may authorise `ESF-4` continuation, the `IB-13` demo-priority enhancement,
+or controlled parallel execution of both, without ambiguity.
+
+**If `IB-13` is authorised**, the smallest safe decomposition is two work packages — recommended in
+the register §5.8 and **not authorised here**: `CTW-01` (Continuous Campaign Timeline & Activation)
+then `CTW-02` (Adaptive Trajectory & Intervention Reforecast). Post-flight reconciliation is
+deliberately **not** a third package: it is extension work on `CDI-08` and the
+`CampaignDecisionExperiment` comparison surface, and a separate package would create a competing
+history model. The `CTW-*` identifiers become real only on entry into this document. Design
+constraints are frozen in advance by **ADR-070**.
+
+---
+
 # PHASE 11 — IP AND INNOVATION GOVERNANCE
 - **Objective:** Integrate IP classification metadata badges and provenance tracking directly into UI and exports.
 - **Scope:** IP badge indicators, exportable experiment blueprint sheets, legal disclaimers.
