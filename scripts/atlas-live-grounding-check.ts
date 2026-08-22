@@ -159,8 +159,10 @@ async function rawGroundedCall(apiKey: string, question: string): Promise<{ payl
   return { payload, ms: Date.now() - started };
 }
 
-/** Compares the observed wire shape against what the fixtures assume. */
-function contractDrift(payload: GeminiGenerateContentResponse): Json {
+/** Compares the observed wire shape against what the fixtures assume. Exported so the
+ * assertions that decide a pass can themselves be regression-tested against a recorded live
+ * response — the failure this script exists to catch was once a failure IN this script. */
+export function contractDrift(payload: GeminiGenerateContentResponse): Json {
   const candidate = payload.candidates?.[0];
   const meta: any = candidate?.groundingMetadata;
   const supports: any[] = meta?.groundingSupports ?? [];
@@ -171,9 +173,11 @@ function contractDrift(payload: GeminiGenerateContentResponse): Json {
     chunk_count: chunks.length,
     support_count: supports.length,
     segment_is_object: firstSupport ? typeof firstSupport.segment === 'object' : null,
-    segment_has_byte_indices: firstSupport
-      ? typeof firstSupport.segment?.startIndex === 'number' && typeof firstSupport.segment?.endIndex === 'number'
-      : null,
+    // endIndex is required; startIndex is elided at its default value, so its absence on a segment
+    // beginning at byte 0 is the contract behaving normally, not a defect to flag.
+    segment_has_end_index: firstSupport ? typeof firstSupport.segment?.endIndex === 'number' : null,
+    supports_omitting_start_index: supports.filter(x => x?.segment?.startIndex === undefined).length,
+    supports_missing_end_index: supports.filter(x => typeof x?.segment?.endIndex !== 'number').length,
     segment_echoes_text: firstSupport ? typeof firstSupport.segment?.text === 'string' : null,
     uses_groundingChunkIndices: firstSupport ? Array.isArray(firstSupport.groundingChunkIndices) : null,
     uses_misspelled_groundingChunckIndices: firstSupport ? 'groundingChunckIndices' in (firstSupport ?? {}) : null,
@@ -187,14 +191,19 @@ function contractDrift(payload: GeminiGenerateContentResponse): Json {
   report(drift.has_grounding_metadata === true, 'the live response carries groundingMetadata');
   report(drift.support_count > 0, `groundingSupports present (${drift.support_count})`);
   report(drift.segment_is_object !== false, 'segment is an object, not the string the installed SDK declares');
-  report(drift.segment_has_byte_indices !== false, 'segment carries startIndex/endIndex byte offsets');
+  report(drift.supports_missing_end_index === 0,
+    `every segment carries the required endIndex (${supports.length - drift.supports_missing_end_index}/${supports.length})`);
+  if (drift.supports_omitting_start_index > 0) {
+    console.log(`        note: ${drift.supports_omitting_start_index} support(s) omit startIndex — elided at its default value, read as byte 0`);
+  }
   report(drift.uses_groundingChunkIndices !== false, 'chunk indices use groundingChunkIndices (not the SDK misspelling)');
   report(drift.uri_is_vertex_redirect !== false, 'chunk URIs are grounding redirects, so publisher must be resolved');
   return drift;
 }
 
-/** Byte-offset extraction, verified against the passage the service actually returned. */
-function byteOffsetEvidence(payload: GeminiGenerateContentResponse): Json {
+/** Byte-offset extraction, verified against the passage the service actually returned. Exported
+ * for the same reason as `contractDrift`. */
+export function byteOffsetEvidence(payload: GeminiGenerateContentResponse): Json {
   const candidate = payload.candidates?.[0];
   const passage = (candidate?.content?.parts ?? []).map(p => p.text ?? '').join('');
   const extraction = extractGroundedSegments(candidate);
@@ -203,17 +212,27 @@ function byteOffsetEvidence(payload: GeminiGenerateContentResponse): Json {
 
   // Where the service echoes segment.text, a byte slice at the same offsets must reproduce it.
   const buffer = Buffer.from(passage, 'utf8');
-  let checked = 0, matched = 0, stringSliceWouldDiffer = 0;
+  let checked = 0, matched = 0, stringSliceWouldDiffer = 0, impliedStart = 0;
+  const mismatches: string[] = [];
   for (const s of supports) {
-    const start = s?.segment?.startIndex, end = s?.segment?.endIndex, text = s?.segment?.text;
-    if (typeof start !== 'number' || typeof end !== 'number' || typeof text !== 'string') continue;
+    const rawStart = s?.segment?.startIndex, end = s?.segment?.endIndex, text = s?.segment?.text;
+    if (typeof end !== 'number' || typeof text !== 'string') continue;
+    // An absent startIndex means byte 0 — the field is elided at its default value.
+    const start = rawStart === undefined ? 0 : rawStart;
+    if (typeof start !== 'number') continue;
+    if (rawStart === undefined) impliedStart++;
     checked++;
     const byteSlice = buffer.subarray(start, end).toString('utf8');
     if (byteSlice.trim() === text.trim()) matched++;
+    else mismatches.push(`[${start},${end}) expected "${text.slice(0, 40)}…" got "${byteSlice.slice(0, 40)}…"`);
     if (passage.slice(start, end).trim() !== text.trim()) stringSliceWouldDiffer++;
   }
-  report(checked === 0 || matched === checked,
-    `byte-offset slicing reproduces every echoed segment (${matched}/${checked})`);
+  // Mandatory: reconstruction must be exact for every echoed segment, including the ones whose start
+  // was implied. A single mismatch means the offsets and the quoted text disagree about what was
+  // retrieved, and the whole provenance chain rests on them agreeing.
+  report(checked > 0 && matched === checked,
+    `byte-offset slicing reproduces EVERY echoed segment (${matched}/${checked}, ${impliedStart} with an implied start of 0)`,
+    mismatches.slice(0, 3).join(' | ') || undefined);
   if (stringSliceWouldDiffer > 0) {
     console.log(`        note: a JavaScript string slice would have corrupted ${stringSliceWouldDiffer} of ${checked} segments — the byte-offset handling is load-bearing on this response`);
   }
@@ -226,6 +245,7 @@ function byteOffsetEvidence(payload: GeminiGenerateContentResponse): Json {
     notices: extraction.notices,
     byte_offsets_checked: checked,
     byte_offsets_matched: matched,
+    byte_offsets_with_implied_start: impliedStart,
     string_slice_would_differ: stringSliceWouldDiffer
   };
 }
@@ -404,4 +424,9 @@ async function main() {
   process.exit(failures === 0 ? 0 : 1);
 }
 
-main().catch(e => { console.error('Live check failed:', e instanceof Error ? e.message : e); process.exit(1); });
+// Only run when invoked directly. Importing this module — which the ATL-06C suite does, to regression
+// test the assertions themselves — must not fire a live check or exit the process.
+const invokedDirectly = (process.argv[1] ?? '').endsWith('atlas-live-grounding-check.ts');
+if (invokedDirectly) {
+  main().catch(e => { console.error('Live check failed:', e instanceof Error ? e.message : e); process.exit(1); });
+}

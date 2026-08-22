@@ -68,6 +68,7 @@ import type { ResolvedCapability } from '../../packages/contracts/src/capability
 import type { GroundedEnvelope } from '../../packages/contracts/src/atlas-grounding-model';
 
 import { FIXTURES, SOURCE_FETCHER, NOW } from '../fixtures/atlas-grounding/gemini-grounding-fixtures';
+import { byteOffsetEvidence, contractDrift } from '../../scripts/atlas-live-grounding-check';
 import { LEVEL2_CASES } from '../fixtures/atlas-grounding/level2-evaluation';
 import { SEARCH_VOCABULARY, SEARCH_VOCABULARY_BY_LENGTH } from '../../content/atlas/vocabulary';
 import { validateVocabulary } from '../../lib/atlas/vocabulary-validator';
@@ -498,6 +499,27 @@ async function run() {
     'J3g: …and refuses to emit evidence that contains the credential');
   assert(!readdirSync(join(ROOT, 'tests', 'unit')).some(f => /live/i.test(f)),
     'J4: It is deliberately not a unit test — a check that spends quota does not belong in a suite that runs on every change');
+
+  // The failure that kept AC-ATL-06C-9 open on its first real run was not in the pipeline — extraction
+  // reconstructed every segment correctly — it was in THIS SCRIPT's assertions, which demanded a
+  // startIndex the live contract elides at its default value. So the assertions are now regression
+  // tested against the recorded live shape, exactly as the pipeline is.
+  const liveCandidate = FIXTURES.liveFirstSegmentShape.candidates![0];
+  const drift = contractDrift(FIXTURES.liveFirstSegmentShape as any);
+  assert(drift.supports_missing_end_index === 0 && drift.supports_omitting_start_index === 1,
+    'J3h: The drift check reads the live shape correctly — endIndex present on every support, startIndex omitted on one');
+  assert(drift.has_grounding_metadata === true && drift.support_count === 2,
+    'J3i: …and does not mistake an omitted startIndex for absent grounding metadata');
+  const bytes = byteOffsetEvidence(FIXTURES.liveFirstSegmentShape as any);
+  assert(bytes.byte_offsets_checked === 2 && bytes.byte_offsets_matched === 2,
+    'J3j: Both segments are checked and BOTH reconstruct exactly — the first one is no longer skipped',
+    `checked ${bytes.byte_offsets_checked}, matched ${bytes.byte_offsets_matched}`);
+  assert(bytes.byte_offsets_with_implied_start === 1,
+    'J3k: …and the implied start of 0 is counted and reported rather than silently assumed');
+  assert(bytes.segments_extracted === 2,
+    'J3l: …matching what the real extraction path produces for the same response');
+  assert(liveCandidate.groundingMetadata!.groundingSupports![0].segment!.startIndex === undefined,
+    'J3m: …on a fixture that genuinely omits startIndex, not one that sets it to zero');
 
   const policy = await (await groundingRoute()).json();
   assert(policy.data.interpretation.configured === false &&

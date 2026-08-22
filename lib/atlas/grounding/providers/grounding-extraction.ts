@@ -19,6 +19,15 @@
  *   - `startIndex`/`endIndex` are **byte** offsets. Slicing the response as a JS string misaligns
  *     every segment after the first non-ASCII character, and a single curly apostrophe in a quoted
  *     headline is enough to do it. Extraction slices a `Buffer`.
+ *   - `startIndex` is **absent when it is zero** — protobuf elides default values, and the live
+ *     contract confirmed it on the first support of a twenty-support response. An absent start means
+ *     the segment begins at byte 0, and reading it as "no offsets, skip this one" silently discards
+ *     the opening claim of every grounded answer.
+ *
+ * Reconstruction is CHECKED, not assumed. Where the API echoes `segment.text`, the byte slice at the
+ * declared offsets must reproduce it; a mismatch means the offsets and the text disagree about what
+ * was retrieved, and a segment whose provenance is internally inconsistent is dropped rather than
+ * shown on the strength of whichever half looks more plausible.
  *   - A support may name several chunks. The claim is emitted once per DISTINCT source, because a
  *     reader judging currency and publisher needs one row per source, and because ATL-06A admits or
  *     rejects a source, not a sentence.
@@ -85,6 +94,9 @@ export function extractGroundedSegments(candidate: GeminiCandidate | undefined):
   let coveredBytes = 0;
   let supportsWithoutChunks = 0;
 
+  let malformedOffsets = 0;
+  let inconsistentOffsets = 0;
+
   for (const support of supports) {
     const indices = (support.groundingChunkIndices ?? [])
       .filter(i => Number.isInteger(i) && i >= 0 && i < chunks.length && Boolean(chunks[i]?.web?.uri));
@@ -93,24 +105,37 @@ export function extractGroundedSegments(candidate: GeminiCandidate | undefined):
       continue;
     }
 
-    // Prefer the echoed text; fall back to a BYTE slice, never a string slice.
-    let text = (support.segment?.text ?? '').trim();
-    if (!text) {
-      const start = support.segment?.startIndex ?? 0;
-      const end = support.segment?.endIndex ?? 0;
-      if (end > start && end <= buffer.length) {
-        text = buffer.subarray(start, end).toString('utf8').trim();
-      }
+    // An absent startIndex means byte 0. An absent or unusable endIndex means the span has no end,
+    // which is malformed rather than partial — fail closed.
+    const rawStart = support.segment?.startIndex;
+    const rawEnd = support.segment?.endIndex;
+    const start = rawStart === undefined ? 0 : rawStart;
+    if (!Number.isInteger(start) || start < 0 ||
+        !Number.isInteger(rawEnd) || (rawEnd as number) <= start || (rawEnd as number) > buffer.length) {
+      malformedOffsets++;
+      continue;
     }
-    if (!text) continue;
+    const end = rawEnd as number;
 
-    const start = support.segment?.startIndex;
-    const end = support.segment?.endIndex;
-    if (typeof start === 'number' && typeof end === 'number' && end > start) {
-      coveredBytes += end - start;
-    } else {
-      coveredBytes += Buffer.byteLength(text, 'utf8');
+    // BYTE slice, never a string slice.
+    const reconstructed = buffer.subarray(start, end).toString('utf8').trim();
+    const echoed = (support.segment?.text ?? '').trim();
+
+    // Where the API echoed the text, the offsets must reproduce it exactly. Whitespace at the edges
+    // is not a content difference; anything else is the two halves of one provenance claim
+    // disagreeing, and neither half is then trustworthy on its own.
+    if (echoed && reconstructed !== echoed) {
+      inconsistentOffsets++;
+      continue;
     }
+
+    const text = echoed || reconstructed;
+    if (!text) {
+      malformedOffsets++;
+      continue;
+    }
+
+    coveredBytes += end - start;
 
     const scores = support.confidenceScores ?? [];
     segments.push({
@@ -118,6 +143,13 @@ export function extractGroundedSegments(candidate: GeminiCandidate | undefined):
       chunkIndices: indices,
       confidence: scores.length > 0 ? Math.max(...scores) : null
     });
+  }
+
+  if (malformedOffsets > 0) {
+    notices.push(`${malformedOffsets} grounding support(s) carried unusable byte offsets and were dropped.`);
+  }
+  if (inconsistentOffsets > 0) {
+    notices.push(`${inconsistentOffsets} grounding support(s) had offsets that did not reconstruct their own quoted text, and were dropped as internally inconsistent.`);
   }
 
   if (supportsWithoutChunks > 0) {

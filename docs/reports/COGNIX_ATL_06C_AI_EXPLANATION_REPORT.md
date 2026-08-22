@@ -298,6 +298,42 @@ nobody could run — which is how a one-line configuration error survived severa
 **No ATL-06A/B/C policy changed** — admission, provenance, contradiction, freshness and rejection are
 byte-identical.
 
+### The third blocker, found by the first real response: segment offsets
+
+The first credentialed grounded round trip produced the live contract, and with it a failure that was
+**not in the pipeline**. Byte-offset reconstruction succeeded for every checked segment; extraction
+was functionally correct. What failed was the validator's schema assumption.
+
+`groundingSupports[].segment.startIndex` is **omitted when it is zero**. Protobuf elides fields at
+their default value, so a segment beginning at byte 0 simply has no start in the JSON. The first of
+twenty supports arrived as `{ endIndex: 197, text: '…' }`; supports 2–20 carried both. The validator
+required both indices, so it skipped the first segment — which is the opening claim of the answer and
+usually the strongest one in it.
+
+**Corrected, and the correction tightened rather than loosened the contract:**
+
+| | Before | After |
+|---|---|---|
+| `endIndex` | optional | **required** — a span with no end is malformed, not partial |
+| absent `startIndex` | segment skipped | read as **byte 0** |
+| explicit `startIndex` | used | used, unchanged |
+| slice vs `segment.text` | text preferred, slice unchecked | **exact reconstruction mandatory**; a mismatch drops the segment |
+| malformed offsets | mixed handling | **fail closed**, counted and reported |
+
+The reconstruction rule is the substantive gain. Previously the echoed text was preferred and the
+offsets were never checked against it, so offsets and quoted text could disagree about what was
+retrieved and the reader would see the more plausible half. Now a segment whose own provenance is
+internally inconsistent is dropped, not shown.
+
+Three regression fixtures record the real shapes: the live first segment with an omitted
+`startIndex`, a support with no `endIndex`, and a pair whose offsets do not reconstruct their text.
+Because the defect lived in the check rather than the pipeline, **the validator's own assertions are
+now regression-tested against the recorded live shape** — `contractDrift` and `byteOffsetEvidence`
+are exported and asserted in `run-atl06c-tests.ts` (J3h–J3m).
+
+**No ATL-06A/B policy changed.** `policy.ts`, `provenance.ts`, `contradiction.ts` and `engine.ts` are
+untouched; admission, provenance, freshness, contradiction, allowlist and rejection are byte-identical.
+
 ### The closure is one command
 
 `scripts/atlas-live-grounding-check.ts` was rewritten so that closing this criterion is a single run
@@ -368,7 +404,7 @@ that suite was touched, and it passes at 115/115.
 | Check | Result |
 |-------|--------|
 | `npx tsc --noEmit` | **0 diagnostics** |
-| `npx tsx tests/unit/run-atl06c-tests.ts` | **121 passed, 0 failed** |
+| `npx tsx tests/unit/run-atl06c-tests.ts` | **127 passed, 0 failed** |
 | `npx tsx tests/unit/run-atl06b-tests.ts` | **123 passed — unchanged** |
 | `npx tsx tests/unit/run-atl06a-tests.ts` | **115 passed — unchanged in count; L3 strengthened** |
 | `run-atl05` / `run-atl04` / `run-atl03` / `run-atl02` | 54 / 54 / 29 / 119 — unchanged |

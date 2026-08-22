@@ -50,6 +50,23 @@
 > `AC-ATL-06C-9` is **still open**: with the model corrected, the only remaining prerequisite is a
 > credential, which has not reached any build session.
 
+> **Live grounding contract corrected, 2026-08-21 (segment offsets).** The first real Gemini 3.6
+> grounded response established that `groundingSupports[].segment.startIndex` is **omitted when it is
+> zero** — protobuf elides default values — while `endIndex` is always present. The first of twenty
+> supports arrived as `{ endIndex, text }`. The pipeline itself was already correct: byte-offset
+> reconstruction succeeded for every checked segment. The failure was in the **validator's schema
+> assumption**, which demanded both indices and therefore skipped the opening claim of the answer —
+> usually the strongest one in it.
+>
+> Corrected: `endIndex` is now **required** in the governed types, an absent `startIndex` is read as
+> byte 0, an explicit one is still used, and **exact reconstruction against `segment.text` is now
+> mandatory rather than assumed** — a segment whose offsets do not reproduce its own quoted text is
+> dropped as internally inconsistent, as is one with no usable end. Regression fixtures record the
+> real first-segment shape, a missing `endIndex` and an inconsistent pair. Because the defect was in
+> the check rather than the pipeline, the validator's own assertions are now regression-tested
+> against the recorded live shape. **No ATL-06A/B admission, provenance, freshness, contradiction,
+> allowlist or rejection policy changed** — those files are untouched.
+
 > **`ATL-04R` is a refinement of `ATL-04`, inserted after it and completed before `ATL-06D`.** It does
 > not reopen `ATL-04`, whose history stands: `ATL-04` proved the backend-driven Atlas, the structured
 > discovery model and the first UI, and its acceptance criteria remain met. What evaluation of the

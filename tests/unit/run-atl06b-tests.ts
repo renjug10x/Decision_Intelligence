@@ -203,6 +203,30 @@ async function run() {
     orphanSupport.notices.some(n => /named no usable source/.test(n)),
     'B8: A support naming no chunk grounds nothing, however confident it looks');
 
+  // The live contract: startIndex is elided at its default value on the first segment.
+  const liveShape = extractGroundedSegments(FIXTURES.liveFirstSegmentShape.candidates![0]);
+  const firstSupport: any = FIXTURES.liveFirstSegmentShape.candidates![0].groundingMetadata!.groundingSupports![0];
+  assert(firstSupport.segment.startIndex === undefined && typeof firstSupport.segment.endIndex === 'number',
+    'B9a: The recorded live shape really does omit startIndex on the first support');
+  assert(liveShape.segments.length === 2,
+    'B9b: …and BOTH segments are extracted — an omitted startIndex means byte 0, not "no offsets, skip it"',
+    `${liveShape.segments.length} extracted`);
+  assert(liveShape.segments[0].text.startsWith('Grocery retailers increasingly evaluate') &&
+    liveShape.segments[0].text.endsWith('rather than a refinement.'),
+    'B9c: …and the opening claim reconstructs exactly, start to finish',
+    liveShape.segments[0].text.slice(0, 60));
+  assert(liveShape.discardedUngrounded === 0 && liveShape.notices.length === 0,
+    'B9d: …with nothing dropped and nothing to warn about');
+
+  const noEnd = extractGroundedSegments(FIXTURES.missingEndIndex.candidates![0]);
+  assert(noEnd.segments.length === 0 && noEnd.notices.some(n => /unusable byte offsets/.test(n)),
+    'B9e: A support with no endIndex is DROPPED — a span with no end is malformed, not partial');
+
+  const inconsistent = extractGroundedSegments(FIXTURES.inconsistentOffsets.candidates![0]);
+  assert(inconsistent.segments.length === 0 &&
+    inconsistent.notices.some(n => /did not reconstruct their own quoted text/.test(n)),
+    'B9f: Offsets that do not reconstruct their own quoted text are dropped — internally inconsistent provenance is not shown on the strength of whichever half looks better');
+
   const byteCase = extractGroundedSegments(FIXTURES.byteOffsets.candidates![0]);
   assert(byteCase.segments.length === 1 &&
     byteCase.segments[0].text === 'Capacity-aware promotion planning is now assessed before launch in most tier-one grocers.',

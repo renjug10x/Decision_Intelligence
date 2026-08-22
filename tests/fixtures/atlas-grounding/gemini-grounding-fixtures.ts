@@ -224,6 +224,82 @@ export const FIXTURES = {
     { queries: ['grocery promotion capacity planning 2026', 'retail decision latency analyst'], entryPoint: '<style>.gsc{font:12px system-ui}</style><div class="gsc">Google Search Suggestions</div>' }
   ),
 
+  /**
+   * THE LIVE FIRST-SEGMENT SHAPE, recorded from a real Gemini 3.6 grounded response.
+   *
+   * The first of twenty supports carried `{ endIndex, text }` with **no `startIndex`** — protobuf
+   * elides the field at its default value, so a segment beginning at byte 0 simply has no start in
+   * the JSON. Every later support carried both. Read as "no offsets, skip it", this silently
+   * discards the opening claim of every grounded answer, which is usually the strongest one in it.
+   *
+   * Offsets are computed from the passage here rather than transcribed, so the fixture stays
+   * internally consistent and the reconstruction check is a real check rather than a tautology of
+   * two hand-copied numbers.
+   */
+  liveFirstSegmentShape: (() => {
+    const sentences = [
+      'Grocery retailers increasingly evaluate promotional plans against fulfilment capacity before launch, and analyst coverage now treats that reconciliation as a distinct planning step rather than a refinement.',
+      'Trade coverage reports capacity-aware promotion planning moving from pilot to standard practice in large grocers.'
+    ];
+    const passage = sentences.join(' ');
+    const buffer = Buffer.from(passage, 'utf8');
+    const firstEnd = Buffer.byteLength(sentences[0], 'utf8');
+    const secondStart = firstEnd + 1;
+    return {
+      candidates: [{
+        content: { role: 'model', parts: [{ text: passage }] },
+        finishReason: 'STOP',
+        groundingMetadata: {
+          groundingChunks: [
+            { web: { uri: redirect('gartner-fresh'), title: 'Promotion monitoring in tier-one grocery platforms' } },
+            { web: { uri: redirect('scdive-fresh'), title: 'Grocers rethink promotional capacity planning' } }
+          ],
+          groundingSupports: [
+            // No startIndex. This is the shape the live contract produced.
+            { segment: { endIndex: firstEnd, text: sentences[0] }, groundingChunkIndices: [0], confidenceScores: [0.94] },
+            { segment: { startIndex: secondStart, endIndex: buffer.length, text: sentences[1] }, groundingChunkIndices: [1], confidenceScores: [0.9] }
+          ],
+          webSearchQueries: ['grocery promotion capacity planning 2026'],
+          searchEntryPoint: { renderedContent: '<style>.gs{color:#000}</style><div class="gs">Search suggestions</div>' }
+        }
+      }]
+    };
+  })(),
+
+  /** A span with no end is not a span. Malformed rather than partial — must fail closed. */
+  missingEndIndex: {
+    candidates: [{
+      content: { role: 'model', parts: [{ text: 'Retailers are investing in promotional analytics this year.' }] },
+      finishReason: 'STOP',
+      groundingMetadata: {
+        groundingChunks: [{ web: { uri: redirect('gartner-fresh'), title: 'Promotion monitoring' } }],
+        groundingSupports: [
+          { segment: { text: 'Retailers are investing in promotional analytics this year.' } as any, groundingChunkIndices: [0] }
+        ],
+        webSearchQueries: ['retail promotional analytics']
+      }
+    }]
+  },
+
+  /** Offsets and quoted text disagreeing about what was retrieved. Neither half is then trustworthy. */
+  inconsistentOffsets: (() => {
+    const passage = 'Grocery retailers evaluate promotional plans against fulfilment capacity before launch.';
+    return {
+      candidates: [{
+        content: { role: 'model', parts: [{ text: passage }] },
+        finishReason: 'STOP',
+        groundingMetadata: {
+          groundingChunks: [{ web: { uri: redirect('gartner-fresh'), title: 'Promotion monitoring' } }],
+          groundingSupports: [
+            // The offsets cover the opening clause; the echoed text claims something else entirely.
+            { segment: { endIndex: 40, text: 'Real-time monitoring is standard practice.' }, groundingChunkIndices: [0] }
+          ],
+          webSearchQueries: ['grocery promotion capacity']
+        }
+      }]
+    };
+  })(),
+
   /** The redirect cannot be resolved at all. */
   unresolvableSource: response(
     'An unnamed source reports a shift in planning cadence.',

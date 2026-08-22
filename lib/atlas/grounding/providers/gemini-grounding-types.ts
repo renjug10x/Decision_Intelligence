@@ -27,13 +27,26 @@
  *      from the redirect `uri`, which is what `source-resolution.ts` does.
  */
 
+/**
+ * A span of the response passage, measured in BYTES.
+ *
+ * `startIndex` is **optional and is omitted when it is zero** — observed live on Gemini 3.6, where the
+ * first support of a twenty-support response carried `{ endIndex, text }` and every subsequent one
+ * carried both indices. This is not a defect in the response and not a special case to tolerate: it
+ * is protobuf default-value elision, so a zero start is simply absent from the JSON. Treating an
+ * absent `startIndex` as anything other than `0` discards the opening segment of every grounded
+ * answer — which is usually the strongest claim in it.
+ *
+ * `endIndex` is **required**. A span with no end is not a span, and a support carrying one is
+ * malformed rather than partial; extraction drops it rather than guessing where it stops.
+ */
 export interface GeminiSegment {
-  /** Byte offset, inclusive, from the start of the part. */
+  /** Byte offset, inclusive. Absent means 0 — the field is elided at its default value. */
   startIndex?: number;
-  /** Byte offset, exclusive. */
-  endIndex?: number;
+  /** Byte offset, exclusive. Required: a segment without it cannot be reconstructed. */
+  endIndex: number;
   partIndex?: number;
-  /** The segment text, where the API chooses to echo it. */
+  /** The segment text, where the API echoes it. Reconstruction is checked against this. */
   text?: string;
 }
 
