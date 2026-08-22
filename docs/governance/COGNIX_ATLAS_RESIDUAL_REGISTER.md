@@ -189,8 +189,15 @@ assumptions come up for owner confirmation at each record's next scheduled revie
 `reviewed_at` is a date and a commit timestamp is an instant, so a file edited at 09:00 and re-read at
 17:00 on the same day still reads as drift. The check treats a same-day change as drift deliberately —
 the alternative is to assume the review came last, which is the assumption that lets a stale record
-pass. The consequence is that `ATL-FINAL`'s own commit re-arms `GOV-REC-3` on the files it touched.
-This is advisory, correct-by-design, and cheaper than the alternative.
+pass. This is advisory, correct-by-design, and cheaper than the alternative.
+
+**Measured after `ATL-FINAL`'s own commit: four findings**, each on a record citing a file this phase
+edited on the review date — `CAP-INNOVATION-PORTFOLIO` (`CapabilityAtlas.tsx`, `run-atl04r-tests.ts`),
+`CAP-ARCHITECTURE-STORYBOARD` and `CAP-GOVERNANCE-SETTINGS` (`ObservabilityGovernance.tsx`), and
+`CAP-DECISION-LIFECYCLE-VIEW` (`CapabilityDetail.tsx`). All four were re-read against those specific
+changes and remain accurate. Moving `reviewed_at` again would clear the finding for a day and re-arm it
+on the next commit that touches those files, which is why the finding is reported here rather than
+dated away. It clears on its own at the next review that follows a quiet day.
 
 ### R-15 — The legacy client-supplied Gemini key · **OPEN — GOVERNED (recorded technical debt)**
 
@@ -245,10 +252,10 @@ Measured by `npx tsx scripts/atlas-governance-check.ts` over 38 records and 13 c
 |---------|-------------|----------------|
 | Blocking findings | 20 | **0** |
 | Records refused publication | 20 | **0** |
-| Advisory findings | 24 | **13** |
+| Advisory findings | 24 | **17** (13 before `ATL-FINAL`'s own commit) |
 | Lifecycle tier gaps (`GOV-REC-1`) | 20 | **0** |
 | No lifecycle state (`GOV-REC-6`) | 12 | **12** — deliberate, see R-02 |
-| Source drift since review (`GOV-REC-3`) | 11 | **0** — re-read, see R-14 |
+| Source drift since review (`GOV-REC-3`) | 11 | **4** — see R-14; all four cite files `ATL-FINAL` itself edited on the review date |
 | Historical reference to confirm (`GOV-REC-2H`) | 1 | **1** — confirmed legitimate |
 | Provider drift | 0 | **0** |
 | `data_sources` coverage | 3 / 38 | **14 / 38** |

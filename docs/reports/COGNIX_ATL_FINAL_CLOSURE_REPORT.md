@@ -422,7 +422,7 @@ rather than hiding it.
 | Atlas suites | `atl02` 119 · `atl03` 29 · `atl04` 58 · `atl04r` 121 · `atl05` 54 · `atl06a` 115 · `atl06b` 133 · `atl06c` 127 · `atl06d` 96 · `atl07` 52 · **`atlfinal` 57** |
 | Previously failing | `cdi07a` **155 / 0** · `cdi07b` **235 / 0** |
 | Governance (`atlas-governance-check.ts`) | **GOVERNANCE CLEAN — no blocking findings.** `--enforce` exits **0** |
-| Governance findings | 0 blocking · 13 advisory (12 × `GOV-REC-6` lifecycle nulls, 1 × `GOV-REC-2H` confirmed historical) |
+| Governance findings | 0 blocking · 13 advisory before this phase's own commit, **17 after** (12 × `GOV-REC-6` lifecycle nulls, 1 × `GOV-REC-2H` confirmed historical, 4 × `GOV-REC-3` on records citing files this phase edited on the review date — register R-14) |
 | Production build | **clean**, 72 pages generated, no build warnings |
 | Credential isolation | **passes** |
 | Browser | 1440 / 1024 / 720, thirteen-step journey, no overflow, no clipping, no production console error |
