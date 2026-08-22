@@ -19,14 +19,23 @@ import {
   Check
 } from 'lucide-react';
 import { CampaignArchetype } from '@/lib/campaign-archetypes';
+import { CampaignFlightProjection } from '@/packages/contracts/src/campaign-continuous-timeline-model';
+import ContinuousFlightTimeline from '@/components/campaign/ContinuousFlightTimeline';
 
 interface LiveDecisionTwinLensProps {
   archetype: CampaignArchetype;
+  /** CTW-01 — the continuous timeline, assessed against the activated decision contract. */
+  flight?: CampaignFlightProjection | null;
+  flightError?: string | null;
+  onReturnToPlanning?: () => void;
   onApplyInFlightAction?: (action: any) => void;
 }
 
 export default function LiveDecisionTwinLens({
   archetype,
+  flight = null,
+  flightError = null,
+  onReturnToPlanning,
   onApplyInFlightAction
 }: LiveDecisionTwinLensProps) {
   const twin = archetype.decision_twin;
@@ -81,7 +90,9 @@ export default function LiveDecisionTwinLens({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div>
               <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-                Live Decision Twin · Day {twin.current_day} of {twin.flight_days}
+                Live Decision Twin · Day{' '}
+                {flight ? flight.horizon.today_flight_day : twin.current_day} of{' '}
+                {flight ? flight.horizon.flight_days : twin.flight_days}
                 <span
                   style={{
                     fontSize: '0.68rem',
@@ -133,7 +144,9 @@ export default function LiveDecisionTwinLens({
         {/* Telemetry Stream Daily Progression Cards */}
         <div style={{ marginBottom: 14 }}>
           <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748B', textTransform: 'uppercase', marginBottom: 8 }}>
-            Daily In-Flight Telemetry — Simulated (Expected vs Simulated-Observed Trajectories)
+            {flight
+              ? 'Demonstration telemetry — the source the day-by-day deviation ratio is read from'
+              : 'Daily In-Flight Telemetry — Simulated (Expected vs Simulated-Observed Trajectories)'}
           </div>
 
           <div
@@ -194,6 +207,55 @@ export default function LiveDecisionTwinLens({
           </div>
         </div>
       </div>
+
+      {/* ── CTW-01: the continuous campaign timeline ── */}
+      {flight ? (
+        <ContinuousFlightTimeline flight={flight} />
+      ) : (
+        <div
+          style={{
+            background: '#FFFBEB',
+            border: '1px solid #FDE68A',
+            borderRadius: 12,
+            padding: '18px 20px',
+            display: 'flex',
+            gap: 10,
+            alignItems: 'flex-start'
+          }}
+        >
+          <AlertTriangle size={18} color="#B45309" style={{ flexShrink: 0, marginTop: 1 }} />
+          <div>
+            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#92400E' }}>
+              No governed campaign timeline for this configuration
+            </div>
+            <p style={{ fontSize: '0.8rem', color: '#92400E', margin: '4px 0 0 0', lineHeight: 1.5 }}>
+              {flightError ||
+                'This campaign has no activated decision, so there is no baseline to assess it against.'}{' '}
+              The demonstration telemetry below is shown as-is and is not a comparison against any
+              decision.
+            </p>
+            {onReturnToPlanning && (
+              <button
+                type="button"
+                onClick={onReturnToPlanning}
+                style={{
+                  marginTop: 10,
+                  padding: '7px 14px',
+                  borderRadius: 7,
+                  border: '1px solid #FDE68A',
+                  background: '#FFFFFF',
+                  color: '#92400E',
+                  fontSize: '0.78rem',
+                  fontWeight: 600,
+                  cursor: 'pointer'
+                }}
+              >
+                Return to review and activate
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* ── Section 2: In-Flight Deviations & Adaptive Interventions ── */}
       <div

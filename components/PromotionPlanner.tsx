@@ -37,8 +37,23 @@ import {
   evaluateCampaignDecisionClient,
   discoverCampaignOpportunityClient,
   evaluateCampaignReadinessClient,
-  projectDecisionTimelineClient
+  projectDecisionTimelineClient,
+  registerCampaignIntentClient,
+  evaluateOutcomeFrontierClient,
+  createDecisionContractClient,
+  getCurrentDecisionContractClient
 } from '@/lib/campaign-intent-client';
+import {
+  projectCampaignFlightClient,
+  buildElapsedTelemetryFromArchetype
+} from '@/lib/campaign-flight-client';
+import {
+  DecisionContract,
+  DecisionContractReference,
+  DecisionResolution,
+  computeContractDigest
+} from '@/packages/contracts/src/campaign-decision-contract-model';
+import { CampaignFlightProjection } from '@/packages/contracts/src/campaign-continuous-timeline-model';
 
 // Modular Campaign Intelligence Components
 import CampaignDiscoveryHero from '@/components/campaign/CampaignDiscoveryHero';
@@ -49,6 +64,7 @@ import InverseAnalysisLens from '@/components/campaign/InverseAnalysisLens';
 import DecisionGraphLens from '@/components/campaign/DecisionGraphLens';
 import InterventionWorkspace, { ActiveIntervention } from '@/components/campaign/InterventionWorkspace';
 import LiveDecisionTwinLens from '@/components/campaign/LiveDecisionTwinLens';
+import FlightActivationPanel, { ActivationChoice } from '@/components/campaign/FlightActivationPanel';
 
 interface PromotionPlannerProps {
   onNavigateToExperiment?: (experimentId: string) => void;
@@ -100,6 +116,35 @@ export default function PromotionPlanner({
   const [liveTimeline, setLiveTimeline] = useState<any>(null);
   const [apiError, setApiError] = useState<string | null>(null);
 
+  // ── CTW-01 Activation & Continuous Flight ────────────────────────────────────────────
+  // The activated CDI-07A contract IS the governed baseline. Nothing here holds an
+  // expectation of its own, and the configuration signature is recorded so a decision
+  // activated for one configuration can never be rendered against another (ADR-070).
+  const [decisionContract, setDecisionContract] = useState<DecisionContract | null>(null);
+  const [activatedSignature, setActivatedSignature] = useState<string | null>(null);
+  const [activating, setActivating] = useState<boolean>(false);
+  const [activationError, setActivationError] = useState<string | null>(null);
+  const [activationChoices, setActivationChoices] = useState<ActivationChoice[]>([]);
+  const [selectedPlayId, setSelectedPlayId] = useState<string>('');
+  const [resolvedBy, setResolvedBy] = useState<string>('');
+  const [resolutionStatement, setResolutionStatement] = useState<string>('');
+  const [flight, setFlight] = useState<CampaignFlightProjection | null>(null);
+  const [flightError, setFlightError] = useState<string | null>(null);
+
+  /** Everything that changes what was decided. Any change invalidates an existing activation. */
+  const configurationSignature = [
+    archetype.id,
+    skuId,
+    mechanic,
+    String(discountDepth),
+    targetRegion,
+    String(durationDays)
+  ].join('|');
+
+  const staleActivation = decisionContract !== null && activatedSignature !== configurationSignature;
+  const flightReady =
+    decisionContract !== null && decisionContract.status === 'ACTIVE' && !staleActivation;
+
   // When selected archetype changes, reset default configuration parameters
   const handleSelectArchetype = (archId: string) => {
     const arch = getArchetypeById(archId);
@@ -113,6 +158,192 @@ export default function PromotionPlanner({
     setDurationDays(arch.default_duration_days);
     setProposedIntervention(null);
   };
+
+  /**
+   * Activation: register the intent, evaluate the outcome frontier, and create an ACTIVE
+   * decision contract. This is the same governed path the Campaign Decision Canvas uses —
+   * CTW-01 adds no contract type and no second baseline.
+   */
+  const handleActivate = async () => {
+    setActivating(true);
+    setActivationError(null);
+    setFlightError(null);
+
+    try {
+      const intent = buildCampaignIntentFromArchetype(archetype, {
+        sku_id: skuId,
+        mechanic: mechanic as any,
+        discount_depth_pct: discountDepth,
+        target_region: targetRegion,
+        duration_days: durationDays,
+        tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+        session_id: CAMPAIGN_DEMO_SESSION_ID
+      });
+
+      const registered = await registerCampaignIntentClient(intent as any);
+      if (!registered?.intent) {
+        setActivationError(
+          registered?.error ||
+            'CogniX could not register this campaign intent, so there is nothing to activate.'
+        );
+        return;
+      }
+
+      // CDI-06 returns the response envelope; the frontier itself is one level in.
+      const frontierResponse: any = await evaluateOutcomeFrontierClient({
+        tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+        session_id: CAMPAIGN_DEMO_SESSION_ID,
+        campaign_intent_id: (intent as any).intent_id
+      });
+      const frontier: any = frontierResponse?.frontier;
+      if (!frontier || frontier.frontier_status !== 'EMITTED') {
+        setActivationError(
+          'CogniX did not emit an outcome frontier for this configuration, so no decision can be activated against it.'
+        );
+        return;
+      }
+
+      const selection = frontier.selection;
+      let resolution: DecisionResolution;
+
+      if (selection?.status === 'SELECTED' && selection.selected_play_id) {
+        setActivationChoices([]);
+        resolution = {
+          route: 'CONSTRAINT_RESOLVED',
+          selected_play_id: selection.selected_play_id,
+          selection_status: 'SELECTED',
+          selection_basis: selection.selection_basis
+        };
+      } else if (selection?.status === 'CHOICE_REQUIRED') {
+        // More than one option survives the declared constraints, so a person decides and
+        // the contract records who and why. The choice is never made silently.
+        const survivors: string[] = [...(frontier.frontier_play_ids || [])];
+        for (const play of frontier.plays || []) {
+          if (play.admissibility === 'ADMISSIBLE' && play.play_kind === 'DO_NOTHING' && !survivors.includes(play.play_id)) {
+            survivors.push(play.play_id);
+          }
+        }
+        const choices: ActivationChoice[] = survivors
+          .map(id => {
+            const play = (frontier.plays || []).find((p: any) => p.play_id === id);
+            return { play_id: id, label: play?.label ? `${play.label}` : id };
+          })
+          .sort((a, b) => a.label.localeCompare(b.label));
+        setActivationChoices(choices);
+
+        // Name what is missing rather than restating the rule — a reader who has filled two
+        // of the three fields should not have to guess which one is still empty.
+        const missing: string[] = [];
+        if (!selectedPlayId) missing.push('the option being activated');
+        else if (!survivors.includes(selectedPlayId)) missing.push('an option that is still admissible for this configuration');
+        if (!resolvedBy.trim()) missing.push('who is deciding');
+        if (!resolutionStatement.trim()) missing.push('why this option');
+        if (missing.length > 0) {
+          setActivationError(
+            `The declared constraints leave more than one admissible option, so this decision is a person's to make. Still needed: ${missing.join(', ')}.`
+          );
+          return;
+        }
+        resolution = {
+          route: 'HUMAN_RESOLVED',
+          selected_play_id: selectedPlayId,
+          resolved_by: resolvedBy.trim(),
+          resolution_statement: resolutionStatement.trim(),
+          presented_alternatives: survivors
+        };
+      } else {
+        setActivationError(
+          'No admissible option survives the declared constraints for this configuration, so there is no decision to activate.'
+        );
+        return;
+      }
+
+      /**
+       * Re-activating after a configuration change does not replace the previous decision —
+       * it supersedes it, and both stay readable. CDI-07A refuses a second ACTIVE contract
+       * that does not name the one it displaces (RJ-C8), which is the rule that stops a
+       * session quietly acquiring two baselines.
+       */
+      const existingActive = await getCurrentDecisionContractClient(
+        CAMPAIGN_DEMO_TENANT_ID,
+        CAMPAIGN_DEMO_SESSION_ID
+      );
+      const supersedes: DecisionContractReference | undefined =
+        existingActive && existingActive.status === 'ACTIVE'
+          ? {
+              contract_id: existingActive.contract_id,
+              contract_version: existingActive.contract_version,
+              contract_digest: computeContractDigest(existingActive),
+              decision_basis_digest: existingActive.decision_basis_digest,
+              tenant_id: existingActive.tenant_id,
+              session_id: existingActive.session_id,
+              status: existingActive.status
+            }
+          : undefined;
+
+      const created = await createDecisionContractClient({
+        tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+        session_id: CAMPAIGN_DEMO_SESSION_ID,
+        frontier,
+        campaign_intent: intent as any,
+        resolution,
+        created_as_of: new Date().toISOString(),
+        ...(supersedes ? { supersedes } : {})
+      } as any);
+
+      if (!created.contract) {
+        setActivationError(created.error || 'CogniX could not record this decision as a contract.');
+        return;
+      }
+
+      setDecisionContract(created.contract);
+      setActivatedSignature(configurationSignature);
+      setActivationChoices([]);
+      setActivationError(null);
+    } catch (e: any) {
+      setActivationError(e?.message || 'CogniX could not activate this decision.');
+    } finally {
+      setActivating(false);
+    }
+  };
+
+  /**
+   * The continuous flight, projected only when a decision is activated for *this*
+   * configuration. A stale activation clears the flight rather than rendering the running
+   * campaign against a decision nobody took.
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    async function runFlight() {
+      if (!flightReady || !decisionContract || !liveTimeline) {
+        setFlight(null);
+        return;
+      }
+      const result = await projectCampaignFlightClient({
+        tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+        session_id: CAMPAIGN_DEMO_SESSION_ID,
+        contract_id: decisionContract.contract_id,
+        timeline: liveTimeline.projection || liveTimeline,
+        elapsed_telemetry: buildElapsedTelemetryFromArchetype(archetype)
+      });
+      if (cancelled) return;
+      setFlight(result.projection);
+      setFlightError(
+        result.projection ? null : result.error || 'CogniX could not project this campaign in flight.'
+      );
+    }
+
+    runFlight();
+    return () => {
+      cancelled = true;
+    };
+  }, [flightReady, decisionContract, liveTimeline, archetype]);
+
+  /** An unactivated or stale configuration has no flight to show, so the mode falls back. */
+  useEffect(() => {
+    if (activeMode === 'DECISION_TWIN' && !flightReady) setActiveMode('PLANNING');
+  }, [activeMode, flightReady]);
 
   // Re-evaluate through the governed engines whenever the scenario configuration changes.
   // The request tenant/session MUST match the inline intent's tenant/session — the engines
@@ -235,7 +466,15 @@ export default function PromotionPlanner({
         currentRegion={targetRegion}
         currentDuration={durationDays}
         activeMode={activeMode}
-        onSwitchMode={setActiveMode}
+        flightAvailable={flightReady}
+        onSwitchMode={mode => {
+          if (mode === 'DECISION_TWIN' && !flightReady) {
+            const el = document.getElementById('flight-activation-section');
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+          }
+          setActiveMode(mode);
+        }}
         onExploreDecision={() => {
           const el = document.getElementById('analytical-lenses-section');
           if (el) el.scrollIntoView({ behavior: 'smooth' });
@@ -486,6 +725,26 @@ export default function PromotionPlanner({
             onNavigateToCommitment={handleNavigateToCommitments}
           />
 
+          {/* ── CTW-01 Review & Activate — the pre-flight to in-flight transition ── */}
+          <div id="flight-activation-section">
+            <FlightActivationPanel
+              contract={decisionContract}
+              staleActivation={staleActivation}
+              activating={activating}
+              error={activationError}
+              readinessState={liveReadiness?.readiness?.state || liveReadiness?.state}
+              choices={activationChoices}
+              selectedPlayId={selectedPlayId}
+              resolvedBy={resolvedBy}
+              resolutionStatement={resolutionStatement}
+              onSelectPlay={setSelectedPlayId}
+              onResolvedByChange={setResolvedBy}
+              onResolutionStatementChange={setResolutionStatement}
+              onActivate={handleActivate}
+              onOpenFlight={() => setActiveMode('DECISION_TWIN')}
+            />
+          </div>
+
           {/* ── Progressive Disclosure Analytical Lenses Section ── */}
           <div id="analytical-lenses-section" style={{ marginBottom: 24 }}>
             {/* Lenses Tab Bar */}
@@ -587,6 +846,9 @@ export default function PromotionPlanner({
         <LiveDecisionTwinLens
           key={archetype.id}
           archetype={archetype}
+          flight={flight}
+          flightError={flightError}
+          onReturnToPlanning={() => setActiveMode('PLANNING')}
           onApplyInFlightAction={handleApplyInFlightAction}
         />
       )}

@@ -24,7 +24,21 @@ import {
 import { SimulationPeriod } from './enterprise-signal-model';
 
 export type TimelinePhase = 'PRE_CAMPAIGN' | 'CAMPAIGN' | 'POST_CAMPAIGN';
-export type TimelineTrajectoryKind = 'COUNTERFACTUAL' | 'INTERVENTION';
+/**
+ * Trajectory vocabulary, shared by CDI-05 and CTW-01 so the estate keeps one trajectory
+ * taxonomy rather than two (ADR-070).
+ *
+ * `COUNTERFACTUAL` and `INTERVENTION` are CDI-05's own and are unchanged; the CDI-05 engine
+ * emits exactly those two and nothing else, which `run-cdi05-tests.ts` and `run-ctw01-tests.ts`
+ * both assert. `OBSERVED` and `REFORECAST` were added by CTW-01 because two values cannot
+ * express an elapsed actual series or a mid-flight reforecast. CTW-01 emits `OBSERVED`;
+ * `REFORECAST` is reserved for `CTW-02` and is emitted by nothing at this baseline.
+ */
+export type TimelineTrajectoryKind =
+  | 'COUNTERFACTUAL'
+  | 'INTERVENTION'
+  | 'OBSERVED'
+  | 'REFORECAST';
 export type TimelineLens = 'DEMAND' | 'REVENUE' | 'CONTRIBUTION' | 'INVENTORY';
 export type TimelineLensAvailability = 'AVAILABLE' | 'NOT_AVAILABLE';
 export type TimelinePointBasis =

@@ -746,6 +746,98 @@ constraints are frozen in advance by **ADR-070**.
 
 ---
 
+### Demo-Priority Innovation Capability — Continuous Live Decision Twin (CTW)
+
+**Authorised by the owner on 2026-08-22 as a deliberate demo-priority override**, to support upcoming
+client demonstrations. The `CTW` namespace is registered alongside `CDI`, `ESF`, `IFI`, `DDF`, `DOT`,
+`WP10`, `ATL`, `CAP`, `IB`, `EXP`, `SOL` and `PAT`. It originates from `IB-13` in
+[`COGNIX_INNOVATION_BACKLOG.md`](COGNIX_INNOVATION_BACKLOG.md) §5; that entry is now `In Delivery`
+and this section, not the register, is the authorised scope.
+
+**`ESF-4 — Signal Quality, Confidence & Provenance` remains the canonical continuation point of this
+plan.** It is **temporarily parked, not superseded, cancelled, or architecturally deprioritised.**
+The forensic status assessment §7 finding stands unamended: `ESF-4` is the only unstarted package
+whose hard dependency is satisfied, and earliest prerequisite-sensitive and highest-value are the
+same package. `CTW` overlaps it in no contract and no file, and does not sit ahead of it in the
+programme DAG — it sits on a different axis.
+
+#### `CTW-01` — Continuous Campaign Timeline & Activation [COMPLETED]
+
+- **Status:** Authorised and **implemented 2026-08-22**. Evidence in
+  [`COGNIX_CTW_01_CONTINUOUS_TIMELINE_REPORT.md`](../reports/COGNIX_CTW_01_CONTINUOUS_TIMELINE_REPORT.md).
+- **Objective:** Turn Promotion Intelligence from a governed pre-flight assessment beside an
+  unrelated in-flight snapshot into one continuous decision lifecycle —
+  `Pre-flight Decision Intelligence → Review → Activate → Campaign in flight`, over the whole
+  campaign horizon rather than only the elapsed part of it.
+- **Delivered:**
+  - `packages/contracts/src/campaign-continuous-timeline-model.ts` — the governed contract:
+    `CampaignHorizonClass` (`OBSERVED_ELAPSED` / `SIMULATED_ELAPSED` / `PREDICTED_REMAINING`),
+    `FlightActivation`, `FlightHorizon`, `ContinuousSeriesPoint`, `ContinuousLensSeries`,
+    `FlightDeviationSummary`, `CampaignFlightProjection`, and `validateFlightProjection` — the
+    seven invariants `W-INV-1`…`W-INV-7` as executable checks rather than prose.
+  - `TimelineTrajectoryKind` extended additively with `OBSERVED` and `REFORECAST`. **CDI-05 is
+    unchanged and still emits exactly `COUNTERFACTUAL` and `INTERVENTION`**, asserted in both
+    `run-cdi05-tests.ts` and `run-ctw01-tests.ts`. `REFORECAST` is reserved for `CTW-02` and is
+    emitted by nothing at this baseline.
+  - `lib/campaign-continuous-timeline-engine.ts`, `app/api/v1/campaigns/flight/route.ts`,
+    `lib/campaign-flight-client.ts`.
+  - `components/campaign/FlightActivationPanel.tsx` (Review & Activate),
+    `components/campaign/ContinuousFlightTimeline.tsx` (the timeline), and the wiring in
+    `components/PromotionPlanner.tsx`, `components/campaign/LiveDecisionTwinLens.tsx` and
+    `components/campaign/CampaignDiscoveryHero.tsx`.
+  - `tests/unit/run-ctw01-tests.ts` — 65 assertions across activation, class separation, horizon,
+    deviation, uncertainty, the `CTW-02` boundary, CDI-05 invariance, and all seven archetypes.
+- **Activation binds to the existing `DecisionContract`; no second baseline exists (ADR-070).**
+  Activation registers the intent, evaluates the CDI-06 outcome frontier and creates an `ACTIVE`
+  CDI-07A contract by the same governed path the Campaign Decision Canvas uses. Where the declared
+  constraints do not settle the choice, the frontier returns `CHOICE_REQUIRED` and a person decides,
+  on the record. Re-activating after a configuration change **supersedes** the prior contract
+  (`RJ-C8`) rather than replacing it, so both remain readable.
+- **Observed, simulated and predicted are three declared classes over one horizon.** A
+  `PREDICTED_REMAINING` day carries no actual, no deviation and never `OBSERVED` strength;
+  `OBSERVED_ELAPSED` requires an `ESF-6`-admitted observation and is therefore **unreachable at this
+  baseline**, so every elapsed day is `SIMULATED_ELAPSED` and says so. `OBSERVED_ELAPSED_REQUIRED_INPUT`
+  publishes what would change that.
+- **Metric boundary, as approved:** demand, contribution, deviation from the activated pre-flight
+  baseline, and declared uncertainty. **Revenue is not introduced** — the CDI-05 `NOT_AVAILABLE`
+  refusal stands. **No stock trajectory** — a series would need a declared depletion basis that
+  neither CDI-05 nor `WP10-C` supplies. Both refusals are published on the projection with reasons.
+- **The deviation is like-for-like, and the arithmetic says why.** Seeded campaign telemetry and the
+  CDI-05 projection are on different quantity bases and different populations, so they are never
+  subtracted from one another. The telemetry supplies only a **scale-free ratio** — computed with
+  numerator and denominator inside its own basis — which is applied to the contract-bound projection
+  so both sides of the comparison land in the same basis. This is the `DDF-01` ratio precedent
+  (ADR-041 Amendment A). An undefined ratio yields no actual and no deviation, never a defaulted
+  zero.
+- **Hard Dependencies:** `CDI-02`, `CDI-05`, `CDI-07A` (all `[COMPLETED]`).
+  **Integration Dependencies:** `CDI-06` (frontier, for activation), `WP10-C`.
+  **Enhancement Dependencies:** none.
+- **Non-Scope, published on every projection and asserted in the suite:** adaptive intervention and
+  trade-off comparison (`CTW-02`); remaining-horizon reforecast (`CTW-02`); post-flight
+  reconciliation (extension of `CDI-08` and the `CampaignDecisionExperiment` comparison surface); any
+  ML, learning candidate or learning case; any new origin of `synthetic_demo = false`; any change to
+  `CDI-01`…`CDI-08`, `ESF-6` or `WP10-C` semantics.
+- **Architectural ruling:** **ADR-070**, frozen before implementation and implemented unamended.
+- **Validation at completion:** `tsc` clean; **36 of 36 runners green** with every recorded baseline
+  matched exactly (`CDI-01`…`CDI-07B` 21/36/31/49/70/93/155/235, `CDI-08` 44, `ESF-6` 81, `DDF-01` 56,
+  campaign-intelligence 133, campaign-decision-journey 96, decision-dimensions 173, and the full
+  `ATL` set unchanged); `CTW-01` 65/65; production build clean; `atlas-governance-check --enforce`
+  exits 0; browser-validated at 1024/1280/1440 with no console errors and no horizontal overflow.
+
+#### `CTW-02` — Adaptive Trajectory & Intervention Reforecast [NOT STARTED]
+
+Trade-off comparison shown before activation; on activation, preserve the original trajectory,
+record the intervention, add a new trajectory and reforecast **only** the remaining horizon. Elapsed
+days are never recomputed and history is never overwritten. Emits the `REFORECAST` trajectory kind
+`CTW-01` reserved.
+- *Hard Dependencies:* `CTW-01`. *Not authorised* — the owner authorised `CTW-01` alone.
+
+**Post-flight reconciliation is deliberately not a `CTW` work package.** It is extension work on
+`CDI-08` `PredictionOutcomeComparison` and the `CampaignDecisionExperiment` comparison surface. A
+third package here would build a competing history model.
+
+---
+
 # PHASE 11 — IP AND INNOVATION GOVERNANCE
 - **Objective:** Integrate IP classification metadata badges and provenance tracking directly into UI and exports.
 - **Scope:** IP badge indicators, exportable experiment blueprint sheets, legal disclaimers.

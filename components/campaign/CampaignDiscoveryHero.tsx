@@ -31,6 +31,8 @@ interface CampaignDiscoveryHeroProps {
   currentRegion: string;
   currentDuration: number;
   activeMode: 'PLANNING' | 'DECISION_TWIN';
+  /** CTW-01 — there is no in-flight campaign until a decision is activated. */
+  flightAvailable?: boolean;
   onSwitchMode: (mode: 'PLANNING' | 'DECISION_TWIN') => void;
   onExploreDecision: () => void;
   onSelectLens?: (lensId: string) => void;
@@ -47,6 +49,7 @@ export default function CampaignDiscoveryHero({
   currentRegion,
   currentDuration,
   activeMode,
+  flightAvailable = false,
   onSwitchMode,
   onExploreDecision,
   onSelectLens
@@ -184,13 +187,20 @@ export default function CampaignDiscoveryHero({
 
           <button
             onClick={() => onSwitchMode('DECISION_TWIN')}
+            aria-disabled={!flightAvailable}
+            title={
+              flightAvailable
+                ? 'Campaign in flight, assessed against the activated decision'
+                : 'No campaign is in flight yet — review and activate the decision first'
+            }
             style={{
               padding: '5px 14px',
               borderRadius: 6,
               fontSize: '0.8rem',
               fontWeight: activeMode === 'DECISION_TWIN' ? 600 : 500,
               background: activeMode === 'DECISION_TWIN' ? '#2563EB' : 'transparent',
-              color: activeMode === 'DECISION_TWIN' ? '#FFFFFF' : '#64748B',
+              color:
+                activeMode === 'DECISION_TWIN' ? '#FFFFFF' : flightAvailable ? '#64748B' : '#94A3B8',
               border: 'none',
               boxShadow: activeMode === 'DECISION_TWIN' ? '0 1px 3px rgba(37,99,235,0.3)' : 'none',
               cursor: 'pointer',
@@ -200,14 +210,24 @@ export default function CampaignDiscoveryHero({
               transition: 'all 0.15s ease'
             }}
           >
-            <Activity size={14} color={activeMode === 'DECISION_TWIN' ? '#FFFFFF' : '#64748B'} />
-            Live Decision Twin (Campaign-In-Flight)
+            <Activity
+              size={14}
+              color={
+                activeMode === 'DECISION_TWIN' ? '#FFFFFF' : flightAvailable ? '#64748B' : '#94A3B8'
+              }
+            />
+            Campaign In-Flight
+            {/* The dot means a campaign is actually in flight, so it is off until one is. */}
             <span
               style={{
                 width: 6,
                 height: 6,
                 borderRadius: '50%',
-                background: activeMode === 'DECISION_TWIN' ? '#86EFAC' : '#22C55E',
+                background: !flightAvailable
+                  ? '#CBD5E1'
+                  : activeMode === 'DECISION_TWIN'
+                    ? '#86EFAC'
+                    : '#22C55E',
                 display: 'inline-block'
               }}
             />

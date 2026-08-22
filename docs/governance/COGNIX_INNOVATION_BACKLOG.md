@@ -35,11 +35,12 @@ pointed, not sequenced into iterations, and carry no delivery date.
 |---|---|
 | Ideas recorded | **13** |
 | Innovation themes | **6** |
-| Ideas at `Candidate Experiment` | 1 (`IB-13`) |
+| Ideas at `In Delivery` | 1 (`IB-13`) |
+| Ideas at `Candidate Experiment` | 0 |
 | Ideas at `Research` | 0 |
 | Ideas at `Idea` | 12 |
-| Ideas `Approved` / `Planned` / `In Delivery` | **0** |
-| Work packages authorised by this document | **NONE** |
+| Ideas `Approved` / `Planned` | 0 |
+| Work packages authorised by this document | **NONE** — `IB-13` was authorised by the owner into [`MASTER_PLAN.md`](MASTER_PLAN.md), which is where its scope now lives |
 | Highest demo-priority candidate | **`IB-13` — Continuous Live Decision Twin** |
 
 **Existing Master Plan continuation is unaffected by this register.** See §7.
@@ -336,8 +337,12 @@ build.*
 
 Specified in full in §5. Summary entry:
 
-- **Stage.** `Candidate Experiment`.
-- **Master Plan status.** **Not authorised.** No work package exists.
+- **Stage.** **`In Delivery`** since 2026-08-22.
+- **Master Plan status.** **Authorised.** The owner authorised `CTW-01` on 2026-08-22 as a
+  deliberate demo-priority override; `CTW-01` is `[COMPLETED]` and `CTW-02` is `[NOT STARTED]` and
+  **not** authorised. The authoritative scope is the `CTW` section of
+  [`MASTER_PLAN.md`](MASTER_PLAN.md), not this entry — §5 below is preserved as the record of what
+  was proposed and why, and is no longer the governing document for `CTW-01`.
 - **Priority.** **Demo priority** — see §6 for what that does and does not mean.
 - **Dependencies.** HARD: `CDI-05` (timeline), `CDI-07A` (`DecisionContract`), `CDI-02`
   (counterfactual/causal), all `[COMPLETED]`. INTEGRATION: `campaign-experiment-store`
@@ -676,7 +681,10 @@ them would rewrite the programme's history.
 ### 6.1 Existing programme continuation — unchanged
 
 **`ESF-4 — Signal Quality, Confidence & Provenance` is the existing programme's continuation
-point**, and this register does not qualify that finding — it adopts it.
+point**, and this register does not qualify that finding — it adopts it. On 2026-08-22 the owner
+**parked `ESF-4` temporarily** to take `CTW-01` first for upcoming client demonstrations, and
+recorded that it is **not superseded, cancelled or architecturally deprioritised**. Parking changes
+the order of work, not the finding below.
 [`COGNIX_MASTER_PLAN_FORENSIC_STATUS_ASSESSMENT.md`](../reports/COGNIX_MASTER_PLAN_FORENSIC_STATUS_ASSESSMENT.md)
 §7 states it directly: *if the Capability Atlas had never diverted attention, the next unfinished work
 package is `ESF-4`*, on four grounds —
@@ -738,9 +746,10 @@ The owner may therefore authorise **`ESF-4` continuation**, **`IB-13` demo-prior
 
 | # | Decision | Consequence |
 |---|---|---|
-| 1 | Authorise `ESF-4`, `IB-13`, both in parallel, or neither | Nothing proceeds until one is chosen |
-| 2 | If `IB-13`: authorise **`CTW-01`** as the first work package and admit `CTW-*` to the Master Plan namespace | `CTW-01` becomes real; `IB-13` moves to `Planned` |
-| 3 | Approve the `CTW-01` scope boundary in §5.5 — demand, contribution, deviation, declared uncertainty; **no revenue**, stock series only with a declared depletion basis | Sets what the demo may show |
+| 1 | ~~Authorise `ESF-4`, `IB-13`, both in parallel, or neither~~ **Decided 2026-08-22:** `CTW-01` first, `ESF-4` temporarily parked | `CTW-01` delivered; `ESF-4` unchanged and still the canonical continuation |
+| 2 | ~~Authorise `CTW-01` and admit `CTW-*`~~ **Decided 2026-08-22** | `CTW` registered; `CTW-01` `[COMPLETED]` |
+| 3 | ~~Approve the `CTW-01` metric boundary~~ **Decided 2026-08-22:** demand, contribution, deviation, declared uncertainty; no revenue; no stock series without a governed depletion basis | Implemented as approved and asserted in the suite |
+| 3a | **Open:** authorise `CTW-02`, resume `ESF-4`, or run them in parallel | Nothing proceeds on either until chosen |
 | 4 | Confirm the observation-acquisition direction for `IB-01` — first-party attested operator upload (the `Z3` position) or a connector programme | Unblocks Theme A entirely |
 | 5 | Confirm no backlog idea is presented to a client as delivered or planned capability | Standing rule; restated per demonstration |
 | 6 | Decide whether backlog visibility (§8) is worth a work package | Today the register is documentation only |
@@ -793,7 +802,7 @@ authorisation.
 | What is planned for Continuous Live Decision Twin? | §5.3–§5.8 |
 | What does it depend on? | `CDI-02`, `CDI-05`, `CDI-07A` (HARD, all `[COMPLETED]`); `campaign-experiment-store`, `WP10-C` (INTEGRATION) |
 | Is it authorised? | **No.** No work package exists |
-| What is the next implementation WP if the owner authorises it? | **`CTW-01` — Continuous Campaign Timeline & Activation** (§5.8) |
+| What is the next implementation WP if the owner authorises it? | Superseded by events: `CTW-01` was authorised and is `[COMPLETED]` (2026-08-22). The next is **`CTW-02` — Adaptive Trajectory & Intervention Reforecast**, `[NOT STARTED]` and **not authorised** |
 | What is the existing programme's continuation? | **`ESF-4`** — unchanged (§6.1) |
 | Does the Twin supersede `ESF-4`? | **No** (§6.3) |
 
