@@ -55,6 +55,10 @@ export function buildElapsedTelemetryFromArchetype(archetype: CampaignArchetype)
       demand_expected: s.expected_demand_index,
       demand_observed: s.observed_demand_index,
       contribution_expected: s.expected_margin_gbp,
-      contribution_observed: s.observed_margin_gbp
+      contribution_observed: s.observed_margin_gbp,
+      // Carried so that retiring the per-day card strip loses nothing (CTW-01R §6). It is
+      // reported verbatim as a supplementary reading and never becomes a projected series.
+      depot_stock_units: s.observed_inventory_units,
+      seeded_status: s.deviation_status
     }));
 }

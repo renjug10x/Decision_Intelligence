@@ -53,7 +53,18 @@ import {
   DecisionResolution,
   computeContractDigest
 } from '@/packages/contracts/src/campaign-decision-contract-model';
-import { CampaignFlightProjection } from '@/packages/contracts/src/campaign-continuous-timeline-model';
+import {
+  CampaignFlightProjection,
+  buildResolutionStatement,
+  decisionOwnerLabel,
+  derivePromotionExperimentStage
+} from '@/packages/contracts/src/campaign-continuous-timeline-model';
+import { CampaignDecisionExperiment } from '@/packages/contracts/src/campaign-experiment-model';
+import {
+  listCampaignExperimentsClient,
+  saveCampaignExperimentClient,
+  closeActiveCampaignExperimentClient
+} from '@/lib/campaign-experiment-client';
 
 // Modular Campaign Intelligence Components
 import CampaignDiscoveryHero from '@/components/campaign/CampaignDiscoveryHero';
@@ -65,6 +76,7 @@ import DecisionGraphLens from '@/components/campaign/DecisionGraphLens';
 import InterventionWorkspace, { ActiveIntervention } from '@/components/campaign/InterventionWorkspace';
 import LiveDecisionTwinLens from '@/components/campaign/LiveDecisionTwinLens';
 import FlightActivationPanel, { ActivationChoice } from '@/components/campaign/FlightActivationPanel';
+import { ExperimentHistoryDrawer } from '@/components/campaign/ExperimentHistoryDrawer';
 
 interface PromotionPlannerProps {
   onNavigateToExperiment?: (experimentId: string) => void;
@@ -126,8 +138,16 @@ export default function PromotionPlanner({
   const [activationError, setActivationError] = useState<string | null>(null);
   const [activationChoices, setActivationChoices] = useState<ActivationChoice[]>([]);
   const [selectedPlayId, setSelectedPlayId] = useState<string>('');
-  const [resolvedBy, setResolvedBy] = useState<string>('');
-  const [resolutionStatement, setResolutionStatement] = useState<string>('');
+  // CTW-01R — governed decision confirmation. These map onto CDI-07A `resolved_by` and
+  // `resolution_statement`; the provenance is unchanged, only how it is collected.
+  const [ownerRoleId, setOwnerRoleId] = useState<string>('');
+  const [ownerCustom, setOwnerCustom] = useState<string>('');
+  const [rationaleId, setRationaleId] = useState<string>('');
+  const [rationaleContext, setRationaleContext] = useState<string>('');
+  // CTW-01R — promotion experiment lifecycle, on the existing governed experiment architecture.
+  const [experiments, setExperiments] = useState<CampaignDecisionExperiment[]>([]);
+  const [historyOpen, setHistoryOpen] = useState<boolean>(false);
+  const activeExperimentIdRef = React.useRef<string | null>(null);
   const [flight, setFlight] = useState<CampaignFlightProjection | null>(null);
   const [flightError, setFlightError] = useState<string | null>(null);
 
@@ -233,22 +253,25 @@ export default function PromotionPlanner({
 
         // Name what is missing rather than restating the rule — a reader who has filled two
         // of the three fields should not have to guess which one is still empty.
+        const owner = decisionOwnerLabel(ownerRoleId, ownerCustom);
+        const statement = buildResolutionStatement(rationaleId, rationaleContext);
+
         const missing: string[] = [];
         if (!selectedPlayId) missing.push('the option being activated');
         else if (!survivors.includes(selectedPlayId)) missing.push('an option that is still admissible for this configuration');
-        if (!resolvedBy.trim()) missing.push('who is deciding');
-        if (!resolutionStatement.trim()) missing.push('why this option');
+        if (!owner.trim()) missing.push('the decision owner');
+        if (!statement.trim()) missing.push('the decision rationale');
         if (missing.length > 0) {
           setActivationError(
-            `The declared constraints leave more than one admissible option, so this decision is a person's to make. Still needed: ${missing.join(', ')}.`
+            `This decision needs a person's confirmation before it can be activated. Still needed: ${missing.join(', ')}.`
           );
           return;
         }
         resolution = {
           route: 'HUMAN_RESOLVED',
           selected_play_id: selectedPlayId,
-          resolved_by: resolvedBy.trim(),
-          resolution_statement: resolutionStatement.trim(),
+          resolved_by: owner.trim(),
+          resolution_statement: statement.trim(),
           presented_alternatives: survivors
         };
       } else {
@@ -300,12 +323,126 @@ export default function PromotionPlanner({
       setActivatedSignature(configurationSignature);
       setActivationChoices([]);
       setActivationError(null);
+      await preservePromotionExperiment(intent, created.contract);
     } catch (e: any) {
       setActivationError(e?.message || 'CogniX could not activate this decision.');
     } finally {
       setActivating(false);
     }
   };
+
+  /**
+   * Preserve this promotion decision on the existing governed experiment architecture.
+   *
+   * One decision owns one record: the first preservation asks the server for an identity and
+   * every later one sends it back, exactly as the Campaign Decision Canvas does. No competing
+   * history model is created — `CampaignDecisionExperiment` already is promotion history.
+   */
+  const preservePromotionExperiment = async (
+    intent: any,
+    contract: DecisionContract | null
+  ) => {
+    if (!intent || !liveEvaluation) return;
+    const campaignDelta = liveEvaluation?.counterfactual?.campaign_delta;
+    const saved = await saveCampaignExperimentClient({
+      ...(activeExperimentIdRef.current ? { experiment_id: activeExperimentIdRef.current } : {}),
+      campaign_intent_id: intent.campaign_intent_id,
+      framing_question: intent.campaign_intent.framing_question,
+      objective_type: intent.campaign_intent.objective_type,
+      objective_label: intent.campaign_intent.objective_type,
+      category: intent.campaign_intent.category,
+      sku_scope: intent.campaign_intent.sku_scope,
+      region: intent.audience_market.region,
+      audience_segment: intent.audience_market.customer_segment,
+      sales_channel: intent.audience_market.channel,
+      timing_mode: intent.audience_market.timing_mode,
+      planned_window:
+        intent.audience_market.planned_start && intent.audience_market.planned_end
+          ? `${intent.audience_market.planned_start} to ${intent.audience_market.planned_end}`
+          : 'Optimal discovery window',
+      intervention_posture: intent.campaign_intent.intervention_posture,
+      posture_label: intent.campaign_intent.intervention_posture,
+      primary_metric: intent.baseline_objective.primary_metric,
+      target_direction: intent.baseline_objective.target_direction,
+      major_constraints: intent.baseline_objective.capacity_cap_note
+        ? [intent.baseline_objective.capacity_cap_note]
+        : [],
+      decision_recommendation: contract
+        ? 'Activated promotion decision'
+        : 'Promotion decision not yet activated',
+      incremental_demand_pct: campaignDelta?.attributable_uplift_pp ?? 0,
+      contribution_impact_gbp: campaignDelta?.contribution_delta_gbp ?? 0,
+      readiness_status: (liveReadiness?.readiness?.state as any) ?? 'NOT_ASSESSED',
+      readiness_summary:
+        liveReadiness?.readiness?.headline ?? 'Operational readiness has not been assessed.',
+      primary_trade_off: archetype.discovery.primary_tension_title,
+      evidence_posture: 'Demonstration evidence basis: uncalibrated simulation data',
+      technical_provenance: {
+        surface: 'PromotionPlanner',
+        package: 'CTW-01R',
+        tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+        session_id: CAMPAIGN_DEMO_SESSION_ID
+      },
+      intent_snapshot: intent,
+      evaluation_snapshot: liveEvaluation,
+      readiness_snapshot: liveReadiness,
+      timeline_snapshot: liveTimeline,
+      contract_snapshot: contract
+    } as any);
+    if (saved) {
+      activeExperimentIdRef.current = saved.experiment_id;
+      const listed = await listCampaignExperimentsClient({
+        tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+        session_id: CAMPAIGN_DEMO_SESSION_ID
+      });
+      if (listed) setExperiments(listed.experiments);
+    }
+  };
+
+  /**
+   * Start a fresh promotion experiment. The one in progress is *closed*, not deleted: it stays
+   * readable in history and the next preservation allocates a new identity. Deliberately not a
+   * session reset — the Campaign Decision Canvas shares this session and must not lose a draft.
+   */
+  const handleNewExperiment = async () => {
+    await closeActiveCampaignExperimentClient({
+      tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+      session_id: CAMPAIGN_DEMO_SESSION_ID
+    });
+    activeExperimentIdRef.current = null;
+    setDecisionContract(null);
+    setActivatedSignature(null);
+    setFlight(null);
+    setFlightError(null);
+    setActivationError(null);
+    setActivationChoices([]);
+    setSelectedPlayId('');
+    setOwnerRoleId('');
+    setOwnerCustom('');
+    setRationaleId('');
+    setRationaleContext('');
+    setProposedIntervention(null);
+    setActiveMode('PLANNING');
+    const listed = await listCampaignExperimentsClient({
+      tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+      session_id: CAMPAIGN_DEMO_SESSION_ID
+    });
+    if (listed) setExperiments(listed.experiments);
+  };
+
+  /** Load promotion history once, so the drawer has something to show before any activation. */
+  useEffect(() => {
+    let cancelled = false;
+    listCampaignExperimentsClient({
+      tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+      session_id: CAMPAIGN_DEMO_SESSION_ID
+    }).then(listed => {
+      if (!cancelled && listed) setExperiments(listed.experiments);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /**
    * The continuous flight, projected only when a decision is activated for *this*
@@ -539,7 +676,10 @@ export default function PromotionPlanner({
                 Select Campaign Archetype ({CAMPAIGN_ARCHETYPES.length} simulated scenarios)
               </div>
 
-              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+              {/* `overflowX: auto` alone does not stop seven nowrap chips forcing a ~1240px
+                  minimum width on the page, which pushed the whole planning view into horizontal
+                  overflow below that. Wrapping is what actually lets the row shrink. */}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', overflowX: 'auto', paddingBottom: 4 }}>
                 {CAMPAIGN_ARCHETYPES.map(arch => {
                   const isSelected = selectedArchetypeId === arch.id;
 
@@ -733,15 +873,25 @@ export default function PromotionPlanner({
               activating={activating}
               error={activationError}
               readinessState={liveReadiness?.readiness?.state || liveReadiness?.state}
+              stage={derivePromotionExperimentStage({
+                hasActiveContract: flightReady,
+                elapsedDays: flight ? flight.horizon.elapsed_days : 0
+              })}
               choices={activationChoices}
               selectedPlayId={selectedPlayId}
-              resolvedBy={resolvedBy}
-              resolutionStatement={resolutionStatement}
+              ownerRoleId={ownerRoleId}
+              ownerCustom={ownerCustom}
+              rationaleId={rationaleId}
+              rationaleContext={rationaleContext}
               onSelectPlay={setSelectedPlayId}
-              onResolvedByChange={setResolvedBy}
-              onResolutionStatementChange={setResolutionStatement}
+              onOwnerRoleChange={setOwnerRoleId}
+              onOwnerCustomChange={setOwnerCustom}
+              onRationaleChange={setRationaleId}
+              onRationaleContextChange={setRationaleContext}
               onActivate={handleActivate}
               onOpenFlight={() => setActiveMode('DECISION_TWIN')}
+              onNewExperiment={handleNewExperiment}
+              onOpenHistory={() => setHistoryOpen(true)}
             />
           </div>
 
@@ -752,6 +902,7 @@ export default function PromotionPlanner({
               style={{
                 display: 'flex',
                 gap: 4,
+                flexWrap: 'wrap',
                 borderBottom: '1px solid #E2E8F0',
                 marginBottom: 20,
                 overflowX: 'auto'
@@ -840,6 +991,16 @@ export default function PromotionPlanner({
           </div>
         </>
       )}
+
+      {/* ── Promotion experiment history — the existing governed drawer, not a second model ── */}
+      <ExperimentHistoryDrawer
+        isOpen={historyOpen}
+        experiments={experiments}
+        onClose={() => setHistoryOpen(false)}
+        onReviewExperiment={() => setHistoryOpen(false)}
+        onViewBrief={() => setHistoryOpen(false)}
+        onCompareExperiments={() => setHistoryOpen(false)}
+      />
 
       {/* ── Mode 2: Live Decision Twin Experience (Campaign-In-Flight, simulated) ── */}
       {activeMode === 'DECISION_TWIN' && (

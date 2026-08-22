@@ -11,13 +11,55 @@
  */
 
 import React from 'react';
-import { CheckCircle2, CircleAlert, Loader2, PlayCircle, ShieldCheck } from 'lucide-react';
+import {
+  CheckCircle2,
+  CircleAlert,
+  History,
+  Loader2,
+  PlayCircle,
+  Plus,
+  ShieldCheck,
+  UserCheck
+} from 'lucide-react';
 import { DecisionContract } from '@/packages/contracts/src/campaign-decision-contract-model';
+import {
+  DECISION_CONFIRMATION_EXPLANATION,
+  DECISION_OWNER_HELPER,
+  DECISION_OWNER_ROLES,
+  DECISION_RATIONALES,
+  DECISION_RATIONALE_HELPER,
+  PromotionExperimentStatus
+} from '@/packages/contracts/src/campaign-continuous-timeline-model';
 
 const LINE = '#E2E8F0';
 const SLATE = '#0F172A';
 const MUTED = '#64748B';
 const BLUE = '#2563EB';
+
+const secondaryButtonStyle: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '6px 12px',
+  borderRadius: 7,
+  border: `1px solid ${LINE}`,
+  background: '#FFFFFF',
+  color: SLATE,
+  fontSize: '0.75rem',
+  fontWeight: 600,
+  cursor: 'pointer'
+};
+
+const fieldStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '8px 10px',
+  borderRadius: 7,
+  border: `1px solid ${LINE}`,
+  fontSize: '0.8rem',
+  color: SLATE,
+  background: '#FFFFFF',
+  marginTop: 4
+};
 
 export interface ActivationChoice {
   play_id: string;
@@ -30,31 +72,45 @@ export default function FlightActivationPanel({
   activating,
   error,
   readinessState,
+  stage,
   choices,
   selectedPlayId,
-  resolvedBy,
-  resolutionStatement,
+  ownerRoleId,
+  ownerCustom,
+  rationaleId,
+  rationaleContext,
   onSelectPlay,
-  onResolvedByChange,
-  onResolutionStatementChange,
+  onOwnerRoleChange,
+  onOwnerCustomChange,
+  onRationaleChange,
+  onRationaleContextChange,
   onActivate,
-  onOpenFlight
+  onOpenFlight,
+  onNewExperiment,
+  onOpenHistory
 }: {
   contract: DecisionContract | null;
   staleActivation: boolean;
   activating: boolean;
   error: string | null;
   readinessState?: string;
+  stage: PromotionExperimentStatus;
   /** Non-empty when the frontier could not select on declared constraints alone. */
   choices: ActivationChoice[];
   selectedPlayId: string;
-  resolvedBy: string;
-  resolutionStatement: string;
+  ownerRoleId: string;
+  ownerCustom: string;
+  rationaleId: string;
+  rationaleContext: string;
   onSelectPlay: (id: string) => void;
-  onResolvedByChange: (v: string) => void;
-  onResolutionStatementChange: (v: string) => void;
+  onOwnerRoleChange: (v: string) => void;
+  onOwnerCustomChange: (v: string) => void;
+  onRationaleChange: (v: string) => void;
+  onRationaleContextChange: (v: string) => void;
   onActivate: () => void;
   onOpenFlight: () => void;
+  onNewExperiment: () => void;
+  onOpenHistory: () => void;
 }) {
   const active = contract !== null && contract.status === 'ACTIVE' && !staleActivation;
 
@@ -68,6 +124,55 @@ export default function FlightActivationPanel({
         marginBottom: 24
       }}
     >
+      {/* ── Promotion experiment lifecycle — stage and the two lifecycle actions ── */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 10,
+          flexWrap: 'wrap',
+          marginBottom: 14,
+          paddingBottom: 12,
+          borderBottom: `1px solid ${active ? '#BBF7D0' : LINE}`
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+          <span
+            style={{
+              fontSize: '0.66rem',
+              fontWeight: 700,
+              letterSpacing: '0.05em',
+              textTransform: 'uppercase',
+              color: '#3730A3',
+              background: '#EEF2FF',
+              border: '1px solid #C7D2FE',
+              padding: '3px 9px',
+              borderRadius: 4
+            }}
+          >
+            {stage.label}
+          </span>
+          <span style={{ fontSize: '0.76rem', color: MUTED }}>{stage.detail}</span>
+        </div>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            type="button"
+            onClick={onOpenHistory}
+            style={secondaryButtonStyle}
+          >
+            <History size={13} /> Previous experiments
+          </button>
+          <button
+            type="button"
+            onClick={onNewExperiment}
+            style={secondaryButtonStyle}
+          >
+            <Plus size={13} /> New promotion experiment
+          </button>
+        </div>
+      </div>
+
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, flexWrap: 'wrap', justifyContent: 'space-between' }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', minWidth: 260, flex: 1 }}>
           {active ? (
@@ -156,51 +261,101 @@ export default function FlightActivationPanel({
 
       {!active && choices.length > 0 && (
         <div style={{ marginTop: 14, borderTop: `1px solid ${LINE}`, paddingTop: 14 }}>
-          <div style={{ fontSize: '0.78rem', color: SLATE, fontWeight: 600, marginBottom: 4 }}>
-            The declared constraints do not settle this on their own
-          </div>
-          <p style={{ fontSize: '0.76rem', color: MUTED, margin: '0 0 10px 0', lineHeight: 1.5 }}>
-            More than one option survives, so the choice is a person&apos;s to make and is recorded as
-            theirs. Who is deciding, why, and which option they are choosing all go on the contract.
-          </p>
-          <div style={{ display: 'grid', gap: 8 }}>
-            <select
-              value={selectedPlayId}
-              onChange={e => onSelectPlay(e.target.value)}
-              aria-label="Selected strategy play"
-              style={{
-                padding: '8px 10px',
-                borderRadius: 7,
-                border: `1px solid ${LINE}`,
-                fontSize: '0.8rem',
-                color: SLATE,
-                background: '#FFFFFF'
-              }}
-            >
-              <option value="">Choose the option being activated…</option>
-              {choices.map(c => (
-                <option key={c.play_id} value={c.play_id}>
-                  {c.label}
-                </option>
-              ))}
-            </select>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
-              <input
-                value={resolvedBy}
-                onChange={e => onResolvedByChange(e.target.value)}
-                placeholder="Who is deciding"
-                aria-label="Who is deciding"
-                style={{ padding: '8px 10px', borderRadius: 7, border: `1px solid ${LINE}`, fontSize: '0.8rem' }}
-              />
-              <input
-                value={resolutionStatement}
-                onChange={e => onResolutionStatementChange(e.target.value)}
-                placeholder="Why this option"
-                aria-label="Why this option"
-                style={{ padding: '8px 10px', borderRadius: 7, border: `1px solid ${LINE}`, fontSize: '0.8rem' }}
-              />
+          <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start', marginBottom: 12 }}>
+            <UserCheck size={15} color={BLUE} style={{ flexShrink: 0, marginTop: 2 }} />
+            <div>
+              <div style={{ fontSize: '0.82rem', color: SLATE, fontWeight: 700 }}>
+                Confirm this decision
+              </div>
+              <p style={{ fontSize: '0.78rem', color: MUTED, margin: '3px 0 0 0', lineHeight: 1.5 }}>
+                {DECISION_CONFIRMATION_EXPLANATION}
+              </p>
             </div>
           </div>
+
+          <div style={{ display: 'grid', gap: 12 }}>
+            <label style={{ display: 'block' }}>
+              <span style={{ fontSize: '0.74rem', fontWeight: 600, color: SLATE }}>
+                Option being activated
+              </span>
+              <select
+                value={selectedPlayId}
+                onChange={e => onSelectPlay(e.target.value)}
+                aria-label="Option being activated"
+                style={fieldStyle}
+              >
+                <option value="">Choose the option being activated…</option>
+                {choices.map(c => (
+                  <option key={c.play_id} value={c.play_id}>
+                    {c.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: 12 }}>
+              <label style={{ display: 'block' }}>
+                <span style={{ fontSize: '0.74rem', fontWeight: 600, color: SLATE }}>Decision owner</span>
+                <span style={{ display: 'block', fontSize: '0.72rem', color: MUTED, margin: '2px 0 4px 0' }}>
+                  {DECISION_OWNER_HELPER}
+                </span>
+                <select
+                  value={ownerRoleId}
+                  onChange={e => onOwnerRoleChange(e.target.value)}
+                  aria-label="Decision owner"
+                  style={fieldStyle}
+                >
+                  <option value="">Select a role…</option>
+                  {DECISION_OWNER_ROLES.map(r => (
+                    <option key={r.id} value={r.id}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+                {ownerRoleId === 'OTHER' && (
+                  <input
+                    value={ownerCustom}
+                    onChange={e => onOwnerCustomChange(e.target.value)}
+                    placeholder="Name the accountable role"
+                    aria-label="Decision owner, other"
+                    style={{ ...fieldStyle, marginTop: 6 }}
+                  />
+                )}
+              </label>
+
+              <label style={{ display: 'block' }}>
+                <span style={{ fontSize: '0.74rem', fontWeight: 600, color: SLATE }}>Decision rationale</span>
+                <span style={{ display: 'block', fontSize: '0.72rem', color: MUTED, margin: '2px 0 4px 0' }}>
+                  {DECISION_RATIONALE_HELPER}
+                </span>
+                <select
+                  value={rationaleId}
+                  onChange={e => onRationaleChange(e.target.value)}
+                  aria-label="Decision rationale"
+                  style={fieldStyle}
+                >
+                  <option value="">Select a reason…</option>
+                  {DECISION_RATIONALES.map(r => (
+                    <option key={r.id} value={r.id}>
+                      {r.label}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  value={rationaleContext}
+                  onChange={e => onRationaleContextChange(e.target.value)}
+                  placeholder={rationaleId === 'OTHER' ? 'State the reason' : 'Add context (optional)'}
+                  aria-label="Decision rationale context"
+                  style={{ ...fieldStyle, marginTop: 6 }}
+                />
+              </label>
+            </div>
+          </div>
+
+          <p style={{ fontSize: '0.7rem', color: MUTED, margin: '10px 0 0 0', lineHeight: 1.5 }}>
+            Both answers are recorded on the decision contract as its human resolution, so the campaign
+            can always be traced back to who approved it and why.
+          </p>
         </div>
       )}
 

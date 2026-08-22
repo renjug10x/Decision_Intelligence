@@ -32,7 +32,14 @@ import {
   PREDICTED_REMAINING_DISCLOSURE,
   SIMULATED_ELAPSED_DISCLOSURE,
   UNCERTAINTY_DISCLOSURE,
-  validateFlightProjection
+  validateFlightProjection,
+  ATTENTION_THRESHOLD_ATTENTION_PCT,
+  ATTENTION_THRESHOLD_MONITOR_PCT,
+  DayAttention,
+  FLAT_HORIZON_DISCLOSURE,
+  FlightDayLensReading,
+  FlightDayNarrative,
+  FlightDaySupplementaryReading
 } from '../packages/contracts/src/campaign-continuous-timeline-model';
 import {
   CDI02_BASE_WEEKLY_UNITS,
@@ -280,6 +287,207 @@ function summarise(series: ContinuousLensSeries): FlightDeviationSummary {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Narration — derived from the figures above, never authored per campaign or per day
+// ---------------------------------------------------------------------------
+
+function fmtUnits(v: number | null): string {
+  return v === null ? 'not available' : `${Math.round(v).toLocaleString('en-GB')} units`;
+}
+
+function fmtGbp(v: number | null): string {
+  return v === null ? 'not available' : `£${Math.round(v).toLocaleString('en-GB')}`;
+}
+
+function fmtPct(v: number | null): string {
+  return v === null ? 'not available' : `${v > 0 ? '+' : ''}${v.toFixed(1)}%`;
+}
+
+function direction(pct: number): 'above' | 'below' | 'in line with' {
+  if (Math.abs(pct) < ATTENTION_THRESHOLD_MONITOR_PCT) return 'in line with';
+  return pct > 0 ? 'above' : 'below';
+}
+
+/**
+ * Attention follows the size of the departure from the activated plan, in either direction.
+ *
+ * Direction decides the wording, not the severity: a campaign running well ahead of the decision
+ * that was activated has departed from that decision just as surely as one running behind, and a
+ * reader is entitled to know either way. The thresholds are declared constants, and every
+ * narration names them in its `basis` so the judgement can be audited rather than trusted.
+ */
+function attentionFor(deviations: number[]): { attention: DayAttention; worst: number } {
+  const magnitudes = deviations.filter(d => Number.isFinite(d)).map(Math.abs);
+  const worst = magnitudes.length ? Math.max(...magnitudes) : 0;
+  if (worst >= ATTENTION_THRESHOLD_ATTENTION_PCT) return { attention: 'ATTENTION', worst };
+  if (worst >= ATTENTION_THRESHOLD_MONITOR_PCT) return { attention: 'MONITOR', worst };
+  return { attention: 'NONE', worst };
+}
+
+function buildDayNarratives(
+  lenses: ContinuousLensSeries[],
+  readingsByDay: Map<number, ElapsedTelemetryReading>
+): FlightDayNarrative[] {
+  const demand = lenses.find(l => l.lens === 'DEMAND');
+  const contribution = lenses.find(l => l.lens === 'CONTRIBUTION');
+  if (!demand) return [];
+
+  return demand.points.map((dp, i) => {
+    const cp = contribution ? contribution.points[i] : undefined;
+
+    const readings: FlightDayLensReading[] = [dp, ...(cp ? [cp] : [])].map((pt, idx) => ({
+      lens: idx === 0 ? ('DEMAND' as const) : ('CONTRIBUTION' as const),
+      expectation_value: pt.expectation_value,
+      actual_value: pt.actual_value,
+      deviation_pct: pt.deviation_pct,
+      expectation_lower: pt.expectation_lower,
+      expectation_upper: pt.expectation_upper
+    }));
+
+    const supplementary: FlightDaySupplementaryReading[] = [];
+    const telemetry = readingsByDay.get(dp.flight_day);
+    if (telemetry && typeof telemetry.depot_stock_units === 'number') {
+      supplementary.push({
+        label: 'Depot stock',
+        value: `${Math.round(telemetry.depot_stock_units).toLocaleString('en-GB')} units`,
+        basis:
+          'Seeded demonstration reading for this day. Stock is not projected — a stock trajectory ' +
+          'would need a declared depletion basis, which nothing in this build supplies.'
+      });
+    }
+
+    if (telemetry && telemetry.seeded_status) {
+      supplementary.push({
+        label: 'World model day status',
+        value: telemetry.seeded_status.replace(/_/g, ' ').toLowerCase(),
+        basis:
+          "The demonstration world model's own label for this day. It is not CogniX's assessment " +
+          'against the activated decision — that is derived separately, from the deviation above.'
+      });
+    }
+
+    const basis: string[] = [
+      'Activated decision contract — the expectation every figure is read against',
+      'CDI-05 DecisionTimelineProjection under FLAT_RATE_IDENTITY',
+      `Declared attention thresholds: monitor at ${ATTENTION_THRESHOLD_MONITOR_PCT}%, attention at ${ATTENTION_THRESHOLD_ATTENTION_PCT}%`
+    ];
+
+    if (dp.horizon_class === 'PREDICTED_REMAINING') {
+      const bandWidth =
+        dp.expectation_upper !== null && dp.expectation_lower !== null
+          ? dp.expectation_upper - dp.expectation_lower
+          : null;
+      basis.push('Declared horizon uncertainty profile carried from CDI-05');
+      return {
+        flight_day: dp.flight_day,
+        period_index: dp.period_index,
+        period_date: dp.period_date,
+        horizon_class: dp.horizon_class,
+        headline: `Day ${dp.flight_day} — expected to hold at the activated plan`,
+        statement:
+          `CogniX expects ${fmtUnits(dp.expectation_value)} of demand and ` +
+          `${fmtGbp(cp ? cp.expectation_value : null)} of contribution on this day — the same as every ` +
+          `other remaining day, because the activated plan applies its effect evenly across the campaign. ` +
+          (bandWidth !== null
+            ? `The declared uncertainty spans ${fmtUnits(bandWidth)} of demand by this point and widens further out. `
+            : '') +
+          'This day has not happened.',
+        attention: 'NONE' as DayAttention,
+        attention_reason:
+          'No predicted day differs from another under the activated plan, so no predicted day can ' +
+          'call for attention on its own. What grows with horizon is uncertainty, not expected demand.',
+        readings,
+        supplementary,
+        basis
+      };
+    }
+
+    // Elapsed — the campaign has a position against the decision that was activated.
+    const demandDev = dp.deviation_pct;
+    const contribDev = cp ? cp.deviation_pct : null;
+    const devs = [demandDev, contribDev].filter((d): d is number => d !== null);
+
+    if (devs.length === 0) {
+      return {
+        flight_day: dp.flight_day,
+        period_index: dp.period_index,
+        period_date: dp.period_date,
+        horizon_class: dp.horizon_class,
+        headline: `Day ${dp.flight_day} — not assessable`,
+        statement:
+          'This day supplied no usable comparison against the activated decision, so CogniX will not ' +
+          'say whether the campaign was on or off plan.',
+        attention: 'NONE' as DayAttention,
+        attention_reason: 'No defined deviation for this day.',
+        readings,
+        supplementary,
+        basis
+      };
+    }
+
+    const { attention, worst } = attentionFor(devs);
+    const dDir = demandDev !== null ? direction(demandDev) : null;
+    const cDir = contribDev !== null ? direction(contribDev) : null;
+    const divergent =
+      demandDev !== null &&
+      contribDev !== null &&
+      dDir !== 'in line with' &&
+      cDir !== 'in line with' &&
+      dDir !== cDir;
+
+    let headline: string;
+    if (divergent) {
+      headline =
+        demandDev! > 0
+          ? `Day ${dp.flight_day} — demand ahead, contribution behind`
+          : `Day ${dp.flight_day} — contribution ahead, demand behind`;
+    } else if (attention === 'NONE') {
+      headline = `Day ${dp.flight_day} — tracking to the activated plan`;
+    } else {
+      const lead = Math.abs(demandDev ?? 0) >= Math.abs(contribDev ?? 0) ? demandDev : contribDev;
+      headline = `Day ${dp.flight_day} — running ${(lead ?? 0) > 0 ? 'above' : 'below'} the activated plan`;
+    }
+
+    const parts: string[] = [];
+    if (demandDev !== null) {
+      parts.push(
+        `Demand came in at ${fmtUnits(dp.actual_value)}, ${fmtPct(demandDev)} ${dDir} the ` +
+          `${fmtUnits(dp.expectation_value)} the activated decision expected`
+      );
+    }
+    if (cp && contribDev !== null) {
+      parts.push(
+        `contribution at ${fmtGbp(cp.actual_value)}, ${fmtPct(contribDev)} ${cDir} the ` +
+          `${fmtGbp(cp.expectation_value)} expected`
+      );
+    }
+
+    const closing =
+      attention === 'ATTENTION'
+        ? 'This is a material departure from the decision that was activated and warrants attention.'
+        : attention === 'MONITOR'
+          ? 'No action is required yet; this period should be monitored.'
+          : 'This is within the range CogniX treats as tracking to plan.';
+
+    return {
+      flight_day: dp.flight_day,
+      period_index: dp.period_index,
+      period_date: dp.period_date,
+      horizon_class: dp.horizon_class,
+      headline,
+      statement: `${parts.join(', and ')}. ${closing}`,
+      attention,
+      attention_reason:
+        `Largest departure from the activated plan on this day is ${worst.toFixed(1)}%, against ` +
+        `declared thresholds of ${ATTENTION_THRESHOLD_MONITOR_PCT}% to monitor and ` +
+        `${ATTENTION_THRESHOLD_ATTENTION_PCT}% to require attention.`,
+      readings,
+      supplementary,
+      basis
+    };
+  });
+}
+
 /** The CDI-05 envelope restricted to the flight window. Values are copied, never recomputed. */
 function restrictEnvelope(
   envelope: TimelineConfidenceEnvelope,
@@ -414,6 +622,8 @@ export function projectCampaignFlight(request: FlightProjectionRequest): Campaig
     trajectories,
     lenses,
     deviation: lenses.map(summarise),
+    day_narratives: buildDayNarratives(lenses, new Map(readings.map(r => [r.flight_day, r]))),
+    flat_horizon_disclosure: FLAT_HORIZON_DISCLOSURE,
     uncertainty: restrictEnvelope(timeline.attributable_effect_envelope, horizon),
     confidence_band: timeline.attributable_effect_envelope.band,
     timeline_projection_id: timeline.projection_id,

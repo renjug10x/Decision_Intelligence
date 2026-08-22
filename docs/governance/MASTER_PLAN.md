@@ -824,13 +824,93 @@ programme DAG — it sits on a different axis.
   `ATL` set unchanged); `CTW-01` 65/65; production build clean; `atlas-governance-check --enforce`
   exits 0; browser-validated at 1024/1280/1440 with no console errors and no horizontal overflow.
 
-#### `CTW-02` — Adaptive Trajectory & Intervention Reforecast [NOT STARTED]
+#### `CTW-01R` — Campaign Decision Experience [COMPLETED]
 
-Trade-off comparison shown before activation; on activation, preserve the original trajectory,
-record the intervention, add a new trajectory and reforecast **only** the remaining horizon. Elapsed
-days are never recomputed and history is never overwritten. Emits the `REFORECAST` trajectory kind
-`CTW-01` reserved.
-- *Hard Dependencies:* `CTW-01`. *Not authorised* — the owner authorised `CTW-01` alone.
+- **Status:** Authorised and **implemented 2026-08-23** as WP1 of the CTW structured programme.
+  Evidence in [`COGNIX_CTW_01R_CAMPAIGN_DECISION_EXPERIENCE_REPORT.md`](../reports/COGNIX_CTW_01R_CAMPAIGN_DECISION_EXPERIENCE_REPORT.md).
+- **Objective:** Make the `CTW-01` journey understandable, repeatable and demo-ready for a Promotion
+  Analyst **without changing its projection semantics**. A refinement of `CTW-01`, not a reopening
+  of it: `CTW-01`'s acceptance stands and its 65 assertions pass unchanged.
+- **Delivered:**
+  - **Decision Confirmation.** The two free-text resolution boxes are replaced by governed choices —
+    a decision owner (six roles, custom permitted) and a decision rationale (six reasons, optional
+    context) — each with a helper written for an analyst, above an explanation of *why* a person is
+    being asked at all. `CDI-07A` provenance is unchanged: the answers still become `resolved_by` and
+    `resolution_statement` under `HUMAN_RESOLVED`, and free text qualifies the governed reason rather
+    than replacing it. The refusal names which answer is still missing.
+  - **Promotion experiment lifecycle** on the **existing** governed experiment architecture. No
+    competing history model: `CampaignDecisionExperiment`, `saveCampaignExperimentClient` and
+    `ExperimentHistoryDrawer` are reused as they stand. *New promotion experiment* closes the record
+    in progress — preserved, never deleted — via `POST /api/v1/campaigns/experiments/close-active`,
+    deliberately **not** the session reset, because the Campaign Decision Canvas shares this session
+    and must not lose a draft. Stage is **derived, never stored**: `Draft` → `Activated` → `In flight`.
+  - **`COMPLETED` is deliberately not a stage.** `current_day < flight_days` in all seven archetypes,
+    so nothing in this build can pass a campaign's final day; a completed stage would be a state no
+    record could reach. `PROMOTION_STAGE_NOT_DERIVABLE` publishes the reason, and the suite asserts
+    the underlying claim against the archetype data rather than trusting it.
+  - **Narrated timeline.** Every day of the horizon carries a `FlightDayNarrative` derived in the
+    engine from the governed figures — headline, statement, attention state, the reason for that
+    state, both lens readings, and the basis list. Nothing is authored per campaign or per day;
+    changing the data changes the words, which the suite proves by narrating the same day twice on
+    different telemetry. Attention follows declared thresholds (`2%` monitor, `5%` attention) in
+    either direction, because a campaign well ahead of the activated decision has departed from it
+    just as surely as one behind.
+  - **Duplication removed.** The five-day telemetry card strip is retired in favour of the continuous
+    timeline as the visual hero, and **nothing it showed was lost**: demand, contribution, depot stock
+    and the world model's own day status all moved into the day detail, each with its own basis, and
+    the seeded status is explicitly distinguished from CogniX's assessment against the activated
+    decision.
+- **The flat predicted horizon is now disclosed rather than concealed.** `FLAT_HORIZON_DISCLOSURE` is
+  published on every projection: under `FLAT_RATE_IDENTITY` every remaining day carries the same
+  expectation, so what widens with horizon is confidence, not demand. The suite asserts the
+  disclosure is *true of the data*, so it fails if the projection ever stops being flat.
+- **Projection semantics unchanged.** No engine arithmetic, horizon, deviation, uncertainty or
+  invariant was altered. Narration is additive beside the series, never folded into the points
+  `CTW-01` froze.
+- **Also fixed:** a **pre-existing** horizontal overflow on the planning view below ~1240px — seven
+  `nowrap` archetype chips forced a minimum page width that `overflowX: auto` did not relieve. Two
+  `flexWrap: 'wrap'` declarations. Presentation only; it was invisible to `CTW-01`'s validation
+  because that was performed on the in-flight view, where the configuration block is not rendered.
+- **Hard Dependencies:** `CTW-01`. **Integration Dependencies:** `CampaignDecisionExperiment` /
+  `campaign-experiment-store`, `CDI-07A`.
+- **Non-Scope:** adaptive intervention, decision moments, reforecast, post-flight reconciliation, any
+  change to projection semantics, any forecasting model.
+- **Validation:** `tsc` clean; **37 of 37 runners green** with every recorded baseline matched exactly
+  and `CTW-01` unchanged at 65/65; `CTW-01R` 59/59; production build clean;
+  `atlas-governance-check --enforce` exits 0; browser-validated at 1024/1280/1440 with no console
+  errors and no horizontal overflow.
+
+#### `CTW-02` — Predictive Intervention Planning [NOT STARTED]
+
+Campaign Outlook, Decision Moments, decision windows, intervention preview, planned interventions
+with conditional modes, reassessment, apply-and-reforecast, and the campaign story. Emits the
+`REFORECAST` trajectory kind `CTW-01` reserved. **Not authorised.**
+- *Hard Dependencies:* `CTW-01`, `CTW-01R`.
+- **Blocking finding, recorded before authorisation
+  ([`COGNIX_FORECAST_MODEL_TRUTH_RECORD.md`](COGNIX_FORECAST_MODEL_TRUTH_RECORD.md) §6):** a Decision
+  Moment is a day that differs materially from other days, and **under `FLAT_RATE_IDENTITY` no
+  predicted day differs from any other** — verified as one distinct campaign-phase index value per
+  archetype. Genuine day-varying Decision Moments therefore require `CTW-03`'s governed forecast
+  execution first. `CTW-02` can honestly deliver decision-moment structure, planning, reassessment
+  and intervention mechanics against the deviation and uncertainty facts that do exist; it cannot
+  honestly claim a predicted per-day movement until a real model produces one. **Owner sequencing
+  decision required.**
+
+#### `CTW-03` — Governed Forecast Model Execution Boundary [NOT STARTED]
+
+One authoritative model-execution contract between dataset, model selection, fitting, prediction,
+uncertainty and the Decision Twin, such that the model named to the user is the implementation that
+produced the forecast. **Not authorised.** *Hard Dependencies:* `CTW-01R`. See
+[`COGNIX_FORECAST_MODEL_TRUTH_RECORD.md`](COGNIX_FORECAST_MODEL_TRUTH_RECORD.md), which is the
+factual baseline this work package must correct.
+
+**`CTW-02` absorbs the earlier "Adaptive Trajectory & Intervention Reforecast" scope.** The
+trajectory mechanics recorded when `CTW-01` was authorised — preserve the original trajectory on
+activation, record the intervention, add a new trajectory, reforecast **only** the remaining horizon,
+never recompute elapsed days and never overwrite history — are unchanged and are carried into
+`CTW-02` above rather than standing as a separate package. Nothing in that scope was dropped; it was
+widened by the owner's CTW programme brief to include the outlook, decision moments, planning and
+reassessment that surround it.
 
 **Post-flight reconciliation is deliberately not a `CTW` work package.** It is extension work on
 `CDI-08` `PredictionOutcomeComparison` and the `CampaignDecisionExperiment` comparison surface. A

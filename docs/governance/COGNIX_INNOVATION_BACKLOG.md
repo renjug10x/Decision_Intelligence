@@ -338,9 +338,11 @@ build.*
 Specified in full in §5. Summary entry:
 
 - **Stage.** **`In Delivery`** since 2026-08-22.
-- **Master Plan status.** **Authorised.** The owner authorised `CTW-01` on 2026-08-22 as a
-  deliberate demo-priority override; `CTW-01` is `[COMPLETED]` and `CTW-02` is `[NOT STARTED]` and
-  **not** authorised. The authoritative scope is the `CTW` section of
+- **Master Plan status.** **Authorised.** The owner authorised `CTW-01` on 2026-08-22 and the CTW
+  structured programme on 2026-08-23, both as deliberate demo-priority overrides. `CTW-01` and
+  `CTW-01R` are `[COMPLETED]`; `CTW-02` and `CTW-03` are `[NOT STARTED]` and **not** authorised.
+  A blocking finding stands against `CTW-02` —
+  [`COGNIX_FORECAST_MODEL_TRUTH_RECORD.md`](COGNIX_FORECAST_MODEL_TRUTH_RECORD.md) §6. The authoritative scope is the `CTW` section of
   [`MASTER_PLAN.md`](MASTER_PLAN.md), not this entry — §5 below is preserved as the record of what
   was proposed and why, and is no longer the governing document for `CTW-01`.
 - **Priority.** **Demo priority** — see §6 for what that does and does not mean.
@@ -817,5 +819,6 @@ authorisation.
 - [`DEMAND_OBSERVABILITY_MODEL.md`](DEMAND_OBSERVABILITY_MODEL.md) §5 — the maturity model `IB-04` reconciles
 - [`COGNIX_MASTER_PLAN_FORENSIC_STATUS_ASSESSMENT.md`](../reports/COGNIX_MASTER_PLAN_FORENSIC_STATUS_ASSESSMENT.md) — the assessment §6.1 adopts on `ESF-4`
 - [`COGNIX_ATLAS_RESIDUAL_REGISTER.md`](COGNIX_ATLAS_RESIDUAL_REGISTER.md) — Atlas residuals; `R-04`/`R-18` relate to `IB-05`, `R-15` to `IB-11`
+- [`COGNIX_FORECAST_MODEL_TRUTH_RECORD.md`](COGNIX_FORECAST_MODEL_TRUTH_RECORD.md) — what actually executes when a forecasting model is selected, and why `IB-02`/`IB-04` and `CTW-02`/`CTW-03` depend on it
 - [`ARCHITECTURE_DECISIONS.md`](../architecture/ARCHITECTURE_DECISIONS.md) — **ADR-069**, **ADR-070**
 - [`COGNIX_INNOVATION_BACKLOG_AND_CONTINUOUS_TWIN_PLANNING_REPORT.md`](../reports/COGNIX_INNOVATION_BACKLOG_AND_CONTINUOUS_TWIN_PLANNING_REPORT.md) — evidence for every current-state claim in §5.2

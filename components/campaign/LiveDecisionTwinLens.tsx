@@ -143,67 +143,10 @@ export default function LiveDecisionTwinLens({
 
         {/* Telemetry Stream Daily Progression Cards */}
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748B', textTransform: 'uppercase', marginBottom: 8 }}>
+          <div style={{ fontSize: '0.78rem', color: '#475569', lineHeight: 1.55 }}>
             {flight
-              ? 'Demonstration telemetry — the source the day-by-day deviation ratio is read from'
-              : 'Daily In-Flight Telemetry — Simulated (Expected vs Simulated-Observed Trajectories)'}
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-              gap: 10
-            }}
-          >
-            {twin.telemetry_streams.map(stream => {
-              const isSevere = stream.deviation_status === 'SEVERE_DEVIATION';
-              const isMild = stream.deviation_status === 'MILD_DRIFT';
-
-              return (
-                <div
-                  key={stream.day_index}
-                  style={{
-                    background: isSevere ? '#FEF2F2' : isMild ? '#FFFBEB' : '#F8FAFC',
-                    border: `1px solid ${isSevere ? '#FECACA' : isMild ? '#FDE68A' : '#E2E8F0'}`,
-                    borderRadius: 8,
-                    padding: '10px 12px'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0F172A' }}>
-                      {stream.day_label}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: '0.65rem',
-                        fontWeight: 600,
-                        color: isSevere ? '#DC2626' : isMild ? '#D97706' : '#059669'
-                      }}
-                    >
-                      {stream.deviation_status.replace('_', ' ')}
-                    </span>
-                  </div>
-
-                  <div style={{ fontSize: '0.75rem', color: '#64748B', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Demand Index:</span>
-                    <strong>{stream.observed_demand_index} (exp {stream.expected_demand_index})</strong>
-                  </div>
-
-                  <div style={{ fontSize: '0.75rem', color: '#64748B', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Daily Margin:</span>
-                    <strong style={{ color: stream.observed_margin_gbp < stream.expected_margin_gbp ? '#DC2626' : '#059669' }}>
-                      £{stream.observed_margin_gbp}
-                    </strong>
-                  </div>
-
-                  <div style={{ fontSize: '0.75rem', color: '#64748B', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Depot Stock:</span>
-                    <span>{stream.observed_inventory_units.toLocaleString()}u</span>
-                  </div>
-                </div>
-              );
-            })}
+              ? 'The day-by-day demonstration telemetry that used to sit here is now read on the timeline below — select any elapsed day to see its demand, contribution, depot stock and world-model status together, against the decision that was activated.'
+              : 'Day-by-day demonstration telemetry is shown on the campaign timeline once a decision is activated.'}
           </div>
         </div>
       </div>

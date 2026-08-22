@@ -257,6 +257,18 @@ export interface ElapsedTelemetryReading {
   demand_observed: number;
   contribution_expected: number;
   contribution_observed: number;
+  /**
+   * A seeded per-day stock reading, carried through so that retiring the old per-day card strip
+   * loses nothing (CTW-01R §6). It is reported verbatim as a supplementary reading and never
+   * becomes a trajectory: a stock series needs a declared depletion basis that nothing supplies.
+   */
+  depot_stock_units?: number;
+  /**
+   * The demonstration world model's own per-day classification. Carried through so retiring the
+   * card strip drops nothing, and reported as what it is — a seeded label, not CogniX's assessment
+   * against the activated decision, which is derived separately and from different inputs.
+   */
+  seeded_status?: string;
 }
 
 export interface FlightProjectionRequest {
@@ -288,6 +300,11 @@ export interface CampaignFlightProjection {
   trajectories: FlightTrajectory[];
   lenses: ContinuousLensSeries[];
   deviation: FlightDeviationSummary[];
+
+  /** One narration per day of the window, derived from the figures above and nothing else. */
+  day_narratives: FlightDayNarrative[];
+  /** Why every predicted day carries the same expectation. Published, not hidden. */
+  flat_horizon_disclosure: string;
 
   /**
    * The CDI-05 envelope, restricted to the flight window and unchanged in value. Rendered
@@ -476,3 +493,186 @@ export function validateFlightProjection(
 
   return violations;
 }
+
+// ---------------------------------------------------------------------------
+// CTW-01R — Decision confirmation vocabulary
+// ---------------------------------------------------------------------------
+
+/**
+ * `CTW-01` asked a human resolver for two free-text strings — *who is deciding* and *why*.
+ * Both are load-bearing CDI-07A provenance (`resolved_by`, `resolution_statement`) and neither
+ * was answerable by a Promotion Analyst without knowing what the system wanted. CTW-01R keeps
+ * the provenance exactly and replaces the blank boxes with governed choices.
+ *
+ * These are **demonstration vocabularies**, not an organisational role model. They exist so a
+ * decision can be attributed to an accountable role in a demo; a real deployment would bind
+ * them to the tenant's own directory.
+ */
+export interface DecisionConfirmationOption {
+  id: string;
+  label: string;
+}
+
+export const DECISION_OWNER_ROLES: DecisionConfirmationOption[] = [
+  { id: 'PROMOTION_ANALYST', label: 'Promotion Analyst' },
+  { id: 'CATEGORY_MANAGER', label: 'Category Manager' },
+  { id: 'COMMERCIAL_MANAGER', label: 'Commercial Manager' },
+  { id: 'DEMAND_PLANNER', label: 'Demand Planner' },
+  { id: 'CAMPAIGN_LEAD', label: 'Campaign Lead' },
+  { id: 'OTHER', label: 'Other (specify)' }
+];
+
+export const DECISION_RATIONALES: DecisionConfirmationOption[] = [
+  { id: 'PROTECT_MARGIN', label: 'Protect margin' },
+  { id: 'PRIORITISE_DEMAND_GROWTH', label: 'Prioritise demand growth' },
+  { id: 'REDUCE_STOCK_EXPOSURE', label: 'Reduce stock exposure' },
+  { id: 'MAINTAIN_CUSTOMER_PROPOSITION', label: 'Maintain customer proposition' },
+  { id: 'OPERATIONAL_CONSTRAINT', label: 'Operational constraint' },
+  { id: 'OTHER', label: 'Other (specify)' }
+];
+
+/** Why a person is being asked at all. Stated once, in the analyst's language. */
+export const DECISION_CONFIRMATION_EXPLANATION =
+  'CogniX has identified more than one viable option. The evidence does not justify choosing one ' +
+  'automatically, so a person must confirm how to proceed.';
+
+export const DECISION_OWNER_HELPER = 'Who is accountable for approving this campaign decision?';
+export const DECISION_RATIONALE_HELPER = 'What is the primary reason for selecting this option?';
+
+export function decisionOwnerLabel(id: string, custom?: string): string {
+  if (id === 'OTHER') return (custom || '').trim();
+  return DECISION_OWNER_ROLES.find(r => r.id === id)?.label || '';
+}
+
+/**
+ * The resolution statement CDI-07A stores. A governed reason, optionally qualified by the
+ * analyst's own words — never the free text alone, so the structured reason always survives.
+ */
+export function buildResolutionStatement(rationaleId: string, context?: string): string {
+  const base = DECISION_RATIONALES.find(r => r.id === rationaleId)?.label || '';
+  const extra = (context || '').trim();
+  if (rationaleId === 'OTHER') return extra;
+  return extra ? `${base} — ${extra}` : base;
+}
+
+// ---------------------------------------------------------------------------
+// CTW-01R — Promotion experiment stage
+// ---------------------------------------------------------------------------
+
+/**
+ * The stages a promotion experiment can actually be in at this baseline.
+ *
+ * `COMPLETED` is deliberately absent. A campaign completes when every day of its window has
+ * elapsed, and elapsed days come from seeded archetype telemetry where `current_day` is always
+ * strictly less than `flight_days` in all seven archetypes. Nothing in the estate can move a
+ * campaign past its final day, so a `COMPLETED` stage would be a state no record could reach —
+ * exactly the kind of unbacked status this programme refuses to invent. It becomes derivable
+ * when campaign time advances, which is not this work package.
+ */
+export type PromotionExperimentStage = 'DRAFT' | 'ACTIVATED' | 'IN_FLIGHT';
+
+export interface PromotionExperimentStatus {
+  stage: PromotionExperimentStage;
+  label: string;
+  /** What this stage means, in the analyst's language. */
+  detail: string;
+}
+
+export const PROMOTION_STAGE_NOT_DERIVABLE =
+  'A completed stage is not shown because no campaign in this build can pass its final day: ' +
+  'elapsed days come from seeded telemetry that always stops short of the campaign window.';
+
+/**
+ * Derived from what is true, never stored. A record is `ACTIVATED` when it carries an active
+ * decision contract, and `IN_FLIGHT` only once the campaign has elapsed days to assess.
+ */
+export function derivePromotionExperimentStage(args: {
+  hasActiveContract: boolean;
+  elapsedDays: number;
+}): PromotionExperimentStatus {
+  if (!args.hasActiveContract) {
+    return {
+      stage: 'DRAFT',
+      label: 'Draft',
+      detail: 'Configured and assessed, but no decision has been activated yet.'
+    };
+  }
+  if (args.elapsedDays <= 0) {
+    return {
+      stage: 'ACTIVATED',
+      label: 'Activated',
+      detail: 'A decision is activated and is the governed baseline. The campaign has not started.'
+    };
+  }
+  return {
+    stage: 'IN_FLIGHT',
+    label: 'In flight',
+    detail: 'The campaign is running and is being assessed against the activated decision.'
+  };
+}
+
+// ---------------------------------------------------------------------------
+// CTW-01R — Narration
+// ---------------------------------------------------------------------------
+
+export type DayAttention = 'NONE' | 'MONITOR' | 'ATTENTION';
+
+/**
+ * Demonstration attention thresholds, declared rather than tuned. They are stated here so a
+ * reader can see exactly what makes CogniX say "monitor" instead of "fine", and so the
+ * judgement is auditable rather than buried in a component.
+ */
+export const ATTENTION_THRESHOLD_MONITOR_PCT = 2.0;
+export const ATTENTION_THRESHOLD_ATTENTION_PCT = 5.0;
+
+export interface FlightDayLensReading {
+  lens: FlightLens;
+  expectation_value: number | null;
+  actual_value: number | null;
+  deviation_pct: number | null;
+  expectation_lower: number | null;
+  expectation_upper: number | null;
+}
+
+/**
+ * A per-day figure that is neither modelled nor projected — a seeded telemetry reading carried
+ * through so that retiring the old per-day card strip loses nothing. It is always labelled with
+ * its own basis and never joins a trajectory.
+ */
+export interface FlightDaySupplementaryReading {
+  label: string;
+  value: string;
+  basis: string;
+}
+
+export interface FlightDayNarrative {
+  flight_day: number;
+  period_index: number;
+  period_date: string;
+  horizon_class: CampaignHorizonClass;
+  headline: string;
+  statement: string;
+  attention: DayAttention;
+  attention_reason: string;
+  readings: FlightDayLensReading[];
+  supplementary: FlightDaySupplementaryReading[];
+  /** The governed facts this narration was derived from. Never prose written per campaign. */
+  basis: string[];
+}
+
+/**
+ * The honest shape of the predicted horizon at this baseline.
+ *
+ * CDI-05 allocates the campaign effect under `FLAT_RATE_IDENTITY` — a level shift applied
+ * equally to every campaign day. The consequence, verified across archetypes, is that **every
+ * predicted day carries the same expectation**: the campaign-phase index is a single constant.
+ * What varies across the remaining horizon is the declared uncertainty, which widens, and
+ * nothing else.
+ *
+ * This is published rather than hidden, because a reader looking at a flat predicted line is
+ * entitled to know it is flat by construction and not by forecast.
+ */
+export const FLAT_HORIZON_DISCLOSURE =
+  'The activated plan allocates its effect evenly across the campaign, so every remaining day ' +
+  'carries the same expectation. Day-to-day predicted movement would require a fitted forecast ' +
+  'model, which this build does not have — what widens with horizon here is confidence, not demand.';

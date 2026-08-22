@@ -13,12 +13,28 @@
  */
 
 import React, { useState } from 'react';
-import { Activity, Info, ShieldCheck, TrendingDown, TrendingUp, Minus } from 'lucide-react';
+import {
+  Activity,
+  AlertTriangle,
+  Eye,
+  Info,
+  ShieldCheck,
+  TrendingDown,
+  TrendingUp,
+  Minus
+} from 'lucide-react';
 import {
   CampaignFlightProjection,
   ContinuousLensSeries,
+  DayAttention,
   FlightLens
 } from '@/packages/contracts/src/campaign-continuous-timeline-model';
+
+const ATTENTION_STYLE: Record<DayAttention, { bg: string; border: string; text: string; label: string }> = {
+  NONE: { bg: '#F0FDF4', border: '#BBF7D0', text: '#166534', label: 'Tracking to plan' },
+  MONITOR: { bg: '#FFFBEB', border: '#FDE68A', text: '#92400E', label: 'Monitor' },
+  ATTENTION: { bg: '#FEF2F2', border: '#FECACA', text: '#991B1B', label: 'Needs attention' }
+};
 
 const BLUE = '#2563EB';
 const VIOLET = '#7C3AED';
@@ -42,6 +58,13 @@ export default function ContinuousFlightTimeline({
   flight: CampaignFlightProjection;
 }) {
   const [lens, setLens] = useState<FlightLens>('DEMAND');
+  /**
+   * Which day the reader is inspecting. Defaults to today, because that is the day an analyst
+   * arrives asking about. Hovering previews; clicking pins, so the panel can be read without
+   * keeping the pointer on the chart.
+   */
+  const [pinnedDay, setPinnedDay] = useState<number | null>(null);
+  const [hoverDay, setHoverDay] = useState<number | null>(null);
   const series: ContinuousLensSeries =
     flight.lenses.find(l => l.lens === lens) || flight.lenses[0];
   const summary = flight.deviation.find(d => d.lens === series.lens);
@@ -100,6 +123,11 @@ export default function ContinuousFlightTimeline({
   const tickLabel = (t: number) =>
     `${lens === 'CONTRIBUTION' ? '£' : ''}${(t / 1000).toFixed(tickDecimals)}k`;
   const dayStep = horizon.flight_days > 16 ? 3 : horizon.flight_days > 8 ? 2 : 1;
+
+  const activeDay =
+    hoverDay ?? pinnedDay ?? (horizon.today_flight_day > 0 ? horizon.today_flight_day : 1);
+  const narrative = flight.day_narratives.find(n => n.flight_day === activeDay);
+  const attentionStyle = narrative ? ATTENTION_STYLE[narrative.attention] : ATTENTION_STYLE.NONE;
 
   const DevIcon =
     summary?.state === 'AHEAD_OF_PLAN' ? TrendingUp : summary?.state === 'BEHIND_PLAN' ? TrendingDown : Minus;
@@ -263,6 +291,40 @@ export default function ContinuousFlightTimeline({
             </g>
           )}
 
+          {/* Selected day marker */}
+          {narrative && (
+            <line
+              x1={x(activeDay)}
+              y1={PAD.top}
+              x2={x(activeDay)}
+              y2={PAD.top + plotH}
+              stroke={narrative.horizon_class === 'PREDICTED_REMAINING' ? BLUE : VIOLET}
+              strokeWidth="1.25"
+              strokeOpacity="0.55"
+            />
+          )}
+
+          {/* Per-day hit targets — a full-height band per day, so a day is easy to hit */}
+          {pts.map(p => {
+            const half = horizon.flight_days > 1 ? plotW / (horizon.flight_days - 1) / 2 : plotW / 2;
+            return (
+              <rect
+                key={`hit-${p.flight_day}`}
+                x={x(p.flight_day) - half}
+                y={PAD.top}
+                width={half * 2}
+                height={plotH}
+                fill="transparent"
+                style={{ cursor: 'pointer' }}
+                onMouseEnter={() => setHoverDay(p.flight_day)}
+                onMouseLeave={() => setHoverDay(null)}
+                onClick={() => setPinnedDay(p.flight_day)}
+              >
+                <title>{`Day ${p.flight_day}`}</title>
+              </rect>
+            );
+          })}
+
           {/* X axis */}
           <line x1={PAD.left} y1={PAD.top + plotH} x2={W - PAD.right} y2={PAD.top + plotH} stroke="#CBD5E1" strokeWidth="1" />
           {pts
@@ -312,6 +374,150 @@ export default function ContinuousFlightTimeline({
           Declared uncertainty
         </span>
       </div>
+
+      {/* ── Narrated day detail — derived from governed facts, never authored per day ── */}
+      {narrative && (
+        <div
+          style={{
+            marginTop: 16,
+            background: attentionStyle.bg,
+            border: `1px solid ${attentionStyle.border}`,
+            borderRadius: 10,
+            padding: '14px 16px'
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: 12,
+              flexWrap: 'wrap'
+            }}
+          >
+            <div style={{ display: 'flex', gap: 9, alignItems: 'flex-start', flex: 1, minWidth: 240 }}>
+              {narrative.attention === 'NONE' ? (
+                <Eye size={16} color={attentionStyle.text} style={{ flexShrink: 0, marginTop: 2 }} />
+              ) : (
+                <AlertTriangle size={16} color={attentionStyle.text} style={{ flexShrink: 0, marginTop: 2 }} />
+              )}
+              <div>
+                <div style={{ fontSize: '0.9rem', fontWeight: 700, color: SLATE }}>{narrative.headline}</div>
+                <p style={{ fontSize: '0.8rem', color: '#334155', margin: '4px 0 0 0', lineHeight: 1.55 }}>
+                  {narrative.statement}
+                </p>
+              </div>
+            </div>
+            <span
+              style={{
+                fontSize: '0.66rem',
+                fontWeight: 700,
+                letterSpacing: '0.04em',
+                textTransform: 'uppercase',
+                color: attentionStyle.text,
+                border: `1px solid ${attentionStyle.border}`,
+                background: '#FFFFFF',
+                padding: '3px 9px',
+                borderRadius: 4,
+                whiteSpace: 'nowrap'
+              }}
+            >
+              {attentionStyle.label}
+            </span>
+          </div>
+
+          <div
+            style={{
+              marginTop: 12,
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(165px, 1fr))',
+              gap: 10
+            }}
+          >
+            {narrative.readings.map(r => (
+              <div
+                key={r.lens}
+                style={{ background: '#FFFFFF', border: `1px solid ${LINE}`, borderRadius: 8, padding: '9px 11px' }}
+              >
+                <div
+                  style={{
+                    fontSize: '0.64rem',
+                    color: MUTED,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em'
+                  }}
+                >
+                  {r.lens === 'DEMAND' ? 'Demand' : 'Contribution'}
+                </div>
+                <div style={{ fontSize: '0.86rem', fontWeight: 700, color: SLATE, marginTop: 3 }}>
+                  {r.actual_value !== null ? fmt(r.lens, r.actual_value) : fmt(r.lens, r.expectation_value)}
+                  {r.deviation_pct !== null && (
+                    <span
+                      style={{
+                        fontSize: '0.74rem',
+                        fontWeight: 600,
+                        marginLeft: 6,
+                        color: r.deviation_pct >= 0 ? '#047857' : '#B91C1C'
+                      }}
+                    >
+                      {r.deviation_pct > 0 ? '+' : ''}
+                      {r.deviation_pct.toFixed(1)}%
+                    </span>
+                  )}
+                </div>
+                <div style={{ fontSize: '0.68rem', color: MUTED, marginTop: 2 }}>
+                  {r.actual_value !== null
+                    ? `expected ${fmt(r.lens, r.expectation_value)}`
+                    : r.expectation_lower !== null && r.expectation_upper !== null
+                      ? `${fmt(r.lens, r.expectation_lower)} – ${fmt(r.lens, r.expectation_upper)} declared range`
+                      : 'projected'}
+                </div>
+              </div>
+            ))}
+            {narrative.supplementary.map(sup => (
+              <div
+                key={sup.label}
+                style={{ background: '#FFFFFF', border: `1px dashed ${LINE}`, borderRadius: 8, padding: '9px 11px' }}
+              >
+                <div
+                  style={{
+                    fontSize: '0.64rem',
+                    color: MUTED,
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em'
+                  }}
+                >
+                  {sup.label}
+                </div>
+                <div style={{ fontSize: '0.86rem', fontWeight: 700, color: SLATE, marginTop: 3 }}>{sup.value}</div>
+                <div style={{ fontSize: '0.66rem', color: MUTED, marginTop: 2, lineHeight: 1.4 }}>{sup.basis}</div>
+              </div>
+            ))}
+          </div>
+
+          <details style={{ marginTop: 10 }}>
+            <summary style={{ fontSize: '0.72rem', color: MUTED, cursor: 'pointer' }}>
+              Why CogniX says this
+            </summary>
+            <p style={{ fontSize: '0.72rem', color: MUTED, margin: '6px 0 0 0', lineHeight: 1.5 }}>
+              {narrative.attention_reason}
+            </p>
+            <ul style={{ fontSize: '0.7rem', color: MUTED, margin: '6px 0 0 0', paddingLeft: 18, lineHeight: 1.5 }}>
+              {narrative.basis.map(b => (
+                <li key={b}>{b}</li>
+              ))}
+            </ul>
+          </details>
+
+          <div style={{ fontSize: '0.68rem', color: MUTED, marginTop: 8 }}>
+            {hoverDay !== null
+              ? 'Click a day to keep it open.'
+              : pinnedDay !== null
+                ? 'Pinned — hover another day to preview it.'
+                : 'Hover or click any day on the timeline.'}
+          </div>
+        </div>
+      )}
 
       {/* ── Deviation summary ── */}
       {summary && (
