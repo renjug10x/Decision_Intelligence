@@ -530,8 +530,17 @@ async function run() {
 
   // ── K. Governance ───────────────────────────────────────────────────────
   const charter = readFileSync(join(ROOT, 'docs', 'governance', 'COGNIX_CAPABILITY_ATLAS.md'), 'utf8');
-  assert(/### `ATL-06C` — AI Explanation & Hybrid Reasoning \[COMPLETED — LIVE VALIDATION PENDING\]/.test(charter),
-    'K1: The charter records ATL-06C honestly, including that live validation is pending');
+  // K1 previously asserted the literal transient status `[COMPLETED — LIVE VALIDATION PENDING]`,
+  // which is the same defect class as the old L3 pointer: it encoded a state designed to change. It
+  // now asserts the invariant that state existed to protect — the phase is `[COMPLETED]` if and only
+  // if `AC-ATL-06C-9` is marked MET, so neither can be advanced without the other.
+  const phaseStatus = charter.match(/### `ATL-06C` — AI Explanation & Hybrid Reasoning \[([^\]]+)\]/)?.[1];
+  const criterionMet = /`AC-ATL-06C-9` \*\*\[HARD, MET\]\*\*/.test(charter);
+  const criterionOutstanding = /`AC-ATL-06C-9` \*\*\[HARD, OUTSTANDING\]\*\*/.test(charter);
+  assert(phaseStatus !== undefined && (criterionMet !== criterionOutstanding) &&
+    (phaseStatus === 'COMPLETED') === criterionMet,
+    'K1: The charter records ATL-06C honestly — the phase is COMPLETED if and only if AC-ATL-06C-9 is met',
+    `status "${phaseStatus}", criterion met=${criterionMet}, outstanding=${criterionOutstanding}`);
   const adrs = readFileSync(join(ROOT, 'docs', 'architecture', 'ARCHITECTURE_DECISIONS.md'), 'utf8');
   assert(/### ADR-057:/.test(adrs) && /### ADR-058:/.test(adrs),
     'K2: The two decisions ATL-06C took are recorded as ADRs');

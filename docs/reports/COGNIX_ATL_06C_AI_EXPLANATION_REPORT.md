@@ -1,7 +1,7 @@
 # COGNIX `ATL-06C` — AI EXPLANATION & HYBRID REASONING
 
 **Work Package:** `ATL-06C` — AI Explanation & Hybrid Reasoning
-**Status:** **IMPLEMENTATION COMPLETE — LIVE VALIDATION PENDING**
+**Status:** **COMPLETE** — `AC-ATL-06C-9` closed on a real credentialed round trip (`f1c390bc`). Sanitised evidence: [`COGNIX_ATL_06C_LIVE_VALIDATION_SUMMARY.md`](COGNIX_ATL_06C_LIVE_VALIDATION_SUMMARY.md)
 **Date:** 2026-08-21
 **Owner:** G10X Enterprise Innovation Lab Architecture Board
 **Governing decisions:** ADR-044, ADR-048, ADR-049, ADR-050, ADR-053, ADR-054, ADR-055, ADR-056,
@@ -12,7 +12,14 @@
 
 ## 1. Status, stated plainly
 
-Every acceptance criterion is met except one, and that one is held open deliberately.
+**Every acceptance criterion is met, including `AC-ATL-06C-9`.** It was held open across three
+sessions and closed on 2026-08-21 by a real credentialed round trip against `gemini-3.6-flash`:
+25 grounding supports, 25/25 exact byte-offset reconstruction, both market scenarios invoking the
+provider, the internal scenario **not** invoking it, and credential-safe failure behaviour. The
+sections below are preserved as written, because the three blockers they record — a missing
+server-side credential path, a retired model alias and an elided segment offset — are the phase's most
+useful output: **none of them was detectable by a fixture-backed suite**, which is precisely why the
+live gate existed. What follows is the history that justified it.
 
 `AC-ATL-06C-9` requires **at least one real credentialed Gemini/Search grounding round trip**. This
 environment holds no `GEMINI_API_KEY`. What *was* done is stronger than "the environment prevented

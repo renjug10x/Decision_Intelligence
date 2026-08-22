@@ -25,14 +25,76 @@
 | `ATL-05` | Internal AI Retrieval & Ask CogniX | **[COMPLETED]** | 2026-08-20 | [`COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md`](../reports/COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md) · `run-atl05-tests.ts` 54/54 · internal-only retrieval, no provider adapter · `tsc` 0 · build clean |
 | `ATL-06A` | External Grounding & Provenance Architecture | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md`](../reports/COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md) · `run-atl06a-tests.ts` 115/115 · ADR-053, ADR-054 · policy published at `/api/v1/atlas/grounding` · no provider, no network call · `tsc` 0 · build clean |
 | `ATL-06B` | Grounded Market Intelligence | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md`](../reports/COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md) · `run-atl06b-tests.ts` 123/123 · `run-atl06a-tests.ts` 115/115 **unchanged** · ADR-055, ADR-056 · Google Search grounding behind the ATL-06A gate, user-initiated · `tsc` 0 · build clean |
-| `ATL-06C` | AI Explanation & Hybrid Reasoning | **[COMPLETED — LIVE VALIDATION PENDING]** | 2026-08-21 | [`COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md`](../reports/COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md) · `run-atl06c-tests.ts` 121/121 · `run-atl06a` 115 / `run-atl06b` 123 **unchanged** · ADR-057, ADR-058, ADR-059 · request contract live-validated against `generativelanguage.googleapis.com`; **no credentialed round trip performed — no key in this environment** |
-| `ATL-06D` | Client Conversation Pack | **[COMPLETED — INHERITED LIVE VALIDATION PENDING]** | 2026-08-21 | [`COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md`](../reports/COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md) · `run-atl06d-tests.ts` 96/96 · every earlier suite green (`atl04` 58 and `atl04r` 118 with four assertions **re-pointed, not relaxed**) · ADR-064, ADR-065, ADR-066 · preparation reached from the Atlas, recommendation by accumulated rationale, demo steps quoted never written, warnings structural and lens-invariant, research default OFF through the unmodified ATL-06A gate · **`D-ATL-04R-1` persona residual corrected and browser-verified** · **`AC-ATL-06C-9` inherited and NOT closed — no credential reached this environment** · `tsc` 0 · build clean |
+| `ATL-06C` | AI Explanation & Hybrid Reasoning | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md`](../reports/COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md) · [`COGNIX_ATL_06C_LIVE_VALIDATION_SUMMARY.md`](../reports/COGNIX_ATL_06C_LIVE_VALIDATION_SUMMARY.md) · `run-atl06c-tests.ts` 127/127 · `run-atl06a` 115 / `run-atl06b` 133 · ADR-057, ADR-058, ADR-059, ADR-067 · **`AC-ATL-06C-9` CLOSED — real credentialed round trip passed on `f1c390bc`: 25 grounding supports, 25/25 byte-offset reconstruction, S1/S2 provider invoked, S3 internal question provider NOT invoked, credential-safe failure** · `tsc` 0 · build clean |
+| `ATL-06D` | Client Conversation Pack | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md`](../reports/COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md) · `run-atl06d-tests.ts` 96/96 · every earlier suite green (`atl04` 58 and `atl04r` 118 with four assertions **re-pointed, not relaxed**) · ADR-064, ADR-065, ADR-066 · preparation reached from the Atlas, recommendation by accumulated rationale, demo steps quoted never written, warnings structural and lens-invariant, research default OFF through the unmodified ATL-06A gate · **`D-ATL-04R-1` persona residual corrected and browser-verified** · **`AC-ATL-06D-6` CLOSED — the inherited `AC-ATL-06C-9` passed live on `f1c390bc`; the market-evidence layer now rests on a validated provider path** · `run-atl06d-tests.ts` 96/96 revalidated · `tsc` 0 · build clean |
 | `ATL-07` | Capability Lifecycle Governance & Automation | **[NOT STARTED]** | — | — |
 
-**Current phase:** `ATL-06C` — implementation complete, live validation pending
-**Last completed Atlas activity:** `ATL-06D` completed 2026-08-21, correcting `D-ATL-04R-1` on the way. Its deterministic layers are evidenced; its market-evidence path inherits `ATL-06C`'s open live validation
-**Next executable work package:** **`ATL-06C` / `AC-ATL-06C-9`** — close live validation: run `GEMINI_API_KEY=… npx tsx scripts/atlas-live-grounding-check.ts` in an environment holding the credential. Attempted again during `ATL-06D`; Stage 1 passed, Stage 2 skipped, no key present
+**Current phase:** none in flight — the `ATL-06` family is complete
+**Last completed Atlas activity:** `AC-ATL-06C-9` closed 2026-08-21 on a real credentialed round trip against `gemini-3.6-flash`, closing `AC-ATL-06D-6` with it. `ATL-06C` and `ATL-06D` are both `[COMPLETED]`
+**Next executable work package:** **`ATL-07`** — Capability Lifecycle Governance & Automation
 **Next implementation work package:** `ATL-07` — Capability Lifecycle Governance & Automation
+
+> **Model-configuration defect found and corrected, 2026-08-21 (ADR-067).** Diagnosis of the failing
+> round trip established that the Atlas was requesting **retired model aliases**: `gemini-2.5-flash`
+> and friends were hard-coded independently in `lib/gemini.ts`, the grounding adapter, the
+> interpretation adapter and the live validation script. All four went stale together and **every
+> fixture-backed test kept passing**, because a recorded response cannot notice that the model named
+> in the request no longer exists. Model selection is now one governed server-side configuration,
+> `config/gemini-models.ts`, resolved at call time by every call site, defaulting to the verified
+> **`gemini-3.6-flash`** and overridable through `GEMINI_MODEL`. The default is a **single** model,
+> not a chain: a chain is how the defect hid, since a retired primary quietly became a working
+> secondary. A model name written anywhere else in the provider layer is now a test failure. This
+> also un-breaks the CDI-01 drafting route (ADR-044), which reached Gemini through the same stale
+> list. **No admission, provenance, contradiction, freshness or rejection policy changed.**
+>
+> `AC-ATL-06C-9` is **still open**: with the model corrected, the only remaining prerequisite is a
+> credential, which has not reached any build session.
+
+> **Live grounding contract corrected, 2026-08-21 (segment offsets).** The first real Gemini 3.6
+> grounded response established that `groundingSupports[].segment.startIndex` is **omitted when it is
+> zero** — protobuf elides default values — while `endIndex` is always present. The first of twenty
+> supports arrived as `{ endIndex, text }`. The pipeline itself was already correct: byte-offset
+> reconstruction succeeded for every checked segment. The failure was in the **validator's schema
+> assumption**, which demanded both indices and therefore skipped the opening claim of the answer —
+> usually the strongest one in it.
+>
+> Corrected: `endIndex` is now **required** in the governed types, an absent `startIndex` is read as
+> byte 0, an explicit one is still used, and **exact reconstruction against `segment.text` is now
+> mandatory rather than assumed** — a segment whose offsets do not reproduce its own quoted text is
+> dropped as internally inconsistent, as is one with no usable end. Regression fixtures record the
+> real first-segment shape, a missing `endIndex` and an inconsistent pair. Because the defect was in
+> the check rather than the pipeline, the validator's own assertions are now regression-tested
+> against the recorded live shape. **No ATL-06A/B admission, provenance, freshness, contradiction,
+> allowlist or rejection policy changed** — those files are untouched.
+
+> **`ATL-04R` is a refinement of `ATL-04`, inserted after it and completed before `ATL-06D`.** It does
+> not reopen `ATL-04`, whose history stands: `ATL-04` proved the backend-driven Atlas, the structured
+> discovery model and the first UI, and its acceptance criteria remain met. What evaluation of the
+> working interface then showed was that the information architecture was sound but the interaction
+> architecture exposed too many controls, fragmented Capability Atlas, Portfolio and Questions into
+> separate experiences, and behaved more like a searchable catalogue than an innovation exploration
+> environment. `ATL-04R` addresses that and nothing else; the Atlas backend, capability registry,
+> knowledge corpus, deterministic search, Questions Worth Asking model, Ask CogniX trust boundaries
+> and grounding architecture are unchanged apart from one proven Level 1 defect (ADR-062).
+
+> **`AC-ATL-06C-9` CLOSED, 2026-08-21 — the `ATL-06` family is complete.** A real credentialed
+> Gemini/Search grounding round trip passed on commit `f1c390bc` against `gemini-3.6-flash`:
+> `groundingMetadata` present, **25 grounding supports, 25/25 exact byte-offset reconstruction**,
+> `S1` and `S2` market questions invoking the provider correctly, `S3` — the internal *how does
+> Decision Gap work* question **with research explicitly requested** — **not invoking the provider at
+> all**, and credential-safe failure behaviour. `S3` is the load-bearing result: ADR-056 holding under
+> live conditions, measured as a call count of zero rather than read off the output.
+>
+> The run **corrected nothing**, which is the point. Admission, provenance, freshness, contradiction,
+> allowlist and rejection policy are byte-identical to `ATL-06A`/`ATL-06B`. Sanitised evidence in
+> [`COGNIX_ATL_06C_LIVE_VALIDATION_SUMMARY.md`](../reports/COGNIX_ATL_06C_LIVE_VALIDATION_SUMMARY.md);
+> the raw `live-evidence.json` is diagnostic material, is git-ignored and is never committed.
+>
+> Closing this also closed **`AC-ATL-06D-6`**, which existed only to carry it forward: `ATL-06D`'s
+> market-evidence layer now rests on a validated provider path, and both phases are `[COMPLETED]`.
+> Two blockers preceded it and are recorded below — a missing server-side credential path and a
+> retired model alias — because the sequence is the lesson: fixture-backed suites cannot notice
+> either, which is exactly why the live gate existed.
 
 > **Model-configuration defect found and corrected, 2026-08-21 (ADR-067).** Diagnosis of the failing
 > round trip established that the Atlas was requesting **retired model aliases**: `gemini-2.5-flash`
@@ -789,9 +851,9 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
 
 ---
 
-### `ATL-06C` — AI Explanation & Hybrid Reasoning [COMPLETED — LIVE VALIDATION PENDING]
+### `ATL-06C` — AI Explanation & Hybrid Reasoning [COMPLETED]
 
-*Implementation delivered 2026-08-21; evidence in [`COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md`](../reports/COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md). The request contract is validated against the live Gemini endpoint; **no credentialed round trip has been performed** because this environment holds no key.*
+*Delivered 2026-08-21; evidence in [`COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md`](../reports/COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md) and [`COGNIX_ATL_06C_LIVE_VALIDATION_SUMMARY.md`](../reports/COGNIX_ATL_06C_LIVE_VALIDATION_SUMMARY.md). **`AC-ATL-06C-9` closed on a real credentialed round trip against `gemini-3.6-flash`, commit `f1c390bc`.***
 
 - **Objective:** Make the third ADR-048 evidence class a reading rather than a template, and make it
   trustworthy by what it is forbidden to say.
@@ -825,12 +887,15 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
     relaxed.
   - `AC-ATL-06C-8` Level 2 semantic retrieval is evaluated on evidence before any embedding index is
     introduced (ADR-058).
-  - `AC-ATL-06C-9` **[HARD, OUTSTANDING]** At least one real Gemini/Search grounding round trip is
-    performed against a live credential before the phase is marked `[COMPLETED]`.
+  - `AC-ATL-06C-9` **[HARD, MET]** At least one real Gemini/Search grounding round trip performed
+    against a live credential. Passed on `f1c390bc`: 25 grounding supports, 25/25 exact byte-offset
+    reconstruction, `S1`/`S2` provider invoked, `S3` internal question provider **not** invoked,
+    credential-safe failure. Sanitised evidence in
+    [`COGNIX_ATL_06C_LIVE_VALIDATION_SUMMARY.md`](../reports/COGNIX_ATL_06C_LIVE_VALIDATION_SUMMARY.md).
 - **Test Requirements:** `tests/unit/run-atl06c-tests.ts`; earlier suites green; the live check run
   via `scripts/atlas-live-grounding-check.ts`.
-- **Exit Gate:** an explanation a reader can act on, in which every premise is visible and every
-  premise is either governed or sourced — **and one real grounded round trip on the record.**
+- **Exit Gate:** **met.** An explanation a reader can act on, in which every premise is visible and
+  every premise is either governed or sourced — and one real grounded round trip on the record.
 - **Implementation Allowed:** YES. **Commit/Push Permitted:** yes.
 - **Handoff:** the premise set is assembled by construction rather than by instruction — the module
   that builds it never reads `rejected_claims` or `search_transparency`, so no prompt, parameter or
@@ -868,7 +933,7 @@ programme requires: *Implementation Allowed*, *Commit/Push Permitted*, *Handoff*
 
 ---
 
-### `ATL-06D` — Client Conversation Pack [COMPLETED — INHERITED LIVE VALIDATION PENDING]
+### `ATL-06D` — Client Conversation Pack [COMPLETED]
 
 - **Objective:** Deliver **"Prepare me for a client conversation"** — an evidence-grounded preparation
   pack a seller can use unedited.
@@ -927,18 +992,20 @@ returns an evidence-grounded preparation pack containing **all** of:
   - `AC-ATL-06D-5` **[MET]** *(added by this phase)* Selecting a lens materially changes the
     information hierarchy while every capability fact stays identical. Asserted field-by-field across
     38 capabilities × 4 lenses and browser-verified on `CAP-DECISION-GAP` (ADR-064).
-  - `AC-ATL-06D-6` **[INHERITED, OUTSTANDING]** `AC-ATL-06C-9` is not closed. No `GEMINI_API_KEY`
-    reached this environment; `scripts/atlas-live-grounding-check.ts` Stage 2 was skipped, not passed.
-    The Market Context path is built and gated but has never run against a real search.
+  - `AC-ATL-06D-6` **[INHERITED, MET]** `AC-ATL-06C-9` is not closed. No `GEMINI_API_KEY`
+    reached that environment at the time. **Closed 2026-08-21**: the round trip passed on `f1c390bc`
+    against `gemini-3.6-flash`, so the Market Context path this pack consumes has now run against a
+    real search — 25 grounding supports, 25/25 exact byte-offset reconstruction, and the internal
+    question correctly not reaching the provider.
 - **Test Requirements:** `tests/unit/run-atl06d-tests.ts` — **96/96**, covering the six §39 scenarios,
   lens materiality, fact invariance under lens, recommendation rationale, sequencing without
   fabrication, sales integrity, opt-in research and failure behaviour. All earlier suites green:
-  `atl02` 119 · `atl03` 29 · `atl04` 58 · `atl04r` 118 · `atl05` 54 · `atl06a` 115 · `atl06b` 123 ·
-  `atl06c` 121. `tsc` 0 · build clean.
-- **Exit Gate:** **met for the deterministic layers.** A seller gets a pack in which every CogniX
-  claim is governed, every limitation is stated, and every prohibition carries the honest sentence to
-  use instead. Not met for market evidence, which has never been validated live — see
-  `AC-ATL-06D-6`.
+  `atl02` 119 · `atl03` 29 · `atl04` 58 · `atl04r` 118 · `atl05` 54 · `atl06a` 115 · `atl06b` 133 ·
+  `atl06c` 127. Revalidated after the live closure: **96/96 unchanged**. `tsc` 0 · build clean.
+- **Exit Gate:** **met.** A seller gets a pack in which every CogniX claim is governed, every
+  limitation is stated, and every prohibition carries the honest sentence to use instead — and, since
+  `AC-ATL-06D-6` closed, its market-evidence path rests on a provider round trip proven live rather
+  than only against recordings.
 - **Implementation Allowed:** YES. **Commit/Push Permitted:** yes.
 - **Risks:** persuasiveness pressure to soften a limitation — mitigated structurally rather than
   editorially (ADR-066). The residual risk is that a future change is argued for on the grounds that

@@ -1,7 +1,7 @@
 # COGNIX `ATL-06D` — PREPARE ME FOR A CLIENT CONVERSATION
 
 **Work Package:** `ATL-06D` — Client Conversation Pack
-**Status:** **IMPLEMENTATION COMPLETE — INHERITED LIVE VALIDATION PENDING**
+**Status:** **COMPLETE** — `AC-ATL-06D-6` closed 2026-08-21 when the inherited `AC-ATL-06C-9` passed live on `f1c390bc`. Sanitised evidence: [`COGNIX_ATL_06C_LIVE_VALIDATION_SUMMARY.md`](COGNIX_ATL_06C_LIVE_VALIDATION_SUMMARY.md)
 **Date:** 2026-08-21
 **Owner:** G10X Enterprise Innovation Lab Architecture Board
 **Governing decisions:** ADR-045, ADR-046, ADR-047, ADR-048, ADR-049, ADR-050, ADR-053, ADR-054,
