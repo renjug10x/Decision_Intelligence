@@ -361,3 +361,23 @@ validate_prod:
     paths:
       - deploy-reports/
     expire_in: 30 days
+
+atlas-governance:
+  stage: sonar
+  tags:
+    - ${RUNNER_TAG}
+  image: node:22-alpine
+  allow_failure: true
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "development" || $CI_COMMIT_BRANCH == "staging" || $CI_COMMIT_BRANCH == "production"'
+      when: always
+  # Capability governance (ATL-07). Reports drift, completeness and live-provider staleness.
+  # Advisory: `allow_failure` and no `--enforce`, because governance automation that blocks on the
+  # day it lands teaches contributors to route around it. Which families become blocking is recorded
+  # as outstanding in the ATL-07 work package.
+  # Full history is fetched because drift is measured from commit dates, not file mtimes.
+  variables:
+    GIT_DEPTH: "0"
+  script:
+    - npm ci --no-audit --no-fund
+    - npx tsx scripts/atlas-governance-check.ts

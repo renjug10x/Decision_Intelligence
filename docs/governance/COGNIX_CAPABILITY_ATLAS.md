@@ -27,12 +27,25 @@
 | `ATL-06B` | Grounded Market Intelligence | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md`](../reports/COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md) · `run-atl06b-tests.ts` 123/123 · `run-atl06a-tests.ts` 115/115 **unchanged** · ADR-055, ADR-056 · Google Search grounding behind the ATL-06A gate, user-initiated · `tsc` 0 · build clean |
 | `ATL-06C` | AI Explanation & Hybrid Reasoning | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md`](../reports/COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md) · [`COGNIX_ATL_06C_LIVE_VALIDATION_SUMMARY.md`](../reports/COGNIX_ATL_06C_LIVE_VALIDATION_SUMMARY.md) · `run-atl06c-tests.ts` 127/127 · `run-atl06a` 115 / `run-atl06b` 133 · ADR-057, ADR-058, ADR-059, ADR-067 · **`AC-ATL-06C-9` CLOSED — real credentialed round trip passed on `f1c390bc`: 25 grounding supports, 25/25 byte-offset reconstruction, S1/S2 provider invoked, S3 internal question provider NOT invoked, credential-safe failure** · `tsc` 0 · build clean |
 | `ATL-06D` | Client Conversation Pack | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md`](../reports/COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md) · `run-atl06d-tests.ts` 96/96 · every earlier suite green (`atl04` 58 and `atl04r` 118 with four assertions **re-pointed, not relaxed**) · ADR-064, ADR-065, ADR-066 · preparation reached from the Atlas, recommendation by accumulated rationale, demo steps quoted never written, warnings structural and lens-invariant, research default OFF through the unmodified ATL-06A gate · **`D-ATL-04R-1` persona residual corrected and browser-verified** · **`AC-ATL-06D-6` CLOSED — the inherited `AC-ATL-06C-9` passed live on `f1c390bc`; the market-evidence layer now rests on a validated provider path** · `run-atl06d-tests.ts` 96/96 revalidated · `tsc` 0 · build clean |
-| `ATL-07` | Capability Lifecycle Governance & Automation | **[NOT STARTED]** | — | — |
+| `ATL-07` | Capability Lifecycle Governance & Automation | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_07_GOVERNANCE_AUTOMATION_REPORT.md`](../reports/COGNIX_ATL_07_GOVERNANCE_AUTOMATION_REPORT.md) · `run-atl07-tests.ts` 51/51 · ADR-068 · 13 checks over 38 records from one command, advisory by default, wired into CI reporting-only · **live-provider drift a first-class subject**, four checks needing no credential · engine has **no write path** — flags and blocks, never promotes · first run found **20 records claiming a lifecycle tier they do not meet**, 12 with no lifecycle state, 11 with source drift since review, 0 provider drift · `tsc` 0 · build clean |
 
-**Current phase:** none in flight — the `ATL-06` family is complete
-**Last completed Atlas activity:** `AC-ATL-06C-9` closed 2026-08-21 on a real credentialed round trip against `gemini-3.6-flash`, closing `AC-ATL-06D-6` with it. `ATL-06C` and `ATL-06D` are both `[COMPLETED]`
-**Next executable work package:** **`ATL-07`** — Capability Lifecycle Governance & Automation
-**Next implementation work package:** `ATL-07` — Capability Lifecycle Governance & Automation
+**Current phase:** none — **the programme is complete.** `ATL-01` … `ATL-07` are all `[COMPLETED]`
+**Last completed Atlas activity:** `ATL-07` completed 2026-08-21. Its first run over the corpus found 20 records claiming a lifecycle tier they do not meet, 12 with no lifecycle state, 11 with source drift since review, and no live-provider drift
+**Next executable work package:** none. Subsequent work is ordinary capability maintenance under this governance
+**Outstanding for an owner:** close the 20 `GOV-REC-1` tier gaps (a corpus-population gap, one missing field across the set) · decide which check families become blocking in CI · decide whether governance findings belong on the Observability & Governance surface
+
+> **`ATL-07` completed the programme, 2026-08-21 (ADR-068).** Governance runs from one command over
+> 38 records and 13 checks, advisory by default and wired into CI reporting-only. **Live-provider
+> drift is a first-class subject**: `config/atlas-provider-verification.ts` records what was verified,
+> the commit it passed on and the files whose change invalidates it, and four checks run from it
+> **without needing a credential** — drift when the provider layer moves ahead of that commit,
+> staleness when the verification ages, a blocking failure when the configured model is not the one
+> that passed, and a blocking failure when the verification cites a file that has gone. That is the
+> `ATL-06` lesson made structural: three defects reached a credentialed run while every fixture-backed
+> suite stayed green, because fixtures prove refusal behaviour a live search cannot produce on demand
+> and cannot notice a contract moving. **The engine has no write path** — it flags and blocks and never
+> promotes a maturity state, asserted rather than promised. Nothing in the corpus was changed to
+> improve the first run's numbers.
 
 > **Model-configuration defect found and corrected, 2026-08-21 (ADR-067).** Diagnosis of the failing
 > round trip established that the Atlas was requesting **retired model aliases**: `gemini-2.5-flash`
@@ -1040,7 +1053,9 @@ question sets, 4/4 distinct opened sections, 4/4 distinct section orders.
 
 ---
 
-### `ATL-07` — Capability Lifecycle Governance & Automation [NOT STARTED]
+### `ATL-07` — Capability Lifecycle Governance & Automation [COMPLETED]
+
+*Delivered 2026-08-21; evidence in [`COGNIX_ATL_07_GOVERNANCE_AUTOMATION_REPORT.md`](../reports/COGNIX_ATL_07_GOVERNANCE_AUTOMATION_REPORT.md). Command: `npx tsx scripts/atlas-governance-check.ts`.*
 
 - **Objective:** Turn the Atlas into a living capability-governance system that keeps itself honest.
 - **Rationale:** Knowledge decays silently. The `DDF-01` reconciliation found defects that had been
@@ -1054,19 +1069,37 @@ question sets, 4/4 distinct opened sections, 4/4 distinct section orders.
   implementation references; review dates; lifecycle transitions; ownership; publication gates.
 - **Non-Scope:** automatic promotion of any capability's maturity on any dimension.
 - **Acceptance Criteria:**
-  - `AC-ATL-07-1` **[HARD]** A record whose referenced source files changed since `reviewedAt` is
-    flagged automatically.
-  - `AC-ATL-07-2` **[HARD]** A record failing its completeness tier cannot be published.
-  - `AC-ATL-07-3` **[HARD]** Automation flags and blocks; it never promotes a maturity state.
-  - `AC-ATL-07-4` Stale market evidence is flagged, never silently served.
-  - `AC-ATL-07-5` Checks run from one documented command and are wired into `.gitlab-ci.yml` if
-    adopted.
+  - `AC-ATL-07-1` **[HARD, MET]** `GOV-REC-3` flags a record whose cited source files changed since
+    `reviewed_at`, measured from git commit dates rather than file mtimes. 11 records currently flagged.
+  - `AC-ATL-07-2` **[HARD, MET]** `GOV-REC-1`/`-2`/`-5` refuse publication per record. 20 records
+    currently unpublishable, all for the same missing field.
+  - `AC-ATL-07-3` **[HARD, MET]** Structural: `GovernanceFinding` has no field capable of changing a
+    record, the layer has no write path, and a full corpus run leaves every record byte-identical.
+  - `AC-ATL-07-4` **[MET]** `GOV-REC-8` flags stale market evidence on ATL-06A's imported bounds.
+  - `AC-ATL-07-5` **[MET]** One command with `--enforce` and `--json`, wired into `.gitlab-ci.yml` as
+    an advisory job that fetches full history.
+  - `AC-ATL-07-6` **[HARD, MET]** *(added by this phase)* **Live-provider drift is detected without a
+    credential.** Four checks compare the recorded verification against repository state; an
+    unanswerable drift question is reported, never read as a pass.
 - **Test Requirements:** `tests/unit/run-atl07-tests.ts`; governance report over the full record set.
 - **Exit Gate:** capability knowledge that has drifted from the code is detected by the pipeline rather
   than by a client in a meeting.
 - **Implementation Allowed:** YES. **Commit/Push Permitted:** yes.
-- **Risks:** governance automation blocking contributors — introduce advisory first, then blocking.
-- **Decisions Outstanding:** which checks become blocking in CI.
+- **Handoff:** 13 checks over 38 records. The first run found what seven phases had not: **20 of 38
+  records claim a lifecycle tier they do not meet**, every one for the same missing field
+  (`assumptions`, required from `Research` upward by §9.1), which is a corpus-population gap rather
+  than twenty separate mistakes; **12** carry no lifecycle state and are reported as exempt rather
+  than quietly passing; **11** cite source files that moved after a human last read them; and the live
+  provider shows **no drift**. Nothing was changed to improve those numbers — the engine cannot. The
+  phase also found a defect in itself on that run: a validation observation naming the surface
+  `ATL-04R` deliberately retired was flagged as a broken citation, corrected by separating what a
+  record claims as **current** from what it records as **observed**, because a check that cries wolf
+  on a correct record trains people to ignore it.
+- **Risks:** governance automation blocking contributors — mitigated by shipping advisory, with
+  `--enforce` as the switch and the CI job set to report only.
+- **Decisions Outstanding:** which check families become blocking in CI, now decidable with the
+  findings on the table · who closes the 20 `GOV-REC-1` tier gaps · whether findings belong on the
+  Observability & Governance surface.
 - **Downstream Dependencies:** none. **Next WP:** NONE — the programme completes; subsequent work is
   ordinary capability maintenance under this governance.
 

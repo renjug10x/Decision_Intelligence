@@ -535,11 +535,18 @@ async function run() {
   // read from the front of the bolded value rather than requiring it to be the whole of it.
   const declaredNext = charter.match(/\*\*Next executable work package:\*\* \*\*`(ATL-[0-9A-D]+)`/)?.[1];
   const firstUnfinished = boardRows.find(r => r.status !== 'COMPLETED');
-  assert(boardRows.length >= 7 && declaredNext !== undefined && firstUnfinished !== undefined &&
-    declaredNext === firstUnfinished.phase &&
-    boardRows.slice(0, boardRows.indexOf(firstUnfinished)).every(r => r.status === 'COMPLETED'),
+  // Two legitimate states, and the terminal one is not an exemption. While work remains, the declared
+  // next phase must be the first unfinished one and everything before it must be complete. When
+  // nothing remains, the board must say so in as many words — a completed programme still pointing at
+  // a phase is exactly the drift this assertion exists to catch.
+  const declaresNone = /\*\*Next executable work package:\*\* none\./.test(charter);
+  const consistent = firstUnfinished === undefined
+    ? declaresNone && declaredNext === undefined
+    : declaredNext === firstUnfinished.phase &&
+      boardRows.slice(0, boardRows.indexOf(firstUnfinished)).every(r => r.status === 'COMPLETED');
+  assert(boardRows.length >= 7 && consistent,
     'L3: The board\u2019s declared next work package is the first phase that is not completed, and every phase before it is',
-    `declared ${declaredNext}, first unfinished ${firstUnfinished?.phase} (${firstUnfinished?.status})`);
+    `declared ${declaredNext ?? '(none)'}, first unfinished ${firstUnfinished?.phase ?? '(none — programme complete)'}, board declares none: ${declaresNone}`);
   const master = readFileSync(join(ROOT, 'docs', 'governance', 'MASTER_PLAN.md'), 'utf8');
   assert(/`ATL-06A`/.test(master) && /`ATL-06D`/.test(master),
     'L4: The master plan carries the same four-way split');
