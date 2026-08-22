@@ -11,7 +11,8 @@ import { TRUSTED_SOURCE_HOSTS } from '@/lib/atlas/grounding/provenance';
 import { CLAIM_ASSERTION_MARKERS } from '@/lib/atlas/grounding/contradiction';
 import { activeGroundingProvider } from '@/lib/atlas/grounding/provider';
 import { ensureGroundingProviderRegistered } from '@/lib/atlas/grounding/providers/register';
-import { GROUNDING_MODELS, PROVIDER_NAME } from '@/lib/atlas/grounding/providers/google-search-grounding';
+import { PROVIDER_NAME } from '@/lib/atlas/grounding/providers/google-search-grounding';
+import { GEMINI_MODEL_ENV_VAR, resolveGeminiModelConfig } from '@/config/gemini-models';
 import { SOURCE_TIER_BY_HOST } from '@/lib/atlas/grounding/providers/source-resolution';
 import { DEFAULT_CACHE_TTL_MS, DEFAULT_CALL_BUDGET, liveCallCount } from '@/lib/atlas/grounding/providers/grounding-cache';
 import { ensureInterpretationProviderRegistered, interpretationProviderStatus } from '@/lib/atlas/interpretation/register';
@@ -33,6 +34,9 @@ export async function GET() {
   ensureInterpretationProviderRegistered();
   const provider = activeGroundingProvider();
   const interpretation = interpretationProviderStatus();
+  // One governed source for the model list, reported so a retired alias is visible here rather than
+  // discovered as a failed round trip (ADR-067).
+  const modelConfig = resolveGeminiModelConfig();
   return ok('capability-atlas-grounding-policy', {
     policy_version: GROUNDING_POLICY_VERSION,
     evidence_classes: EVIDENCE_CLASSES.map(c => ({ id: c, label: EVIDENCE_CLASS_LABEL[c] })),
@@ -65,7 +69,9 @@ export async function GET() {
       configured: provider !== null,
       name: provider?.name ?? null,
       adapter: PROVIDER_NAME,
-      models: [...GROUNDING_MODELS],
+      models: modelConfig.models,
+      model_source: modelConfig.source,
+      model_variable: GEMINI_MODEL_ENV_VAR,
       credential: 'resolved from the server environment at call time; never accepted from a request body, never written to a record, a cache entry, a notice or an error message'
     },
     research_control: {

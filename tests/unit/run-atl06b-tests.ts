@@ -30,9 +30,12 @@ import {
   resolveSource, tierForHost
 } from '../../lib/atlas/grounding/providers/source-resolution';
 import {
-  GEMINI_API_KEY_HEADER, GEMINI_ENDPOINT_BASE, GENERIC_CAPABILITY_WORDS, GROUNDING_MODELS,
+  GEMINI_API_KEY_HEADER, GEMINI_ENDPOINT_BASE, GENERIC_CAPABILITY_WORDS,
   PROVIDER_NAME, buildPrompt, createGoogleSearchGroundingProvider, relateClaimToCapabilities
 } from '../../lib/atlas/grounding/providers/google-search-grounding';
+import {
+  GEMINI_MODEL_PATTERN, VERIFIED_GEMINI_MODEL, primaryGeminiModel, resolveGeminiModelConfig, resolveGeminiModels
+} from '../../config/gemini-models';
 import {
   cacheKey, clearGroundingCache, getCached, liveCallCount, setCached
 } from '../../lib/atlas/grounding/providers/grounding-cache';
@@ -144,8 +147,33 @@ async function run() {
   const pkg = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
   assert(!pkg.dependencies?.['@google/genai'] && !pkg.devDependencies?.['@google/genai'],
     'A6b: …and package.json gained no new provider dependency');
-  assert(GROUNDING_MODELS.length >= 2,
-    'A7: A model fallback list exists, matching the estate tolerance for Google retiring aliases');
+  // A7 previously asserted that a hard-coded fallback list existed. That design is what let three
+  // call sites drift onto retired aliases while every fixture-backed test kept passing, so the
+  // assertion now checks the property that replaced it (ADR-067).
+  assert(GEMINI_MODEL_PATTERN.test(VERIFIED_GEMINI_MODEL) && primaryGeminiModel() === VERIFIED_GEMINI_MODEL,
+    `A7: The model comes from one governed configuration, defaulting to the verified ${VERIFIED_GEMINI_MODEL}`);
+  const providerLayer = [
+    ...readdirSync(join(ROOT, 'lib', 'atlas', 'grounding', 'providers')).map(f => join(ROOT, 'lib', 'atlas', 'grounding', 'providers', f)),
+    ...readdirSync(join(ROOT, 'lib', 'atlas', 'interpretation')).map(f => join(ROOT, 'lib', 'atlas', 'interpretation', f)),
+    join(ROOT, 'scripts', 'atlas-live-grounding-check.ts')
+  ].filter(f => f.endsWith('.ts')).map(f => readFileSync(f, 'utf8')).join('\n')
+    .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+  // Version-shaped identifiers only: `gemini-3.6-flash`, `gemini-2.5-pro`, `gemini-flash-latest`.
+  // `gemini-interpretation` is a provider name, and `gemini-does-not-exist-9x` is the deliberate
+  // negative control in the validation script's failure probe.
+  const HARDCODED_MODEL = /['\`"]gemini-(?:\d[\d.]*|flash|pro)[a-z0-9.-]*['\`"]/g;
+  const hardcoded = (providerLayer.match(HARDCODED_MODEL) ?? []);
+  assert(hardcoded.length === 0,
+    'A7b: …and no model name is hard-coded anywhere in the provider layer or the validation script',
+    hardcoded.join(', '));
+  assert(resolveGeminiModels('').length === 1 && resolveGeminiModelConfig('').source === 'default',
+    'A7c: With no override the list is a SINGLE verified model — nothing falls back silently onto a retired alias');
+  assert(resolveGeminiModelConfig('gemini-3.6-flash, gemini-3.6-pro').models.length === 2,
+    'A7d: …while an operator can still configure an explicit chain, in one place');
+  let malformed = '';
+  try { resolveGeminiModels('not-a-model'); } catch (e: any) { malformed = e.message; }
+  assert(/GEMINI_MODEL/.test(malformed) && /unusable model name/.test(malformed),
+    'A7e: A mistyped override fails loudly naming the variable, rather than resolving to nothing');
 
   // ── B. Only grounded segments become claims ──────────────────────────────
   const admissibleExtract = extractGroundedSegments(FIXTURES.admissible.candidates![0]);
@@ -233,7 +261,7 @@ async function run() {
     'D3: The retrieval date is when the claim was retrieved');
   assert(result.claims.every(c => c.about_capabilities.length === 1),
     'D4: Claims are scoped to the capabilities the governed answer was built from, not sprayed across the corpus');
-  assert(result.transparency.queries.length === 2 && result.transparency.provider_model === GROUNDING_MODELS[0],
+  assert(result.transparency.queries.length === 2 && result.transparency.provider_model === primaryGeminiModel(),
     'D5: The searches actually run and the model that ran them are reported');
   assert(result.transparency.discarded_ungrounded_segments > 0,
     'D6: …alongside how much model prose was thrown away');

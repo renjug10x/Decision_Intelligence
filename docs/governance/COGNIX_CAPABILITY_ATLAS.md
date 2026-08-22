@@ -34,6 +34,22 @@
 **Next executable work package:** **`ATL-06C` / `AC-ATL-06C-9`** — close live validation: run `GEMINI_API_KEY=… npx tsx scripts/atlas-live-grounding-check.ts` in an environment holding the credential. Attempted again during `ATL-06D`; Stage 1 passed, Stage 2 skipped, no key present
 **Next implementation work package:** `ATL-07` — Capability Lifecycle Governance & Automation
 
+> **Model-configuration defect found and corrected, 2026-08-21 (ADR-067).** Diagnosis of the failing
+> round trip established that the Atlas was requesting **retired model aliases**: `gemini-2.5-flash`
+> and friends were hard-coded independently in `lib/gemini.ts`, the grounding adapter, the
+> interpretation adapter and the live validation script. All four went stale together and **every
+> fixture-backed test kept passing**, because a recorded response cannot notice that the model named
+> in the request no longer exists. Model selection is now one governed server-side configuration,
+> `config/gemini-models.ts`, resolved at call time by every call site, defaulting to the verified
+> **`gemini-3.6-flash`** and overridable through `GEMINI_MODEL`. The default is a **single** model,
+> not a chain: a chain is how the defect hid, since a retired primary quietly became a working
+> secondary. A model name written anywhere else in the provider layer is now a test failure. This
+> also un-breaks the CDI-01 drafting route (ADR-044), which reached Gemini through the same stale
+> list. **No admission, provenance, contradiction, freshness or rejection policy changed.**
+>
+> `AC-ATL-06C-9` is **still open**: with the model corrected, the only remaining prerequisite is a
+> credential, which has not reached any build session.
+
 > **`ATL-04R` is a refinement of `ATL-04`, inserted after it and completed before `ATL-06D`.** It does
 > not reopen `ATL-04`, whose history stands: `ATL-04` proved the backend-driven Atlas, the structured
 > discovery model and the first UI, and its acceptance criteria remain met. What evaluation of the

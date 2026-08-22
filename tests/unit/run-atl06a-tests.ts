@@ -531,7 +531,9 @@ async function run() {
   // fails, which the literal check could never catch.
   const boardRows = [...charter.matchAll(/^\| `(ATL-[0-9A-D]+)` \|[^|]*\|\s*\*\*\[([A-Z \u2014-]+)\]\*\*/gm)]
     .map(m => ({ phase: m[1], status: m[2].trim() }));
-  const declaredNext = charter.match(/\*\*Next executable work package:\*\* \*\*`(ATL-[0-9A-D]+)`\*\*/)?.[1];
+  // The declared value may carry a qualifier — `ATL-06C` / `AC-ATL-06C-9` — so the phase identifier is
+  // read from the front of the bolded value rather than requiring it to be the whole of it.
+  const declaredNext = charter.match(/\*\*Next executable work package:\*\* \*\*`(ATL-[0-9A-D]+)`/)?.[1];
   const firstUnfinished = boardRows.find(r => r.status !== 'COMPLETED');
   assert(boardRows.length >= 7 && declaredNext !== undefined && firstUnfinished !== undefined &&
     declaredNext === firstUnfinished.phase &&

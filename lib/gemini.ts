@@ -2,16 +2,17 @@
 // Set GEMINI_API_KEY in .env.local (get one free at aistudio.google.com)
 
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
+import { resolveGeminiModels } from '../config/gemini-models';
 
 let _client: GoogleGenerativeAI | null = null;
 let _model: GenerativeModel | null = null;
 
-// Google retires old model aliases frequently — try in order (free tier)
-const GEMINI_MODELS = [
-  'gemini-2.5-flash',
-  'gemini-2.5-flash-lite',
-  'gemini-flash-latest',
-] as const;
+// Models come from the single governed configuration (ADR-067). This file previously carried its own
+// hard-coded list, which is the defect that ruling exists to prevent: the same retired aliases were
+// written here, in the Atlas grounding adapter and in the Atlas interpretation adapter, and all three
+// went stale together. Only the MODEL NAMES move here — the credential handling in this file is
+// unchanged and remains the legacy path recorded as technical debt in ADR-044 Amendment A.
+const GEMINI_MODELS = resolveGeminiModels();
 
 function sanitizeApiKey(key: string): string {
   return key.trim().replace(/[\u2013\u2014]/g, '--').replace(/[^\x20-\x7E]/g, '');

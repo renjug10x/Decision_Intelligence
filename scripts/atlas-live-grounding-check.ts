@@ -42,9 +42,11 @@ import { extractGroundedSegments } from '../lib/atlas/grounding/providers/ground
 import { resolveSource } from '../lib/atlas/grounding/providers/source-resolution';
 import { ask } from '../lib/atlas/ai/gateway';
 import type { GeminiGenerateContentResponse } from '../lib/atlas/grounding/providers/gemini-grounding-types';
+import { GEMINI_MODEL_ENV_VAR, primaryGeminiModel, resolveGeminiModelConfig } from '../config/gemini-models';
 
 const ENDPOINT_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-const MODEL = 'gemini-2.5-flash';
+/** The same governed configuration the adapters use — never a name written here (ADR-067). */
+const MODEL = primaryGeminiModel();
 
 /** The three scenarios `AC-ATL-06C-9` requires. */
 const SCENARIOS = [

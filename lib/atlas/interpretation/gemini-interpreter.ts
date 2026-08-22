@@ -19,10 +19,11 @@
 
 import type { InterpretationProvider, InterpretationRequest, InterpretationResult } from './provider';
 import { renderPremises } from './premises';
+import { GEMINI_MODEL_ENV_VAR, resolveGeminiModels } from '../../../config/gemini-models';
 
 export const GEMINI_ENDPOINT_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 export const GEMINI_API_KEY_HEADER = 'x-goog-api-key';
-export const INTERPRETATION_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-flash-latest'] as const;
+// Models come from the single governed configuration (ADR-067), resolved at call time.
 export const PROVIDER_NAME = 'gemini-interpretation';
 
 export const RESPONSE_SCHEMA = {
@@ -97,7 +98,7 @@ export interface GeminiInterpreterOptions {
 
 export function createGeminiInterpretationProvider(options: GeminiInterpreterOptions = {}): InterpretationProvider {
   const transport = options.transport ?? defaultTransport;
-  const models = options.models ?? INTERPRETATION_MODELS;
+  const models = options.models ?? resolveGeminiModels();
   const resolveKey = (): string => (options.apiKey ?? process.env.GEMINI_API_KEY ?? '').trim();
 
   return {
@@ -144,7 +145,9 @@ export function createGeminiInterpretationProvider(options: GeminiInterpreterOpt
           throw e;
         }
       }
-      throw lastError ?? new Error('No interpretation model was available.');
+      throw lastError ?? new Error(
+        `No interpretation model was available. Tried ${models.join(', ')}; set ${GEMINI_MODEL_ENV_VAR} to a current model.`
+      );
     }
   };
 }

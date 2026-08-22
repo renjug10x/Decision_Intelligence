@@ -265,6 +265,39 @@ names, and it accepts both request shapes this estate sends, failing only on the
 `ATL-06B` used the legacy `googleSearchRetrieval` form against a current model, this is where it would
 have shown.
 
+### The second blocker, found by diagnosis: retired model aliases (ADR-067)
+
+Once the credential question was separated from the code, the round trip was still going to fail, and
+for a reason no test could have caught. The Atlas was requesting **models that no longer exist**.
+`gemini-2.5-flash` and its companions were hard-coded **independently in four places** — `lib/gemini.ts`,
+the grounding adapter, the interpretation adapter and this very validation script — so when Google
+retired the aliases everything that talks to a model broke at once while the suites stayed green.
+
+They stayed green correctly. The fixture-backed design is deliberate: a live search cannot be made to
+return a stale source on demand, so refusal behaviour has to be proven against recordings. What a
+recording cannot notice is that the identifier in the request has been retired. The defect was
+invisible to the suite, to the type checker and to the build, and visible only as a failed round trip
+nobody could run — which is how a one-line configuration error survived several phases.
+
+**Corrected as a governed configuration**, not as four edits:
+
+- `config/gemini-models.ts` is the single source. Grounding, interpretation, the legacy `lib/gemini.ts`
+  client and this script all resolve from it **at call time**.
+- The default is **`gemini-3.6-flash`** — one verified model, **not a chain**. The old fallback chain is
+  precisely how the defect hid: a retired primary quietly became a working secondary, and the only
+  symptom was a slower first call.
+- `GEMINI_MODEL` lets an operator move deliberately, in one place, including an explicit chain during a
+  migration. It is server-side and deliberately not `NEXT_PUBLIC_*`: a client that could choose the
+  model could choose a weaker or retired one. A malformed value **throws naming the variable** rather
+  than resolving to nothing, because "no model" and "no provider configured" must not read alike.
+- A model name written anywhere else in the provider layer is now a **test failure** (`A7b`).
+- Side effect worth naming: this un-breaks the CDI-01 drafting route (ADR-044), which reached Gemini
+  through the same stale list. Only the model names moved in `lib/gemini.ts`; its credential handling
+  is untouched and remains the legacy path recorded in ADR-044 Amendment A.
+
+**No ATL-06A/B/C policy changed** — admission, provenance, contradiction, freshness and rejection are
+byte-identical.
+
 ### The closure is one command
 
 `scripts/atlas-live-grounding-check.ts` was rewritten so that closing this criterion is a single run

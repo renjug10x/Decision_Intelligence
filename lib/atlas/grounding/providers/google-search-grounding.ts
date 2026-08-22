@@ -38,12 +38,17 @@ import { resolveSource, type SourceFetcher, type SourceFetchResponse } from './s
 import {
   DEFAULT_CACHE_TTL_MS, budgetRemaining, cacheKey, getCached, recordLiveCall, setCached
 } from './grounding-cache';
+import { GEMINI_MODEL_ENV_VAR, resolveGeminiModels } from '../../../../config/gemini-models';
 
 export const GEMINI_ENDPOINT_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 export const GEMINI_API_KEY_HEADER = 'x-goog-api-key';
 
-/** Tried in order, matching the estate's existing tolerance for Google retiring model aliases. */
-export const GROUNDING_MODELS = ['gemini-2.5-flash', 'gemini-2.5-pro', 'gemini-flash-latest'] as const;
+/**
+ * Models come from the single governed configuration (ADR-067) and are resolved AT CALL TIME, so an
+ * operator changing `GEMINI_MODEL` does not have to restart to take effect, and no model name is
+ * written here to drift out of date. The list is normally one verified model; a fallback chain is
+ * something an operator configures deliberately, not something this adapter assumes.
+ */
 
 export const PROVIDER_NAME = 'google-search-grounding';
 
@@ -147,7 +152,7 @@ function claimId(text: string, url: string): string {
 export function createGoogleSearchGroundingProvider(options: GoogleGroundingOptions = {}): ExternalGroundingProvider {
   const transport = options.transport ?? defaultTransport;
   const sourceFetcher = options.sourceFetcher ?? defaultSourceFetcher;
-  const models = options.models ?? GROUNDING_MODELS;
+  const models = options.models ?? resolveGeminiModels();
   const now = options.now ?? (() => new Date());
 
   const resolveKey = (): string => (options.apiKey ?? process.env.GEMINI_API_KEY ?? '').trim();
@@ -190,7 +195,13 @@ export function createGoogleSearchGroundingProvider(options: GoogleGroundingOpti
         throw e;
       }
     }
-    if (!response || !usedModel) throw lastError ?? new Error('No grounding model was available.');
+    if (!response || !usedModel) {
+      // Name the models tried and the variable that changes them. A retired alias is a configuration
+      // problem with a one-line fix, and it must not read as "the provider is down" (ADR-067).
+      throw lastError ?? new Error(
+        `No grounding model was available. Tried ${models.join(', ')}; set ${GEMINI_MODEL_ENV_VAR} to a current model.`
+      );
+    }
 
     const candidate = response.candidates?.[0];
     const extraction = extractGroundedSegments(candidate);
