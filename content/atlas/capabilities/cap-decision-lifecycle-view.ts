@@ -19,7 +19,7 @@ export const knowledge = defineKnowledge({
     { field: 'stages', implementation_status: 'simulated', note: 'Static content; not instrumented against the running path.' }
   ],
   architecture_narrative:
-    'A static stage list rendered in the Help shell. It describes the lifecycle rather than instrumenting it.',
+    'A static stage list, now carried as this record\u2019s architecture_flow and rendered by the Atlas capability detail rather than by a surface of its own. It describes the lifecycle rather than instrumenting it; ATL-04R retired the Help shell that used to restate the stages in component literals.',
   architecture_flow: [
     'Signal detection',
     'Scope enforcement',

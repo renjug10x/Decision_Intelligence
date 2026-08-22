@@ -33,6 +33,9 @@ export const knowledge = defineKnowledge({
   contracts: [
     { name: 'EnterpriseLearningPattern', path: 'packages/contracts/src/learning-pattern-model.ts', direction: 'out' }
   ],
+  data_sources: [
+    { name: 'Learning pattern store, tenant-isolated and in-memory', kind: 'synthetic', path: 'services/learning/src/learning-pattern-store.ts' }
+  ],
   implementation_references: [
     { path: 'services/learning/src/learning-pattern-store.ts', symbol: 'CANONICAL_LEARNING_PATTERNS', note: 'Canonical store, six entries' },
     { path: 'packages/contracts/src/learning-pattern-model.ts', note: 'Contract' },

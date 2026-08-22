@@ -30,6 +30,9 @@ export const knowledge = defineKnowledge({
   contracts: [
     { name: 'DemandDecisionFrontierEvaluation', path: 'packages/contracts/src/demand-decision-frontier-model.ts', direction: 'out' }
   ],
+  data_sources: [
+    { name: 'Shared decision state', kind: 'synthetic', path: 'lib/decision-state-store.ts' }
+  ],
   implementation_references: [
     { path: 'components/Forecasting.tsx', note: 'Surface' },
     { path: 'components/demand/DemandDecisionNarrative.tsx', note: 'Narrative panel' },
@@ -50,6 +53,9 @@ export const knowledge = defineKnowledge({
   known_limitations: [
     { limitation: 'The registry five-second proposition cites 91 percent forecast confidence. Defect D-DDF-2 established that this was an unsupported backtest claim; do not present it as model accuracy.', severity: 'high' },
     { limitation: 'Demand Observability Level 0: the estate operates on synthetic and modelled demand throughout.', severity: 'high' }
+  ],
+  assumptions: [
+    'Stability, gap, window and regret are assumed to come from a single evaluation of one input set. That is what lets the four cards be read together; issuing them as four independent queries would allow them to disagree while appearing to describe one situation.'
   ],
   use_cases: [
     { title: 'Reading a moving outlook as a decision', context: 'A planner has a forecast but no basis for acting on it.', outcome: 'Four decision cards replace a passive projection.' }

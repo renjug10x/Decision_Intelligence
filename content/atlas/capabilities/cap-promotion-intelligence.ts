@@ -12,7 +12,7 @@ export const knowledge = defineKnowledge({
   innovation_thesis:
     'A promotion that the chain cannot serve is not an opportunity, it is a scheduled disappointment. Reconciling uplift against capacity before launch is a different question from optimising the discount.',
   usage_instructions:
-    'Open Promotion Intelligence from the Innovation Portfolio. Adjust discount depth and supplier flex, and read the reconciliation between projected demand and servable capacity. Seven campaign lenses give progressively deeper views.',
+    'Open this capability in the Capability Atlas and follow the demonstrating solution named under \u201cWhere it comes from\u201d. Adjust discount depth and supplier flex, and read the reconciliation between projected demand and servable capacity. Seven campaign lenses give progressively deeper views.',
   testing_instructions:
     'Run npx tsx tests/unit/run-campaign-intelligence-tests.ts (133 assertions) and npx tsx tests/unit/run-campaign-decision-journey-tests.ts (96 assertions).',
   architecture_narrative:
@@ -50,6 +50,9 @@ export const knowledge = defineKnowledge({
   known_limitations: [
     { limitation: 'Supplier capacity and elasticity come from the synthetic enterprise world, not a client planning system.', severity: 'high' },
     { limitation: 'The five-second proposition figures in the registry are illustrative demonstration values.', severity: 'medium' }
+  ],
+  assumptions: [
+    'The lenses under this workspace are assumed to be views of one evaluation rather than seven separate analyses. A lens that recomputed its own numbers could disagree with the others while still appearing to be the same workspace.'
   ],
   use_cases: [
     { title: 'Reconciling a launch before committing', context: 'A promotion is planned on demand projections alone.', outcome: 'The capacity ceiling and the exposed opportunity are visible before commitment.' }

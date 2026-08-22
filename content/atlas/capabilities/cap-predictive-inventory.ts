@@ -12,7 +12,7 @@ export const knowledge = defineKnowledge({
   innovation_thesis:
     'Availability failures are usually visible in advance and invisible in aggregate. Naming the first buffer to fail is more actionable than reporting a service-level average.',
   usage_instructions:
-    'Open Predictive Inventory from the Innovation Portfolio. Scenario context binds to the enterprise world; the stock-out event list and affected-store view are read alongside it.',
+    'Open this capability in the Capability Atlas and follow the demonstrating solution named under \u201cWhere it comes from\u201d. Scenario context binds to the enterprise world; the stock-out event list and affected-store view are read alongside it.',
   testing_instructions:
     'No dedicated runner exists. Scenario binding is exercised indirectly through the world client. This is a recorded coverage gap.',
   field_status: [
@@ -32,6 +32,10 @@ export const knowledge = defineKnowledge({
   apis: [
     { method: 'GET', path: '/api/v1/scenarios', purpose: 'Read the active enterprise world scenario' }
   ],
+  data_sources: [
+    { name: 'Enterprise World scenario, read through the world client', kind: 'synthetic', path: 'lib/world-client.ts' },
+    { name: 'Stock-out events and affected-store lists, held as in-component literal arrays', kind: 'static', path: 'components/AvailabilityIntelligence.tsx' }
+  ],
   implementation_references: [
     { path: 'components/AvailabilityIntelligence.tsx', note: 'Surface' },
     { path: 'lib/world-client.ts', symbol: 'fetchWorldScenario', note: 'Scenario binding' },
@@ -45,6 +49,9 @@ export const knowledge = defineKnowledge({
     { limitation: 'Stock-out events and affected-store lists are in-component literal arrays. They do not respond to the scenario controls beside them, which is the D-DDF-1 pattern recorded as ATL-01 finding F5.', severity: 'high' },
     { limitation: 'The registry records this capability as Production Ready demo maturity while implementation is partially implemented. Both must be shown together.', severity: 'high' },
     { limitation: 'No dedicated test runner covers this capability.', severity: 'medium' }
+  ],
+  assumptions: [
+    'Buffer failure is assumed to be determined by lead time and demand velocity at the store grain being evaluated. Substitution between stores or between products is not modelled, so exposure is computed as if a stock-out is not absorbed elsewhere.'
   ],
   use_cases: [
     { title: 'Finding the first buffer to fail', context: 'Service levels look acceptable in aggregate.', outcome: 'The specific failing buffer and its exposure are named.' }

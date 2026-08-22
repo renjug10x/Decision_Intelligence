@@ -12,7 +12,7 @@ export const knowledge = defineKnowledge({
   innovation_thesis:
     'Enterprise knowledge is volatile. The same anomaly is solved repeatedly by different people who never learn that it was solved before.',
   usage_instructions:
-    'Open Enterprise Memory from the Innovation Portfolio. Search recorded memories, or reach them from a matched learning pattern.',
+    'Open this capability in the Capability Atlas and follow the experiment named under \u201cWhere it comes from\u201d. Search recorded memories, or reach them from a matched learning pattern.',
   testing_instructions:
     'Run npx tsx tests/unit/run-wp10d-tests.ts. Assertions cover memory storage, retrieval and the honest-wording check on seeded telemetry.',
   field_status: [
@@ -33,6 +33,9 @@ export const knowledge = defineKnowledge({
   ],
   contracts: [
     { name: 'EnterpriseMemory', path: 'packages/contracts/src/memory-model.ts', direction: 'out' }
+  ],
+  data_sources: [
+    { name: 'Enterprise memory store, tenant-isolated and in-memory', kind: 'synthetic', path: 'services/learning/src/memory-store.ts' }
   ],
   implementation_references: [
     { path: 'components/EnterpriseMemory.tsx', note: 'Surface' },

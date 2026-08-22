@@ -36,7 +36,7 @@ export const knowledge = defineKnowledge({
   known_limitations: [
     { limitation: 'The capability is entirely static. It narrates an architecture rather than reflecting one, so it cannot go out of date visibly when the estate changes.', severity: 'high' },
     { limitation: 'ATL-01 found it carries legacy-stack references that the CogniX estate no longer implements.', severity: 'high' },
-    { limitation: 'It is a retirement candidate under ADR-051. SB-GATE is currently at one of six items. It must not be deleted until the gate passes.', severity: 'high' }
+    { limitation: 'It is a retirement candidate under ADR-051. SB-GATE stands at three of six conditions met after the ATL-FINAL re-assessment, and ADR-051 requires all six, so the storyboard is retained. It must not be deleted until the gate passes.', severity: 'high' }
   ],
   use_cases: [
     { title: 'Explaining the platform without opening a deck', context: 'A stakeholder needs the architecture narrative.', outcome: 'Twelve slides carry it inside the product.' }

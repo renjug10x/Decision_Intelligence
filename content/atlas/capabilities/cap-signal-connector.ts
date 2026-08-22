@@ -33,6 +33,9 @@ export const knowledge = defineKnowledge({
   contracts: [
     { name: 'ExternalSignalConnector', path: 'packages/contracts/src/external-signal-connector-model.ts', direction: 'in' }
   ],
+  data_sources: [
+    { name: 'Reference provider adapters, every one emitting synthetic_demo feeds', kind: 'synthetic', path: 'services/world/src/external-signal-connector.ts' }
+  ],
   implementation_references: [
     { path: 'services/world/src/external-signal-connector.ts', note: 'Connector service' },
     { path: 'packages/contracts/src/external-signal-connector-model.ts', note: 'Contract' },

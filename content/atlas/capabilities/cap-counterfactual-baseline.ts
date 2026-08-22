@@ -46,6 +46,9 @@ export const knowledge = defineKnowledge({
   known_limitations: [
     { limitation: 'Elasticity and response parameters are declared demonstration values over the synthetic world, not fitted from client history.', severity: 'high' }
   ],
+  assumptions: [
+    'The counterfactual trajectory is assumed to hold no unmodelled concurrent intervention. The engine attributes the whole difference between the counterfactual and the intervention trajectory to the campaign, so a second initiative running at the same time would be scored as campaign effect.'
+  ],
   use_cases: [
     { title: 'Judging a campaign against what would have happened anyway', context: 'Uplift is being claimed against last year.', outcome: 'The counterfactual makes the claim testable.' }
   ],

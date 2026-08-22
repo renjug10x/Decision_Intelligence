@@ -122,18 +122,40 @@ async function run() {
   const clarifySource = readFileSync(join(ROOT, 'lib', 'atlas', 'clarification.ts'), 'utf8')
     .replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
-  const ambiguous = clarify(identities, { query: 'What capabilities does CogniX have on Promotions?' }, {}, ctx);
+  /*
+    C1–C5 originally used "What capabilities does CogniX have on Promotions?" as the canonical
+    AREA-ambiguous question. `ATL-FINAL` established that its area spread was an artefact rather
+    than a property of the question: `capability` was scoring as a content word in a corpus where
+    every record is a capability, so a question that names one area reached twenty-seven of the
+    thirty-eight records and looked ambiguous. With the corpus's own noun treated as a stopword
+    (ADR-062 Amendment A) the question resolves to Campaign & Promotion, as a reader would expect.
+
+    The assertions were re-pointed rather than relaxed. C1 still requires a question the reader has
+    genuinely left open to produce a clarification, and the multi-area case now uses a query that is
+    multi-area in substance — the owner's own "Promotions, demand, signals and inventory". C2a keeps
+    the corrected single-area behaviour under test so the artefact cannot return unnoticed.
+  */
+  const ambiguous = clarify(identities, { query: 'Promotions, demand, signals and inventory' }, {}, ctx);
   assert(ambiguous.state === 'multiple-interpretations' && ambiguous.question !== null,
-    'C1: Scenario A — an ambiguous question produces a clarification rather than a flat result set',
+    'C1: Scenario A — a question that genuinely spans areas produces a clarification rather than a flat result set',
     `state ${ambiguous.state}`);
   assert(ambiguous.area_relevance.length >= 2 && ambiguous.question!.dimension === 'area',
     'C2: …asking which of the capability areas it reaches was meant');
+
+  const named = clarify(identities, { query: 'What capabilities does CogniX have on Promotions?' }, {}, ctx);
+  assert(named.area_relevance.length === 1 && named.area_relevance[0].area_id === 'CAPAREA-CAMPAIGN',
+    'C2a: …while a question that names one area resolves to that area, rather than spreading across the estate on the word "capabilities"',
+    named.area_relevance.map(a => a.area_id).join(', '));
+  assert(named.question?.dimension === 'aspect',
+    'C2b: …and the one remaining question narrows within that area rather than asking which area was meant',
+    named.question?.dimension ?? 'none');
+
   assert(ambiguous.question!.choices.some(c => c.value === 'all'),
     'C3: …always offering a way to decline to narrow');
   assert(ambiguous.question!.multi_select === true,
     'C4: …and allowing several readings at once, because a question may legitimately span areas');
-  assert(ambiguous.area_relevance[0].area_id === 'CAPAREA-CAMPAIGN',
-    'C5: …with the area the reader actually named leading the landscape',
+  assert(ambiguous.area_relevance.map(a => a.area_id).includes('CAPAREA-CAMPAIGN'),
+    'C5: …with every area the reader actually named present in the landscape',
     ambiguous.area_relevance.map(a => a.area_id).join(', '));
 
   const architect = clarify(identities, { query: 'Show me Promotion capabilities from an architect perspective.' }, {}, ctx);
@@ -291,12 +313,23 @@ async function run() {
   const sidebarJsx = sidebar.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
   assert(!/nav-section-label[^>]*>\s*Explore/.test(sidebarJsx),
     'F1: The Explore sidebar grouping is gone');
-  assert(!/onNavigate\('portfolio'\)/.test(sidebarJsx),
+  /*
+    F2–F4 originally matched the literal `onNavigate('…')` call. `ATL-FINAL` routed every sidebar
+    choice through a `go()` helper so that navigating also dismisses the narrow-viewport panel, and
+    F4 failed while the behaviour it protects was unchanged — the negative assertions meanwhile
+    passed for the wrong reason, since a string that no longer exists cannot be found. The pattern
+    now names the destination rather than the caller, which is the property these assertions were
+    always about.
+  */
+  const navigatesTo = (page: string) => new RegExp(`\\b(?:onNavigate|go)\\('${page}'\\)`).test(sidebarJsx);
+  assert(!navigatesTo('portfolio'),
     'F2: Portfolio is no longer a sidebar destination');
-  assert(!/onNavigate\('curiosity'\)/.test(sidebarJsx),
+  assert(!navigatesTo('curiosity'),
     'F3: Questions is no longer a sidebar destination');
-  assert(/onNavigate\('atlas'\)/.test(sidebarJsx),
+  assert(navigatesTo('atlas'),
     'F4: Capability Atlas is the single discovery destination');
+  assert(navigatesTo('settings'),
+    'F4b: …and Observability & Governance is still reachable from the sidebar it lives in');
   assert(/Observability/.test(sidebarJsx) && !/onNavigate\('help'\)/.test(sidebarJsx),
     'F5: Governance is renamed Observability & Governance, and About is not a destination');
 

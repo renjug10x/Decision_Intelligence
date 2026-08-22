@@ -34,6 +34,9 @@ export const knowledge = defineKnowledge({
     { limitation: 'The canvas can only show what the experiment schema carries. It cannot show demo maturity, because the experiment schema has no such field; ATL-01 gap G1.', severity: 'medium' },
     { limitation: 'No dedicated test runner covers it.', severity: 'medium' }
   ],
+  assumptions: [
+    'An experiment is assumed to be fully describable by the experiment registry schema. Anything an experiment needs to show that the schema does not carry cannot be reached by authoring content alone, so the schema is the real boundary of this capability.'
+  ],
   use_cases: [
     { title: 'Adding an experiment without adding a screen', context: 'A new experiment needs a surface.', outcome: 'Registry metadata alone makes it discoverable.' }
   ],

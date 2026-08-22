@@ -24,7 +24,7 @@
  */
 
 import { Fragment, useState, useEffect } from 'react';
-import { ChevronDown, ChevronRight, ArrowLeft, Repeat, ExternalLink } from 'lucide-react';
+import { ChevronDown, ChevronRight, ArrowLeft, Repeat, ExternalLink, ArrowUpRight } from 'lucide-react';
 import MaturityTriad from './MaturityTriad';
 import CapabilityVisual from './visuals/CapabilityVisual';
 import { fetchQuestions } from '@/lib/atlas-client';
@@ -79,7 +79,9 @@ export default function CapabilityDetail({
   onBack,
   onOpenCapability,
   problemLabel,
-  onPrepare
+  onPrepare,
+  onOpenSolution,
+  onOpenExperiment
 }: {
   capability: ResolvedCapability;
   lens: AudienceLens | null;
@@ -89,6 +91,18 @@ export default function CapabilityDetail({
   problemLabel?: (id: string) => string;
   /** Opens the ATL-06D preparation workspace seeded with this capability. */
   onPrepare?: (seed: string) => void;
+  /*
+   * ATL-FINAL. The record named the solution that demonstrates the capability and then left the
+   * reader with nowhere to go: the only route into a demonstration surface was through Questions
+   * Worth Asking, which is why six records still carried the pre-ATL-04R instruction "open it from
+   * the Innovation Portfolio". A capability record that can say what demonstrates it and cannot
+   * open it reads as documentation about the product rather than as part of it.
+   *
+   * Both handlers are optional, and a registry entry with no surface behind it stays a plain label
+   * rather than becoming a button that goes nowhere.
+   */
+  onOpenSolution?: (solutionId: string) => void;
+  onOpenExperiment?: (experimentId: string) => void;
 }) {
   const { identity, knowledge, relationships, demo_maturity } = capability;
 
@@ -455,12 +469,36 @@ export default function CapabilityDetail({
                   <span key={w} className="atlas-origin">delivered by <strong>{w}</strong></span>
                 ))}
                 {relationships.solutions.map(s => (
-                  <span key={s.id} className="atlas-origin">
-                    demonstrated by <strong>{s.name}</strong> ({s.demo_maturity})
-                  </span>
+                  onOpenSolution ? (
+                    <button
+                      key={s.id}
+                      type="button"
+                      className="atlas-origin atlas-origin--open"
+                      onClick={() => onOpenSolution(s.id)}
+                    >
+                      demonstrated by <strong>{s.name}</strong> ({s.demo_maturity})
+                      <ArrowUpRight size={12} strokeWidth={2} />
+                    </button>
+                  ) : (
+                    <span key={s.id} className="atlas-origin">
+                      demonstrated by <strong>{s.name}</strong> ({s.demo_maturity})
+                    </span>
+                  )
                 ))}
                 {relationships.experiments.map(e => (
-                  <span key={e.id} className="atlas-origin">originated as <strong>{e.name}</strong> ({e.maturity})</span>
+                  onOpenExperiment ? (
+                    <button
+                      key={e.id}
+                      type="button"
+                      className="atlas-origin atlas-origin--open"
+                      onClick={() => onOpenExperiment(e.id)}
+                    >
+                      originated as <strong>{e.name}</strong> ({e.maturity})
+                      <ArrowUpRight size={12} strokeWidth={2} />
+                    </button>
+                  ) : (
+                    <span key={e.id} className="atlas-origin">originated as <strong>{e.name}</strong> ({e.maturity})</span>
+                  )
                 ))}
                 {relationships.patterns.map(p => (
                   <span key={p.id} className="atlas-origin">evidenced by <strong>{p.title}</strong></span>

@@ -43,6 +43,9 @@ export const knowledge = defineKnowledge({
     { limitation: 'Registry demo maturity is Production Ready over partially-implemented code.', severity: 'high' },
     { limitation: 'No dedicated test runner covers this capability.', severity: 'medium' }
   ],
+  assumptions: [
+    'Net profit growth and volume growth are assumed to be available at the same sub-segment and region grain. The divergence this capability reports is only a real divergence if both series are aggregated the same way.'
+  ],
   use_cases: [
     { title: 'Separating profitable growth from bought growth', context: 'Volume is up and nobody has checked what it cost.', outcome: 'Margin and volume are shown as distinct movements.' }
   ],

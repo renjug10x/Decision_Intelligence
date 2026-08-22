@@ -30,20 +30,22 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
   ShieldCheck, Activity, Layers, Network, Radio, SlidersHorizontal,
-  Loader2, RefreshCw, AlertTriangle
+  Loader2, RefreshCw, AlertTriangle, Gauge
 } from 'lucide-react';
 import ArchitectureExplorer from '@/components/ArchitectureExplorer';
+import AtlasHealth from '@/components/AtlasHealth';
 import { useApp } from '@/lib/context';
 import { useDecisionState } from '@/context/DecisionStateContext';
 import { fetchLandscape, type AtlasLandscape } from '@/lib/atlas-client';
 
-type SectionId = 'governed' | 'evidence' | 'architecture' | 'estate' | 'signals' | 'observable';
+type SectionId = 'governed' | 'evidence' | 'architecture' | 'estate' | 'health' | 'signals' | 'observable';
 
 const SECTIONS: { id: SectionId; label: string; question: string; Icon: typeof ShieldCheck }[] = [
   { id: 'governed', label: 'Platform governance', question: 'How is CogniX governed?', Icon: ShieldCheck },
   { id: 'evidence', label: 'Evidence & provenance', question: 'What evidence supports its intelligence?', Icon: Layers },
   { id: 'architecture', label: 'Architecture', question: 'How is the platform architected?', Icon: Network },
   { id: 'estate', label: 'Capability lifecycle', question: 'What is implemented, simulated or experimental?', Icon: SlidersHorizontal },
+  { id: 'health', label: 'Atlas health', question: 'How trustworthy is the record itself?', Icon: Gauge },
   { id: 'signals', label: 'Data & signals', question: 'What data and signals are being used?', Icon: Radio },
   { id: 'observable', label: 'Decision observability', question: 'What is observable right now?', Icon: Activity }
 ];
@@ -398,6 +400,19 @@ export default function ObservabilityGovernance() {
           ) : (
             <p className="og-note">The capability landscape could not be read.</p>
           )}
+        </section>
+      )}
+
+      {section === 'health' && (
+        <section className="og-section" aria-label="Atlas health">
+          <h2>How trustworthy is the record itself?</h2>
+          <p className="og-lead">
+            Every other section on this page reads the capability records. This one audits them. The
+            checks below run server-side on request against the same governance engine as{' '}
+            <code>scripts/atlas-governance-check.ts</code>, and they only ever flag — nothing here can
+            promote a capability, close a gap or change a lifecycle state.
+          </p>
+          <AtlasHealth />
         </section>
       )}
 

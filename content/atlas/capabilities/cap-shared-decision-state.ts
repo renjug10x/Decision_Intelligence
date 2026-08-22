@@ -33,6 +33,9 @@ export const knowledge = defineKnowledge({
     { name: 'DecisionScenarioParameters', path: 'packages/contracts/src/decision-state-model.ts', direction: 'out' },
     { name: 'DecisionDerivedImpacts', path: 'packages/contracts/src/decision-state-model.ts', direction: 'out' }
   ],
+  data_sources: [
+    { name: 'Shared decision state store, versioned in memory per tenant and session', kind: 'synthetic', path: 'lib/decision-state-store.ts' }
+  ],
   implementation_references: [
     { path: 'lib/decision-state-store.ts', note: 'Store' },
     { path: 'context/DecisionStateContext.tsx', note: 'React context binding' },

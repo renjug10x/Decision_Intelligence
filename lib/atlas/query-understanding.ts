@@ -43,7 +43,13 @@ export const STOPWORDS = new Set([
   // purest possible case of the rule above: it matches everything and therefore discriminates
   // nothing. Left in, it let "what capabilities does CogniX have on promotions?" score the whole
   // estate on the two words that carried no question (ADR-062).
-  'cognix'
+  'cognix',
+  // The corpus's own noun, by the same rule (ADR-062 Amendment A). Every record in the Capability
+  // Atlas IS a capability, so `capability` matches nearly the whole estate and separates none of it.
+  // Measured before the change: "what capabilities does CogniX have on promotions?" returned 27 of
+  // 38 records and ranked Enterprise Signal second on a promotions question. No capability is named
+  // with the word, so nothing becomes unfindable; "capability atlas" still resolves on `atlas`.
+  'capability', 'capabilities'
 ]);
 
 /** A hint the searcher is shown and can dismiss. Never applied silently. */
@@ -167,9 +173,30 @@ const IDENTIFIER_PATTERN = /\b[A-Z]{2,}(?:-[A-Z0-9]+)+\b/g;
 export function understandQuery(raw: string, options: UnderstandOptions = {}): UnderstoodQuery {
   const lower = raw.toLowerCase().trim();
 
+  /*
+   * Identifier extraction is case-insensitive so `ddf-01` finds what `DDF-01` finds. What it must
+   * not do is CONSUME a hyphenated word that is not an identifier at all.
+   *
+   * `ATL-FINAL` browser acceptance found the consequence: the query `pre-mortem` returned **nothing**
+   * while `pre mortem` returned the right capability, and the corpus contains the hyphenated spelling
+   * eleven times. The pattern is applied to the upper-cased query, so `PRE-MORTEM` read as a governed
+   * identifier, matched no record, and took the whole query out of `residual` with it — leaving no
+   * content words behind to match on. `half-life` and `decision-gap` failed the same way.
+   *
+   * The fix follows ADR-062's rule: only ADD. A token the searcher actually wrote in upper case is a
+   * deliberate identifier and is still consumed, so `DDF-01` yields an identifier and no terms. A
+   * lower-case or mixed-case hyphenated token now yields the identifier reading AND its words, so the
+   * result is a superset — nothing that matched before stops matching, and a hyphenated phrase the
+   * corpus contains can finally be reached by typing it.
+   */
   const identifiers = (raw.toUpperCase().match(IDENTIFIER_PATTERN) ?? []).map(i => i.toLowerCase());
+  const writtenAsIdentifier = new Set(
+    (raw.match(IDENTIFIER_PATTERN) ?? []).map(i => i.toLowerCase())
+  );
   let residual = lower;
-  for (const id of identifiers) residual = residual.split(id).join(' ');
+  for (const id of identifiers) {
+    if (writtenAsIdentifier.has(id)) residual = residual.split(id).join(' ');
+  }
 
   const hints: QueryHint[] = [];
   for (const entry of FILTER_LEXICON) {

@@ -47,6 +47,9 @@ export const knowledge = defineKnowledge({
     { limitation: 'One signal treatment is excluded and a second is contracted UNAVAILABLE. The frontier is over the objectives the estate can actually evaluate.', severity: 'medium' },
     { limitation: 'This Outcome Frontier is a Pareto set of configurations. It is not the DDF-01 Demand Decision Frontier, which is a set of demand trajectories. ADR-043 requires both names to stay qualified.', severity: 'high' }
   ],
+  assumptions: [
+    'The declared objectives are assumed to capture what the decision is actually trading off. A Pareto set is only as honest as its axes: an objective nobody declared cannot rescue a candidate the frontier shows as dominated.'
+  ],
   use_cases: [
     { title: 'Keeping the trade-off visible', context: 'A single recommended configuration is presented and the trade-off is invisible.', outcome: 'Competing strategies are shown as distinct plays.' }
   ],

@@ -32,6 +32,10 @@ export const knowledge = defineKnowledge({
     { name: 'EnterpriseMemory', path: 'packages/contracts/src/memory-model.ts', direction: 'out' },
     { name: 'EnterpriseLearningPattern', path: 'packages/contracts/src/learning-pattern-model.ts', direction: 'out' }
   ],
+  data_sources: [
+    { name: 'Enterprise memory store', kind: 'synthetic', path: 'services/learning/src/memory-store.ts' },
+    { name: 'Learning pattern store', kind: 'synthetic', path: 'services/learning/src/learning-pattern-store.ts' }
+  ],
   implementation_references: [
     { path: 'services/learning/src/memory-store.ts', note: 'Memory store' },
     { path: 'services/learning/src/learning-pattern-store.ts', note: 'Pattern store' },

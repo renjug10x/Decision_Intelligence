@@ -56,6 +56,9 @@ export const knowledge = defineKnowledge({
     { limitation: 'The registry entry describes only CDI-01 and records maturity as Prototype, while CDI-01 through CDI-08 are all complete. ATL-01 recorded this as finding F2; correcting the registry is not Atlas work.', severity: 'high' },
     { limitation: 'All evaluation runs on the synthetic enterprise world.', severity: 'high' }
   ],
+  assumptions: [
+    'The four input areas the canvas collects are assumed sufficient to determine a campaign decision. A client whose decision turns on an input outside those areas needs the framework extended, not the existing inputs reweighted.'
+  ],
   use_cases: [
     { title: 'Deciding whether to run a campaign at all', context: 'A campaign is assumed and only its depth is debated.', outcome: 'Whether, what, where and when become explicit decisions with evidence.' }
   ],

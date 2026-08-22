@@ -55,6 +55,9 @@ export const knowledge = defineKnowledge({
     { limitation: 'Pre-mortem failure modes carry no likelihood, probability or impact scoring.', severity: 'medium' },
     { limitation: 'Learning eligibility is an eight-condition conjunction and no candidate is promoted automatically. The N greater than one policy is an uncalibrated demonstration setting.', severity: 'high' }
   ],
+  assumptions: [
+    'A prediction and an outcome are assumed comparable only where grain and basis match exactly. Where they do not the loop stays silent rather than adjusting one to the other, so the absence of a comparison must not be read as agreement.'
+  ],
   use_cases: [
     { title: 'Closing the loop without fooling yourself', context: 'An outcome arrives and the temptation is to score the decision.', outcome: 'Comparison is reported only where it is like-for-like, and no verdict is issued.' }
   ],

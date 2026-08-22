@@ -429,7 +429,21 @@ export function clarify(
   const aspectAnswered = context.aspects.length > 0;
 
   const spansSeveralAreas = chosenAreaIds.length === 0 && spanned.length >= 3;
-  if (settledAreaId && !aspectAnswered && !depth && !spansSeveralAreas &&
+
+  /*
+   * The same reasoning that lowers the dominance bar for a declared intent also has to stop the
+   * aspect question. "Show me Promotion capabilities from an architect perspective" names the area
+   * and the perspective in one sentence; following it with "which aspect of Campaign & Promotion?"
+   * is the interrogation rule 2 exists to prevent, only one dimension further in.
+   *
+   * The suppression applies only where the area was INFERRED from the reader's words. A reader who
+   * picked the area from a clarification round has answered one question and is expected to be
+   * offered the next — that is the progressive flow, not an interrogation.
+   */
+  const areaInferred = chosenAreaIds.length === 0;
+  const intentAlreadyNarrowed = areaInferred && intentDeclared;
+
+  if (settledAreaId && !aspectAnswered && !depth && !spansSeveralAreas && !intentAlreadyNarrowed &&
       scope.length >= MIN_SCOPE_FOR_ASPECT_QUESTION) {
     const area = CAPABILITY_AREAS.find(a => a.area_id === settledAreaId);
     const choices = aspectChoices(settledAreaId, scope);

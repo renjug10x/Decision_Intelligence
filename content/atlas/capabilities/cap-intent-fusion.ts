@@ -49,6 +49,9 @@ export const knowledge = defineKnowledge({
   known_limitations: [
     { limitation: 'The outlook confidence value is an engine constant and must not be presented as forecast stability; defect D-DDF-2 arose from exactly that conflation.', severity: 'high' }
   ],
+  assumptions: [
+    'Declared commercial intent is assumed to be an accurate statement of what the organisation is trying to do. The fusion reads the environment against that statement; it does not test whether the declared intent is the operative one.'
+  ],
   use_cases: [
     { title: 'Reading a plan against the environment', context: 'A plan is reviewed without reference to what signals are doing.', outcome: 'The outlook fuses both and shows which signal moved it.' }
   ],

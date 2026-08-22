@@ -28,13 +28,40 @@
 | `ATL-06C` | AI Explanation & Hybrid Reasoning | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md`](../reports/COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md) · [`COGNIX_ATL_06C_LIVE_VALIDATION_SUMMARY.md`](../reports/COGNIX_ATL_06C_LIVE_VALIDATION_SUMMARY.md) · `run-atl06c-tests.ts` 127/127 · `run-atl06a` 115 / `run-atl06b` 133 · ADR-057, ADR-058, ADR-059, ADR-067 · **`AC-ATL-06C-9` CLOSED — real credentialed round trip passed on `f1c390bc`: 25 grounding supports, 25/25 byte-offset reconstruction, S1/S2 provider invoked, S3 internal question provider NOT invoked, credential-safe failure** · `tsc` 0 · build clean |
 | `ATL-06D` | Client Conversation Pack | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md`](../reports/COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md) · `run-atl06d-tests.ts` 96/96 · every earlier suite green (`atl04` 58 and `atl04r` 118 with four assertions **re-pointed, not relaxed**) · ADR-064, ADR-065, ADR-066 · preparation reached from the Atlas, recommendation by accumulated rationale, demo steps quoted never written, warnings structural and lens-invariant, research default OFF through the unmodified ATL-06A gate · **`D-ATL-04R-1` persona residual corrected and browser-verified** · **`AC-ATL-06D-6` CLOSED — the inherited `AC-ATL-06C-9` passed live on `f1c390bc`; the market-evidence layer now rests on a validated provider path** · `run-atl06d-tests.ts` 96/96 revalidated · `tsc` 0 · build clean |
 | `ATL-07` | Capability Lifecycle Governance & Automation | **[COMPLETED]** | 2026-08-21 | [`COGNIX_ATL_07_GOVERNANCE_AUTOMATION_REPORT.md`](../reports/COGNIX_ATL_07_GOVERNANCE_AUTOMATION_REPORT.md) · `run-atl07-tests.ts` 51/51 · ADR-068 · 13 checks over 38 records from one command, advisory by default, wired into CI reporting-only · **live-provider drift a first-class subject**, four checks needing no credential · engine has **no write path** — flags and blocks, never promotes · first run found **20 records claiming a lifecycle tier they do not meet**, 12 with no lifecycle state, 11 with source drift since review, 0 provider drift · `tsc` 0 · build clean |
+| `ATL-FINAL` | Capability Atlas Closure, Acceptance & Baseline | **[COMPLETED]** | 2026-08-22 | [`COGNIX_ATL_FINAL_CLOSURE_REPORT.md`](../reports/COGNIX_ATL_FINAL_CLOSURE_REPORT.md) · [`COGNIX_ATLAS_RESIDUAL_REGISTER.md`](COGNIX_ATLAS_RESIDUAL_REGISTER.md) · `run-atlfinal-tests.ts` 57/57 · **estate 35 of 35 runners green, 2,314 counted assertions, zero failures** · ADR-062 Amendment A · **a closure and acceptance pass, not a feature phase and not `ATL-08`** · **GOVERNANCE CLEAN — 0 blocking, `--enforce` exits 0**: the 20 `GOV-REC-1` tier gaps closed by authoring each capability's own premise, no two records sharing an assumption · 12 lifecycle nulls preserved and measured by capability type (9 of 9 `enabling-service`) · `data_sources` 3 → 14, the other 24 left absent rather than guessed · `external_evidence` still 0 with no rule relaxed · `CDI-07A`/`CDI-07B` split decision **closed on route evidence — do not split**, registry stays at 38 · `tsx` declared, `cdi07a` 155/0 and `cdi07b` 235/0 · Atlas Health added as the 7th Observability & Governance section, four lenses, counts declared overlapping and repository checks declared unmeasured · SB-GATE re-evaluated as governed data, **3/6, storyboard RETAINED, gate not weakened** · runbook rewritten to v2.0.0 carrying no figures of its own · browser acceptance at 1440/1024/720 with no overflow or clipping — **which found what no suite could: navigation unreachable below 1024px, a hyphenated query reaching nothing, and the corpus's own noun scoring as a content word** · `tsc` 0 · build clean · credential isolation passes |
 
-**Current phase:** none — **the programme is complete.** `ATL-01` … `ATL-07` are all `[COMPLETED]`
-**Last completed Atlas activity:** `ATL-07` completed 2026-08-21. Its first run over the corpus found 20 records claiming a lifecycle tier they do not meet, 12 with no lifecycle state, 11 with source drift since review, and no live-provider drift
+**Current phase:** none — **the programme is complete and baselined.** `ATL-01` … `ATL-07` and `ATL-FINAL` are all `[COMPLETED]`
+**Last completed Atlas activity:** `ATL-FINAL` completed 2026-08-22. Governance is clean: 0 blocking findings, `--enforce` exits 0, 35 of 35 runners green
 **Next executable work package:** none. Subsequent work is ordinary capability maintenance under this governance
-**Outstanding for an owner:** close the 20 `GOV-REC-1` tier gaps (a corpus-population gap, one missing field across the set) · decide which check families become blocking in CI · decide whether governance findings belong on the Observability & Governance surface
+**Outstanding for an owner:** confirm the 20 authored lifecycle assumptions at each record's next scheduled review (register R-13) · decide a lifecycle state, or none, for the three records outside `enabling-service` that carry no state (R-12) · decide which check families become blocking in CI · decide whether to commission the market study that would populate `external_evidence` (R-04)
 
-> **`ATL-07` completed the programme, 2026-08-21 (ADR-068).** Governance runs from one command over
+> **`ATL-FINAL` baselined the programme, 2026-08-22.** A closure and acceptance pass — registered as
+> `ATL-FINAL`, deliberately **not** `ATL-08`, because it added no capability. It reconciled eighteen
+> residuals into [`COGNIX_ATLAS_RESIDUAL_REGISTER.md`](COGNIX_ATLAS_RESIDUAL_REGISTER.md), classified
+> every one, and **closed seven while leaving eleven open with the reason recorded** — the open rows
+> being the evidence that nothing was fabricated to reach a clean sheet. Governance is now clean:
+> the 20 tier gaps closed by authoring the premise each capability's own architecture rests on, with
+> no two records sharing an assumption; the 12 lifecycle nulls preserved and, more usefully, measured
+> — **all nine `enabling-service` capabilities, 9 of 9**, because the innovation lifecycle describes
+> how an idea matures through the lab and the platform substrate underneath was built rather than
+> incubated. `data_sources` rose 3 → 14 and stopped there, because a mechanical sweep of the other 24
+> produced provenance claims that were wrong on inspection. `external_evidence` is still 0 and no
+> allowlist, provenance or freshness rule was relaxed to change that.
+>
+> **What a browser found that 2,314 assertions could not.** Below 1024px the entire navigation was
+> unreachable — `.sidebar.open` had existed since the original stylesheet and nothing had ever set the
+> class. The query `pre-mortem` returned nothing while the corpus contains that spelling eleven times.
+> The word `capability` scored as a content word in a corpus of capabilities, so a question naming one
+> area reached 27 of 38 records. All three are properties of the running product rather than of any
+> module, which is `ADR-068`'s fixture argument one layer up. All three are fixed (ADR-062 Amendment A),
+> and `run-atlfinal-tests.ts` now watches each.
+>
+> **`CDI-07A`/`CDI-07B` closed — do not split.** Every artefact of both is a nested sub-resource of a
+> decision contract, so neither passes the *independently reused* limb of the capability test, and
+> neither is unaddressable today. The registry stays at 38. **SB-GATE re-evaluated as governed data:
+> 3 of 6, storyboard RETAINED, gate not weakened.**
+
+> **`ATL-07` completed the build phases, 2026-08-21 (ADR-068).** Governance runs from one command over
 > 38 records and 13 checks, advisory by default and wired into CI reporting-only. **Live-provider
 > drift is a first-class subject**: `config/atlas-provider-verification.ts` records what was verified,
 > the commit it passed on and the files whose change invalidates it, and four checks run from it

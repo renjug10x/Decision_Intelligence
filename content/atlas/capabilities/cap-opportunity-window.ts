@@ -47,6 +47,9 @@ export const knowledge = defineKnowledge({
     { limitation: 'Catchment and mission data come from the synthetic enterprise world.', severity: 'high' },
     { limitation: 'An OpportunityWindowEvaluation scores when to run a campaign. It is not the DDF-01 Decision Window, which states until when an option remains open. The two must never be merged (ADR-042).', severity: 'high' }
   ],
+  assumptions: [
+    'Candidate intervals are assumed to be independently executable. Each window is scored on its own catchment, inventory and mission factors, so the model does not carry the cost of having already run a campaign in an earlier window.'
+  ],
   use_cases: [
     { title: 'Choosing when, not just how much', context: 'The launch date was fixed before the analysis started.', outcome: 'Candidate windows are scored and the best is explained.' }
   ],

@@ -211,12 +211,33 @@ async function run() {
     'D1: The report covers the whole corpus and names every check it ran', `${report.checked_capabilities} capabilities`);
   assert(report.findings.every(f => f.detail.length > 20 && f.remedy.length > 20),
     'D2: Every finding says what is wrong AND what to do — a finding without a remedy is a complaint');
-  assert(report.unpublishable.length > 0 && report.unpublishable.length < report.checked_capabilities,
+  /*
+    D3 and D4 originally read the live corpus, which at the time carried twenty blocking findings.
+    That made them pass for a reason that was not the property being asserted: the moment `ATL-FINAL`
+    closed the tier gaps the corpus held zero, and both assertions failed while the behaviour they
+    protect was untouched. A test that only holds while the estate is broken is not protecting
+    anything.
+
+    They now construct the case instead. One record is made incomplete against a corpus that is
+    otherwise sound, which proves the per-record property whatever the live corpus happens to
+    contain — and keeps proving it when the corpus is clean, which is when it matters most.
+  */
+  const injured = corpus.map((c, i) =>
+    i === 0 ? { ...c, identity: { ...c.identity, owner: '', reviewed_at: '' } } : c);
+  const partial = runGovernance({
+    capabilities: injured, providerRecord: PROVIDER_VERIFICATION,
+    fileExists: p => existsSync(join(ROOT, p)), lastChangedAt: NO_HISTORY,
+    verifiedCommitDate: null, now: NOW
+  });
+  assert(partial.unpublishable.length > 0 && partial.unpublishable.length < partial.checked_capabilities,
     'D3: Publication is refused per record, not corpus-wide — one incomplete record does not unpublish the other thirty-seven',
-    `${report.unpublishable.length} of ${report.checked_capabilities}`);
-  assert(!isPublishable(report, report.unpublishable[0]) &&
-    isPublishable(report, identities.find(i => !report.unpublishable.includes(i.capability_id))!.capability_id),
+    `${partial.unpublishable.length} of ${partial.checked_capabilities}`);
+  assert(!isPublishable(partial, partial.unpublishable[0]) &&
+    isPublishable(partial, identities.find(i => !partial.unpublishable.includes(i.capability_id))!.capability_id),
     'D4: The publication gate answers per capability');
+  assert(report.unpublishable.length === 0 && isPublishable(report, identities[0].capability_id),
+    'D4b: …and with the real corpus carrying no blocking finding, every record publishes',
+    `${report.unpublishable.length} unpublishable`);
   assert(report.publishable === (report.blocking === 0),
     'D5: The corpus-level verdict follows blocking findings only — advisory findings neither set nor clear it');
 
@@ -226,12 +247,23 @@ async function run() {
     fileExists: p => existsSync(join(ROOT, p)), lastChangedAt: NO_HISTORY,
     verifiedCommitDate: '2026-08-21T00:00:00Z', now: NOW
   });
+  /*
+    The first real run of this check found twenty records claiming `Prototype` while carrying no
+    `assumptions` — one missing field, repeated, after seven phases in which nothing was watching.
+    `ATL-FINAL` closed all twenty by authoring the premise each capability's own architecture rests
+    on, read from its record rather than written to clear the check.
+
+    D6 asserts the closure rather than the count it replaced: the historical finding is preserved in
+    this comment and in the ATL-07 report, and the assertion now protects the corrected state. D7
+    keeps the shape of the original finding testable — if the gap ever reopens, it must still be one
+    nameable field rather than thirty-eight separate mistakes.
+  */
   const tierGaps = live.findings.filter(f => f.check_id === 'GOV-REC-1');
-  assert(tierGaps.length === 20,
-    `D6: The corpus has ${tierGaps.length} records claiming a lifecycle tier they do not meet — found on the first real run, after seven phases in which nothing was watching`,
+  assert(tierGaps.length === 0,
+    `D6: No record claims a lifecycle tier it does not meet; the twenty found on the first real run are closed (${tierGaps.length} open)`,
     tierGaps.length.toString());
   assert(tierGaps.every(f => /assumptions/.test(f.detail)),
-    'D7: …and every one of them is the same missing field, which is a corpus-population gap rather than thirty-eight separate mistakes');
+    'D7: …and were any to reopen, it would be one nameable missing field rather than thirty-eight separate mistakes');
   assert(live.findings.filter(f => f.check_id === 'GOV-REC-6').length === 12,
     'D8: Twelve records carry no lifecycle state and are reported as exempt rather than quietly passing');
 

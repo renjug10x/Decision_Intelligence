@@ -295,6 +295,8 @@ export default function CapabilityAtlas({ onOpenSolution, onOpenExperiment }: Pr
         onOpenCapability={open}
         problemLabel={problemLabel}
         onPrepare={seed => { setSelected(null); setPreparing(seed); }}
+        onOpenSolution={onOpenSolution}
+        onOpenExperiment={onOpenExperiment}
       />
     );
   }

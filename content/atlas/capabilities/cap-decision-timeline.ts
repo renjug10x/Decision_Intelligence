@@ -47,6 +47,9 @@ export const knowledge = defineKnowledge({
   known_limitations: [
     { limitation: 'Revenue is reported NOT_AVAILABLE and the post-campaign period is structurally present but numerically empty. These absences are shown, not filled.', severity: 'high' }
   ],
+  assumptions: [
+    'Every period on the timeline is assumed to be reported under one identity basis. Mixing bases across periods would turn the progression into a comparison of different things, so the timeline refuses that rather than reconciling it.'
+  ],
   use_cases: [
     { title: 'Explaining a projection rather than displaying it', context: 'A chart is shown and the first question is why.', outcome: 'Drivers decompose progressively down to evidence.' }
   ],

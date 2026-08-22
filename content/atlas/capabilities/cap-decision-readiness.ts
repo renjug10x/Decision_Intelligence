@@ -46,6 +46,9 @@ export const knowledge = defineKnowledge({
     { limitation: 'Readiness evidence is drawn from the synthetic world and declared scenario inputs.', severity: 'high' },
     { limitation: 'Readiness gates an option as not currently actionable; it does not itself recommend. Presenting it as a recommendation engine misstates it.', severity: 'medium' }
   ],
+  assumptions: [
+    'The six dimensions are assumed to be independently evaluable. A common cause that depresses several at once is reported as several weak dimensions rather than as one root cause, which is safe but leaves the aggregation to the reader.'
+  ],
   use_cases: [
     { title: 'Knowing what to fix before proceeding', context: 'A campaign is ready except for something nobody has named.', outcome: 'The verdict names the dimensions that drove it.' }
   ],

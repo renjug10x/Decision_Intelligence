@@ -30,6 +30,9 @@ export const knowledge = defineKnowledge({
   contracts: [
     { name: 'EnterpriseSignal', path: 'packages/contracts/src/enterprise-signal-model.ts', direction: 'out' }
   ],
+  data_sources: [
+    { name: 'Deterministic signal trajectory simulator (T-7 to T+30)', kind: 'synthetic', path: 'services/world/src/dynamic-signal-simulator.ts' }
+  ],
   implementation_references: [
     { path: 'services/world/src/dynamic-signal-simulator.ts', note: 'Simulator' },
     { path: 'app/api/v1/signals/simulate/route.ts', note: 'API' }

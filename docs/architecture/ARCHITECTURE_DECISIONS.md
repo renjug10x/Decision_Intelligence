@@ -814,6 +814,49 @@ the Atlas still adds only the knowledge they do not carry.
   over-normalisation of a word that is not a plural, which the rules decline to touch (`analysis`,
   `bus`, `-ss`, `-us`, `-is`) and which the suite asserts.
 
+#### ADR-062 Amendment A — the corpus's own noun is a stopword too (`ATL-FINAL`, 2026-08-22)
+
+- **Status:** Approved & **Implemented** (`ATL-FINAL`, 2026-08-22). Enforcement in
+  `lib/atlas/query-understanding.ts` (`STOPWORDS`), `lib/atlas/clarification.ts`; regression in
+  `tests/unit/run-atl04r-tests.ts` C1–C8.
+- **What the browser acceptance found.** The original decision made `cognix` a stopword on the
+  grounds that a word matching every record discriminates none of them, and then left the word
+  `capability` in. It is the same word. Measured on the live estate,
+  *"What capabilities does CogniX have on Promotions?"* returned **27 of 38** capabilities and
+  ranked **Enterprise Signal second on a promotions question**; the correct answer led, so the
+  defect was invisible to anyone reading only the first result. After the amendment the same
+  question returns **9**, all of them promotion work.
+- **Decision:** `capability` and `capabilities` join `cognix` in `STOPWORDS`. No capability in the
+  registry is named with the word, so nothing becomes unfindable, and *"capability atlas"* still
+  resolves on `atlas`. This removes a non-discriminating term; it adds no vocabulary, which the
+  governed alias register (ADR-059) remains the only route for.
+- **The clarification engine had to follow.** The original ADR-062 text observes that the first
+  acceptance scenario is literally that query. It was treated as the canonical *area-ambiguous*
+  question — but its area spread was the artefact, not a property of the question. With the noise
+  removed the question settles on Campaign & Promotion, and the engine then asked *"which aspect of
+  Campaign & Promotion?"* of a reader who had just said Promotion. The rule that already lowers the
+  area-dominance bar for a declared intent now also **suppresses the aspect question where the area
+  was inferred from the reader's own words and an intent was declared with it** — the same rule 2,
+  one dimension further in. A reader who picked an area *from a clarification round* is still
+  offered the next question: that is the progressive flow, not an interrogation.
+- **Consequences:** *"Show me Promotion capabilities from an architect perspective."* now reaches
+  results with no further question, which is what `ATL-04R` C8 always asserted and what the artefact
+  had been satisfying for the wrong reason. C1 and C5 were re-pointed to a query that is multi-area
+  in substance — the owner's own *"Promotions, demand, signals and inventory"* — and two new
+  assertions (C2a, C2b) hold the corrected single-area behaviour so the artefact cannot return
+  unnoticed. The 18-question `ATL-06C` retrieval baseline is unmoved: none of those questions
+  contains the word.
+- **A second mechanical defect, found the same way: a hyphenated query reached nothing.**
+  `pre-mortem` returned **zero** results while `pre mortem` returned the right capability, and the
+  corpus contains the hyphenated spelling eleven times. `IDENTIFIER_PATTERN` is applied to the
+  upper-cased query, so `PRE-MORTEM` read as a governed identifier, matched no record, and took the
+  whole query out of the residual with it — leaving no content words to match on. `half-life` and
+  `decision-gap` failed identically, which is the original ADR-062 finding in a different disguise:
+  the words never met. **Only a token the searcher actually wrote in upper case is now consumed as
+  an identifier.** `DDF-01` still yields an identifier and no terms; a lower-case hyphenated token
+  yields the identifier reading *and* its words, so the result is a superset and nothing that
+  matched before stops matching.
+
 ---
 
 ### ADR-063: Explanatory Visuals Are Configuration Carried By Capability Knowledge, And Carry No Numbers (`ATL-04R`)

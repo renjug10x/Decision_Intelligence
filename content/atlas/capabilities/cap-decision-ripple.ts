@@ -12,7 +12,7 @@ export const knowledge = defineKnowledge({
   innovation_thesis:
     'Decisions are made in one function and paid for in another. A platform that models only the first order is describing half the decision.',
   usage_instructions:
-    'Open Decision Ripple from the Innovation Portfolio. Adjust the decision magnitude and follow the consequence orders outward.',
+    'Open this capability in the Capability Atlas and follow the experiment named under \u201cWhere it comes from\u201d. Adjust the decision magnitude and follow the consequence orders outward.',
   testing_instructions:
     'Exercised through the campaign decision journey suite.',
   field_status: [
@@ -41,6 +41,9 @@ export const knowledge = defineKnowledge({
   known_limitations: [
     { limitation: 'Consequence magnitudes are modelled from scenario parameters and are uncalibrated.', severity: 'high' },
     { limitation: 'CDI-04 readiness integrates with ripple rather than duplicating it; ripple is not a risk engine and must not be presented as one.', severity: 'medium' }
+  ],
+  assumptions: [
+    'Consequences are assumed to propagate outward through the declared layers without feeding back. A second-order effect that changes the magnitude of the first-order effect is not modelled, so the layers are read as a cascade rather than as a system.'
   ],
   use_cases: [
     { title: 'Pricing a decision beyond its own function', context: 'Marketing proposes a spend increase.', outcome: 'The distribution-centre and margin consequences are visible before approval.' }

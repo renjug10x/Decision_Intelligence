@@ -34,6 +34,9 @@ export const knowledge = defineKnowledge({
   contracts: [
     { name: 'DecisionRegretAssessment', path: 'packages/contracts/src/demand-decision-frontier-model.ts', direction: 'out' }
   ],
+  data_sources: [
+    { name: 'Shared decision state', kind: 'synthetic', path: 'lib/decision-state-store.ts' }
+  ],
   implementation_references: [
     { path: 'lib/demand-decision-frontier/demand-frontier-engine.ts', symbol: 'evaluateDecisionRegret', note: 'Owning engine function' },
     { path: 'packages/contracts/src/demand-decision-frontier-model.ts', note: 'Contract' },
@@ -52,6 +55,9 @@ export const knowledge = defineKnowledge({
   known_limitations: [
     { limitation: 'Absolute monetary values are uncalibrated modelled expected values. The defensible claim is the ordering between alternatives, not the pounds.', severity: 'high' },
     { limitation: 'Regret is not forecast-error cost. Presenting it as such would contradict the CDI-07B ruling that prediction error never stands in for a decision verdict.', severity: 'high' }
+  ],
+  assumptions: [
+    'ACT_NOW, WAIT and DO_NOTHING are assumed to exhaust the alternatives under comparison. Regret is relative to that closed set, so an option nobody enumerated cannot be shown as the better action however good it would have been.'
   ],
   use_cases: [
     { title: 'Deciding whether waiting is affordable', context: 'A planner can see a gap but does not know the cost of waiting for better evidence.', outcome: 'The three alternatives are priced from shared inputs and the ordering is inspectable.' }

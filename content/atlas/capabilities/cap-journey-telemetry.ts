@@ -30,6 +30,9 @@ export const knowledge = defineKnowledge({
   contracts: [
     { name: 'JourneyEvent', path: 'packages/contracts/src/journey-model.ts', direction: 'in' }
   ],
+  data_sources: [
+    { name: 'Journey events emitted by the running application into a bounded in-memory buffer', kind: 'live', path: 'lib/journey-store.ts' }
+  ],
   implementation_references: [
     { path: 'lib/journey-store.ts', note: 'Store' },
     { path: 'lib/journey-client.ts', note: 'Client' },

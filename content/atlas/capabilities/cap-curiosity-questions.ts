@@ -45,6 +45,9 @@ export const knowledge = defineKnowledge({
     { limitation: 'Four questions are registered. The set is illustrative rather than a complete map of the estate.', severity: 'medium' },
     { limitation: 'Evidence points on each question are demonstration figures carried from the original content, not live measurements.', severity: 'high' }
   ],
+  assumptions: [
+    'A registered question is assumed to be worth asking because the estate can route it to something that answers it. The register is curated by hand, so it assumes an author supplies the route at the same time as the question.'
+  ],
   use_cases: [
     { title: 'Starting from a question rather than a menu', context: 'A visitor does not know what to look for.', outcome: 'A provocative question routes them to the capability that answers it.' }
   ],

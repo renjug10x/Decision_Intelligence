@@ -1,7 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Bell } from 'lucide-react';
+import { Bell, Menu, X } from 'lucide-react';
 import { useApp } from '@/lib/context';
 import { useAuth } from '@/context/AuthContext';
 import { appRoutes } from '@/config/routes';
@@ -34,6 +34,8 @@ export default function App() {
    * than pages beside it, so `currentPage` no longer starts on a destination that has been removed.
    */
   const [currentPage, setCurrentPage] = useState<string>('atlas');
+  /* ATL-FINAL: the narrow-viewport navigation switch. See the note on `SidebarProps.open`. */
+  const [navOpen, setNavOpen] = useState(false);
   const [selectedExperimentId, setSelectedExperimentId] = useState<string>('EXP-COMMITMENT-01');
   const [toast, setToast] = useState<ToastMessage | null>(null);
 
@@ -176,12 +178,39 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <Sidebar currentPage={currentPage} onNavigate={setCurrentPage} />
+      <Sidebar
+        currentPage={currentPage}
+        onNavigate={setCurrentPage}
+        open={navOpen}
+        onDismiss={() => setNavOpen(false)}
+      />
+      {navOpen && (
+        <button
+          type="button"
+          className="nav-scrim"
+          aria-label="Close navigation"
+          onClick={() => setNavOpen(false)}
+        />
+      )}
       
       <div className="main-content">
         {/* Topbar: Quiet Context/Control Bar (No Page Title) */}
         <div className="topbar" style={{ background: '#FFFFFF', borderBottom: '1px solid var(--border)', height: 54, padding: '0 24px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div className="topbar-left" style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+            {/*
+              Shown only below 1024px, where the stylesheet has slid the sidebar off-screen. Above
+              that width the panel is always present and a menu button would be a control that
+              duplicates what is already on the page.
+            */}
+            <button
+              type="button"
+              className="nav-toggle"
+              aria-label={navOpen ? 'Close navigation' : 'Open navigation'}
+              aria-expanded={navOpen}
+              onClick={() => setNavOpen(v => !v)}
+            >
+              {navOpen ? <X size={17} strokeWidth={1.9} /> : <Menu size={17} strokeWidth={1.9} />}
+            </button>
             <span style={{ fontSize: '0.75rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               CogniX Laboratory
             </span>

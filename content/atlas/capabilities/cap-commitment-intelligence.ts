@@ -12,7 +12,7 @@ export const knowledge = defineKnowledge({
   innovation_thesis:
     'Siloed planning produces accurate forecasts and broken promises at the same time. The interesting object is not the forecast; it is the commitment that depends on it.',
   usage_instructions:
-    'Open Commitment Intelligence from the Innovation Portfolio. Adjust the promotional scenario and observe where the commitment chain first breaks and how far ahead of the customer that break is visible.',
+    'Open this capability in the Capability Atlas and follow the demonstrating solution named under \u201cWhere it comes from\u201d. Adjust the promotional scenario and observe where the commitment chain first breaks and how far ahead of the customer that break is visible.',
   testing_instructions:
     'Exercised through the campaign decision journey suite. Run npx tsx tests/unit/run-campaign-decision-journey-tests.ts.',
   field_status: [
@@ -42,6 +42,9 @@ export const knowledge = defineKnowledge({
   known_limitations: [
     { limitation: 'Chain capacity is supplied by the synthetic enterprise world, not by a client planning system.', severity: 'medium' },
     { limitation: 'The lead-time claim is a demonstration figure derived from scenario parameters, not a measured operational outcome.', severity: 'high' }
+  ],
+  assumptions: [
+    'Chain stages are assumed to consume capacity in a fixed declared order, one after another. A chain in which two stages serve the same commitment in parallel would invalidate the reading of a single first breaking stage.'
   ],
   use_cases: [
     { title: 'Seeing a broken promise early', context: 'Promotional demand is accelerating faster than supplier capacity can serve.', outcome: 'The breaking stage and the time remaining before the customer notices are both visible.' }

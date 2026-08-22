@@ -50,6 +50,9 @@ export const knowledge = defineKnowledge({
     { limitation: 'No apportionment, no fuzzy matching and no fallback from attributable to gross. A near-miss observation is refused rather than approximated.', severity: 'medium' },
     { limitation: 'Every connector adapter in the estate is marked synthetic_demo true, so authoritative external observation is reachable but unexercised by real feeds.', severity: 'medium' }
   ],
+  assumptions: [
+    'The declared metric-to-signal-type table is assumed complete for the decisions under contract. A legitimate correspondence nobody declared is refused, which fails safe but fails silently, so the table is a maintained artefact rather than a fixed one.'
+  ],
   use_cases: [
     { title: 'Refusing an observation that does not fit', context: 'An actual arrives at a different grain from the one contracted.', outcome: 'The predicate names the failing dimension instead of silently comparing incomparable numbers.' }
   ],

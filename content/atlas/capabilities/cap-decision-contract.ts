@@ -49,6 +49,10 @@ export const knowledge = defineKnowledge({
     { limitation: 'Half-Life validity must never share an indicator with the DDF-01 Decision Window; they measure different things (ADR-042).', severity: 'high' },
     { limitation: 'The runner exits non-zero for a pre-existing missing tsx dependency, not a capability defect.', severity: 'medium' }
   ],
+  assumptions: [
+    'Evidence identity is assumed to be stable enough to digest. An input re-derived with the same meaning but a different serialisation reads as changed, so the contract assumes upstream producers emit a canonical form.',
+    'Reconsideration triggers are assumed to be declarable in advance. The contract can only tell you the basis has moved along a dimension somebody named before the decision was taken.'
+  ],
   use_cases: [
     { title: 'Reviewing a decision months later', context: 'Nobody can reconstruct what the decision rested on.', outcome: 'The bound basis, its digest and its assumptions are recoverable exactly.' }
   ],

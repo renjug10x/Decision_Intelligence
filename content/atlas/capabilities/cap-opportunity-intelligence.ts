@@ -12,7 +12,7 @@ export const knowledge = defineKnowledge({
   innovation_thesis:
     'Monitoring is built to catch things going wrong. Nothing in the estate is built to catch things going unexpectedly right, which is where unclaimed margin sits.',
   usage_instructions:
-    'Open Opportunity Intelligence from the Innovation Portfolio and review surfaced opportunities and their routing to a demonstration solution.',
+    'Open this capability in the Capability Atlas and follow the experiment named under \u201cWhere it comes from\u201d, then review surfaced opportunities and their routing to a demonstration solution.',
   testing_instructions:
     'No dedicated runner exists. This is a recorded coverage gap.',
   field_status: [

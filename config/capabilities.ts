@@ -239,7 +239,7 @@ export const CAPABILITY_REGISTRY: CapabilityIdentity[] = [
     owner: 'G10X Enterprise Innovation Lab',
     created_at: '2026-08-16',
     updated_at: '2026-08-20',
-    reviewed_at: '2026-08-20',
+    reviewed_at: '2026-08-22',
     version: '1.0.0'
   },
   {
@@ -308,7 +308,7 @@ export const CAPABILITY_REGISTRY: CapabilityIdentity[] = [
     owner: 'G10X Enterprise Innovation Lab',
     created_at: '2026-08-20',
     updated_at: '2026-08-20',
-    reviewed_at: '2026-08-20',
+    reviewed_at: '2026-08-22',
     version: '1.0.0'
   },
   {
@@ -331,7 +331,7 @@ export const CAPABILITY_REGISTRY: CapabilityIdentity[] = [
     owner: 'G10X Enterprise Innovation Lab',
     created_at: '2026-08-20',
     updated_at: '2026-08-20',
-    reviewed_at: '2026-08-20',
+    reviewed_at: '2026-08-22',
     version: '1.0.0'
   },
   {
@@ -400,7 +400,7 @@ export const CAPABILITY_REGISTRY: CapabilityIdentity[] = [
     owner: 'G10X Enterprise Innovation Lab',
     created_at: '2026-08-20',
     updated_at: '2026-08-20',
-    reviewed_at: '2026-08-20',
+    reviewed_at: '2026-08-22',
     version: '1.0.0'
   },
   {
@@ -768,7 +768,7 @@ export const CAPABILITY_REGISTRY: CapabilityIdentity[] = [
     owner: 'G10X Enterprise Innovation Lab',
     created_at: '2026-08-20',
     updated_at: '2026-08-20',
-    reviewed_at: '2026-08-20',
+    reviewed_at: '2026-08-22',
     version: '1.0.0'
   },
   {
@@ -791,7 +791,7 @@ export const CAPABILITY_REGISTRY: CapabilityIdentity[] = [
     owner: 'G10X Enterprise Innovation Lab',
     created_at: '2026-08-20',
     updated_at: '2026-08-20',
-    reviewed_at: '2026-08-20',
+    reviewed_at: '2026-08-22',
     version: '1.0.0'
   },
   {
@@ -814,7 +814,7 @@ export const CAPABILITY_REGISTRY: CapabilityIdentity[] = [
     owner: 'G10X Enterprise Innovation Lab',
     created_at: '2026-08-20',
     updated_at: '2026-08-20',
-    reviewed_at: '2026-08-20',
+    reviewed_at: '2026-08-22',
     version: '1.0.0'
   },
   {
@@ -837,7 +837,7 @@ export const CAPABILITY_REGISTRY: CapabilityIdentity[] = [
     owner: 'G10X Enterprise Innovation Lab',
     created_at: '2026-08-20',
     updated_at: '2026-08-20',
-    reviewed_at: '2026-08-20',
+    reviewed_at: '2026-08-22',
     version: '1.0.0'
   },
   {
@@ -883,7 +883,7 @@ export const CAPABILITY_REGISTRY: CapabilityIdentity[] = [
     owner: 'G10X Enterprise Innovation Lab',
     created_at: '2026-08-20',
     updated_at: '2026-08-20',
-    reviewed_at: '2026-08-20',
+    reviewed_at: '2026-08-22',
     version: '1.0.0'
   },
   {
@@ -906,7 +906,7 @@ export const CAPABILITY_REGISTRY: CapabilityIdentity[] = [
     owner: 'G10X Enterprise Innovation Lab',
     created_at: '2026-08-20',
     updated_at: '2026-08-20',
-    reviewed_at: '2026-08-20',
+    reviewed_at: '2026-08-22',
     version: '1.0.0'
   },
   {
@@ -929,7 +929,7 @@ export const CAPABILITY_REGISTRY: CapabilityIdentity[] = [
     owner: 'G10X Enterprise Innovation Lab',
     created_at: '2026-08-20',
     updated_at: '2026-08-20',
-    reviewed_at: '2026-08-20',
+    reviewed_at: '2026-08-22',
     version: '1.0.0'
   }
 ];

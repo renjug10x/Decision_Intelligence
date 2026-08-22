@@ -35,6 +35,9 @@ export const knowledge = defineKnowledge({
   contracts: [
     { name: 'EnterpriseSignal', path: 'packages/contracts/src/enterprise-signal-model.ts', direction: 'out' }
   ],
+  data_sources: [
+    { name: 'Enterprise World synthetic signal generator', kind: 'synthetic', path: 'services/world/src/enterprise-signal-generator.ts' }
+  ],
   implementation_references: [
     { path: 'packages/contracts/src/enterprise-signal-model.ts', note: 'Contract' },
     { path: 'services/world/src/enterprise-signal-generator.ts', note: 'Generator' },

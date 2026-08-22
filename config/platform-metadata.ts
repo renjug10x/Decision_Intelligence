@@ -49,6 +49,6 @@ export function resolvePlatformMetadata(): PlatformMetadata {
     environment: fromEnv('COGNIX_ENVIRONMENT') ?? fromEnv('NODE_ENV'),
     release: fromEnv('COGNIX_RELEASE'),
     certifications: [],
-    lastUpdated: '2026-08-21'
+    lastUpdated: '2026-08-22'
   };
 }
