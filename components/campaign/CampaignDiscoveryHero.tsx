@@ -34,6 +34,8 @@ interface CampaignDiscoveryHeroProps {
   /** CTW-01 — there is no in-flight campaign until a decision is activated. */
   flightAvailable?: boolean;
   onSwitchMode: (mode: 'PLANNING' | 'DECISION_TWIN') => void;
+  /** What `onExploreDecision` will open for the current state, so the control can say so. */
+  exploreDestinationLabel?: string;
   onExploreDecision: () => void;
   onSelectLens?: (lensId: string) => void;
 }
@@ -51,6 +53,7 @@ export default function CampaignDiscoveryHero({
   activeMode,
   flightAvailable = false,
   onSwitchMode,
+  exploreDestinationLabel,
   onExploreDecision,
   onSelectLens
 }: CampaignDiscoveryHeroProps) {
@@ -484,6 +487,16 @@ export default function CampaignDiscoveryHero({
         <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
           <button
             onClick={onExploreDecision}
+            title={
+              exploreDestinationLabel
+                ? `Open ${exploreDestinationLabel}`
+                : 'Open the deeper decision analysis for this campaign'
+            }
+            aria-label={
+              exploreDestinationLabel
+                ? `Explore decision analytics — open ${exploreDestinationLabel}`
+                : 'Explore decision analytics'
+            }
             style={{
               background: '#0F172A',
               color: '#FFFFFF',

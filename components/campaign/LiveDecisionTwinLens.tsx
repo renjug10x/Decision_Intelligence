@@ -23,6 +23,11 @@ import { CampaignFlightProjection } from '@/packages/contracts/src/campaign-cont
 import ContinuousFlightTimeline from '@/components/campaign/ContinuousFlightTimeline';
 import CampaignStory from '@/components/campaign/CampaignStory';
 import { CampaignStoryEvent } from '@/packages/contracts/src/campaign-intervention-model';
+import {
+  CAMPAIGN_OUTLOOK_SECTION_ID,
+  CAMPAIGN_TIMELINE_SECTION_ID,
+  IN_FLIGHT_DEVIATIONS_SECTION_ID
+} from '@/lib/campaign-decision-navigation';
 
 interface LiveDecisionTwinLensProps {
   archetype: CampaignArchetype;
@@ -159,62 +164,67 @@ export default function LiveDecisionTwinLens({
       </div>
 
       {/* ── CTW-02: outlook and decision moments, above the timeline ── */}
-      {outlookSlot}
+      {outlookSlot && <div id={CAMPAIGN_OUTLOOK_SECTION_ID}>{outlookSlot}</div>}
 
       {/* ── CTW-01: the continuous campaign timeline ── */}
-      {flight ? (
-        <ContinuousFlightTimeline flight={flight} />
-      ) : (
-        <div
-          style={{
-            background: '#FFFBEB',
-            border: '1px solid #FDE68A',
-            borderRadius: 12,
-            padding: '18px 20px',
-            display: 'flex',
-            gap: 10,
-            alignItems: 'flex-start'
-          }}
-        >
-          <AlertTriangle size={18} color="#B45309" style={{ flexShrink: 0, marginTop: 1 }} />
-          <div>
-            <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#92400E' }}>
-              No governed campaign timeline for this configuration
+      {/* The anchor wraps both branches: a reader sent here when there is no governed timeline
+          must land on the statement that there is none, never on nothing at all. */}
+      <div id={CAMPAIGN_TIMELINE_SECTION_ID}>
+        {flight ? (
+          <ContinuousFlightTimeline flight={flight} />
+        ) : (
+          <div
+            style={{
+              background: '#FFFBEB',
+              border: '1px solid #FDE68A',
+              borderRadius: 12,
+              padding: '18px 20px',
+              display: 'flex',
+              gap: 10,
+              alignItems: 'flex-start'
+            }}
+          >
+            <AlertTriangle size={18} color="#B45309" style={{ flexShrink: 0, marginTop: 1 }} />
+            <div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#92400E' }}>
+                No governed campaign timeline for this configuration
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#92400E', margin: '4px 0 0 0', lineHeight: 1.5 }}>
+                {flightError ||
+                  'This campaign has no activated decision, so there is no baseline to assess it against.'}{' '}
+                The demonstration telemetry below is shown as-is and is not a comparison against any
+                decision.
+              </p>
+              {onReturnToPlanning && (
+                <button
+                  type="button"
+                  onClick={onReturnToPlanning}
+                  style={{
+                    marginTop: 10,
+                    padding: '7px 14px',
+                    borderRadius: 7,
+                    border: '1px solid #FDE68A',
+                    background: '#FFFFFF',
+                    color: '#92400E',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Return to review and activate
+                </button>
+              )}
             </div>
-            <p style={{ fontSize: '0.8rem', color: '#92400E', margin: '4px 0 0 0', lineHeight: 1.5 }}>
-              {flightError ||
-                'This campaign has no activated decision, so there is no baseline to assess it against.'}{' '}
-              The demonstration telemetry below is shown as-is and is not a comparison against any
-              decision.
-            </p>
-            {onReturnToPlanning && (
-              <button
-                type="button"
-                onClick={onReturnToPlanning}
-                style={{
-                  marginTop: 10,
-                  padding: '7px 14px',
-                  borderRadius: 7,
-                  border: '1px solid #FDE68A',
-                  background: '#FFFFFF',
-                  color: '#92400E',
-                  fontSize: '0.78rem',
-                  fontWeight: 600,
-                  cursor: 'pointer'
-                }}
-              >
-                Return to review and activate
-              </button>
-            )}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* ── CTW-02: the campaign story ── */}
       {story.length > 0 && <CampaignStory events={story} />}
 
       {/* ── Section 2: In-Flight Deviations & Adaptive Interventions ── */}
       <div
+        id={IN_FLIGHT_DEVIATIONS_SECTION_ID}
         style={{
           display: 'grid',
           gridTemplateColumns: 'minmax(320px, 1.2fr) minmax(320px, 1.4fr)',

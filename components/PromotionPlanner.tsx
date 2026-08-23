@@ -98,18 +98,21 @@ import {
   confirmInterventionClient
 } from '@/lib/campaign-intervention-client';
 import { ExperimentHistoryDrawer } from '@/components/campaign/ExperimentHistoryDrawer';
+import {
+  DecisionAnalyticsLensId,
+  FLIGHT_ACTIVATION_SECTION_ID,
+  PRE_FLIGHT_LENSES_SECTION_ID,
+  resolveDecisionAnalyticsTarget,
+  scrollToDecisionAnalyticsTarget
+} from '@/lib/campaign-decision-navigation';
 
 interface PromotionPlannerProps {
   onNavigateToExperiment?: (experimentId: string) => void;
   onNavigateToCanvas?: () => void;
 }
 
-export type AnalyticalLensId =
-  | 'DEMAND'
-  | 'OPPORTUNITY'
-  | 'FRONTIER'
-  | 'INVERSE'
-  | 'GRAPH';
+/** Declared in `lib/campaign-decision-navigation`, which also resolves which lens to open. */
+export type AnalyticalLensId = DecisionAnalyticsLensId;
 
 export default function PromotionPlanner({
   onNavigateToExperiment,
@@ -215,6 +218,26 @@ export default function PromotionPlanner({
   const staleActivation = decisionContract !== null && activatedSignature !== configurationSignature;
   const flightReady =
     decisionContract !== null && decisionContract.status === 'ACTIVE' && !staleActivation;
+
+  /**
+   * Where "Explore Decision Analytics" goes from here. The destination is resolved from the state
+   * on screen rather than fixed, because the deeper evidence for a pre-flight decision (the
+   * analytical lenses) is not the deeper evidence for a campaign already in flight (its outlook,
+   * decision moments and observed trajectory). Resolving it here also lets the control name its
+   * own destination rather than leaving the reader to guess.
+   */
+  const exploreTarget = React.useMemo(
+    () =>
+      resolveDecisionAnalyticsTarget({
+        mode: activeMode,
+        decision_verdict: archetype.discovery.decision_verdict,
+        readiness_state: liveReadiness?.readiness?.state ?? null,
+        has_flight: flight !== null,
+        outlook_action: outlook?.current_action ?? null,
+        moment_count: momentsResult.moments.length
+      }),
+    [activeMode, archetype, liveReadiness, flight, outlook, momentsResult.moments.length]
+  );
 
   // When selected archetype changes, reset default configuration parameters
   const handleSelectArchetype = (archId: string) => {
@@ -815,15 +838,20 @@ export default function PromotionPlanner({
         flightAvailable={flightReady}
         onSwitchMode={mode => {
           if (mode === 'DECISION_TWIN' && !flightReady) {
-            const el = document.getElementById('flight-activation-section');
+            const el = document.getElementById(FLIGHT_ACTIVATION_SECTION_ID);
             if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
             return;
           }
           setActiveMode(mode);
         }}
+        exploreDestinationLabel={exploreTarget.destination_label}
         onExploreDecision={() => {
-          const el = document.getElementById('analytical-lenses-section');
-          if (el) el.scrollIntoView({ behavior: 'smooth' });
+          // Pre-flight this selects the lens holding the relevant evidence and scrolls to it;
+          // in flight there are no lenses, so it scrolls to the deepest in-flight analysis the
+          // campaign currently has. The target declares its own fallbacks, so the control always
+          // lands somewhere the mode actually renders.
+          if (exploreTarget.lens_id) setActiveLens(exploreTarget.lens_id);
+          scrollToDecisionAnalyticsTarget(exploreTarget);
         }}
         onSelectLens={lensId => setActiveLens(lensId as AnalyticalLensId)}
       />
@@ -1075,7 +1103,7 @@ export default function PromotionPlanner({
           />
 
           {/* ── CTW-01 Review & Activate — the pre-flight to in-flight transition ── */}
-          <div id="flight-activation-section">
+          <div id={FLIGHT_ACTIVATION_SECTION_ID}>
             <FlightActivationPanel
               contract={decisionContract}
               staleActivation={staleActivation}
@@ -1105,7 +1133,7 @@ export default function PromotionPlanner({
           </div>
 
           {/* ── Progressive Disclosure Analytical Lenses Section ── */}
-          <div id="analytical-lenses-section" style={{ marginBottom: 24 }}>
+          <div id={PRE_FLIGHT_LENSES_SECTION_ID} style={{ marginBottom: 24 }}>
             {/* Lenses Tab Bar */}
             <div
               style={{
