@@ -319,20 +319,26 @@ async function runTests() {
       n.headline
     );
   }
+  // CTW-03 deliberately strengthened C-20/C-21: the disclosure is no longer asserted to be the flat
+  // one, it is asserted to MATCH the shape the projection actually has. Unshaped it must say flat
+  // and be flat; shaped it must name the model and genuinely vary.
   assert(
-    /flat|evenly|same expectation/i.test(FLAT_HORIZON_DISCLOSURE) &&
-      flight.flat_horizon_disclosure === FLAT_HORIZON_DISCLOSURE,
-    'C-20: the flat predicted horizon is disclosed on the projection, not concealed'
+    /flat|evenly|same expectation/i.test(FLAT_HORIZON_DISCLOSURE),
+    'C-20: a flat horizon has a disclosure that describes a flat horizon'
   );
   {
-    // The disclosure must be true. If the projection ever stops being flat, this must fail.
-    const predictedExpectations = flight.lenses[0].points
-      .filter(p => p.horizon_class === 'PREDICTED_REMAINING')
-      .map(p => p.expectation_value);
+    const predicted = flight.lenses[0].points.filter(p => p.horizon_class === 'PREDICTED_REMAINING');
+    const distinct = new Set(predicted.map(p => p.expectation_value)).size;
+    const isFlat = distinct === 1;
+    const saysFlat = flight.horizon_shape_disclosure === FLAT_HORIZON_DISCLOSURE;
     assert(
-      new Set(predictedExpectations).size === 1,
-      'C-21: the flat-horizon disclosure states something that is actually true of the data',
-      `${new Set(predictedExpectations).size} distinct predicted expectations`
+      isFlat === saysFlat,
+      'C-21: the horizon disclosure states what is actually true of the data',
+      `distinct=${distinct} saysFlat=${saysFlat}`
+    );
+    assert(
+      isFlat ? flight.allocation_profile === 'FLAT_RATE_IDENTITY' : flight.allocation_profile === 'FORECAST_SHAPED',
+      'C-22: the allocation profile matches the shape of the horizon'
     );
   }
 
@@ -394,9 +400,9 @@ async function runTests() {
   );
   {
     // Narration is additive: strip it and the projection is what CTW-01 produced.
-    const { day_narratives, flat_horizon_disclosure, ...rest } = flight as any;
+    const { day_narratives, horizon_shape_disclosure, ...rest } = flight as any;
     assert(
-      typeof day_narratives !== 'undefined' && typeof flat_horizon_disclosure === 'string',
+      typeof day_narratives !== 'undefined' && typeof horizon_shape_disclosure === 'string',
       'E-07: the new fields are present'
     );
     assert(

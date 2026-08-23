@@ -886,23 +886,62 @@ Campaign Outlook, Decision Moments, decision windows, intervention preview, plan
 with conditional modes, reassessment, apply-and-reforecast, and the campaign story. Emits the
 `REFORECAST` trajectory kind `CTW-01` reserved. **Not authorised.**
 - *Hard Dependencies:* `CTW-01`, `CTW-01R`.
-- **Blocking finding, recorded before authorisation
-  ([`COGNIX_FORECAST_MODEL_TRUTH_RECORD.md`](COGNIX_FORECAST_MODEL_TRUTH_RECORD.md) §6):** a Decision
-  Moment is a day that differs materially from other days, and **under `FLAT_RATE_IDENTITY` no
-  predicted day differs from any other** — verified as one distinct campaign-phase index value per
-  archetype. Genuine day-varying Decision Moments therefore require `CTW-03`'s governed forecast
-  execution first. `CTW-02` can honestly deliver decision-moment structure, planning, reassessment
-  and intervention mechanics against the deviation and uncertainty facts that do exist; it cannot
-  honestly claim a predicted per-day movement until a real model produces one. **Owner sequencing
-  decision required.**
+- **Blocking finding — RESOLVED 2026-08-23 by `CTW-03`.** A Decision Moment is a day that differs
+  materially from other days, and under `FLAT_RATE_IDENTITY` no predicted day differed from any
+  other. The owner resequenced the programme to take `CTW-03` first; the horizon is now shaped by a
+  governed forecast under `FORECAST_SHAPED`, predicted days genuinely vary, and a Decision Moment can
+  be derived from evidence rather than invented. **`CTW-02` is unblocked.** It must derive moments
+  from the bound forecast, the observed deviation and the declared uncertainty — never from an
+  extrapolation of its own.
 
-#### `CTW-03` — Governed Forecast Model Execution Boundary [NOT STARTED]
+#### `CTW-03` — Governed Forecast Model Execution Boundary [COMPLETED]
 
-One authoritative model-execution contract between dataset, model selection, fitting, prediction,
-uncertainty and the Decision Twin, such that the model named to the user is the implementation that
-produced the forecast. **Not authorised.** *Hard Dependencies:* `CTW-01R`. See
-[`COGNIX_FORECAST_MODEL_TRUTH_RECORD.md`](COGNIX_FORECAST_MODEL_TRUTH_RECORD.md), which is the
-factual baseline this work package must correct.
+- **Status:** Authorised and **implemented 2026-08-23** as WP3 of the CTW programme, taken **before**
+  `CTW-02` on the owner's resequencing decision. Evidence in
+  [`COGNIX_CTW_03_FORECAST_MODEL_BOUNDARY_REPORT.md`](../reports/COGNIX_CTW_03_FORECAST_MODEL_BOUNDARY_REPORT.md).
+- **Objective:** One authoritative boundary between dataset, model selection, fitting, prediction,
+  uncertainty and the Decision Twin, such that **the model named to a user is the implementation
+  that produced the forecast**. The factual baseline it corrects is
+  [`COGNIX_FORECAST_MODEL_TRUTH_RECORD.md`](COGNIX_FORECAST_MODEL_TRUTH_RECORD.md).
+- **Delivered:**
+  - **Governed contract** (`packages/contracts/src/forecast-model-model.ts`) carrying model identity,
+    family, runtime, implementation reference, version, grain, seasonal period, minimum history,
+    maximum horizon, per-model dataset requirements, qualification, fit metadata, per-period points,
+    uncertainty basis, backtest metrics, diagnostics, data provenance and typed refusals.
+  - **Two genuinely executing models.** `HOLT_WINTERS_ADDITIVE` — ETS(A,A,A) with weekly seasonality,
+    estimating three smoothing parameters by deterministic coarse-to-fine search over in-sample
+    one-step squared error, initialised by classical decomposition over every complete cycle, with a
+    prediction interval from its own residual variance and the additive-error variance expansion.
+    `SEASONAL_NAIVE` — the benchmark and the MASE denominator, which estimates nothing and says so.
+    **No model is registered without an adapter that fits and predicts.**
+  - **Qualification precedes execution.** Insufficient history, gaps, duplicates, non-finite values
+    and out-of-range horizons are typed refusals carrying remediation, never silent fits.
+  - **Validation is measured.** Rolling-origin backtesting on **identical folds across models**, with
+    MAE, RMSE, MAPE (withheld on a zero actual), sMAPE, MASE and **measured interval coverage**. A
+    winner is named only when every model scored and the MASE gap exceeds a declared margin.
+  - **Routes:** `GET /api/v1/forecast/models`, `POST /api/v1/forecast/execute`,
+    `POST /api/v1/forecast/compare`.
+  - **Twin integration (§29).** The flight projection consumes the boundary and **nothing downstream
+    branches on `model_id`**. A bound forecast sets `allocation_profile: 'FORECAST_SHAPED'`, which
+    redistributes the activated contract's total across the window using the model's per-day shape —
+    information-preserving, total unchanged, **not a second baseline** (ADR-070 unamended).
+- **`D-FM-6` resolved.** The predicted horizon genuinely varies day to day, which is what unblocks
+  `CTW-02`. Without a bound forecast the horizon stays flat and says so.
+- **Measured finding, published rather than tuned away:** on the governed demand series the
+  **benchmark scores better than the fitted model** (MASE 1.493 against 1.536 on identical folds),
+  and **measured interval coverage is materially below nominal** (46% and 63% against 80%). Both are
+  reported on the artefact and on screen. Nothing was widened, refitted or reselected to improve
+  them.
+- **Defects:** `D-FM-1`…`D-FM-4` resolved **on the governed path** and open on the legacy path;
+  `D-FM-5` does not intersect; `D-FM-6` resolved; **`D-FM-7` newly opened** — the legacy day-of-week
+  table asserts Fri/Sat 1.15 and Mon/Tue 0.88 where the data shows Sat/Sun ≈ 1.18 and Friday at
+  0.928. Register and disposition in the truth record §5.1.
+- **Hard Dependencies:** `CTW-01R`. **Non-Scope:** data upload, MCP, ML/learning, retiring the legacy
+  `getForecastProjections` path, `CTW-02`.
+- **Validation:** `tsc` clean; **38 of 38 runners green**, `CTW-03` 77/77, `CTW-01` unchanged at
+  65/65, `CTW-01R` 60/60 with two assertions **deliberately strengthened** to require the disclosure
+  to match the horizon's actual shape; build clean; `atlas-governance-check --enforce` exits 0;
+  browser-validated at 1024/1280/1440 with no console errors and no horizontal overflow.
 
 **`CTW-02` absorbs the earlier "Adaptive Trajectory & Intervention Reforecast" scope.** The
 trajectory mechanics recorded when `CTW-01` was authorised — preserve the original trajectory on

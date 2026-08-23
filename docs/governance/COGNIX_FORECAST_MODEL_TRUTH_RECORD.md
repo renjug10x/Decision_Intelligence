@@ -147,13 +147,39 @@ relabelled as the deterministic projection shapes it is, or removed."*
 | **`D-FM-5`** | **`kpi.growthRate` carries zero information from history.** `historyAvg` seeds every forecast point and then cancels algebraically in `(forecastAvg − historyAvg)/historyAvg` | `lib/query-engine.ts:508,539` |
 | **`D-FM-6`** | **The Twin's predicted horizon is flat by construction.** Under `FLAT_RATE_IDENTITY` every remaining day carries the same expectation — verified as one distinct campaign-phase index value per archetype | `lib/campaign-timeline-engine.ts` |
 
-`D-FM-1`…`D-FM-5` are **Path A** and are **not** in the CTW programme's authorised scope. They are
-recorded here, not fixed, and are raised as owner decisions. `D-FM-6` is Path B and is a
-**constraint on CTW-02**, not a defect — see §6.
+### 5.1 Defect register and disposition (opened by owner instruction, 2026-08-23)
+
+The owner authorised `CTW-03` with the instruction to **open and track these defects and resolve them
+where they intersect `CTW-03`**. Their status at `CTW-03` completion:
+
+| Id | Status after `CTW-03` | Disposition |
+|---|---|---|
+| **`D-FM-1`** empty day in the mean's denominator | **RESOLVED on the governed path · OPEN on the legacy path** | `lib/forecast/series.ts` excludes a period with no rows and **publishes the exclusion** on `ForecastDataProvenance.excluded_periods`; a real zero is kept, an absence is not. Asserted by `run-ctw03-tests.ts` F-03/F-04. `lib/query-engine.ts:482` is untouched and still understates by 7.14% |
+| **`D-FM-2`** frozen `2026-06-04` window anchor | **RESOLVED on the governed path · OPEN on the legacy path** | The governed window is derived from the data's own coverage. Asserted by F-05/F-06. The five legacy helpers are untouched |
+| **`D-FM-3`** timezone-skewed day-of-week table | **RESOLVED on the governed path · OPEN on the legacy path** | No local time is read anywhere on the governed path: date arithmetic is UTC-only and seasonality is **estimated from the series** rather than looked up by weekday. Asserted by F-09, which executes the same forecast under `UTC`, `America/New_York` and `Asia/Tokyo` and requires identical output. `lib/query-engine.ts:486-487` is untouched |
+| **`D-FM-4`** `arima` indistinguishable from garbage | **RESOLVED in the governed boundary · OPEN on the legacy path** | An unregistered model is **refused**, never served by a default: `MODEL_NOT_REGISTERED`. Asserted by A-06/A-07, which refuse `ARIMA`, `PROPHET`, `GENAI` and garbage identically. The legacy `else` branch is untouched |
+| **`D-FM-5`** `kpi.growthRate` carries no information from history | **OPEN — does not intersect `CTW-03`** | It is a Path-A KPI. The governed boundary publishes no growth-rate KPI, so there was nothing to correct here rather than replace |
+| **`D-FM-6`** the Twin's predicted horizon is flat by construction | **RESOLVED** | The horizon is now shaped by a governed forecast under the `FORECAST_SHAPED` allocation profile, which redistributes the activated contract's total without changing it. Asserted by H-02/H-03/H-04. **This is what unblocks `CTW-02`** |
+
+**A seventh finding, recorded here by `CTW-03`:** the legacy day-of-week table
+(`lib/query-engine.ts:486-492`) asserts Fri/Sat = 1.15 and Mon/Tue = 0.88. Measured against the data
+it sits beside, the weekend uplift is **Sat/Sun ≈ 1.18** and **Friday is a weekday at 0.928**. The
+hard-coded table is wrong about the series it multiplies. It is recorded as **`D-FM-7`, OPEN**, and
+is a further reason the governed path estimates seasonality rather than declaring it.
+
+**The legacy path was deliberately not modified.** `CTW-03` builds the governed boundary beside it;
+retiring `getForecastProjections` and migrating the Demand & Forecast surface onto the boundary is a
+separate change with its own regression surface, and is raised as an owner decision.
+
+`D-FM-6` was a **constraint on CTW-02**, not a defect — see §6, now satisfied.
 
 ---
 
-## 6. Consequence for the CTW programme — the sequencing finding
+## 6. Consequence for the CTW programme — the sequencing finding *(satisfied by `CTW-03`)*
+
+> **Resolved 2026-08-23.** `CTW-03` binds a governed forecast to the campaign horizon, so predicted
+> days now differ from one another and a Decision Moment can be derived from evidence rather than
+> invented. The analysis below is retained as the reason the programme was resequenced.
 
 `D-FM-6` is the finding the owner most needs before CTW-02.
 

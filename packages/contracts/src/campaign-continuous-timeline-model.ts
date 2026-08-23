@@ -30,6 +30,39 @@ import {
   DecisionTimelineProjection
 } from './campaign-timeline-model';
 import { DecisionContractReference, DecisionContractStatus } from './campaign-decision-contract-model';
+import { BacktestMetrics, ForecastExecution, IntervalBasis } from './forecast-model-model';
+
+// ---------------------------------------------------------------------------
+// CTW-03 — how the campaign expectation is distributed across the horizon
+// ---------------------------------------------------------------------------
+
+/**
+ * `FLAT_RATE_IDENTITY` was the only profile CTW-01 could offer: CDI-05 spreads the campaign effect
+ * evenly, so every remaining day carried the same expectation and no day differed from another.
+ *
+ * `FORECAST_SHAPED` redistributes that same total across the window using a **governed forecast's**
+ * per-day shape. It is information-preserving in exactly the sense CDI-05 means it: the total the
+ * activated contract expects over the window is unchanged to within rounding, and only its
+ * distribution moves. It is therefore not a second baseline — it is the same baseline, with a shape
+ * the estate can now defend because a real model produced it.
+ */
+export type FlightAllocationProfile = 'FLAT_RATE_IDENTITY' | 'FORECAST_SHAPED';
+
+/**
+ * The forecast that shaped the horizon, named on the projection so a reader can always ask what
+ * produced the shape. The Twin never branches on `model_id` — it renders whatever is here.
+ */
+export interface FlightForecastBinding {
+  model_id: string;
+  model_display_name: string;
+  implementation_ref: string;
+  execution_id: string;
+  interval_basis: IntervalBasis;
+  fitted_parameters: Record<string, number>;
+  backtest: BacktestMetrics | null;
+  /** Why the shape is admissible, stated on the artefact. */
+  disclosure: string;
+}
 
 // ---------------------------------------------------------------------------
 // Vocabulary
@@ -279,6 +312,11 @@ export interface FlightProjectionRequest {
   /** The CDI-05 projection the flight window is read from. */
   timeline: DecisionTimelineProjection;
   elapsed_telemetry: ElapsedTelemetryReading[];
+  /**
+   * CTW-03. A governed forecast covering at least the campaign window. Optional: without it the
+   * horizon stays flat and says so, exactly as CTW-01 left it.
+   */
+  forecast?: ForecastExecution;
   /** Forbidden — CTW-01 never accepts a caller-supplied expectation (RJ-W1). */
   expectation_override?: unknown;
   /** Forbidden — reforecast is CTW-02 (RJ-W2). */
@@ -303,8 +341,11 @@ export interface CampaignFlightProjection {
 
   /** One narration per day of the window, derived from the figures above and nothing else. */
   day_narratives: FlightDayNarrative[];
-  /** Why every predicted day carries the same expectation. Published, not hidden. */
-  flat_horizon_disclosure: string;
+  /** How the contract's expectation is distributed across the window, and why. Published, not hidden. */
+  horizon_shape_disclosure: string;
+  allocation_profile: FlightAllocationProfile;
+  /** The governed forecast that shaped the horizon, or null when nothing did. */
+  forecast: FlightForecastBinding | null;
 
   /**
    * The CDI-05 envelope, restricted to the flight window and unchanged in value. Rendered
@@ -675,4 +716,16 @@ export interface FlightDayNarrative {
 export const FLAT_HORIZON_DISCLOSURE =
   'The activated plan allocates its effect evenly across the campaign, so every remaining day ' +
   'carries the same expectation. Day-to-day predicted movement would require a fitted forecast ' +
-  'model, which this build does not have — what widens with horizon here is confidence, not demand.';
+  'model, which is not bound to this campaign — what widens with horizon here is confidence, not demand.';
+
+/**
+ * The `FORECAST_SHAPED` counterpart. It states the two things a reader needs: that a named model
+ * produced the shape, and that the total the contract expects has not moved.
+ */
+export function forecastShapedDisclosure(modelDisplayName: string): string {
+  return (
+    `The day-to-day shape of this horizon comes from ${modelDisplayName}, fitted to the demand ` +
+    'history. It redistributes what the activated decision expects across the campaign; it does not ' +
+    'change the total, and it is not a second baseline. Every remaining day is still a projection.'
+  );
+}

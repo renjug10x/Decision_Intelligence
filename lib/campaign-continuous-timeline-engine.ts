@@ -32,6 +32,9 @@ import {
   PREDICTED_REMAINING_DISCLOSURE,
   SIMULATED_ELAPSED_DISCLOSURE,
   UNCERTAINTY_DISCLOSURE,
+  FlightAllocationProfile,
+  FlightForecastBinding,
+  forecastShapedDisclosure,
   validateFlightProjection,
   ATTENTION_THRESHOLD_ATTENTION_PCT,
   ATTENTION_THRESHOLD_MONITOR_PCT,
@@ -51,6 +54,7 @@ import {
   TimelineTrajectory
 } from '../packages/contracts/src/campaign-timeline-model';
 import { DecisionContract } from '../packages/contracts/src/campaign-decision-contract-model';
+import { ForecastExecution } from '../packages/contracts/src/forecast-model-model';
 import { EvidenceStrength } from '../packages/contracts/src/campaign-readiness-model';
 import { decisionContractStore, toContractReference } from './decision-contract-store';
 
@@ -161,6 +165,24 @@ function bandFor(
   return { lower: round(Math.min(a, b), 2), upper: round(Math.max(a, b), 2) };
 }
 
+/**
+ * Per-day shape factors from a governed forecast, normalised to mean 1 over the flight window.
+ *
+ * Normalising is what makes this information-preserving: multiplying a flat expectation by factors
+ * whose mean is exactly 1 leaves the window total unchanged and moves only its distribution. If the
+ * forecast does not cover the window, or its values sum to nothing usable, no factors are produced
+ * and the horizon stays flat rather than being shaped by a partial series.
+ */
+function shapeFactors(forecast: ForecastExecution | undefined, flightDays: number): number[] | null {
+  if (!forecast) return null;
+  const values = forecast.points.slice(0, flightDays).map(p => p.value);
+  if (values.length < flightDays) return null;
+  if (values.some(v => !Number.isFinite(v) || v <= 0)) return null;
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  if (!Number.isFinite(mean) || mean <= 0) return null;
+  return values.map(v => v / mean);
+}
+
 function buildLensSeries(
   lens: FlightLens,
   horizon: FlightHorizon,
@@ -168,7 +190,8 @@ function buildLensSeries(
   lensProjection: TimelineLensProjection,
   ratios: Map<number, number | null>,
   envelope: TimelineConfidenceEnvelope,
-  demandByPeriod: Map<number, number | null>
+  demandByPeriod: Map<number, number | null>,
+  factors: number[] | null
 ): ContinuousLensSeries {
   const quantityBasis =
     lens === 'DEMAND' ? ('cdi02_weekly_rate' as const) : ('cdi02_unit_contribution' as const);
@@ -185,7 +208,10 @@ function buildLensSeries(
     const flightDay = i + 1;
     const elapsed = flightDay <= horizon.elapsed_days;
     const horizonClass: CampaignHorizonClass = elapsed ? 'SIMULATED_ELAPSED' : 'PREDICTED_REMAINING';
-    const expectation = valueByPeriod.get(pt.period_index) ?? null;
+    const flat = valueByPeriod.get(pt.period_index) ?? null;
+    // The factor redistributes the contract's total; it never scales it.
+    const factor = factors ? factors[i] : 1;
+    const expectation = flat === null ? null : Number((flat * factor).toFixed(4));
 
     let actual: number | null = null;
     let deviationAbs: number | null = null;
@@ -202,13 +228,19 @@ function buildLensSeries(
       }
     }
 
-    const band = bandFor(
+    const rawBand = bandFor(
       lens,
       pt,
       envelopeByPeriod.get(pt.period_index),
       demandByPeriod.get(pt.period_index) ?? null,
-      expectation
+      flat
     );
+    // The declared envelope is shaped by the same factor as the expectation it belongs to, so it
+    // continues to bracket it. Shaping the centre and not the band would break W-INV-7.
+    const band = {
+      lower: rawBand.lower === null ? null : Number((rawBand.lower * factor).toFixed(2)),
+      upper: rawBand.upper === null ? null : Number((rawBand.upper * factor).toFixed(2))
+    };
 
     return {
       flight_day: flightDay,
@@ -326,7 +358,8 @@ function attentionFor(deviations: number[]): { attention: DayAttention; worst: n
 
 function buildDayNarratives(
   lenses: ContinuousLensSeries[],
-  readingsByDay: Map<number, ElapsedTelemetryReading>
+  readingsByDay: Map<number, ElapsedTelemetryReading>,
+  forecast: FlightForecastBinding | null
 ): FlightDayNarrative[] {
   const demand = lenses.find(l => l.lens === 'DEMAND');
   const contribution = lenses.find(l => l.lens === 'CONTRIBUTION');
@@ -378,6 +411,45 @@ function buildDayNarratives(
           ? dp.expectation_upper - dp.expectation_lower
           : null;
       basis.push('Declared horizon uncertainty profile carried from CDI-05');
+
+      // With a governed forecast bound, days genuinely differ and the narration says which way.
+      // Without one, they cannot, and the narration says that instead of implying movement.
+      if (forecast) {
+        basis.push(`Horizon shape from ${forecast.model_display_name} (${forecast.implementation_ref})`);
+        const meanExpectation =
+          demand.points.reduce((sum, p) => sum + (p.expectation_value ?? 0), 0) /
+          Math.max(1, demand.points.length);
+        const relative =
+          dp.expectation_value !== null && meanExpectation > 0
+            ? (dp.expectation_value / meanExpectation - 1) * 100
+            : 0;
+        const shape =
+          Math.abs(relative) < 1
+            ? 'about average for this campaign'
+            : `${Math.abs(relative).toFixed(0)}% ${relative > 0 ? 'above' : 'below'} the campaign average`;
+        return {
+          flight_day: dp.flight_day,
+          period_index: dp.period_index,
+          period_date: dp.period_date,
+          horizon_class: dp.horizon_class,
+          headline: `Day ${dp.flight_day} — forecast ${shape}`,
+          statement:
+            `${forecast.model_display_name} projects ${fmtUnits(dp.expectation_value)} of demand and ` +
+            `${fmtGbp(cp ? cp.expectation_value : null)} of contribution on this day, ${shape}. ` +
+            (bandWidth !== null
+              ? `The declared uncertainty spans ${fmtUnits(bandWidth)} of demand by this point and widens further out. `
+              : '') +
+            'This day has not happened.',
+          attention: 'NONE' as DayAttention,
+          attention_reason:
+            'A predicted day carries no observation, so nothing about it can require attention yet. ' +
+            'The shape shown is what the fitted model projects, not something that has occurred.',
+          readings,
+          supplementary,
+          basis
+        };
+      }
+
       return {
         flight_day: dp.flight_day,
         period_index: dp.period_index,
@@ -580,10 +652,26 @@ export function projectCampaignFlight(request: FlightProjectionRequest): Campaig
   for (const v of demandLens.values) demandByPeriod.set(v.period_index, v.intervention);
 
   const envelope = timeline.attributable_effect_envelope;
+  const factors = shapeFactors(request.forecast, horizon.flight_days);
   const lenses: ContinuousLensSeries[] = [
-    buildLensSeries('DEMAND', horizon, ivPoints, demandLens, demandRatios, envelope, demandByPeriod),
-    buildLensSeries('CONTRIBUTION', horizon, ivPoints, contributionLens, contributionRatios, envelope, demandByPeriod)
+    buildLensSeries('DEMAND', horizon, ivPoints, demandLens, demandRatios, envelope, demandByPeriod, factors),
+    buildLensSeries('CONTRIBUTION', horizon, ivPoints, contributionLens, contributionRatios, envelope, demandByPeriod, factors)
   ];
+
+  const allocationProfile: FlightAllocationProfile = factors ? 'FORECAST_SHAPED' : 'FLAT_RATE_IDENTITY';
+  const forecastBinding: FlightForecastBinding | null =
+    factors && request.forecast
+      ? {
+          model_id: request.forecast.model_id,
+          model_display_name: request.forecast.model_display_name,
+          implementation_ref: request.forecast.implementation_ref,
+          execution_id: request.forecast.execution_id,
+          interval_basis: request.forecast.uncertainty.basis,
+          fitted_parameters: request.forecast.fit.estimated_parameters,
+          backtest: request.forecast.validation.backtest,
+          disclosure: forecastShapedDisclosure(request.forecast.model_display_name)
+        }
+      : null;
 
   const demandSeries = lenses[0];
   const trajectories: FlightTrajectory[] = [
@@ -622,8 +710,16 @@ export function projectCampaignFlight(request: FlightProjectionRequest): Campaig
     trajectories,
     lenses,
     deviation: lenses.map(summarise),
-    day_narratives: buildDayNarratives(lenses, new Map(readings.map(r => [r.flight_day, r]))),
-    flat_horizon_disclosure: FLAT_HORIZON_DISCLOSURE,
+    day_narratives: buildDayNarratives(
+      lenses,
+      new Map(readings.map(r => [r.flight_day, r])),
+      forecastBinding
+    ),
+    horizon_shape_disclosure: forecastBinding
+      ? forecastBinding.disclosure
+      : FLAT_HORIZON_DISCLOSURE,
+    allocation_profile: allocationProfile,
+    forecast: forecastBinding,
     uncertainty: restrictEnvelope(timeline.attributable_effect_envelope, horizon),
     confidence_band: timeline.attributable_effect_envelope.band,
     timeline_projection_id: timeline.projection_id,

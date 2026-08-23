@@ -16,6 +16,7 @@ import React, { useState } from 'react';
 import {
   Activity,
   AlertTriangle,
+  Cpu,
   Eye,
   Info,
   ShieldCheck,
@@ -595,6 +596,57 @@ export default function ContinuousFlightTimeline({
           <span style={{ fontSize: '0.72rem', color: MUTED, lineHeight: 1.5 }}>
             {series.uncertainty_disclosure}
           </span>
+        </div>
+
+        {/* ── CTW-03: what produced the shape of this horizon ── */}
+        <div style={{ display: 'flex', gap: 7, alignItems: 'flex-start' }}>
+          <Cpu size={13} color={MUTED} style={{ flexShrink: 0, marginTop: 2 }} />
+          <div style={{ fontSize: '0.72rem', color: MUTED, lineHeight: 1.5 }}>
+            {flight.forecast ? (
+              <>
+                <strong style={{ color: SLATE }}>Forecast model: {flight.forecast.model_display_name}</strong>{' '}
+                — {flight.horizon_shape_disclosure}
+                <details style={{ marginTop: 5 }}>
+                  <summary style={{ cursor: 'pointer' }}>Technical detail</summary>
+                  <div style={{ marginTop: 5 }}>
+                    <div>
+                      Implementation <code>{flight.forecast.implementation_ref}</code> · execution{' '}
+                      <code>{flight.forecast.execution_id}</code>
+                    </div>
+                    {Object.keys(flight.forecast.fitted_parameters).length > 0 && (
+                      <div>
+                        Fitted parameters:{' '}
+                        {Object.entries(flight.forecast.fitted_parameters)
+                          .map(([k, v]) => `${k}=${Number(v).toFixed(3)}`)
+                          .join(', ')}
+                      </div>
+                    )}
+                    {flight.forecast.backtest && (
+                      <div>
+                        Backtested over {flight.forecast.backtest.folds} rolling folds — MASE{' '}
+                        {flight.forecast.backtest.mase} (below 1 beats repeating last week), RMSE{' '}
+                        {Math.round(flight.forecast.backtest.rmse).toLocaleString('en-GB')}
+                        {flight.forecast.backtest.interval_coverage !== null && (
+                          <>
+                            , measured interval coverage{' '}
+                            {(flight.forecast.backtest.interval_coverage * 100).toFixed(0)}% against a
+                            nominal 80%
+                          </>
+                        )}
+                        .
+                      </div>
+                    )}
+                    <div>Uncertainty basis: {flight.forecast.interval_basis}.</div>
+                  </div>
+                </details>
+              </>
+            ) : (
+              <>
+                <strong style={{ color: SLATE }}>Forecast model: none bound</strong> —{' '}
+                {flight.horizon_shape_disclosure}
+              </>
+            )}
+          </div>
         </div>
         {series.non_correspondence_reason && (
           <div style={{ display: 'flex', gap: 7, alignItems: 'flex-start' }}>

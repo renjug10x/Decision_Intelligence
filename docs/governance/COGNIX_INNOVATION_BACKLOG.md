@@ -340,9 +340,9 @@ Specified in full in §5. Summary entry:
 - **Stage.** **`In Delivery`** since 2026-08-22.
 - **Master Plan status.** **Authorised.** The owner authorised `CTW-01` on 2026-08-22 and the CTW
   structured programme on 2026-08-23, both as deliberate demo-priority overrides. `CTW-01` and
-  `CTW-01R` are `[COMPLETED]`; `CTW-02` and `CTW-03` are `[NOT STARTED]` and **not** authorised.
-  A blocking finding stands against `CTW-02` —
-  [`COGNIX_FORECAST_MODEL_TRUTH_RECORD.md`](COGNIX_FORECAST_MODEL_TRUTH_RECORD.md) §6. The authoritative scope is the `CTW` section of
+  `CTW-01R` and `CTW-03` are `[COMPLETED]`; `CTW-02` is `[NOT STARTED]` and **not** authorised.
+  The blocking finding against `CTW-02` was resolved by `CTW-03` on 2026-08-23 —
+  [`COGNIX_FORECAST_MODEL_TRUTH_RECORD.md`](COGNIX_FORECAST_MODEL_TRUTH_RECORD.md) §5.1, §6. The authoritative scope is the `CTW` section of
   [`MASTER_PLAN.md`](MASTER_PLAN.md), not this entry — §5 below is preserved as the record of what
   was proposed and why, and is no longer the governing document for `CTW-01`.
 - **Priority.** **Demo priority** — see §6 for what that does and does not mean.
