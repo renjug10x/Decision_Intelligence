@@ -78,6 +78,7 @@ export const knowledge = defineKnowledge({
   ],
   related_capabilities: [
     { ref: 'CAP-CAMPAIGN-DECISION', relation: 'enables' },
+    { ref: 'CAP-CONTINUOUS-DECISION-TWIN', relation: 'enables' },
     { ref: 'CAP-DEMAND-FORECAST', relation: 'complements' }
   ],
   related_governance: [

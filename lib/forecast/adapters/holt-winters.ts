@@ -286,7 +286,11 @@ export const holtWintersAdapter: ForecastModelAdapter = {
         period: periods[h - 1],
         value: Number(value.toFixed(4)),
         lower: Number((value - halfWidth).toFixed(4)),
-        upper: Number((value + halfWidth).toFixed(4))
+        upper: Number((value + halfWidth).toFixed(4)),
+        // An adapter never calibrates. It reports what its own mathematics implies; FM-01's
+        // calibration is measured against held-out folds and is attached by the boundary.
+        calibrated_lower: null,
+        calibrated_upper: null
       });
     }
 

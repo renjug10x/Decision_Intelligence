@@ -169,6 +169,39 @@ Governance, canonical demand vocabulary, domain principles, the maturity model a
 
 The genuinely computed parts of the surface are the projection series (`getForecastProjections()` in `lib/query-engine.ts:453` via `app/api/data/route.ts:61`), the three KPI cards derived from it, the rules-driven proactive-risk list, and the Shared Decision State binding for `promotion_lift` and `forecast_horizon_days`. `DDF-01` builds on those and corrects the rest.
 
+> **Superseded 2026-08-23 by `FM-01`.** The runtime-truth statement above is preserved as the record of what `7ad9c2df` computed; it is no longer a description of the code. The `DDF-01` corrections landed on 2026-08-16, and `FM-01` retired the projection engine the paragraph names. `getForecastProjections` and `getFutureDays` are **deleted**; the surface consumes the governed forecast boundary through `POST /api/v1/demand/forecast`, the same boundary the Continuous Live Decision Twin reads. `GET /api/data?type=forecast` answers `410 Gone` naming its replacement. The three KPI cards are replaced: `growthRate` cancelled its own history seed (`D-FM-5`) and has no successor field, and *"Forecast risk index"* — labelled *"based on projection variance and volume limits"* while being a threshold over that same cancelled figure — is replaced by the measured width of the published forecast range. See **ADR-071**, **ADR-072** and [`COGNIX_FORECAST_MODEL_TRUTH_RECORD.md`](../governance/COGNIX_FORECAST_MODEL_TRUTH_RECORD.md) §0.1.
+
+### 7.1a Forecast execution — the one governed path (`CTW-03`, `FM-01`)
+
+There is exactly one place in the estate where a forecast is produced, and both demand surfaces are consumers of it:
+
+```text
+  data/sales_daily.json  (or, in future, a client dataset — the seam is the same)
+        │  lib/forecast/series.ts — absent periods excluded AND published
+        ▼
+  ForecastDataset + ForecastDataProvenance
+        │  lib/forecast/qualification.ts — per-model, asked BEFORE execution
+        ▼
+  lib/forecast/registry.ts — a name exists only where an adapter fits and predicts
+        │
+        ▼
+  lib/forecast/adapters/{holt-winters,seasonal-naive}.ts — fit · predict · uncertainty
+        │
+        ▼
+  lib/forecast/forecast-engine.ts — the boundary
+        ├── lib/forecast/backtest.ts     rolling-origin metrics (disjoint folds)
+        └── lib/forecast/calibration.ts  split conformal, from held-out residuals
+        │
+        ▼
+  ForecastExecution — model identity, fit, qualification, per-period points,
+                      model-implied AND calibrated intervals, backtest, diagnostics
+        │
+        ├──> lib/demand-forecast.ts  ──> POST /api/v1/demand/forecast  ──> Demand & Forecast
+        └──> app/api/v1/campaigns/flight/route.ts ──> Continuous Live Decision Twin
+```
+
+**Nothing downstream branches on `model_id`.** The adapter interface is the seam that makes *"which model produced this"* a data question rather than a UI question, and an unregistered name is refused with `MODEL_NOT_REGISTERED` on every route. Commercial assumptions — promotion depth, cannibalisation, event uplift — are applied **after** the model by `lib/demand-forecast.ts` and published beside its own expectation, never folded into it.
+
 ### 7.2 Composition — no new domain engine
 
 `DDF-01` is an **evolutionary extension of existing contracts**, not a parallel demand domain:

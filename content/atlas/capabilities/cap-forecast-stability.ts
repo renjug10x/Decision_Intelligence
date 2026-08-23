@@ -127,6 +127,7 @@ export const knowledge: CapabilityKnowledge = {
   related_capabilities: [
     { ref: 'CAP-DECISION-GAP', relation: 'enables' },
     { ref: 'CAP-DEMAND-FORECAST', relation: 'enables' },
+    { ref: 'CAP-GOVERNED-FORECAST', relation: 'complements' },
     { ref: 'CAP-INTENT-FUSION', relation: 'depends-on' }
   ],
   related_decisions: ['ADR-040'],

@@ -77,7 +77,8 @@ export const knowledge = defineKnowledge({
   ],
   related_capabilities: [
     { ref: 'CAP-CAMPAIGN-DECISION', relation: 'enables' },
-    { ref: 'CAP-LEARNING-LOOP', relation: 'enables' }
+    { ref: 'CAP-LEARNING-LOOP', relation: 'enables' },
+    { ref: 'CAP-PREDICTIVE-INTERVENTION', relation: 'complements' }
   ],
   related_governance: [
     'docs/governance/MASTER_PLAN.md'

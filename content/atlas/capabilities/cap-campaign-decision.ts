@@ -90,6 +90,7 @@ export const knowledge = defineKnowledge({
     { domain_id: 'fashion_apparel', applicability: 'likely', rationale: 'Seasonal campaign decisions share the same shape.' }
   ],
   related_capabilities: [
+    { ref: 'CAP-CONTINUOUS-DECISION-TWIN', relation: 'complements' },
     { ref: 'CAP-COUNTERFACTUAL-BASELINE', relation: 'depends-on' },
     { ref: 'CAP-DECISION-CONTRACT', relation: 'depends-on' },
     { ref: 'CAP-DECISION-READINESS', relation: 'depends-on' },

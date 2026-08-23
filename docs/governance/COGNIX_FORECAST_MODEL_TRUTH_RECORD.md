@@ -1,8 +1,8 @@
 # COGNIX FORECAST MODEL TRUTH RECORD
 
 **Document Status:** Approved & Authoritative (evidence record)
-**Version:** 1.0.0
-**Effective Date:** 2026-08-22
+**Version:** 2.0.0
+**Effective Date:** 2026-08-22 · **Amended 2026-08-23 by `FM-01`** (§0.1, §5.1, §5.2, §6.1, §7)
 **Baseline:** `c763aeab` on `claude/cognix-capability-atlas-v2`
 **Produced by:** the CTW programme model-truth gate, before any CTW-01R/02/03 code was written.
 Findings were gathered across five independent forensic lenses, adversarially verified — 81 claims
@@ -23,6 +23,27 @@ execution against the running engines.
 This record exists so that no future work package, report, demo or UI string can describe CogniX as
 performing forecasting it does not perform. `CTW-03` is the work package that changes this; until it
 lands, everything below is the truth.
+
+---
+
+## 0.1 Amendment — the state after `FM-01` (2026-08-23)
+
+> **§0 above describes the estate before `CTW-03`. It is preserved verbatim as the factual baseline
+> and is no longer a description of the current code.**
+
+`CTW-03` built a governed forecast boundary **beside** the legacy path and said so. `FM-01` retires
+the legacy path and migrates Demand & Forecast onto that boundary, which changes three of this
+record's standing claims:
+
+| Claim in §0–§3 | State after `FM-01` |
+|---|---|
+| *"No forecasting model executes anywhere in CogniX"* | **Superseded.** Two genuinely execute — `HOLT_WINTERS_ADDITIVE` (ETS(A,A,A), three smoothing parameters estimated by deterministic search) and `SEASONAL_NAIVE` (the benchmark and the MASE denominator). Both are first-party TypeScript; **still no statistics or ML library is installed, and no Python or R runtime exists** |
+| *"`lib/query-engine.ts:453` is the sole producer of forecast time series"* | **Superseded.** `getForecastProjections` and `getFutureDays` are **deleted**. The sole producer is `lib/forecast/forecast-engine.ts`, reached by Demand & Forecast through `lib/demand-forecast.ts` and by the Twin through `app/api/v1/campaigns/flight/route.ts` |
+| *"Path A publishes no uncertainty at all"* | **Superseded.** Every point carries a model-implied interval and, where the evidence supports one, an empirically calibrated interval measured against held-out backtest error — see §6.1 |
+
+**Two claims are unchanged and remain binding.** No ARIMA, Prophet or generative forecasting exists
+or is named. Fitting a statistical model to a time series is **not** organisational learning and does
+not begin the gated `P10-F/G/H/K/L/M` programme.
 
 ---
 
@@ -134,6 +155,17 @@ relabelled as the deterministic projection shapes it is, or removed."*
 | **OPEN — new** | `AC-DDF-26`'s recorded evidence says the strings were removed *"from surface **and engine**"*. They were not removed from the engine. The forensic status assessment is the accurate record; the DDF-01 report overstates |
 | **OPEN — new** | `AC-ATL-03-7` claims D-DDF-1/2/3 were all carried into capability limitations. **D-DDF-3 was not** — no capability record in `content/atlas/` carries any limitation about the projection selector |
 
+### 4.1 `D-DDF-3` final closure (`FM-01`, 2026-08-23)
+
+**`D-DDF-3` is closed in full**, at the surface and in the engine, and the three residual findings
+above close with it.
+
+| Residual | Disposition |
+|---|---|
+| The five live wire-value sites — *"naming debt, recorded but untracked"* | **CLOSED.** All five are deleted with the engine and the route case. Nothing translates them; they are refused as unregistered names. `run-fm01-tests.ts` I-01 strips comments from all fifteen files on the forecast path and fails on any surviving occurrence, which is the guard `run-ddf01-tests.ts` X9 could not be |
+| `AC-DDF-26`'s evidence overstated the removal as *"from surface **and engine**"* | **NOW TRUE.** The evidence and the code agree for the first time. The overstatement is left recorded above rather than edited away |
+| `AC-ATL-03-7` — no capability record carries a limitation about the projection selector | **CLOSED.** `CAP-DEMAND-FORECAST` now records the migration and what the selector was, and `CAP-GOVERNED-FORECAST` records what a registered model means |
+
 ---
 
 ## 5. Further defects found by this audit, not previously recorded
@@ -173,6 +205,29 @@ separate change with its own regression surface, and is raised as an owner decis
 
 `D-FM-6` was a **constraint on CTW-02**, not a defect — see §6, now satisfied.
 
+### 5.2 Final disposition after `FM-01` (2026-08-23) — the owner authorised the migration
+
+The owner authorised the migration §5.1 raised. `FM-01` retires `getForecastProjections` rather than
+correcting it, so five of the six open defects close **by removal of the code that carried them**.
+Every closure below is asserted by a regression that reproduces the defect's own mechanism and
+requires it to fail (`tests/unit/run-fm01-tests.ts` §D).
+
+| Id | Final status | Root cause | Correction | Regression |
+|---|---|---|---|---|
+| **`D-FM-1`** empty day in the mean's denominator | **CLOSED** | The 14-day window was anchored one day **past** the source's coverage (`2026-06-04`, where data ends `2026-06-03`). The absent day summed to `0` and was still divided into the mean — an understatement of exactly `1/14 = 7.1429%` | The engine that computed it is deleted. The governed path fits `ForecastDataset`, which excludes a period with no rows **and publishes the exclusion**; a real zero is kept, an absence is not. The dashboard windows are now derived from the data's own last covered day | `D-FM-1a/b/c` — reconstructs the censored window from the current data, measures the understatement at 7.14%, and requires every day the corrected window returns to carry rows |
+| **`D-FM-2`** frozen `2026-06-04` window anchor | **CLOSED** | `new Date('2026-06-04')` was hard-coded in five helpers and never read the data or the clock | `getCoverageAnchor()` reads the source's own last covered day once; `daysEndingAt()` derives every window from it. No literal date survives in `lib/query-engine.ts` | `D-FM-2a/b/c` — no hard-coded anchor in source; the two 7-day windows do not overlap and end on real coverage; the dashboard and the governed dataset agree on where the data ends |
+| **`D-FM-3`** timezone-skewed day-of-week table | **CLOSED** | `new Date('YYYY-MM-DD')` parses as UTC midnight while `getDay()` reads the local calendar. West of UTC the whole weekly pattern shifted a day — verified under `America/New_York`, where `2026-06-05` (a Friday) returned weekday `4` | The table is deleted with the engine. Date arithmetic on both the governed and the dashboard path is UTC-only, and seasonality is **estimated from the series** rather than looked up by weekday. No local-calendar accessor remains in `lib/query-engine.ts` | `D-FM-3a/b/c` — no local accessor in source; the window is identical under `UTC`, `America/New_York` and `Asia/Tokyo`; the **forecast itself** is byte-identical under all three |
+| **`D-FM-4`** `arima` indistinguishable from garbage | **CLOSED** | The `else` branch was simultaneously the valid `arima` path and the unrecognised-input path, so both returned `752,437` | The branch is deleted. An unregistered model is refused with `MODEL_NOT_REGISTERED` on **every** path — the demand route, the Twin route and the boundary itself | `D-FM-4a/b/c` — nine retired wire values and a garbage string are refused identically; two registered models produce two different forecasts |
+| **`D-FM-5`** `kpi.growthRate` carried no information from history | **CLOSED** | `historyAvg` seeded every forecast point and then cancelled in `(forecastAvg − historyAvg)/historyAvg`, leaving a figure that was a function of the loop-index curve alone | The KPI is **replaced, not repaired**: `expected_change_pct` compares the model's own per-day expectation against the observed daily mean over the same number of trailing days that carry data. The model's level is fitted rather than seeded, so the comparison genuinely carries history. `baseline_change_pct` publishes the same comparison before any commercial assumption | `D-FM-5a/b/c/d` — the figure differs between two series and between two models; the comparison names both sides and its window; a commercial assumption moves the adjusted figure and leaves the model's own untouched |
+| **`D-FM-6`** the Twin's flat predicted horizon | **CLOSED by `CTW-03`** | `FLAT_RATE_IDENTITY` allocation | `FORECAST_SHAPED` | `CTW-03` H-02/H-03/H-04, unchanged |
+| **`D-FM-7`** the declared weekday table contradicts its own data | **CLOSED** | The table asserted Fri/Sat `1.15` and Mon/Tue `0.88`. Measured against the series it multiplied: **Sat 1.186, Sun 1.181, Fri 0.928, Mon 0.922, Tue 0.924** — it had Friday, Saturday and Sunday all wrong, and Friday inverted | The table is deleted. The weekly pattern is estimated by classical decomposition over every complete cycle in the supplied series | `D-FM-7a/b/c` — no uplift table in source; the data has Friday below and Sat/Sun above average; the **fitted** weekly indices agree with the data in sign where the declared table did not |
+
+**A defect this pass found and did not open as new.** The retired engine multiplied by
+`noise = 1 + sin(i × 3.14) × 0.01`, described in source as *"random micro-variance"*. It is neither
+random nor micro-variance — it is deterministic and numerically inert because 3.14 ≈ π. It is
+recorded here for completeness and needs no defect identifier, because the code carrying it no longer
+exists.
+
 ---
 
 ## 6. Consequence for the CTW programme — the sequencing finding *(satisfied by `CTW-03`)*
@@ -203,19 +258,88 @@ honestly claim a predicted per-day movement until a real model produces one. Thi
 
 ---
 
+## 6.1 Uncertainty after `FM-01` — measured, not relabelled
+
+`CTW-03` published measured interval coverage of **46.4%** (Holt-Winters) and **62.5%**
+(Seasonal Naive) against a nominal 80%, and refused to widen anything to make the number look
+better. That was correct and it was not a fix. `FM-01` measures how wide the interval would have had
+to be, on evidence the model never saw, and publishes that **beside** the model's own interval rather
+than in place of it. The full ruling is **ADR-072**.
+
+**Method.** Split conformal prediction with a normalised nonconformity score. For every point of
+every rolling-origin backtest fold, `s = |actual − forecast| ÷ (model half-width at that step)`;
+the multiplier λ is the `⌈(n+1)·0.8⌉/n` quantile of `s`. Dividing by the model's own half-width keeps
+the horizon's *shape* the model's and corrects only its scale.
+
+**Measured on the governed demand series** (`data/sales_daily.json`, 90 daily observations, national
+scope, units):
+
+| Horizon | Model | Model-implied coverage | λ | Held-out coverage | Sample |
+|---|---|---|---|---|---|
+| 7 | Holt-Winters seasonal | 60.0% | ×3.39 | 80.0% | 56 points · 8 folds |
+| 7 | Same weekday last week | 62.5% | ×1.44 | 82.1% | 56 points · 8 folds |
+| 14 | Holt-Winters seasonal | 50.0% | ×2.65 | 81.3% | 112 points · 8 folds |
+| 14 | Same weekday last week | 64.3% | ×1.63 | 76.8% | 112 points · 8 folds |
+| 30 | Holt-Winters seasonal | 57.2% | ×1.94 | 83.3% | 180 points · 6 folds |
+| 30 | Same weekday last week | 78.6% | ×1.05 | 81.9% | 210 points · 7 folds |
+
+*Held-out coverage is leave-one-fold-out: λ is re-estimated without the fold it is scored on, and any
+residual sharing a period with that fold is excluded from the estimate.*
+
+**λ = 2.65 is itself a finding.** It is a plain statement that Holt-Winters was two and a half times
+more confident than its own out-of-sample errors justified on this series, and it is published on
+every execution rather than absorbed silently into a band.
+
+**What this calibration cannot claim**, published on every execution and rendered behind progressive
+disclosure:
+
+1. it is calibrated on this series, this measure and this horizon, and does not transfer;
+2. it assumes the errors ahead resemble the errors behind, and cannot see a structural break coming;
+3. one factor corrects the whole horizon on average, not each step individually;
+4. the calibration folds **overlap** beyond a week — that buys sample size and costs independence, so
+   the coverage figure is an estimate rather than a measurement of repeated trials;
+5. it is a measured range, not a guarantee. Roughly one period in five is expected to fall outside it.
+
+**Where the evidence is too thin, nothing is published.** Below twenty held-out points or three folds
+the calibration reports `reliable: false` with its sample size and **no calibrated bounds are
+attached to any point** — invariant `F-INV-8` refuses an execution that attaches them anyway.
+
+**The uncomfortable diagnostic was kept.** `interval_coverage_near_nominal` still judges the
+**model-implied** interval, still describes it as *"not calibrated to realised coverage"*, and still
+fails on this series. A calibration that made an existing failing check pass would have destroyed the
+evidence it was built from.
+
+**The Twin's band is unchanged and is still declared.** `CTW-01R`'s
+`declared_horizon_uncertainty_profile` is a declared profile, not a calibrated interval, and `FM-01`
+did not convert it. What the Twin now also carries is the governed forecast's own backtest and
+calibration, on `FlightForecastBinding`, so a reader can see both.
+
+---
+
 ## 7. Rules that follow from this record
 
 1. **No surface may name ARIMA, Prophet or GenAI** until an implementation of that name genuinely
    executes and is validated. The current user-visible descriptors are correct and stay.
-2. **No CogniX surface, report or demo may describe the current behaviour as forecasting, fitting,
-   training or machine learning.** It is deterministic projection over a mean.
+2. ~~**No CogniX surface, report or demo may describe the current behaviour as forecasting, fitting,
+   training or machine learning.** It is deterministic projection over a mean.~~
+   **Amended by `FM-01` (2026-08-23).** *Forecasting* and *fitting* are now accurate for the governed
+   path and may be said of it. **Training and machine learning remain prohibited**: fitting three
+   smoothing parameters by grid search is estimation, not training, and `NOT_LEARNING_DISCLOSURE` is
+   carried on every execution to say so. Nothing outside `lib/forecast/` forecasts.
 3. **The Twin's flat predicted horizon must be disclosed, not concealed.** `CTW-01R` publishes
    `FLAT_HORIZON_DISCLOSURE` on every projection for exactly this reason.
 4. **`CTW-03` must prove selection-to-implementation correspondence** — a test that changes the model
-   selection must cause the corresponding real implementation to execute.
-5. **Running a statistical model is not organisational learning.** Fitting Prophet against a series
+   selection must cause the corresponding real implementation to execute. **Extended by `FM-01`:**
+   the same correspondence is now required on the Demand & Forecast path, and is additionally proven
+   in the browser — selecting *Same weekday last week* changes the named implementation to
+   `lib/forecast/adapters/seasonal-naive.ts`, the execution id, the fit method and the calibration.
+5. **Running a statistical model is not organisational learning.** Fitting a model against a series
    is not evidence that CogniX has begun the gated ML programme (`P10-F/G/H/K/L/M`), which remains
    deferred behind attested observation volume.
+6. **No decision surface shows a bare confidence percentage** (`FM-01`, ADR-072). The headline is
+   *"Forecast range"*, and a range is always described by what it was measured against.
+7. **A model identifier names the implementation that ran** (`FM-01`, ADR-071). There is one
+   forecasting path in the estate and a name that reaches no implementation reaches no chart.
 
 ---
 
@@ -224,6 +348,6 @@ honestly claim a predicted per-day movement until a real model produces one. Thi
 | # | Uncertainty | What would settle it |
 |---|---|---|
 | 1 | The installed `node_modules` tree does not match `package-lock.json` (`tsx`, `esbuild` and two unlocked transitives differ). No statistics library is present either way, so §0 is unaffected | `npm ci` into a scratch directory and diff |
-| 2 | Whether `D-FM-1`'s censored-history behaviour is intentional. The 7.14% depression is arithmetically certain; its intent is recorded nowhere | An owner ruling, or a defect entry |
-| 3 | Whether `D-FM-3`'s timezone skew occurs in the deployed environment. Confirmed by execution under `America/New_York`; container `TZ` is unset everywhere | Read `TZ` on the running container, or pin `TZ=UTC` |
+| 2 | ~~Whether `D-FM-1`'s censored-history behaviour is intentional.~~ **Settled by `FM-01`:** the owner authorised the migration and the code carrying it is deleted. Intent is now moot — the window is derived from the data and cannot end on a day the source does not hold | *(closed)* |
+| 3 | ~~Whether `D-FM-3`'s timezone skew occurs in the deployed environment.~~ **Settled by `FM-01`:** the question no longer arises. No local-calendar accessor exists on either path, and `D-FM-3c` executes the same forecast under `UTC`, `America/New_York` and `Asia/Tokyo` requiring byte-identical output. Pinning `TZ=UTC` on the container remains good hygiene and is no longer load-bearing | *(closed)* |
 | 4 | Whether hard-coded display model ids elsewhere (`'Google Gemini 2.0 Flash'` in `config/experiments.ts`, `'gemini-1.5-flash'` in `ArchitectureExplorer.tsx`) fall under ADR-067's single-governed-model doctrine. Both are rendered and neither matches the governed constant | An ADR-067 amendment or a defect entry |

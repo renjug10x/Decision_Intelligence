@@ -47,15 +47,17 @@ export const CAPABILITY_AREAS: CapabilityArea[] = [
     invitation: 'Explore how CogniX reads demand',
     members: [
       'CAP-DEMAND-FORECAST',
+      'CAP-GOVERNED-FORECAST',
       'CAP-FORECAST-STABILITY',
       'CAP-DECISION-TIMELINE',
       'CAP-PREDICTIVE-INVENTORY'
     ],
     rationale:
-      'These four are the only capabilities whose subject is the demand number itself — producing it, judging whether it will hold, decomposing what moves it, and carrying it into stock. Decision capabilities consume the forecast but are not about it.',
+      'These five are the only capabilities whose subject is the demand number itself — producing it, judging whether it will hold, decomposing what moves it, and carrying it into stock. Governed Forecast Execution sits here rather than under a platform heading because a reader asking about demand is asking what produced the number, and answering that question elsewhere would separate the forecast from the model that made it. Decision capabilities consume the forecast but are not about it.',
     aspects: [
       { aspect_id: 'demand-outlook', label: 'The forecast itself', selects: ['CAP-DEMAND-FORECAST', 'CAP-DECISION-TIMELINE'] },
-      { aspect_id: 'demand-stability', label: 'Whether it will change again', selects: ['CAP-FORECAST-STABILITY'] },
+      { aspect_id: 'demand-model', label: 'What produced the number', selects: ['CAP-GOVERNED-FORECAST'] },
+      { aspect_id: 'demand-stability', label: 'Whether it will change again', selects: ['CAP-FORECAST-STABILITY', 'CAP-GOVERNED-FORECAST'] },
       { aspect_id: 'demand-drivers', label: 'What is driving it', selects: ['CAP-DECISION-TIMELINE', 'CAP-DEMAND-FORECAST'] },
       { aspect_id: 'demand-stock', label: 'What it means for stock', selects: ['CAP-PREDICTIVE-INVENTORY'] }
     ],
@@ -71,17 +73,20 @@ export const CAPABILITY_AREAS: CapabilityArea[] = [
     members: [
       'CAP-PROMOTION-INTELLIGENCE',
       'CAP-CAMPAIGN-DECISION',
+      'CAP-CONTINUOUS-DECISION-TWIN',
+      'CAP-PREDICTIVE-INTERVENTION',
       'CAP-OPPORTUNITY-WINDOW',
       'CAP-COUNTERFACTUAL-BASELINE',
       'CAP-OUTCOME-FRONTIER',
       'CAP-CATEGORY-INTELLIGENCE'
     ],
     rationale:
-      'Every member takes a commercial intervention as its subject — planning it, timing it, pricing it, attributing its effect, or reading its margin consequence. The counterfactual baseline and the outcome frontier sit here rather than in Decision Intelligence because both were delivered against promotional attribution and neither is exercised outside it.',
+      'Every member takes a commercial intervention as its subject — planning it, timing it, pricing it, attributing its effect, reading its margin consequence, or following it into flight. The counterfactual baseline and the outcome frontier sit here rather than in Decision Intelligence because both were delivered against promotional attribution and neither is exercised outside it. The continuous twin and predictive intervention planning are platform-reusable in structure but are demonstrated only against a campaign, and placing them where they cannot be demonstrated would make them unreachable for the reader most likely to want them.',
     aspects: [
       { aspect_id: 'campaign-planning', label: 'Planning and simulation', selects: ['CAP-CAMPAIGN-DECISION', 'CAP-COUNTERFACTUAL-BASELINE', 'CAP-OUTCOME-FRONTIER'] },
       { aspect_id: 'campaign-demand', label: 'Demand impact', selects: ['CAP-PROMOTION-INTELLIGENCE', 'CAP-OPPORTUNITY-WINDOW'] },
       { aspect_id: 'campaign-decisions', label: 'Campaign decisions', selects: ['CAP-CAMPAIGN-DECISION', 'CAP-OPPORTUNITY-WINDOW'] },
+      { aspect_id: 'campaign-in-flight', label: 'After the decision', selects: ['CAP-CONTINUOUS-DECISION-TWIN', 'CAP-PREDICTIVE-INTERVENTION'] },
       { aspect_id: 'campaign-commercial', label: 'Commercial outcomes', selects: ['CAP-PROMOTION-INTELLIGENCE', 'CAP-CATEGORY-INTELLIGENCE', 'CAP-OUTCOME-FRONTIER'] }
     ],
     owner: OWNER,

@@ -32,6 +32,23 @@
 
 **Current phase:** none — **the programme is complete and baselined.** `ATL-01` … `ATL-07` and `ATL-FINAL` are all `[COMPLETED]`
 **Last completed Atlas activity:** `ATL-FINAL` completed 2026-08-22. Governance is clean: 0 blocking findings, `--enforce` exits 0, 35 of 35 runners green
+**Corpus:** **41 capabilities**, 41 knowledge modules, as of 2026-08-23
+
+> **Registry growth after baseline, recorded 2026-08-23 (`FM-01`).** The corpus moved from **38 to
+> 41**. `FM-01` admitted `CAP-CONTINUOUS-DECISION-TWIN` (`CTW-01`, `CTW-01R`),
+> `CAP-GOVERNED-FORECAST` (`CTW-03`, `FM-01`) and `CAP-PREDICTIVE-INTERVENTION` (`CTW-02`) — three
+> capabilities the CTW programme built after the Atlas was baselined, each with its own contract,
+> implementation, routes and test suite. This is **ordinary capability maintenance under this
+> governance**, exactly as the *Next executable work package* line anticipates, and it opens no Atlas
+> phase. Every figure above that names 38 is a factual record of the corpus at the date beside it and
+> is deliberately left as written.
+>
+> Governance remains clean at 41 records (`--enforce` exits 0). Two measured Atlas baselines moved and
+> were re-recorded rather than restored: `run-atl07-tests.ts` D1 now reads
+> `CAPABILITY_REGISTRY.length` instead of the literal `38`, and `run-atl06c-tests.ts` G2's unexpanded
+> top-three recall **degrades from 10 to 8 of 18** as the corpus grows — the expected direction, and
+> the finding the governed vocabulary exists to answer, which still returns 18 of 18. Evidence in
+> [`COGNIX_FM_01_GOVERNED_FORECAST_MIGRATION_REPORT.md`](../reports/COGNIX_FM_01_GOVERNED_FORECAST_MIGRATION_REPORT.md).
 **Next executable work package:** none. Subsequent work is ordinary capability maintenance under this governance
 **Outstanding for an owner:** confirm the 20 authored lifecycle assumptions at each record's next scheduled review (register R-13) · decide a lifecycle state, or none, for the three records outside `enabling-service` that carry no state (R-12) · decide which check families become blocking in CI · decide whether to commission the market study that would populate `external_evidence` (R-04)
 

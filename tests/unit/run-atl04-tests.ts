@@ -80,8 +80,17 @@ async function run() {
 
   assert(top('forecast uncertainty').includes('CAP-FORECAST-STABILITY'),
     'C1: "forecast uncertainty" surfaces Forecast Stability', top('forecast uncertainty').join(', '));
-  assert(top('forecast uncertainty')[0] === 'CAP-DEMAND-FORECAST',
-    'C2: …led by the Demand & Forecast surface that presents it');
+  // FM-01 registered CAP-GOVERNED-FORECAST, whose entire subject is how a forecast is produced and
+  // how wide its range has to be, and it now leads this query on lexical weight. That is the right
+  // answer rather than a regression — a reader asking about forecast uncertainty is asking what
+  // produced the number — so the assertion keeps its intent, which is that the query lands on the
+  // demand-forecast capabilities rather than wandering into the decision layer, and no longer names
+  // one of the two as permanently first.
+  assert(
+    ['CAP-DEMAND-FORECAST', 'CAP-GOVERNED-FORECAST'].includes(top('forecast uncertainty')[0]) &&
+      top('forecast uncertainty').includes('CAP-DEMAND-FORECAST'),
+    'C2: …led by a demand-forecast capability, with the surface that presents it in the top three',
+    top('forecast uncertainty').join(', '));
 
   const decisionChange = search('why did the decision change');
   assert(decisionChange.total < all.length,

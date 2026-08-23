@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getKPISummary, getCategoryPerformance, getSupplyChainAlerts, getUnderperformingSkus, getRevenueTrend, getRevenueByRegion, getStorePerformance, detectAnomalies, getSupplyTimeline, getForecastProjections } from '@/lib/query-engine';
+import { getKPISummary, getCategoryPerformance, getSupplyChainAlerts, getUnderperformingSkus, getRevenueTrend, getRevenueByRegion, getStorePerformance, detectAnomalies, getSupplyTimeline } from '@/lib/query-engine';
 
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
@@ -58,26 +58,27 @@ export async function GET(req: NextRequest) {
         ]);
         return NextResponse.json({ alerts, timeline });
       }
-      case 'forecast': {
-        const metric = (searchParams.get('metric') as any) || 'revenue';
-        const horizon = Number(searchParams.get('horizon') || 14);
-        const model = (searchParams.get('model') as any) || 'arima';
-        const promoLift = Number(searchParams.get('promoLift') || 0);
-        const cannibalization = Number(searchParams.get('cannibalization') || 0);
-        const eventBoost = searchParams.get('eventBoost') || 'none';
-
-        const data = await getForecastProjections({
-          storeId: activeStoreId,
-          category: activeCategory,
-          metric,
-          horizon,
-          model,
-          promoLift,
-          cannibalization,
-          eventBoost
-        });
-        return NextResponse.json(data);
-      }
+      /**
+       * FM-01 — `type=forecast` was retired here, not relocated.
+       *
+       * It carried a `model` parameter whose three values named no implementation, and whose default
+       * silently served the same branch as an unrecognised string — the evidence is in
+       * `docs/governance/COGNIX_FORECAST_MODEL_TRUTH_RECORD.md` §1 and §3. Demand & Forecast now
+       * posts to the governed boundary, which refuses a model it cannot execute. This case answers
+       * rather than 404s, so a stale client is told what happened instead of handed an empty body.
+       */
+      case 'forecast':
+        return NextResponse.json(
+          {
+            error: 'FORECAST_PATH_RETIRED',
+            message:
+              'The legacy projection path was retired by FM-01. Demand projections come from the ' +
+              'governed forecast boundary at POST /api/v1/demand/forecast, where the model named on ' +
+              'the result is the implementation that produced it.',
+            replacement: 'POST /api/v1/demand/forecast'
+          },
+          { status: 410 }
+        );
       default:
         return NextResponse.json({ error: 'Unknown type' }, { status: 400 });
     }

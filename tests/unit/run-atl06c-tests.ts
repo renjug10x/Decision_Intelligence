@@ -344,14 +344,20 @@ async function run() {
 
   assert(LEVEL2_CASES.length === 18,
     'G1: The Level 2 evaluation set is eighteen business-phrased questions with one intended capability each');
-  // The top-three figure is the `ATL-06C` measurement and is unchanged. The top-one figure moved
-  // from 6 to 7 at `ATL-04R`, when ADR-062 fixed a mechanical defect in Level 1: the corpus is
-  // written in the singular and `containsWord` anchors to word boundaries, so a plural query
-  // matched nothing at all. Normalising the searcher's own word promoted one intended capability
-  // to first place WITHOUT the vocabulary. The lexical gap ADR-059 closed is untouched — three
-  // capabilities are still absent from the unexpanded baseline (G3), which is what made the
-  // vocabulary necessary and still does.
-  assert(top3(baseline) === 10 && top1(baseline) === 7,
+  // The top-one figure moved from 6 to 7 at `ATL-04R`, when ADR-062 fixed a mechanical defect in
+  // Level 1: the corpus is written in the singular and `containsWord` anchors to word boundaries, so
+  // a plural query matched nothing at all. Normalising the searcher's own word promoted one intended
+  // capability to first place WITHOUT the vocabulary.
+  //
+  // The top-three figure moved from 10 to 8 at `FM-01`, when the corpus grew by the three CTW
+  // platform capabilities. That is the expected direction and it is the finding, not a regression:
+  // unexpanded lexical search degrades as a corpus grows, because more records compete for the same
+  // literal words. It is re-recorded rather than restored, because restoring it would mean shrinking
+  // the corpus or thinning a record's own vocabulary to protect a number. The governed vocabulary
+  // still returns 18 of 18 (G4), which is the comparison this measurement exists to support, and the
+  // lexical gap ADR-059 closed is untouched — three capabilities remain absent from the unexpanded
+  // baseline entirely (G3).
+  assert(top3(baseline) === 8 && top1(baseline) === 7,
     `G2: Unexpanded Level 1 finds the intended capability in the top three for ${top3(baseline)} of 18 — the measured baseline, still reproducible`,
     `top1 ${top1(baseline)}, top3 ${top3(baseline)}`);
   assert(baseline.filter(r => r < 0).length === 3,

@@ -418,11 +418,12 @@ Capability-family governance, canonical demand vocabulary, domain principles, th
 - **Enhancement Dependencies:** `CDI-02` counterfactual semantics (reused for `DO_NOTHING`), `CDI-04` readiness gating semantics, `CDI-05` trajectory rendering precedent, `CDI-06` selection/refusal semantics.
 - **Architectural rulings:** ADR-040 (stability is a property of the evidence stream, never the model), ADR-041 (gap is engine-computed opportunity minus executable capacity, no fourth capacity number), ADR-042 (window derives from a declared constraint and is not a decay curve), ADR-043 (regret is comparative expected value over declared alternatives; "frontier" carries two qualified meanings).
 - **Binding constraint:** purely additive on `IFI-01`; read-only on `WP10-C`; no governed contract, engine or authority rule changes meaning. Existing Demand & Forecast behaviour and all Campaign/Intent/Signal/Commitment flows remain functional.
-- **Defect register the governance task records at `7ad9c2df`:** **D-DDF-1** the `IFI-01` decomposition on the demand surface is hardcoded JSX and the engine is never called — the "12pp gap" does not respond to the promotion slider; **D-DDF-2** *"91% Model Accuracy"* is an unsupported backtest claim over an unqualified engine constant; **D-DDF-3** the ARIMA/Prophet/GenAI model selector is implemented as sine/cosine factors; **D-DDF-4** supplier capacity is defined in three places and only one responds to scenario change; **D-DDF-5** Cannibalisation and Event Boost are read from Shared Decision State but never written to it; **D-DDF-6** an unsupported *"confirmed via live API feed"* evidence claim; **D-DDF-7** a *"14 to 90 Days"* horizon claim on a surface offering 7/14/30; **D-DDF-8** dark-theme chart styling on a light executive surface. D-DDF-1 is corrected **before** Decision Gap is computed, because a gap over a static panel is a caption rather than a calculation.
+- **Defect register the governance task records at `7ad9c2df`:** **D-DDF-1** the `IFI-01` decomposition on the demand surface is hardcoded JSX and the engine is never called — the "12pp gap" does not respond to the promotion slider; **D-DDF-2** *"91% Model Accuracy"* is an unsupported backtest claim over an unqualified engine constant; **D-DDF-3** the ARIMA/Prophet/GenAI model selector is implemented as sine/cosine factors *(closed at the surface by `DDF-01` and **in full by `FM-01`, 2026-08-23** — the five residual wire-value sites are deleted with the engine, and `run-fm01-tests.ts` `I-01` is the source-level guard `run-ddf01-tests.ts` X9 could not be)*; **D-DDF-4** supplier capacity is defined in three places and only one responds to scenario change; **D-DDF-5** Cannibalisation and Event Boost are read from Shared Decision State but never written to it; **D-DDF-6** an unsupported *"confirmed via live API feed"* evidence claim; **D-DDF-7** a *"14 to 90 Days"* horizon claim on a surface offering 7/14/30; **D-DDF-8** dark-theme chart styling on a light executive surface. D-DDF-1 is corrected **before** Decision Gap is computed, because a gap over a static panel is a caption rather than a calculation.
 - **Acceptance Criteria:** `AC-DDF-01` … `AC-DDF-37`, of which the release-blocking `[HARD]` set governs preservation, engine binding, provenance honesty, internal consistency, recomputation and build cleanliness. Full text in the planning report.
 - **Test Requirements:** semantic assertions executing real route handlers and engines; full regression green at `CDI-01`…`CDI-07B` 21/36/31/49/70/93/155/235, `CDI-08` 44, `ESF-6` 81, `ESF-2` 19, `ESF-3` 22, `IFI-01` 12, `WP10-D` 15, `WP10-B`, `WP10-C`, campaign-intelligence 133, campaign-decision-journey 96, bugfix 4/4; `tsc` clean across root, contracts, learning and world; production build clean.
 - **Exit Gate:** an executive understands, within five seconds, that the outlook is moving, that existing commitments cannot capture it, that time is limited, and what acting versus waiting costs — and can reach the evidence for each claim. **MET.** The surface leads with four cards — stability, gap, window, cost of choosing wrongly — and one recommendation bar; the evidence for every figure is one disclosure away, including the provenance class of each input.
 - **Validation at completion:** `tsc` clean across root, contracts, learning and world; 22/22 unit runners green with every recorded baseline matched exactly; `DDF-01` 56/56; production build clean; browser walkthrough at 1024/1280/1440 with no console errors and no horizontal overflow.
+- **Amended by `FM-01` (2026-08-23).** The projection this surface renders is no longer produced by `getForecastProjections`; it comes from the governed forecast boundary. `DDF-01`'s arithmetic spine, its four capabilities and its acceptance are unchanged, and its suite is now **57/57** — assertions `E1`…`E3` were migrated onto the governed boundary with their intent intact, and `E0` was added. `D-DDF-3` closes in full at the same time, at the surface **and** in the engine.
 
 ---
 
@@ -1000,6 +1001,116 @@ reassessment that surround it.
 **Post-flight reconciliation is deliberately not a `CTW` work package.** It is extension work on
 `CDI-08` `PredictionOutcomeComparison` and the `CampaignDecisionExperiment` comparison surface. A
 third package here would build a competing history model.
+
+#### `FM-01` — Governed Forecast Migration & Release 1.0 Hardening [COMPLETED]
+
+- **Status:** Authorised and **implemented 2026-08-23** as the final engineering pass before owner
+  acceptance of Release 1.0. Evidence in
+  [`COGNIX_FM_01_GOVERNED_FORECAST_MIGRATION_REPORT.md`](../reports/COGNIX_FM_01_GOVERNED_FORECAST_MIGRATION_REPORT.md).
+- **Objective:** *Replace the remaining legacy Demand & Forecast projection path with the `CTW-03`
+  governed forecast execution boundary and establish one authoritative forecasting architecture for
+  Release 1.0.* `CTW-03` built the boundary beside the legacy path and recorded the migration as an
+  owner decision; the owner authorised it.
+- **Namespace:** `FM` is registered alongside `CTW`, `CDI`, `ESF`, `IFI`, `DDF`, `DOT`, `WP10`,
+  `ATL`, `CAP`, `IB`, `EXP`, `SOL` and `PAT`. It renames, absorbs and deprecates none of them.
+- **Delivered:**
+  - **One forecasting architecture.** `getForecastProjections`, `getFutureDays` and the frozen
+    `2026-06-04` window anchor are **deleted**, not wrapped. Demand & Forecast consumes
+    `lib/demand-forecast.ts` → `lib/forecast/forecast-engine.ts` through
+    `POST /api/v1/demand/forecast`; the Twin reaches the same boundary through
+    `app/api/v1/campaigns/flight/route.ts`. `GET /api/data?type=forecast` answers `410 Gone` naming
+    its replacement. **No compatibility shim translates a retired model name** — a translation layer
+    is how a fake name survives a migration and becomes provenance again.
+  - **Empirical interval calibration** (`lib/forecast/calibration.ts`). Split conformal prediction
+    with a normalised nonconformity score over rolling-origin backtest residuals, published as a
+    second interval beside the model-implied one rather than in place of it. New invariants
+    `F-INV-7` and `F-INV-8`.
+  - **Rebuilt Demand & Forecast experience** — `components/demand/DemandForecastChart.tsx` and
+    `components/demand/ForecastModelPanel.tsx`, in the same visual grammar as the Twin: hatched
+    predicted region, labelled `TODAY` divider, solid observed against dashed forecast, calibrated
+    range band, per-day narration derived from governed figures, and the model's own expectation
+    drawn beside the assumed one wherever a commercial assumption is non-neutral.
+  - **`tests/unit/run-fm01-tests.ts`** — 112 assertions across migration, defect closure, model
+    identity, calibration, projection and release coherence.
+- **The six defects closed, each by removal of the code that carried it, each with a regression that
+  reproduces the original mechanism and requires it to fail:** `D-FM-1` (the 7.14% understatement),
+  `D-FM-2` (the frozen anchor), `D-FM-3` (the timezone-skewed weekday table), `D-FM-4` (`arima`
+  indistinguishable from garbage), `D-FM-5` (a growth rate whose history seed cancelled) and
+  `D-FM-7` (a declared weekday table contradicting its own data). Full closure evidence in
+  [`COGNIX_FORECAST_MODEL_TRUTH_RECORD.md`](COGNIX_FORECAST_MODEL_TRUTH_RECORD.md) §5.2.
+  `D-DDF-3` closes in full at the same time — the five residual wire-value sites are deleted, and
+  `run-fm01-tests.ts` `I-01` is the guard `run-ddf01-tests.ts` X9 could not be.
+- **The uncertainty finding, corrected rather than relabelled.** `CTW-03`'s measured coverage of
+  46.4% and 62.5% against a nominal 80% is now met with a calibration measured on held-out folds:
+  **81.3%** (Holt-Winters) and **76.8%** (Seasonal Naive) at a 14-day horizon, from multipliers of
+  ×2.65 and ×1.63. The multiplier is itself published — ×2.65 says the fitted model was two and a
+  half times more confident than its own errors justified. **The uncomfortable diagnostic was kept:**
+  `interval_coverage_near_nominal` still judges the model-implied interval, still fails, and still
+  says it is not calibrated. **`CTW-03`'s recorded MASE and coverage are preserved exactly**, because
+  the calibration runs its own rolling pass rather than changing the metrics folds.
+- **Two genuine models, and the benchmark still wins.** No model was added. On the governed series
+  the measured recommendation remains **Same weekday last week** (MASE 1.493 against 1.536), and the
+  surface shows it. A recommendation never overrides a chosen model.
+- **Capability Atlas.** Three capabilities registered — `CAP-CONTINUOUS-DECISION-TWIN`
+  (`CTW-01`, `CTW-01R`), `CAP-GOVERNED-FORECAST` (`CTW-03`, `FM-01`) and
+  `CAP-PREDICTIVE-INTERVENTION` (`CTW-02`) — with knowledge modules, placement in the landscape,
+  visual specs and reciprocated relationships. `CAP-DEMAND-FORECAST` is amended to record the
+  migration. Corpus 38 → 41.
+- **Hard Dependencies:** `CTW-03`, `DDF-01`.
+  **Non-Scope:** data upload, connectors, MCP, media management, AI-key-management UI, organisational
+  learning, ML training, post-flight campaign learning, automatic external execution, `ESF-4`, any
+  new forecasting model, any unrelated Atlas feature.
+- **Architectural rulings:** **ADR-071** (one governed forecasting path; a model identifier names the
+  implementation that ran) and **ADR-072** (uncertainty is published twice and never as a bare
+  confidence percentage). ADR-040 and ADR-070 are unamended.
+- **Validation:** `tsc` clean across root, contracts, learning and world; **40 of 40 runners green**;
+  `FM-01` 112/112; production build clean; `atlas-governance-check --enforce` exits 0; credential
+  isolation holds; browser-validated at 1440/1280/1024/375 with no page-level horizontal overflow and
+  no application console errors, and the full Promotion journey re-exercised end to end after the
+  migration.
+- **Recorded baseline movements, each with its reason.** `DDF-01` 56 → **57** (three projection
+  assertions migrated onto the governed boundary, one added). `ATL-02` 119 → **122** and `ATL-04R`
+  121 → **124** (per-capability assertions over a corpus of 41). `ATL-07` D1 changed from the literal
+  `38` to `CAPABILITY_REGISTRY.length` — the check it was always making. `ATL-04` C2 no longer names
+  one of the two demand-forecast capabilities as permanently first, because
+  `CAP-GOVERNED-FORECAST` now leads *"forecast uncertainty"* and that is the better answer.
+  `ATL-06C` G2's unexpanded top-three baseline **degrades from 10 to 8** as the corpus grows, which
+  is the expected direction and strengthens the finding it exists to support: the governed vocabulary
+  still returns 18 of 18. Every other recorded count is matched exactly.
+
+---
+
+## RELEASE 1.0 — ENGINEERING BASELINE
+
+**Recorded 2026-08-23 at the close of `FM-01`.** This estate had no release-baseline concept; this
+section is the minimum record that makes owner acceptance and DevOps handoff possible, and is
+deliberately not a release-management framework.
+
+| | |
+|---|---|
+| **Baseline** | `FM-01` completion on `claude/cognix-capability-atlas-v2` |
+| **Engineering state** | **READY for owner acceptance testing** |
+| **What "ready" means** | Every authorised work package is `[COMPLETED]`, every recorded defect on the forecast path is closed with regression evidence, the full test estate is green, the production build is clean, governance enforces clean, and credential isolation holds |
+| **What it does not mean** | The owner has not tested it. Acceptance is the next gate and DevOps handoff follows acceptance, not this record |
+| **Canonical continuation after Release 1.0** | **`ESF-4` — Signal Quality, Confidence & Provenance.** Parked, **not** superseded, cancelled or deprioritised. `FM-01` does not unpark it |
+| **Detailed evidence** | [`COGNIX_FM_01_GOVERNED_FORECAST_MIGRATION_REPORT.md`](../reports/COGNIX_FM_01_GOVERNED_FORECAST_MIGRATION_REPORT.md) |
+
+**What Release 1.0 contains, at capability level:** Phases 0–9, Programme 10 A–D, `IFI-01`,
+`CDI-01`…`CDI-08`, `ESF-1`/`-2`/`-3`/`-6`, `DDF-01`, `ATL-01`…`ATL-07` with `ATL-04R` and
+`ATL-FINAL`, the `CTW` programme (`CTW-01`, `CTW-01R`, `CTW-03`, `CTW-02`) and `FM-01`.
+
+**What Release 1.0 deliberately does not contain**, so that no demonstration implies otherwise: user
+data upload, connectors or MCP, enterprise integrations, media or video management, an
+AI-key-management UI, organisational learning, ML training, post-flight campaign learning, automatic
+external intervention execution, and every `DOT` roadmap capability. The estate operates at **Demand
+Observability Level 0 — synthetic / modelled demonstration** throughout, and every governed artefact
+says so.
+
+**Three limitations travel with the release** and are recorded on the capability records rather than
+softened: no observation in the estate carries `ESF-6` admission, so every elapsed day of a campaign
+is `SIMULATED_ELAPSED`; the Twin's in-flight band is a declared profile rather than a calibrated
+interval; and the forecast calibration is estimated on one synthetic series from overlapping folds,
+so its coverage figure is an estimate rather than a measurement of repeated trials.
 
 ---
 

@@ -33,6 +33,7 @@ import { PROVIDER_VERIFICATION } from '../../config/atlas-provider-verification'
 import { VERIFIED_GEMINI_MODEL } from '../../config/gemini-models';
 import { capabilityRepository } from '../../services/atlas/src/capability-registry';
 import type { CapabilityIdentity, CapabilityKnowledge } from '../../packages/contracts/src/capability-atlas-model';
+import { CAPABILITY_REGISTRY } from '../../config/capabilities';
 
 const ROOT = join(__dirname, '..', '..');
 let passed = 0, failed = 0;
@@ -207,7 +208,9 @@ async function run() {
     'C13: Stale market evidence is flagged, never silently served (AC-ATL-07-4)');
 
   // ── D. The report, and the publication gate ─────────────────────────────
-  assert(report.checked_capabilities === 38 && report.checks_run.length === ALL_CHECKS.length,
+  // FM-01: the literal `38` was a snapshot and drifted the moment the corpus grew by the three CTW
+  // platform capabilities. Reading the registry is the check the assertion was always making.
+  assert(report.checked_capabilities === CAPABILITY_REGISTRY.length && report.checks_run.length === ALL_CHECKS.length,
     'D1: The report covers the whole corpus and names every check it ran', `${report.checked_capabilities} capabilities`);
   assert(report.findings.every(f => f.detail.length > 20 && f.remedy.length > 20),
     'D2: Every finding says what is wrong AND what to do — a finding without a remedy is a complaint');

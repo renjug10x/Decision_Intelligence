@@ -35,13 +35,14 @@ pointed, not sequenced into iterations, and carry no delivery date.
 |---|---|
 | Ideas recorded | **13** |
 | Innovation themes | **6** |
-| Ideas at `In Delivery` | 1 (`IB-13`) |
+| Ideas at `In Delivery` | 0 |
+| Ideas `Delivered` | 1 (`IB-13`) |
 | Ideas at `Candidate Experiment` | 0 |
 | Ideas at `Research` | 0 |
 | Ideas at `Idea` | 12 |
 | Ideas `Approved` / `Planned` | 0 |
 | Work packages authorised by this document | **NONE** — `IB-13` was authorised by the owner into [`MASTER_PLAN.md`](MASTER_PLAN.md), which is where its scope now lives |
-| Highest demo-priority candidate | **`IB-13` — Continuous Live Decision Twin** |
+| Highest demo-priority candidate | none outstanding — `IB-13` is `Delivered` (2026-08-23) |
 
 **Existing Master Plan continuation is unaffected by this register.** See §7.
 
@@ -333,19 +334,46 @@ build.*
   without `ESF-6` admission, and asset-level attribution is a *declared* measurement design, never
   an inferred one.
 
-#### `IB-13` — Continuous Live Decision Twin — **HIGHEST DEMO PRIORITY**
+#### `IB-13` — Continuous Live Decision Twin — **DELIVERED 2026-08-23**
 
 Specified in full in §5. Summary entry:
 
-- **Stage.** **`In Delivery`** since 2026-08-22.
-- **Master Plan status.** **Authorised.** The owner authorised `CTW-01` on 2026-08-22 and the CTW
-  structured programme on 2026-08-23, both as deliberate demo-priority overrides. `CTW-01` and
-  `CTW-01R`, `CTW-03` and `CTW-02` are all `[COMPLETED]` as of 2026-08-23. The CTW track is
-  delivered; `IB-13` moves to `Delivered` when the owner accepts it. The blocking finding against
-  `CTW-02` was resolved by `CTW-03` —
-  [`COGNIX_FORECAST_MODEL_TRUTH_RECORD.md`](COGNIX_FORECAST_MODEL_TRUTH_RECORD.md) §5.1, §6. The authoritative scope is the `CTW` section of
+- **Stage.** **`Delivered`** on 2026-08-23, on the owner's instruction at the close of `FM-01`.
+  `In Delivery` from 2026-08-22 to 2026-08-23. **`Delivered` is the register's terminal state** — the
+  idea leaves the register and the work packages' own `[COMPLETED]` statuses are authoritative from
+  here.
+- **The delivered implementation chain**, in the order the owner sequenced it:
+
+  | | Work package | Status |
+  |---|---|---|
+  | 1 | `CTW-01` — Continuous Campaign Timeline & Activation | `[COMPLETED]` 2026-08-22 |
+  | 2 | `CTW-01R` — Campaign Decision Experience | `[COMPLETED]` 2026-08-23 |
+  | 3 | `CTW-03` — Governed Forecast Model Execution Boundary | `[COMPLETED]` 2026-08-23 |
+  | 4 | `CTW-02` — Predictive Intervention Planning | `[COMPLETED]` 2026-08-23 |
+
+  `CTW-03` was taken **before** `CTW-02` on the owner's resequencing decision, because a Decision
+  Moment is a day that differs from other days and no predicted day differed until a governed
+  forecast shaped the horizon —
+  [`COGNIX_FORECAST_MODEL_TRUTH_RECORD.md`](COGNIX_FORECAST_MODEL_TRUTH_RECORD.md) §5.1, §6.
+- **Delivered while carrying an explicit deferral, which is normal.** *Post-flight reconciliation* is
+  **not delivered** and is **not a gap in `IB-13`**: it is extension work on `CDI-08`
+  `PredictionOutcomeComparison` and the `CampaignDecisionExperiment` comparison surface, deliberately
+  never a `CTW` work package because a third package there would build a competing history model. An
+  innovation can be delivered and still have future extensions.
+- **Two limitations travel with the delivery and are recorded on the capability records rather than
+  softened here.** No elapsed day carries an `ESF-6`-admitted observation, so every elapsed day is
+  `SIMULATED_ELAPSED` and says so; and the in-flight uncertainty band remains a declared profile, not
+  a calibrated interval.
+- **What `Delivered` does not mean.** It records that the authorised work is complete and verified,
+  not that the owner has accepted Release 1.0. Owner acceptance testing of the release is a separate,
+  subsequent gate, and DevOps handoff follows it.
+- **Capability Atlas.** The delivery registered three `CAP-*` capabilities —
+  `CAP-CONTINUOUS-DECISION-TWIN`, `CAP-GOVERNED-FORECAST` and `CAP-PREDICTIVE-INTERVENTION`. Rule 3
+  below is unweakened: the *idea* was never a capability, and these records exist because the
+  implementations now do.
+- **Master Plan status.** **Authorised and complete.** The authoritative scope is the `CTW` section of
   [`MASTER_PLAN.md`](MASTER_PLAN.md), not this entry — §5 below is preserved as the record of what
-  was proposed and why, and is no longer the governing document for `CTW-01`.
+  was proposed and why, and is no longer the governing document for any `CTW` work package.
 - **Priority.** **Demo priority** — see §6 for what that does and does not mean.
 - **Dependencies.** HARD: `CDI-05` (timeline), `CDI-07A` (`DecisionContract`), `CDI-02`
   (counterfactual/causal), all `[COMPLETED]`. INTEGRATION: `campaign-experiment-store`
@@ -752,7 +780,9 @@ The owner may therefore authorise **`ESF-4` continuation**, **`IB-13` demo-prior
 | 1 | ~~Authorise `ESF-4`, `IB-13`, both in parallel, or neither~~ **Decided 2026-08-22:** `CTW-01` first, `ESF-4` temporarily parked | `CTW-01` delivered; `ESF-4` unchanged and still the canonical continuation |
 | 2 | ~~Authorise `CTW-01` and admit `CTW-*`~~ **Decided 2026-08-22** | `CTW` registered; `CTW-01` `[COMPLETED]` |
 | 3 | ~~Approve the `CTW-01` metric boundary~~ **Decided 2026-08-22:** demand, contribution, deviation, declared uncertainty; no revenue; no stock series without a governed depletion basis | Implemented as approved and asserted in the suite |
-| 3a | **Open:** authorise `CTW-02`, resume `ESF-4`, or run them in parallel | Nothing proceeds on either until chosen |
+| 3a | ~~**Open:** authorise `CTW-02`, resume `ESF-4`, or run them in parallel~~ **Decided 2026-08-23:** the full `CTW` programme was authorised and taken as `CTW-01R` → `CTW-03` → `CTW-02` | All four `CTW` packages `[COMPLETED]`; `ESF-4` unchanged and still parked |
+| 3b | ~~**Open:** retire the legacy `getForecastProjections` path and migrate Demand & Forecast onto the governed boundary~~ **Decided 2026-08-23:** authorised as `FM-01` | One forecasting architecture; `D-FM-1`…`D-FM-5` and `D-FM-7` closed; Release 1.0 engineering baseline recorded |
+| 3c | ~~**Open:** record `IB-13` as delivered~~ **Decided 2026-08-23** | `IB-13` moved to the terminal `Delivered` state; post-flight reconciliation explicitly deferred |
 | 4 | Confirm the observation-acquisition direction for `IB-01` — first-party attested operator upload (the `Z3` position) or a connector programme | Unblocks Theme A entirely |
 | 5 | Confirm no backlog idea is presented to a client as delivered or planned capability | Standing rule; restated per demonstration |
 | 6 | Decide whether backlog visibility (§8) is worth a work package | Today the register is documentation only |
@@ -779,8 +809,8 @@ Master Plan status · the owner decision or next gate. Displayed under an unmiss
 Promotion Intelligence, Live Decision Twin, `DecisionContract` provenance and the experiment
 comparison capability), *could unlock* (full-horizon campaign prediction, adaptive intervention,
 post-flight reconciliation, attested campaign observation candidates, future learning evidence),
-*current stage* `Candidate Experiment`, *delivery status* **Not authorised**, *priority* **Demo
-priority**.
+*current stage* `Delivered` (2026-08-23), *delivery status* **Delivered as `CTW-01`, `CTW-01R`,
+`CTW-03` and `CTW-02`**, *priority* **was demo priority**.
 
 ---
 
@@ -801,12 +831,12 @@ authorisation.
 
 | Question | Answer |
 |---|---|
-| What is the highest-priority CogniX innovation backlog item? | `IB-13` — Continuous Live Decision Twin (demo priority) |
-| What is planned for Continuous Live Decision Twin? | §5.3–§5.8 |
-| What does it depend on? | `CDI-02`, `CDI-05`, `CDI-07A` (HARD, all `[COMPLETED]`); `campaign-experiment-store`, `WP10-C` (INTEGRATION) |
-| Is it authorised? | **No.** No work package exists |
-| What is the next implementation WP if the owner authorises it? | Superseded by events: `CTW-01` was authorised and is `[COMPLETED]` (2026-08-22). The next is **`CTW-02` — Adaptive Trajectory & Intervention Reforecast**, `[NOT STARTED]` and **not authorised** |
-| What is the existing programme's continuation? | **`ESF-4`** — unchanged (§6.1) |
+| What is the highest-priority CogniX innovation backlog item? | None outstanding. `IB-13` was the highest and is now `Delivered` (2026-08-23); the twelve remaining entries are all at `Idea` |
+| What is planned for Continuous Live Decision Twin? | Nothing further. It is delivered. §5.3–§5.8 is preserved as the record of what was proposed; the `CTW` section of `MASTER_PLAN.md` is what was built |
+| What did it depend on? | `CDI-02`, `CDI-05`, `CDI-07A` (HARD, all `[COMPLETED]`); `campaign-experiment-store`, `WP10-C` (INTEGRATION) |
+| Was it authorised? | **Yes**, on 2026-08-22 and 2026-08-23, as `CTW-01`, `CTW-01R`, `CTW-03` and `CTW-02` — all `[COMPLETED]` |
+| What of it was *not* delivered? | Post-flight reconciliation, deliberately. It is extension work on `CDI-08` and the experiment comparison surface, and a `CTW` package for it would have built a competing history model |
+| What is the existing programme's continuation? | **`ESF-4`** — unchanged (§6.1), still parked, still the canonical continuation after Release 1.0 |
 | Does the Twin supersede `ESF-4`? | **No** (§6.3) |
 
 ---

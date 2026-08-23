@@ -8,6 +8,8 @@
 import {
   DEFAULT_INTERVAL_LEVEL,
   ForecastDataset,
+  ForecastPoint,
+  IntervalCalibration,
   ForecastExecution,
   ForecastExecutionRequest,
   ForecastModelId,
@@ -23,7 +25,8 @@ import {
 } from '../../packages/contracts/src/forecast-model-model';
 import { DEFAULT_FORECAST_MODEL_ID, getForecastAdapter, isRegisteredModel, listForecastModels } from './registry';
 import { qualifyDataset } from './qualification';
-import { backtest } from './backtest';
+import { backtest, calibrationBacktest } from './backtest';
+import { calibrateInterval } from './calibration';
 
 function reject(id: string, message: string): never {
   const err: any = new Error(message);
@@ -109,12 +112,37 @@ export function executeForecast(request: ForecastExecutionRequest): ForecastOutc
     };
   }
 
-  const points = adapter.predict(fitResult.state, horizon, periods[periods.length - 1]);
+  const rawPoints = adapter.predict(fitResult.state, horizon, periods[periods.length - 1]);
   const uncertainty = adapter.uncertainty(fitResult.state);
 
-  const metrics = request.backtest
+  const run = request.backtest
     ? backtest(adapter, values, periods, horizon, 5, request.common_min_train)
     : null;
+  const metrics = run?.metrics ?? null;
+
+  /**
+   * FM-01 — the empirical calibration.
+   *
+   * It is attempted only where a backtest ran, because there is otherwise no held-out error to
+   * calibrate against, and a calibration from in-sample residuals would be the model marking its own
+   * homework. Where the evidence is too thin the calibration still reports — with `reliable: false`
+   * and its sample size — and **no calibrated interval is published**, so nothing on screen can
+   * claim a width the evidence did not support.
+   */
+  const calibrationRun = request.backtest ? calibrationBacktest(adapter, values, periods, horizon) : null;
+  const calibration: IntervalCalibration | null = calibrationRun
+    ? calibrateInterval(calibrationRun.residuals, uncertainty.level ?? DEFAULT_INTERVAL_LEVEL)
+    : null;
+
+  const points: ForecastPoint[] = rawPoints.map(p => {
+    if (!calibration || !calibration.reliable || p.lower === null || p.upper === null) return p;
+    const half = ((p.upper - p.lower) / 2) * calibration.multiplier;
+    return {
+      ...p,
+      calibrated_lower: Number((p.value - half).toFixed(4)),
+      calibrated_upper: Number((p.value + half).toFixed(4))
+    };
+  });
 
   const execution: ForecastExecution = {
     execution_id: executionId(declaration.model_id, dataset.provenance.dataset_id, horizon, values.length),
@@ -129,6 +157,7 @@ export function executeForecast(request: ForecastExecutionRequest): ForecastOutc
     horizon,
     points,
     uncertainty,
+    calibration,
     validation: {
       backtest: metrics,
       diagnostics: [
@@ -162,6 +191,29 @@ export function executeForecast(request: ForecastExecutionRequest): ForecastOutc
                   'The interval is model-implied and is not calibrated to realised coverage.'
               }
             ]
+          : []),
+        // FM-01. The calibrated interval gets its own diagnostic, scored on held-out folds rather
+        // than on the residuals it was fitted to. It is allowed to fail, for the same reason its
+        // model-implied sibling is: a check that cannot fail reports nothing.
+        ...(calibration
+          ? [
+              {
+                check: 'interval_calibration_held_out_coverage',
+                passed:
+                  calibration.reliable &&
+                  calibration.held_out_coverage !== null &&
+                  Math.abs(calibration.held_out_coverage - calibration.target_coverage) <=
+                    INTERVAL_COVERAGE_TOLERANCE,
+                detail: calibration.reliable
+                  ? `Calibrated by a factor of ${calibration.multiplier} from ${calibration.sample_size} ` +
+                    `held-out points over ${calibration.folds} folds. Leave-one-fold-out coverage ` +
+                    `${calibration.held_out_coverage === null ? 'could not be computed' : `${(calibration.held_out_coverage * 100).toFixed(1)}%`} ` +
+                    `against a target of ${(calibration.target_coverage * 100).toFixed(0)}%, where the ` +
+                    `model-implied interval measured ${(calibration.model_implied_coverage * 100).toFixed(1)}%.`
+                  : `Not calibrated: ${calibration.sample_size} held-out point(s) over ${calibration.folds} ` +
+                    'fold(s) is below the declared floor, so no calibrated interval is published.'
+              }
+            ]
           : [])
       ]
     },
@@ -175,6 +227,10 @@ export function executeForecast(request: ForecastExecutionRequest): ForecastOutc
       implementation: declaration.implementation_ref,
       fitting: fitResult.fit.method,
       interval: uncertainty.basis,
+      calibration: calibration
+        ? `${calibration.method} · x${calibration.multiplier} on ${calibration.sample_size} held-out points` +
+          (calibration.reliable ? '' : ' (declared unreliable — no calibrated interval published)')
+        : 'none — no backtest was run, so there is no held-out error to calibrate against',
       not_learning: NOT_LEARNING_DISCLOSURE
     }
   };

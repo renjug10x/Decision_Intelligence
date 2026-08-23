@@ -181,9 +181,22 @@ export interface ForecastPoint {
   horizon_step: number;
   period: string;
   value: number;
-  /** Null where the model cannot defend an interval; never a placeholder width. */
+  /**
+   * The **model-implied** interval: what the fitted model's own mathematics produces. Null where the
+   * model cannot defend an interval; never a placeholder width.
+   */
   lower: number | null;
   upper: number | null;
+  /**
+   * The **empirically calibrated** interval: the same interval rescaled so that its width matches
+   * what this model's out-of-sample errors on this series actually demanded (`FM-01`).
+   *
+   * It is null unless a backtest ran and produced enough held-out evidence to calibrate on. It is
+   * never a relabelling of the model-implied interval — where the two differ, they differ because
+   * the measured errors said so, and both are published side by side so the difference is visible.
+   */
+  calibrated_lower: number | null;
+  calibrated_upper: number | null;
 }
 
 export type IntervalBasis =
@@ -199,6 +212,63 @@ export interface ForecastUncertainty {
   level: number | null;
   /** Stated plainly, including what it is not. */
   disclosure: string;
+}
+
+/**
+ * How an interval was calibrated against measured out-of-sample behaviour (`FM-01`).
+ *
+ * `CTW-03` measured interval coverage of 46% and 63% against a nominal 80% and published the
+ * failure rather than hiding it. That was the honest thing to do and it was not a fix: a decision
+ * maker reading a *"80% range"* that contains the truth half the time is worse off than one reading
+ * no range at all.
+ *
+ * The correction is not to relabel the interval. It is to measure how wide the interval would have
+ * had to be, on evidence the model did not see, and to publish that alongside what the model's own
+ * mathematics implies. Two quantities, both real, never conflated:
+ *
+ *   - **model-implied** — `ForecastPoint.lower` / `.upper`, from the fitted model's variance;
+ *   - **empirically calibrated** — `ForecastPoint.calibrated_lower` / `.calibrated_upper`, from the
+ *     model's realised errors on held-out folds.
+ */
+export type IntervalCalibrationMethod = 'SCALED_CONFORMAL_BACKTEST_RESIDUALS';
+
+export interface IntervalCalibration {
+  method: IntervalCalibrationMethod;
+  /** What was done, in words an analyst can check the arithmetic against. */
+  basis: string;
+  /** The coverage the calibration aims at. Requested, never guaranteed. */
+  target_coverage: number;
+  /**
+   * The factor the model-implied half-width is multiplied by. Above 1 means the model was
+   * over-confident on this series; below 1 means it was over-cautious. Exactly 1 would mean the
+   * model's own interval already matched its realised errors.
+   */
+  multiplier: number;
+  /** Rolling-origin folds the residuals came from. */
+  folds: number;
+  /** Held-out points the multiplier was estimated from. Small samples are stated, not smoothed. */
+  sample_size: number;
+  /** Measured coverage of the **model-implied** interval on the same held-out evidence. */
+  model_implied_coverage: number;
+  /**
+   * Coverage the calibrated interval achieves on the residuals it was calibrated on. This is
+   * in-sample **for the calibration step** and is therefore expected to sit near target by
+   * construction. It is published because omitting it would leave the reader unable to tell.
+   */
+  calibrated_coverage_in_sample: number;
+  /**
+   * The honest number. Each fold is scored by a multiplier estimated **without** that fold, so no
+   * point contributes to the width that judges it. Null when there are too few folds to leave one
+   * out.
+   */
+  held_out_coverage: number | null;
+  /**
+   * False when the evidence is too thin to calibrate on. A calibrated interval is then **not
+   * published at all** — an unreliable calibration is worse than none, because it looks like one.
+   */
+  reliable: boolean;
+  /** What this calibration cannot claim. Never empty. */
+  limitations: string[];
 }
 
 // ---------------------------------------------------------------------------
@@ -249,7 +319,14 @@ export interface ForecastExecution {
 
   horizon: number;
   points: ForecastPoint[];
+  /** What the model's own mathematics implies about its uncertainty. */
   uncertainty: ForecastUncertainty;
+  /**
+   * What the model's realised out-of-sample errors demanded (`FM-01`). Null when no backtest ran, or
+   * when the evidence was too thin to calibrate on — in which case no calibrated interval is
+   * published either, and the surface says the range is model-implied.
+   */
+  calibration: IntervalCalibration | null;
   validation: ForecastValidation;
 
   /** Caller-supplied reference instant. Never an input to any arithmetic above. */
@@ -350,6 +427,40 @@ export const INTERVAL_DISCLOSURE_SEASONAL_NAIVE =
   'Computed from the residuals of the seasonal differences this benchmark forecasts by. It is a ' +
   'benchmark interval and is expected to be wider than a fitted model’s.';
 
+/**
+ * The smallest held-out sample `FM-01` will estimate an 80% width from.
+ *
+ * A conformal quantile at level q needs at least `1/(1−q)` points to be defined at all — five here.
+ * Twenty is the floor this estate will *act* on: it puts roughly four points beyond the quantile, so
+ * the estimate is not decided by a single observation. Below it, no calibrated interval is published.
+ */
+export const CALIBRATION_MIN_SAMPLE = 20;
+
+/** Fewer folds than this and "held out" means one fold's peculiarities, not the model's behaviour. */
+export const CALIBRATION_MIN_FOLDS = 3;
+
+/**
+ * The multiplier is bounded. An unbounded factor estimated from a handful of folds can produce a
+ * range so wide it is useless and so confident-looking it is dangerous; a factor below this floor
+ * would be the calibration narrowing an interval on evidence too thin to justify it.
+ */
+export const CALIBRATION_MULTIPLIER_MIN = 0.5;
+export const CALIBRATION_MULTIPLIER_MAX = 4;
+
+export const CALIBRATION_BASIS_STATEMENT =
+  'The model\u2019s own interval was rescaled by a single factor, estimated as the 80th percentile of ' +
+  '|error| \u00f7 model half-width over every rolling-origin backtest point the model did not see while ' +
+  'fitting. The horizon shape stays the model\u2019s; only the width is measured. This is split ' +
+  'conformal prediction with a normalised nonconformity score.';
+
+export const CALIBRATION_LIMITATIONS = [
+  'It is calibrated on this series and this horizon. It does not transfer to another series, another measure or a longer horizon.',
+  'It assumes the errors ahead resemble the errors behind. A structural break in demand invalidates it, and the calibration cannot see one coming.',
+  'One factor is estimated for the whole horizon, so a model that is well calibrated at day 1 and badly calibrated at day 14 is corrected on average rather than per day.',
+  'The calibration folds overlap where the horizon runs longer than a week. That buys sample size and costs independence: the held-out points are not independent of one another, so the coverage figure is an estimate rather than a measurement of repeated trials.',
+  'It is a measured range, not a guarantee. Roughly one period in five is expected to fall outside it.'
+];
+
 export const NOT_LEARNING_DISCLOSURE =
   'Fitting a statistical model to a time series is not organisational learning. It reads no ' +
   'attested observation, creates no learning candidate or case, and does not begin the deferred ' +
@@ -371,6 +482,10 @@ export interface ForecastInvariantViolation {
  * `F-INV-4` the execution names the model that produced it
  * `F-INV-5` no forecast value is non-finite
  * `F-INV-6` qualification passed, or there is no execution at all
+ * `F-INV-7` a calibrated interval, where published, brackets its own point and is published only
+ *           where a model-implied interval exists — a calibration rescales an interval, it never
+ *           invents one
+ * `F-INV-8` a calibration that declares itself unreliable publishes no calibrated interval
  */
 export function validateForecastExecution(
   exec: ForecastExecution,
@@ -396,6 +511,26 @@ export function validateForecastExecution(
         v.push({
           invariant: 'F-INV-3',
           detail: `${exec.model_id} publishes an interval it declares it cannot produce`
+        });
+      }
+    }
+    if (p.calibrated_lower !== null && p.calibrated_upper !== null) {
+      if (p.calibrated_lower > p.value || p.calibrated_upper < p.value) {
+        v.push({
+          invariant: 'F-INV-7',
+          detail: `step ${p.horizon_step} calibrated interval [${p.calibrated_lower}, ${p.calibrated_upper}] excludes ${p.value}`
+        });
+      }
+      if (p.lower === null || p.upper === null) {
+        v.push({
+          invariant: 'F-INV-7',
+          detail: `step ${p.horizon_step} publishes a calibrated interval with no model-implied interval to rescale`
+        });
+      }
+      if (!exec.calibration || !exec.calibration.reliable) {
+        v.push({
+          invariant: 'F-INV-8',
+          detail: `step ${p.horizon_step} publishes a calibrated interval without a reliable calibration behind it`
         });
       }
     }

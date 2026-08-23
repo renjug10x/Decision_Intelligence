@@ -2,15 +2,10 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Sparkles, Loader2, CheckCircle2, AlertTriangle, ChevronRight, ChevronDown,
-  ShieldAlert, Lightbulb, Clock, Check, Sliders, Compass, Zap, RotateCcw
+  ShieldAlert, Lightbulb, Clock, Sliders, Compass, Zap, RotateCcw, Layers
 } from 'lucide-react';
 import { useApp } from '@/lib/context';
 import ExecutionBriefing from '@/components/ExecutionBriefing';
-import { Line } from 'react-chartjs-2';
-import {
-  Chart as ChartJS, CategoryScale, LinearScale, PointElement,
-  LineElement, Tooltip, Legend, Filler
-} from 'chart.js';
 
 import storesData from '@/data/stores.json';
 import { useDecisionState } from '@/context/DecisionStateContext';
@@ -18,16 +13,22 @@ import { fetchCurrentScenarioSignals } from '@/lib/enterprise-signal-client';
 import { getOrCreateSessionId } from '@/lib/journey-client';
 import { evaluateDemandDecisionFrontier } from '@/lib/demand-decision-frontier/demand-frontier-engine';
 import DemandDecisionNarrative from '@/components/demand/DemandDecisionNarrative';
+import DemandForecastChart from '@/components/demand/DemandForecastChart';
+import ForecastModelPanel from '@/components/demand/ForecastModelPanel';
 import {
-  demandLabel, demandBadge, demandPhrase, describeSignalMovement, CONFIDENCE_VS_STABILITY
+  demandLabel, demandBadge, describeSignalMovement, CONFIDENCE_VS_STABILITY
 } from '@/lib/demand-decision-language';
 import {
   DemandDecisionFrontierEvaluation,
   ContextualisedDecisionOutlook,
   EnterpriseSignal
 } from '@/packages/contracts/src/index';
-
-ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Tooltip, Legend, Filler);
+import {
+  ForecastModelDeclaration,
+  ForecastRefusal,
+  ModelComparison
+} from '@/packages/contracts/src/forecast-model-model';
+import type { DemandProjection } from '@/lib/demand-forecast';
 
 const TENANT_ID = 'tenant_uk_retail_01';
 
@@ -43,14 +44,15 @@ const fmt = {
   pp: (v: number) => `${v.toFixed(1)}pp`,
 };
 
-interface ForecastResult {
-  history: { date: string; value: number }[];
-  forecast: { date: string; value: number }[];
-  kpi: { projectedValue: number; growthRate: number; riskLevel: 'low' | 'medium' | 'high' };
-}
-
 interface ForecastingProps {
   onNavigateToExperiment?: (experimentId: string) => void;
+}
+
+interface Recommendation {
+  recommended: string;
+  measured: boolean;
+  comparison: ModelComparison;
+  statement: string;
 }
 
 // ── Shared visual tokens (CogniX professional light system) ──────────────────
@@ -79,6 +81,9 @@ const provenanceChip = (text: string, tone: 'neutral' | 'warn' = 'neutral') => (
   }}>{text}</span>
 );
 
+/** The governed default the surface starts on, replaced by the registry's own default once loaded. */
+const INITIAL_MODEL_ID = 'HOLT_WINTERS_ADDITIVE';
+
 export default function Forecasting({ onNavigateToExperiment }: ForecastingProps = {}) {
   const { role, apiKey, selectedStore, setSelectedStore } = useApp();
   const { decisionState, executeCommand } = useDecisionState();
@@ -99,7 +104,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
   const [horizon, setHorizon] = useState<7 | 14 | 30>(
     (decisionState?.scenario_parameters.forecast_horizon_days as any) || 14
   );
-  const [model, setModel] = useState<'adaptive' | 'seasonality' | 'baseline'>('adaptive');
+  const [modelId, setModelId] = useState<string>(INITIAL_MODEL_ID);
   const [promoLift, setPromoLift] = useState(decisionState?.scenario_parameters.promotion_lift ?? 20);
   const [cannibalization, setCannibalization] = useState(decisionState?.scenario_parameters.cannibalisation_factor ?? 0);
   const [eventBoost, setEventBoost] = useState(decisionState?.scenario_parameters.event_boost ?? 'none');
@@ -109,6 +114,8 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
   const [reasoningTab, setReasoningTab] = useState<'changed' | 'constrains' | 'choices'>('changed');
   const [showTechnicalEvidence, setShowTechnicalEvidence] = useState(false);
   const [isSimulating, setIsSimulating] = useState(false);
+  const [showDecisionLayer, setShowDecisionLayer] = useState(true);
+  const [activeDate, setActiveDate] = useState<string | null>(null);
 
   useEffect(() => {
     if (decisionState?.scenario_parameters) {
@@ -138,12 +145,14 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
   };
 
   // Changing the scenario invalidates any active simulation.
-  useEffect(() => { setIsSimulating(false); }, [promoLift, cannibalization, eventBoost, horizon, model]);
+  useEffect(() => { setIsSimulating(false); }, [promoLift, cannibalization, eventBoost, horizon, modelId]);
 
   // ── Execution state ────────────────────────────────────────────────────────
   const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState<ForecastResult | null>(null);
-  const [demandSeries, setDemandSeries] = useState<ForecastResult | null>(null);
+  const [models, setModels] = useState<ForecastModelDeclaration[]>([]);
+  const [result, setResult] = useState<DemandProjection | null>(null);
+  const [demandSeries, setDemandSeries] = useState<DemandProjection | null>(null);
+  const [refusal, setRefusal] = useState<ForecastRefusal | null>(null);
   const [revenuePerUnit, setRevenuePerUnit] = useState<number | null>(null);
   const [signals, setSignals] = useState<EnterpriseSignal[]>([]);
   const [outlook, setOutlook] = useState<ContextualisedDecisionOutlook | null>(null);
@@ -151,24 +160,52 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
   const [aiBrief, setAiBrief] = useState('');
   const [optimizingBuffer, setOptimizingBuffer] = useState<string | null>(null);
   const [optimizedBuffers, setOptimizedBuffers] = useState<Record<string, boolean>>({});
+  const [recommendation, setRecommendation] = useState<Recommendation | null>(null);
+  const [comparisonLoading, setComparisonLoading] = useState(false);
 
-  const buildQuery = useCallback((
+  /**
+   * The registry is the only list of models this surface may offer. It admits a model only where an
+   * adapter genuinely fits and predicts it, which is why there is nothing to hard-code here.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    fetch('/api/v1/forecast/models')
+      .then(r => r.json())
+      .then(json => {
+        if (cancelled || json?.status !== 'success') return;
+        const list: ForecastModelDeclaration[] = json.data.models ?? [];
+        setModels(list);
+        if (!list.some(m => m.model_id === modelId)) setModelId(json.data.default_model_id);
+      })
+      .catch(() => { /* the projection call reports its own failure */ });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const projectionBody = useCallback((
     targetMetric: string, overrides?: { promoLift?: number; eventBoost?: string }
-  ) => {
-    const q = new URLSearchParams();
-    q.set('type', 'forecast');
-    q.set('metric', targetMetric);
-    q.set('horizon', String(horizon));
-    q.set('model', model === 'adaptive' ? 'genai' : model === 'seasonality' ? 'prophet' : 'arima');
-    q.set('promoLift', String(overrides?.promoLift ?? promoLift));
-    q.set('cannibalization', String(cannibalization));
-    q.set('eventBoost', String(overrides?.eventBoost ?? eventBoost));
-    if (role === 'store_manager') { q.set('role', 'store_manager'); q.set('store', selectedStore); }
-    else if (role === 'category_manager') { q.set('role', 'category_manager'); q.set('category', focusCategory); }
-    return q;
-  }, [horizon, model, promoLift, cannibalization, eventBoost, role, selectedStore, focusCategory]);
+  ) => ({
+    metric: targetMetric,
+    horizon,
+    model_id: modelId,
+    promotion_lift: overrides?.promoLift ?? promoLift,
+    cannibalisation: cannibalization,
+    event: overrides?.eventBoost ?? eventBoost,
+    store_id: role === 'store_manager' ? selectedStore : undefined,
+    category: role === 'category_manager' ? focusCategory : undefined,
+    history_display_days: horizon === 30 ? 30 : 21
+  }), [horizon, modelId, promoLift, cannibalization, eventBoost, role, selectedStore, focusCategory]);
 
-  // ── Forecast + demand-frontier series ──────────────────────────────────────
+  const postProjection = useCallback(async (metricName: string, overrides?: { promoLift?: number; eventBoost?: string }) => {
+    const res = await fetch('/api/v1/demand/forecast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(projectionBody(metricName, overrides))
+    });
+    return res.json();
+  }, [projectionBody]);
+
+  // ── Governed projection + demand-frontier series ───────────────────────────
   const runForecastSimulation = useCallback(async (isBufferOptimization = false, bufferId?: string) => {
     setLoading(true);
     const overrides = isBufferOptimization && bufferId === 'R001' ? { eventBoost: 'none' }
@@ -176,27 +213,39 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
       : undefined;
 
     try {
-      // The display metric drives the projection summary. The Demand Decision Frontier is a
-      // demand artefact and is always evaluated in units, whatever the display metric is.
+      // The display metric drives the projection summary. The Demand Decision Frontier is a demand
+      // artefact and is always evaluated in units, whatever the display metric is.
       const [display, units, revenue] = await Promise.all([
-        fetch(`/api/data?${buildQuery(metric, overrides).toString()}`).then(r => r.json()),
-        metric === 'units'
-          ? null
-          : fetch(`/api/data?${buildQuery('units', overrides).toString()}`).then(r => r.json()),
-        metric === 'revenue'
-          ? null
-          : fetch(`/api/data?${buildQuery('revenue', overrides).toString()}`).then(r => r.json())
+        postProjection(metric, overrides),
+        metric === 'units' ? null : postProjection('units', overrides),
+        metric === 'revenue' ? null : postProjection('revenue', overrides)
       ]);
 
-      const unitsData: ForecastResult = units || display;
-      const revenueData: ForecastResult = revenue || display;
-      setResult(display);
-      setDemandSeries(unitsData);
+      if (display?.status === 'refused') {
+        setRefusal(display.data as ForecastRefusal);
+        setResult(null); setDemandSeries(null); setAiBrief('');
+        setLoading(false);
+        return;
+      }
+      if (display?.status !== 'success') {
+        throw new Error(display?.message || 'The demand projection could not be produced.');
+      }
+      setRefusal(null);
 
-      const unitTotal = unitsData?.forecast?.reduce((a, f) => a + f.value, 0) ?? 0;
-      const revenueTotal = revenueData?.forecast?.reduce((a, f) => a + f.value, 0) ?? 0;
+      const displayProjection: DemandProjection = display.data.projection;
+      const unitsProjection: DemandProjection =
+        units?.status === 'success' ? units.data.projection : displayProjection;
+      const revenueProjection: DemandProjection =
+        revenue?.status === 'success' ? revenue.data.projection : displayProjection;
+
+      setResult(displayProjection);
+      setDemandSeries(unitsProjection);
+
+      const unitTotal = unitsProjection.kpi.projected_total;
+      const revenueTotal = revenueProjection.kpi.projected_total;
       setRevenuePerUnit(unitTotal > 0 ? revenueTotal / unitTotal : null);
 
+      const exec = displayProjection.execution;
       let brief = '';
       if (apiKey) {
         try {
@@ -204,7 +253,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
-              question: `Analyze this demand forecast projection: Scope: ${role === 'exec' ? 'National' : role === 'store_manager' ? storeName : focusCategory}, Metric: ${metric}, Horizon: ${horizon} days, Projected Total: ${display.kpi.projectedValue}, Growth Rate: ${(display.kpi.growthRate * 100).toFixed(1)}%, Risk Level: ${display.kpi.riskLevel.toUpperCase()}. Explain the seasonal trend, potential OOS or waste risks, and operational feasibility in 2 sentences.`,
+              question: `Analyze this demand forecast projection: Scope: ${role === 'exec' ? 'National' : role === 'store_manager' ? storeName : focusCategory}, Metric: ${metric}, Horizon: ${horizon} days, Model: ${exec.model_display_name}, Projected Total: ${displayProjection.kpi.projected_total}, Expected change vs observed run rate: ${(displayProjection.kpi.expected_change_pct * 100).toFixed(1)}%. Explain what the seasonal pattern and the forecast range mean operationally in 2 sentences. Do not claim any accuracy figure.`,
               role: 'exec', apiKey,
             }),
           });
@@ -213,19 +262,34 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
       }
 
       if (!brief) {
+        /**
+         * The deterministic summary earns its place by saying what the cards beside it do not: how
+         * much of the movement is the model's and how much is an assumption a person entered, and
+         * where in the horizon the forecast stops being confident. Repeating the coverage figure
+         * from the model panel and the summary card would be a third copy of one sentence.
+         */
         const scopeStr = role === 'exec' ? 'National' : role === 'store_manager' ? storeName : `${focusCategory} category`;
         const metricStr = metric === 'revenue' ? 'Revenue' : metric === 'units' ? 'Units demanded' : 'Waste units';
-        const methodName = model === 'adaptive' ? 'Signal-adjusted outlook'
-          : model === 'seasonality' ? 'Trend and seasonality outlook' : 'Trend baseline';
-        if (metric === 'waste') {
-          brief = display.kpi.growthRate > 0.05
-            ? `${methodName} projects ${scopeStr} ${metricStr.toLowerCase()} rising ${fmt.wow(display.kpi.growthRate)} over ${horizon} days. Spoilage risk is ${display.kpi.riskLevel.toUpperCase()}; regional markdown rates are the available lever.`
-            : `Waste projections are stable across ${scopeStr} (${fmt.wow(display.kpi.growthRate)}). Markdown rotations are performing as planned.`;
-        } else {
-          brief = display.kpi.growthRate > 0.15
-            ? `${metricStr} is projected ${fmt.wow(display.kpi.growthRate)} for ${scopeStr} over ${horizon} days, driven by ${eventBoost !== 'none' ? eventBoost.replace('_', ' ') : 'promotional depth'}. Forecast risk is ${display.kpi.riskLevel.toUpperCase()}.`
-            : `${methodName} projects stable ${metricStr.toLowerCase()} (${fmt.wow(display.kpi.growthRate)}) for ${scopeStr} over the next ${horizon} days.`;
-        }
+        const modelMove = displayProjection.kpi.baseline_change_pct;
+        const total = displayProjection.kpi.expected_change_pct;
+        const assumed = displayProjection.scenario.combined_factor;
+        const first = displayProjection.forecast[0];
+        const last = displayProjection.forecast[displayProjection.forecast.length - 1];
+        const widen = first && last && first.range_lower !== null && last.range_lower !== null &&
+          (last.range_upper as number) - (last.range_lower as number) > 0
+          ? ((last.range_upper as number) - (last.range_lower as number)) /
+            ((first.range_upper as number) - (first.range_lower as number))
+          : null;
+        const composition = Math.abs(assumed - 1) < 1e-9
+          ? `No commercial assumption is applied, so all of it is the model.`
+          : `${Math.abs(modelMove) < 0.005 ? 'The model itself expects the run rate to hold' : `The model itself expects ${fmt.wow(modelMove)}`}; the rest is the declared commercial assumption of ×${assumed.toFixed(2)}.`;
+        brief =
+          `${exec.model_display_name} puts ${metricStr.toLowerCase()} for ${scopeStr} at ` +
+          `${Math.abs(total) < 0.005 ? 'the observed run rate' : `${fmt.wow(total)} against the observed run rate`} ` +
+          `over the next ${horizon} days. ${composition}` +
+          (widen !== null && widen >= 1.15
+            ? ` The forecast range is ${widen.toFixed(1)}× wider by day ${horizon} than on day one, so plan the later part of the horizon with more slack.`
+            : ' The forecast range holds roughly steady across the horizon.');
       }
       setAiBrief(brief);
     } catch (e) {
@@ -234,9 +298,27 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
       setDemandSeries(null);
     }
     setLoading(false);
-  }, [buildQuery, metric, apiKey, role, storeName, focusCategory, horizon, model, eventBoost, promoLift]);
+  }, [postProjection, metric, apiKey, role, storeName, focusCategory, horizon, promoLift]);
 
   useEffect(() => { runForecastSimulation(); }, [runForecastSimulation]);
+
+  // A recommendation is measured, not declared, so it is recomputed only when asked for or when the
+  // series it was measured on changes.
+  useEffect(() => { setRecommendation(null); }, [metric, horizon, role, selectedStore, focusCategory]);
+
+  const requestComparison = useCallback(async () => {
+    setComparisonLoading(true);
+    try {
+      const res = await fetch('/api/v1/demand/forecast', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...projectionBody(metric), include_recommendation: true })
+      });
+      const json = await res.json();
+      if (json?.status === 'success' && json.data.recommendation) setRecommendation(json.data.recommendation);
+    } catch { /* the panel simply keeps offering the comparison */ }
+    setComparisonLoading(false);
+  }, [projectionBody, metric]);
 
   // ── Observed Enterprise Signals (real references, no fabrication) ───────────
   useEffect(() => {
@@ -286,7 +368,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
         intentFusionOutlook: outlook,
         enterpriseSignals: signals,
         historySales: demandSeries.history,
-        forecastSales: demandSeries.forecast,
+        forecastSales: demandSeries.forecast.map(f => ({ date: f.date, value: f.value })),
         revenuePerUnitGbp: revenuePerUnit,
         metric,
         activeInterventionId: isSimulating ? 'SLA_FLEX_RULE_4' : null
@@ -316,97 +398,86 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
         ? 'The demand projection could not be loaded.'
         : 'The Demand Decision Frontier could not be computed from the current inputs.';
 
-  // ── Chart ──────────────────────────────────────────────────────────────────
-  const chartObj = useMemo(() => {
-    if (!demandSeries || !frontier) return null;
-    const histLabels = demandSeries.history.map(h => h.date.slice(5));
-    const foreLabels = demandSeries.forecast.map(f => f.date.slice(5));
+  // ── Chart series ───────────────────────────────────────────────────────────
+  const isMoney = metric === 'revenue';
+  const axisFormat = useCallback((v: number) => (
+    Math.abs(v) >= 1000 ? `${isMoney ? '£' : ''}${(v / 1000).toFixed(0)}k` : `${isMoney ? '£' : ''}${Math.round(v)}`
+  ), [isMoney]);
 
-    // A day the source holds no record for is missing data, not zero demand — it is drawn as a
-    // gap so the chart never shows a phantom collapse, and the forecast is joined to the last
-    // day actually observed.
-    const observed = demandSeries.history.map(h => (h.value > 0 ? h.value : null));
-    let lastObservedIdx = -1;
-    for (let i = observed.length - 1; i >= 0; i--) {
-      if (observed[i] !== null) { lastObservedIdx = i; break; }
+  const chartSeries = useMemo(() => {
+    if (!result) return null;
+    const future = frontier?.trajectory.filter(t => t.emerging_demand_frontier !== null) ?? [];
+    // The frontier is in units. Only overlay it where the display metric is the same quantity,
+    // rather than drawing a units ceiling across a revenue axis.
+    const layerApplies = metric === 'units' && future.length === result.forecast.length;
+    return {
+      history: result.history,
+      forecast: result.forecast.map(f => ({
+        date: f.date, value: f.value, lower: f.range_lower, upper: f.range_upper
+      })),
+      rangeBasis: result.forecast[0]?.range_basis ?? 'NONE',
+      // Only where an assumption actually moves the line. Drawing two identical lines would be
+      // clutter that says nothing.
+      baseline: result.scenario.neutral ? null : result.forecast.map(f => f.baseline_value),
+      emerging: layerApplies ? future.map(t => t.emerging_demand_frontier) : null,
+      executable: layerApplies ? future.map(t => t.executable_demand_frontier) : null,
+      simulated: layerApplies && simActive
+        ? (sim.recomputed_frontier.trajectory
+            .filter(t => t.simulated_demand_frontier !== null)
+            .map(t => t.simulated_demand_frontier) as (number | null)[])
+        : null,
+      layerApplies
+    };
+  }, [result, frontier, metric, simActive, sim]);
+
+  /**
+   * The day the reader is inspecting, narrated in plain language from governed figures only.
+   * The forecast sentence comes from the engine; the decision sentence is added here from the
+   * frontier trajectory, and only where the frontier is on the same quantity as the chart.
+   */
+  const activeNarration = useMemo(() => {
+    if (!result || !activeDate) return null;
+    const observed = result.history.find(h => h.date === activeDate);
+    if (observed) {
+      return {
+        date: activeDate,
+        kind: 'observed' as const,
+        headline: `${activeDate} — observed`,
+        statement:
+          `${isMoney ? fmt.money(observed.value) : fmt.int(observed.value)} recorded. This day has happened and is ` +
+          'not a projection.',
+        basis: [`Source ${result.execution.data_provenance.source}`, `Measure ${result.execution.data_provenance.measure}`]
+      };
     }
-    const lastHist = lastObservedIdx >= 0 ? (observed[lastObservedIdx] as number) : 0;
-    const lead = Array(Math.max(0, demandSeries.history.length - 1)).fill(null);
-    const future = frontier.trajectory.filter(t => t.emerging_demand_frontier !== null);
-    const join = (series: (number | null)[]) => [...lead, lastHist, ...series];
-
-    const datasets: any[] = [
-      {
-        label: 'Actual demand',
-        data: [...observed, ...Array(demandSeries.forecast.length).fill(null)],
-        borderColor: C.neutral, backgroundColor: 'transparent', fill: false,
-        tension: 0.35, pointRadius: 0, pointHoverRadius: 4, borderWidth: 2
-      },
-      {
-        label: 'Current forecast',
-        data: join(future.map(t => t.contextualised_demand)),
-        borderColor: C.faint, backgroundColor: 'transparent', borderDash: [3, 3],
-        fill: false, tension: 0.35, pointRadius: 0, pointHoverRadius: 3, borderWidth: 1.5
-      },
-      {
-        label: 'Emerging demand',
-        data: join(future.map(t => t.emerging_demand_frontier)),
-        borderColor: C.demand,
-        // Shade demand we cannot serve as exposure, and demand we can as headroom. Filling both
-        // the same colour would render spare capacity as if it were a gap.
-        fill: {
-          target: '+1',
-          above: 'rgba(220, 38, 38, 0.10)',
-          below: 'rgba(5, 150, 105, 0.07)'
-        },
-        tension: 0.35, pointRadius: 0, pointHoverRadius: 5, borderWidth: 2.5
-      },
-      {
-        label: 'What we can serve',
-        data: join(future.map(t => t.executable_demand_frontier)),
-        borderColor: C.capacity, backgroundColor: 'transparent', borderDash: [6, 4],
-        fill: false, tension: 0, pointRadius: 0, pointHoverRadius: 4, borderWidth: 2
+    const idx = result.forecast.findIndex(f => f.date === activeDate);
+    if (idx < 0) return null;
+    const point = result.forecast[idx];
+    const narration = result.narration[idx];
+    const basis = [...(narration?.basis ?? [])];
+    let decisionSentence = '';
+    if (chartSeries?.layerApplies && chartSeries.emerging && chartSeries.executable) {
+      const exposure = chartSeries.emerging.map((e, i) => (e ?? 0) - (chartSeries.executable![i] ?? 0));
+      const worst = exposure.reduce((best, v, i) => (v > exposure[best] ? i : best), 0);
+      if (exposure[idx] > 0 && worst === idx) {
+        decisionSentence =
+          ' This period contributes most to the current Decision Gap: expected demand and what the ' +
+          'plan can serve diverge furthest here.';
+        basis.push('Emerging demand frontier against the executable frontier, from the current evaluation');
       }
-    ];
-
-    if (simActive) {
-      datasets.push({
-        label: 'Modelled after intervention',
-        data: join(sim.recomputed_frontier.trajectory
-          .filter(t => t.simulated_demand_frontier !== null)
-          .map(t => t.simulated_demand_frontier as number)),
-        borderColor: C.good, backgroundColor: 'transparent', borderDash: [2, 3],
-        fill: false, tension: 0, pointRadius: 0, pointHoverRadius: 5, borderWidth: 2.5
-      });
     }
-    return { labels: [...histLabels, ...foreLabels], datasets };
-  }, [demandSeries, frontier, simActive, sim]);
-
-  // Vertical rule at the point the Decision Window closes.
-  const frontierMarkerPlugin = useMemo(() => ({
-    id: 'ddfDecisionFrontierMarker',
-    afterDatasetsDraw(chart: any) {
-      if (!window_?.deadline_iso || window_.is_indeterminate || !demandSeries) return;
-      const deadlineDay = window_.deadline_iso.slice(0, 10);
-      const idx = demandSeries.forecast.findIndex(f => f.date >= deadlineDay);
-      if (idx < 0) return;
-      const x = chart.scales.x?.getPixelForValue(demandSeries.history.length + idx);
-      if (!Number.isFinite(x)) return;
-      const { ctx, chartArea } = chart;
-      ctx.save();
-      ctx.beginPath();
-      ctx.setLineDash([2, 3]);
-      ctx.strokeStyle = '#94A3B8';
-      ctx.lineWidth = 1;
-      ctx.moveTo(x, chartArea.top); ctx.lineTo(x, chartArea.bottom); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = '#64748B';
-      ctx.font = '600 10px system-ui, sans-serif';
-      ctx.textAlign = x > chartArea.right - 90 ? 'right' : 'left';
-      ctx.fillText('decision window closes', x > chartArea.right - 90 ? x - 5 : x + 5, chartArea.top + 11);
-      ctx.restore();
-    }
-  }), [window_, demandSeries]);
+    return {
+      date: activeDate,
+      kind: 'forecast' as const,
+      headline: `${activeDate} — day ${point.horizon_step} of the forecast`,
+      statement:
+        `${isMoney ? fmt.money(point.value) : fmt.int(point.value)} expected` +
+        (point.range_lower !== null && point.range_upper !== null
+          ? `, in a range of ${isMoney ? fmt.money(point.range_lower) : fmt.int(point.range_lower)} to ${isMoney ? fmt.money(point.range_upper) : fmt.int(point.range_upper)}`
+          : '') +
+        `. ${narration?.statement ?? ''}${decisionSentence}`,
+      basis
+    };
+  }, [result, activeDate, isMoney, chartSeries]);
 
   // ── Proactive risks (preserved) ────────────────────────────────────────────
   const FORECAST_RISKS = [
@@ -439,6 +510,8 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
   });
 
   const scopeLabel = role === 'exec' ? 'National' : role === 'store_manager' ? storeName : `${focusCategory} category`;
+  const calibration = result?.execution.calibration ?? null;
+  const rangeCalibrated = calibration?.reliable === true;
 
   return (
     <div className="page-content animate-fade" style={{ maxWidth: 1240, margin: '0 auto', paddingBottom: 56 }}>
@@ -504,8 +577,31 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
         )}
       </div>
 
+      {/* ── A refused forecast is a first-class result, never an empty chart ── */}
+      {refusal && (
+        <div style={{
+          ...card, borderColor: '#FDE68A', background: '#FFFBEB',
+          padding: '14px 18px', marginBottom: 16, display: 'flex', gap: 10, alignItems: 'flex-start'
+        }}>
+          <AlertTriangle size={16} color="#B45309" style={{ marginTop: 1, flexShrink: 0 }} />
+          <div>
+            <div style={{ fontWeight: 700, fontSize: '0.8125rem', color: '#92400E' }}>
+              No forecast was produced — {refusal.reason.replace(/_/g, ' ').toLowerCase()}
+            </div>
+            <div style={{ fontSize: '0.75rem', color: '#92400E', marginTop: 2, lineHeight: 1.5 }}>
+              {refusal.statement}
+            </div>
+            {(refusal.qualification?.remediation ?? []).length > 0 && (
+              <ul style={{ fontSize: '0.75rem', color: '#92400E', margin: '6px 0 0', paddingLeft: 18, lineHeight: 1.5 }}>
+                {refusal.qualification!.remediation.map((r, i) => <li key={i}>{r}</li>)}
+              </ul>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Intelligence unavailable ── */}
-      {intelligenceUnavailable && (
+      {intelligenceUnavailable && !refusal && (
         <div style={{
           ...card, borderColor: '#FDE68A', background: '#FFFBEB',
           padding: '14px 18px', marginBottom: 16, display: 'flex', gap: 10, alignItems: 'flex-start'
@@ -841,6 +937,12 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
                           Intent Fusion (IFI-01) via <code>POST /api/v1/intent-fusion/evaluate</code> · Shared Decision State v
                           {evaluation.intent_fusion_outlook.decision_state_version}
                         </div>
+                        {result && (
+                          <div style={{ marginTop: 6 }}>
+                            Demand projection via <code>POST /api/v1/demand/forecast</code> ·{' '}
+                            {result.execution.model_display_name} · execution <code>{result.execution.execution_id}</code>
+                          </div>
+                        )}
                         {stability.status === 'VALID' && stability.contributing_signal_refs.length > 0 && (
                           <div style={{ marginTop: 6 }}>
                             Contributing signal references:{' '}
@@ -979,26 +1081,47 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
       )}
 
       {/* ── Chart + scenario controls ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2.1fr) minmax(260px, 1fr)', gap: 16, marginBottom: 20 }}
+      <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 2.1fr) minmax(260px, 1fr)', gap: 16, marginBottom: 16 }}
         className="ddf-main-grid">
-        <div style={{ ...card, padding: '16px 18px', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ ...card, padding: '16px 18px', display: 'flex', flexDirection: 'column', minWidth: 0 }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12, flexWrap: 'wrap', marginBottom: 4 }}>
             <div>
               <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: C.ink }}>
-                What customers want, against what we can serve
+                What we expect demand to do
               </div>
               <div style={{ fontSize: '0.6875rem', color: C.muted, marginTop: 2 }}>
-                Demand units over {horizon} days. The shaded band is the Decision Gap.
+                Observed history, then {horizon} forecast days.{' '}
+                {rangeCalibrated
+                  ? 'The shaded band is the calibrated forecast range.'
+                  : 'The shaded band is the model-implied forecast range.'}
               </div>
             </div>
-            {simActive && (
-              <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#047857', background: '#ECFDF5', border: '1px solid #A7F3D0', padding: '2px 8px', borderRadius: 12 }}>
-                Simulation active
-              </span>
-            )}
+            <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+              {simActive && (
+                <span style={{ fontSize: '0.6875rem', fontWeight: 700, color: '#047857', background: '#ECFDF5', border: '1px solid #A7F3D0', padding: '2px 8px', borderRadius: 12 }}>
+                  Simulation active
+                </span>
+              )}
+              {chartSeries?.layerApplies && (
+                <button
+                  onClick={() => setShowDecisionLayer(v => !v)}
+                  aria-pressed={showDecisionLayer}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 5,
+                    padding: '4px 10px', borderRadius: 6, cursor: 'pointer',
+                    border: `1px solid ${showDecisionLayer ? C.demand : C.line}`,
+                    background: showDecisionLayer ? '#E0F2FE' : C.surface,
+                    color: showDecisionLayer ? '#075985' : C.muted,
+                    fontSize: '0.6875rem', fontWeight: 600
+                  }}
+                >
+                  <Layers size={12} /> Decision layer
+                </button>
+              )}
+            </div>
           </div>
 
-          <div style={{ flex: 1, position: 'relative', minHeight: 300, marginTop: 10 }}>
+          <div style={{ position: 'relative', marginTop: 8 }}>
             {loading && (
               <div style={{
                 position: 'absolute', inset: 0, background: 'rgba(255,255,255,0.82)',
@@ -1006,50 +1129,109 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
               }}>
                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
                   <Loader2 size={22} className="spinner" style={{ color: C.demand }} />
-                  <span style={{ fontSize: '0.8125rem', color: C.body, fontWeight: 600 }}>Recomputing projection…</span>
+                  <span style={{ fontSize: '0.8125rem', color: C.body, fontWeight: 600 }}>Fitting the model…</span>
                 </div>
               </div>
             )}
-            {chartObj ? (
-              <Line
-                data={chartObj}
-                plugins={[frontierMarkerPlugin]}
-                options={{
-                  responsive: true,
-                  maintainAspectRatio: false,
-                  interaction: { mode: 'index', intersect: false },
-                  plugins: {
-                    legend: {
-                      display: true, position: 'bottom',
-                      labels: { color: C.body, boxWidth: 14, boxHeight: 3, padding: 14, font: { size: 11, weight: 600 }, usePointStyle: false }
-                    },
-                    tooltip: {
-                      backgroundColor: C.ink, titleColor: '#F8FAFC', bodyColor: '#E2E8F0',
-                      borderColor: '#334155', borderWidth: 1, padding: 10,
-                      callbacks: {
-                        label: (ctx: any) => {
-                          const val = ctx.raw as number;
-                          if (val === null || val === undefined) return '';
-                          return ` ${ctx.dataset.label}: ${fmt.int(val)} units`;
-                        }
-                      }
-                    }
-                  },
-                  scales: {
-                    x: { grid: { color: C.hairline }, ticks: { color: C.muted, font: { size: 10 }, maxRotation: 0, autoSkipPadding: 16 } },
-                    y: {
-                      grid: { color: C.hairline },
-                      ticks: {
-                        color: C.muted, font: { size: 10 },
-                        callback: (v: any) => v >= 1000 ? `${(v / 1000).toFixed(0)}K` : String(v)
-                      }
-                    }
-                  }
-                }}
+            {chartSeries ? (
+              <DemandForecastChart
+                history={chartSeries.history}
+                forecast={chartSeries.forecast}
+                baseline={chartSeries.baseline}
+                rangeBasis={chartSeries.rangeBasis}
+                emerging={showDecisionLayer ? chartSeries.emerging : null}
+                executable={showDecisionLayer ? chartSeries.executable : null}
+                simulated={showDecisionLayer ? chartSeries.simulated : null}
+                showDecisionLayer={showDecisionLayer && chartSeries.layerApplies}
+                format={axisFormat}
+                decisionWindowDate={window_ && !window_.is_indeterminate ? window_.deadline_iso : null}
+                activeDate={activeDate}
+                onActiveDate={setActiveDate}
               />
             ) : !loading && (
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%', color: C.muted, fontSize: '0.8125rem' }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 220, color: C.muted, fontSize: '0.8125rem' }}>
                 No projection available for the current scope.
+              </div>
+            )}
+          </div>
+
+          {/* Legend, in the order a reader meets the marks */}
+          {chartSeries && (
+            <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', fontSize: '0.6875rem', color: C.muted, marginTop: 6 }}>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke={C.neutral} strokeWidth="2.2" /></svg>
+                Observed
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke={C.demand} strokeWidth="2.4" strokeDasharray="5 4" /></svg>
+                Forecast
+              </span>
+              <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <svg width="20" height="8"><rect width="20" height="8" fill={C.demand} fillOpacity="0.13" /></svg>
+                Forecast range
+              </span>
+              {chartSeries.baseline && (
+                <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke={C.muted} strokeWidth="1.4" strokeDasharray="2 4" /></svg>
+                  Model’s own expectation (before assumptions)
+                </span>
+              )}
+              {showDecisionLayer && chartSeries.layerApplies && (
+                <>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke={C.demand} strokeWidth="1.4" strokeOpacity="0.55" /></svg>
+                    Emerging demand
+                  </span>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                    <svg width="20" height="6"><line x1="0" y1="3" x2="20" y2="3" stroke={C.capacity} strokeWidth="2" strokeDasharray="6 3" /></svg>
+                    What we can serve
+                  </span>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* The Decision Gap is a demand quantity. Rather than silently dropping the layer on a
+              money or waste axis — or converting a units ceiling by an average price, which would
+              manufacture a number the frontier never published — the surface says why it is absent. */}
+          {chartSeries && !chartSeries.layerApplies && evaluation && (
+            <div style={{ fontSize: '0.6875rem', color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
+              The Decision Gap is measured in demand units, so it is not drawn on this axis.{' '}
+              <button
+                onClick={() => setMetric('units')}
+                style={{
+                  background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                  color: C.demand, fontWeight: 600, fontSize: '0.6875rem', textDecoration: 'underline'
+                }}
+              >
+                Switch the summary metric to units demanded
+              </button>{' '}
+              to see what we can serve against what is expected.
+            </div>
+          )}
+
+          {/* Narration for the day under the pointer */}
+          <div style={{
+            marginTop: 10, padding: '10px 12px', borderRadius: 8,
+            background: C.sunken, border: `1px solid ${C.line}`, minHeight: 62
+          }}>
+            {activeNarration ? (
+              <>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: C.ink }}>{activeNarration.headline}</span>
+                  {provenanceChip(activeNarration.kind === 'observed' ? 'observed' : 'not yet happened',
+                    activeNarration.kind === 'observed' ? 'neutral' : 'warn')}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: C.body, marginTop: 3, lineHeight: 1.5 }}>
+                  {activeNarration.statement}
+                </div>
+                <div style={{ fontSize: '0.625rem', color: C.faint, marginTop: 5, lineHeight: 1.5 }}>
+                  {activeNarration.basis.join(' · ')}
+                </div>
+              </>
+            ) : (
+              <div style={{ fontSize: '0.75rem', color: C.muted, lineHeight: 1.5 }}>
+                Hover or select a day to read what CogniX expects there, and on what evidence.
               </div>
             )}
           </div>
@@ -1074,16 +1256,6 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
             </div>
 
             <div>
-              <label style={{ ...eyebrow, display: 'block', marginBottom: 6 }}>Projection method</label>
-              <select className="select w-full" value={model} onChange={e => setModel(e.target.value as any)}
-                style={{ height: 36, fontSize: '0.8125rem' }}>
-                <option value="adaptive">Signal-adjusted outlook</option>
-                <option value="seasonality">Trend and seasonality</option>
-                <option value="baseline">Trend baseline</option>
-              </select>
-            </div>
-
-            <div>
               <label style={{ ...eyebrow, display: 'block', marginBottom: 6 }}>Horizon</label>
               <select className="select w-full" value={horizon}
                 onChange={e => handleHorizonChange(Number(e.target.value) as any)}
@@ -1094,7 +1266,13 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
               </select>
             </div>
 
-            <div>
+            <div style={{ paddingTop: 4, borderTop: `1px solid ${C.hairline}` }}>
+              <div style={{ ...eyebrow, marginTop: 10, marginBottom: 4 }}>Commercial assumptions</div>
+              <div style={{ fontSize: '0.6875rem', color: C.faint, lineHeight: 1.5, marginBottom: 12 }}>
+                Applied after the model, not estimated by it. The model’s own expectation stays visible in
+                the evidence panel.
+              </div>
+
               <label style={{ ...eyebrow, display: 'block', marginBottom: 6 }}>Event or holiday</label>
               <select className="select w-full" value={eventBoost} onChange={e => handleEventBoostChange(e.target.value)}
                 style={{ height: 36, fontSize: '0.8125rem' }}>
@@ -1135,40 +1313,61 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
         </div>
       </div>
 
-      {/* ── Projection summary (preserved KPIs) ── */}
+      {/* ── Projection summary ── */}
       {result && (
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginBottom: 20 }}>
           <div style={{ ...card, padding: '16px 20px' }}>
             <div style={eyebrow}>Projected total ({horizon} days)</div>
             <div style={{ fontSize: '1.625rem', fontWeight: 800, color: C.ink, marginTop: 4, letterSpacing: '-0.02em' }}>
-              {metric === 'revenue' ? fmt.money(result.kpi.projectedValue) : fmt.int(result.kpi.projectedValue)}
+              {isMoney ? fmt.money(result.kpi.projected_total) : fmt.int(result.kpi.projected_total)}
             </div>
             <div style={{ fontSize: '0.75rem', color: C.muted, marginTop: 2 }}>
-              {metric === 'revenue' ? 'Gross revenue' : metric === 'units' ? 'Units demanded' : 'Waste units'} across the horizon
+              {result.kpi.projected_total_lower !== null && result.kpi.projected_total_upper !== null
+                ? `Range ${isMoney ? fmt.money(result.kpi.projected_total_lower) : fmt.int(result.kpi.projected_total_lower)} to ${isMoney ? fmt.money(result.kpi.projected_total_upper) : fmt.int(result.kpi.projected_total_upper)}`
+                : 'No range is published for this projection'}
             </div>
           </div>
 
           <div style={{ ...card, padding: '16px 20px' }}>
-            <div style={eyebrow}>Period growth rate</div>
+            <div style={eyebrow}>Against the observed run rate</div>
             <div style={{
               fontSize: '1.625rem', fontWeight: 800, marginTop: 4, letterSpacing: '-0.02em',
-              color: result.kpi.growthRate >= 0 ? C.good : C.risk
-            }}>{fmt.wow(result.kpi.growthRate)}</div>
+              color: result.kpi.expected_change_pct >= 0 ? C.good : C.risk
+            }}>{fmt.wow(result.kpi.expected_change_pct)}</div>
             <div style={{ fontSize: '0.75rem', color: C.muted, marginTop: 2 }}>
-              Projected daily average vs the observed run rate
+              Expected daily average against the last {result.kpi.observed_days_compared} observed days
+              {Math.abs(result.kpi.expected_change_pct - result.kpi.baseline_change_pct) > 0.001 && (
+                <> · {fmt.wow(result.kpi.baseline_change_pct)} before commercial assumptions</>
+              )}
             </div>
           </div>
 
           <div style={{ ...card, padding: '16px 20px' }}>
-            <div style={eyebrow}>Forecast risk index</div>
-            <div style={{
-              fontSize: '1.625rem', fontWeight: 800, marginTop: 4, letterSpacing: '-0.02em', textTransform: 'uppercase',
-              color: result.kpi.riskLevel === 'high' ? C.risk : result.kpi.riskLevel === 'medium' ? C.capacity : C.good
-            }}>{result.kpi.riskLevel}</div>
+            <div style={eyebrow}>Forecast range at day {horizon}</div>
+            <div style={{ fontSize: '1.625rem', fontWeight: 800, color: C.ink, marginTop: 4, letterSpacing: '-0.02em' }}>
+              {result.kpi.range_width_pct_at_horizon !== null ? `±${(result.kpi.range_width_pct_at_horizon / 2).toFixed(1)}%` : '—'}
+            </div>
             <div style={{ fontSize: '0.75rem', color: C.muted, marginTop: 2 }}>
-              Based on projection variance and volume limits
+              {rangeCalibrated && calibration!.held_out_coverage !== null
+                ? `Calibrated against held-out history — it covered ${(calibration!.held_out_coverage * 100).toFixed(0)}% of it`
+                : 'Model-implied, not calibrated against realised errors'}
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Model, range and the evidence behind both ── */}
+      {result && models.length > 0 && (
+        <div style={{ marginBottom: 16 }}>
+          <ForecastModelPanel
+            execution={result.execution}
+            models={models}
+            selectedModelId={modelId}
+            onSelectModel={setModelId}
+            recommendation={recommendation}
+            onRequestComparison={requestComparison}
+            comparisonLoading={comparisonLoading}
+          />
         </div>
       )}
 
@@ -1224,6 +1423,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
           contractStatus: 'VERIFIED',
           evidence: [
             ...(intervention?.evidence_basis ?? []),
+            ...(result ? [`Demand forecast produced by ${result.execution.model_display_name} (${result.execution.implementation_ref}).`] : []),
             'Supplier allocation and capacity read from the current scenario, unchanged by this briefing.'
           ]
         }}

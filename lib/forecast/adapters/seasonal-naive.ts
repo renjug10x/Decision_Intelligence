@@ -134,7 +134,9 @@ export const seasonalNaiveAdapter: ForecastModelAdapter = {
         period: periods[i],
         value: Number(value.toFixed(4)),
         lower: Number((value - halfWidth).toFixed(4)),
-        upper: Number((value + halfWidth).toFixed(4))
+        upper: Number((value + halfWidth).toFixed(4)),
+        calibrated_lower: null,
+        calibrated_upper: null
       };
     });
   },
