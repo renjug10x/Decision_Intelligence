@@ -21,12 +21,17 @@ import {
 import { CampaignArchetype } from '@/lib/campaign-archetypes';
 import { CampaignFlightProjection } from '@/packages/contracts/src/campaign-continuous-timeline-model';
 import ContinuousFlightTimeline from '@/components/campaign/ContinuousFlightTimeline';
+import CampaignStory from '@/components/campaign/CampaignStory';
+import { CampaignStoryEvent } from '@/packages/contracts/src/campaign-intervention-model';
 
 interface LiveDecisionTwinLensProps {
   archetype: CampaignArchetype;
   /** CTW-01 — the continuous timeline, assessed against the activated decision contract. */
   flight?: CampaignFlightProjection | null;
   flightError?: string | null;
+  /** CTW-02 — the outlook, moments and planning surface, rendered above the timeline. */
+  outlookSlot?: React.ReactNode;
+  story?: CampaignStoryEvent[];
   onReturnToPlanning?: () => void;
   onApplyInFlightAction?: (action: any) => void;
 }
@@ -35,6 +40,8 @@ export default function LiveDecisionTwinLens({
   archetype,
   flight = null,
   flightError = null,
+  outlookSlot = null,
+  story = [],
   onReturnToPlanning,
   onApplyInFlightAction
 }: LiveDecisionTwinLensProps) {
@@ -151,6 +158,9 @@ export default function LiveDecisionTwinLens({
         </div>
       </div>
 
+      {/* ── CTW-02: outlook and decision moments, above the timeline ── */}
+      {outlookSlot}
+
       {/* ── CTW-01: the continuous campaign timeline ── */}
       {flight ? (
         <ContinuousFlightTimeline flight={flight} />
@@ -199,6 +209,9 @@ export default function LiveDecisionTwinLens({
           </div>
         </div>
       )}
+
+      {/* ── CTW-02: the campaign story ── */}
+      {story.length > 0 && <CampaignStory events={story} />}
 
       {/* ── Section 2: In-Flight Deviations & Adaptive Interventions ── */}
       <div

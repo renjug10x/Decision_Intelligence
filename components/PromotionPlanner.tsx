@@ -76,6 +76,27 @@ import DecisionGraphLens from '@/components/campaign/DecisionGraphLens';
 import InterventionWorkspace, { ActiveIntervention } from '@/components/campaign/InterventionWorkspace';
 import LiveDecisionTwinLens from '@/components/campaign/LiveDecisionTwinLens';
 import FlightActivationPanel, { ActivationChoice } from '@/components/campaign/FlightActivationPanel';
+import CampaignOutlookPanel from '@/components/campaign/CampaignOutlookPanel';
+import {
+  deriveDecisionMoments,
+  deriveCampaignOutlook,
+  buildCampaignStory
+} from '@/lib/campaign-intervention-engine';
+import {
+  DecisionMoment,
+  InterventionPreview,
+  PlannedIntervention,
+  PlannedInterventionMode,
+  ReassessmentVerdict,
+  DEFAULT_INTERVENTION_MODE
+} from '@/packages/contracts/src/campaign-intervention-model';
+import {
+  listPlannedInterventionsClient,
+  planInterventionClient,
+  previewInterventionClient,
+  reassessInterventionClient,
+  confirmInterventionClient
+} from '@/lib/campaign-intervention-client';
 import { ExperimentHistoryDrawer } from '@/components/campaign/ExperimentHistoryDrawer';
 
 interface PromotionPlannerProps {
@@ -150,6 +171,36 @@ export default function PromotionPlanner({
   const activeExperimentIdRef = React.useRef<string | null>(null);
   const [flight, setFlight] = useState<CampaignFlightProjection | null>(null);
   const [flightError, setFlightError] = useState<string | null>(null);
+
+  // ── CTW-02 Predictive Intervention Planning ──────────────────────────────────────────
+  const [plans, setPlans] = useState<PlannedIntervention[]>([]);
+  const [preview, setPreview] = useState<InterventionPreview | null>(null);
+  const [previewingMomentId, setPreviewingMomentId] = useState<string | null>(null);
+  const [interventionBusy, setInterventionBusy] = useState<boolean>(false);
+  const [interventionError, setInterventionError] = useState<string | null>(null);
+
+  /**
+   * Moments are derived from the governed projection, in the same deterministic engine the tests
+   * exercise. Deriving them here rather than on the server keeps them exactly in step with the
+   * flight on screen; the derivation reads nothing the projection does not carry.
+   */
+  const momentsResult = React.useMemo(() => {
+    if (!flight) return { moments: [] as DecisionMoment[], note: null as string | null };
+    try {
+      return deriveDecisionMoments(flight, discountDepth);
+    } catch {
+      return { moments: [] as DecisionMoment[], note: null as string | null };
+    }
+  }, [flight, discountDepth]);
+
+  const outlook = React.useMemo(
+    () => (flight ? deriveCampaignOutlook(flight, momentsResult.moments, plans) : null),
+    [flight, momentsResult.moments, plans]
+  );
+  const story = React.useMemo(
+    () => (flight ? buildCampaignStory(flight, momentsResult.moments, plans) : []),
+    [flight, momentsResult.moments, plans]
+  );
 
   /** Everything that changes what was decided. Any change invalidates an existing activation. */
   const configurationSignature = [
@@ -430,6 +481,124 @@ export default function PromotionPlanner({
     if (listed) setExperiments(listed.experiments);
   };
 
+  // ── CTW-02 handlers ────────────────────────────────────────────────────────────────
+  const refreshPlans = async () => {
+    setPlans(
+      await listPlannedInterventionsClient({
+        tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+        session_id: CAMPAIGN_DEMO_SESSION_ID
+      })
+    );
+  };
+
+  const handleSelectMoment = async (m: DecisionMoment) => {
+    if (!m.candidate || !decisionContract || !flight) return;
+    setInterventionBusy(true);
+    setPreviewingMomentId(m.moment_id);
+    setInterventionError(null);
+    const intent = buildCampaignIntentFromArchetype(archetype, {
+      sku_id: skuId,
+      mechanic: mechanic as any,
+      discount_depth_pct: discountDepth,
+      target_region: targetRegion,
+      duration_days: durationDays,
+      tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+      session_id: CAMPAIGN_DEMO_SESSION_ID
+    });
+    const effective = m.window.available
+      ? (m.window.first_flight_day as number)
+      : flight.horizon.today_flight_day + 1;
+    const result = await previewInterventionClient({
+      tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+      session_id: CAMPAIGN_DEMO_SESSION_ID,
+      contract_id: decisionContract.contract_id,
+      campaign_intent: intent,
+      candidate: m.candidate,
+      effective_from_flight_day: effective,
+      elapsed_telemetry: buildElapsedTelemetryFromArchetype(archetype),
+      moment_id: m.moment_id
+    });
+    setPreview(result);
+    if (!result) setInterventionError('CogniX could not compare these two options for this configuration.');
+    setInterventionBusy(false);
+  };
+
+  const handlePlan = async (
+    m: DecisionMoment,
+    mode: PlannedInterventionMode,
+    owner: string,
+    rationale: string
+  ) => {
+    if (!m.candidate || !decisionContract || !flight) return;
+    setInterventionBusy(true);
+    setInterventionError(null);
+    const { plan, error } = await planInterventionClient({
+      tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+      session_id: CAMPAIGN_DEMO_SESSION_ID,
+      contract_id: decisionContract.contract_id,
+      decision_basis_digest: decisionContract.decision_basis_digest,
+      moment_id: m.moment_id,
+      moment_kind: m.kind,
+      action: m.candidate,
+      targeted_flight_day: m.flight_day,
+      window: m.window,
+      trigger_condition: m.window.available
+        ? `When the campaign reaches day ${m.window.first_flight_day}`
+        : 'No window remains; this plan is a record of intent only',
+      mode: mode || DEFAULT_INTERVENTION_MODE,
+      created_by: owner,
+      rationale,
+      created_at: new Date().toISOString()
+    });
+    if (!plan) setInterventionError(error || 'CogniX could not record this planned intervention.');
+    await refreshPlans();
+    setInterventionBusy(false);
+  };
+
+  const handleReassess = async (p: PlannedIntervention, decision?: ReassessmentVerdict) => {
+    if (!flight) return;
+    setInterventionBusy(true);
+    setInterventionError(null);
+    const res = await reassessInterventionClient({
+      intervention_id: p.intervention_id,
+      tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+      session_id: CAMPAIGN_DEMO_SESSION_ID,
+      moments: momentsResult.moments,
+      today_flight_day: flight.horizon.today_flight_day,
+      decision
+    });
+    if (res.error) setInterventionError(res.error);
+    await refreshPlans();
+    setInterventionBusy(false);
+  };
+
+  const handleConfirmIntervention = async (p: PlannedIntervention, owner: string, statement: string) => {
+    if (!flight) return;
+    setInterventionBusy(true);
+    setInterventionError(null);
+    const effective = Math.max(
+      flight.horizon.today_flight_day + 1,
+      p.window.first_flight_day ?? flight.horizon.today_flight_day + 1
+    );
+    const { error } = await confirmInterventionClient({
+      intervention_id: p.intervention_id,
+      tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+      session_id: CAMPAIGN_DEMO_SESSION_ID,
+      confirmed_by: owner,
+      statement,
+      effective_from_flight_day: effective,
+      today_flight_day: flight.horizon.today_flight_day
+    });
+    if (error) setInterventionError(error);
+    await refreshPlans();
+    setInterventionBusy(false);
+  };
+
+  /** Keep planned interventions in step with the session. */
+  useEffect(() => {
+    void refreshPlans();
+  }, []);
+
   /** Load promotion history once, so the drawer has something to show before any activation. */
   useEffect(() => {
     let cancelled = false;
@@ -457,12 +626,52 @@ export default function PromotionPlanner({
         setFlight(null);
         return;
       }
+      /**
+       * A confirmed intervention is carried into the projection so the reforecast appears beside the
+       * original expectation rather than only in the plan record. The changed campaign is projected
+       * by re-running CDI-05 at the confirmed depth — the same engine, no second model — and the
+       * flight engine reshapes only the days from the effective day onward.
+       */
+      const confirmed = plans.find(
+        p => p.status === 'CONFIRMED' && p.contract_id === decisionContract.contract_id && p.confirmation
+      );
+      let appliedIntervention: any = undefined;
+      if (confirmed?.confirmation) {
+        const changedIntent = buildCampaignIntentFromArchetype(archetype, {
+          sku_id: skuId,
+          mechanic: mechanic as any,
+          discount_depth_pct: confirmed.action.proposed_discount_pct,
+          target_region: targetRegion,
+          duration_days: durationDays,
+          tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+          session_id: CAMPAIGN_DEMO_SESSION_ID
+        });
+        const changedTimeline: any = await projectDecisionTimelineClient({
+          tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+          session_id: CAMPAIGN_DEMO_SESSION_ID,
+          campaign_intent_id: (changedIntent as any).intent_id,
+          campaign_intent: changedIntent as any
+        });
+        if (changedTimeline) {
+          appliedIntervention = {
+            intervention_id: confirmed.intervention_id,
+            action_label: confirmed.action.label,
+            effective_from_flight_day: confirmed.confirmation.effective_from_flight_day,
+            confirmed_by: confirmed.confirmation.confirmed_by,
+            statement: confirmed.confirmation.statement,
+            reason: confirmed.rationale || confirmed.confirmation.statement,
+            timeline: changedTimeline.projection || changedTimeline
+          };
+        }
+      }
+
       const result = await projectCampaignFlightClient({
         tenant_id: CAMPAIGN_DEMO_TENANT_ID,
         session_id: CAMPAIGN_DEMO_SESSION_ID,
         contract_id: decisionContract.contract_id,
         timeline: liveTimeline.projection || liveTimeline,
-        elapsed_telemetry: buildElapsedTelemetryFromArchetype(archetype)
+        elapsed_telemetry: buildElapsedTelemetryFromArchetype(archetype),
+        ...(appliedIntervention ? { applied_intervention: appliedIntervention } : {})
       });
       if (cancelled) return;
       setFlight(result.projection);
@@ -475,7 +684,7 @@ export default function PromotionPlanner({
     return () => {
       cancelled = true;
     };
-  }, [flightReady, decisionContract, liveTimeline, archetype]);
+  }, [flightReady, decisionContract, liveTimeline, archetype, plans, skuId, mechanic, targetRegion, durationDays]);
 
   /** An unactivated or stale configuration has no flight to show, so the mode falls back. */
   useEffect(() => {
@@ -1009,6 +1218,26 @@ export default function PromotionPlanner({
           archetype={archetype}
           flight={flight}
           flightError={flightError}
+          story={story}
+          outlookSlot={
+            outlook ? (
+              <CampaignOutlookPanel
+                outlook={outlook}
+                moments={momentsResult.moments}
+                note={momentsResult.note}
+                plans={plans}
+                contractId={decisionContract?.contract_id ?? ''}
+                preview={preview}
+                previewingMomentId={previewingMomentId}
+                busy={interventionBusy}
+                error={interventionError}
+                onSelectMoment={handleSelectMoment}
+                onPlan={handlePlan}
+                onReassess={handleReassess}
+                onConfirm={handleConfirmIntervention}
+              />
+            ) : null
+          }
           onReturnToPlanning={() => setActiveMode('PLANNING')}
           onApplyInFlightAction={handleApplyInFlightAction}
         />

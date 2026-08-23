@@ -66,6 +66,7 @@ export default function ContinuousFlightTimeline({
    */
   const [pinnedDay, setPinnedDay] = useState<number | null>(null);
   const [hoverDay, setHoverDay] = useState<number | null>(null);
+  const [showReforecast, setShowReforecast] = useState<boolean>(true);
   const series: ContinuousLensSeries =
     flight.lenses.find(l => l.lens === lens) || flight.lenses[0];
   const summary = flight.deviation.find(d => d.lens === series.lens);
@@ -101,6 +102,14 @@ export default function ContinuousFlightTimeline({
     if (seg.length === 0) return '';
     return seg.map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(p.flight_day)} ${y(pick(p) as number)}`).join(' ');
   };
+
+  /**
+   * CTW-02 — the reforecast, if an intervention was confirmed. It is drawn as a fourth line and is
+   * off by default: four trajectories at once is more than a reader can hold, so the original,
+   * observed and predicted stay primary and this one is revealed on request (§17).
+   */
+  const reforecastSeries = flight.reforecast?.find(r => r.lens === lens) ?? null;
+  const reforecastPts = reforecastSeries?.points ?? [];
 
   const bandPts = pts.filter(p => p.expectation_lower !== null && p.expectation_upper !== null);
   const bandPath =
@@ -273,6 +282,27 @@ export default function ContinuousFlightTimeline({
               />
             ))}
 
+          {/* Reforecast — the campaign as changed, from the day the intervention took effect */}
+          {showReforecast && reforecastPts.length > 1 && (
+            <>
+              <path
+                d={reforecastPts
+                  .filter(p => p.expectation_value !== null)
+                  .map((p, i) => `${i === 0 ? 'M' : 'L'} ${x(p.flight_day)} ${y(p.expectation_value as number)}`)
+                  .join(' ')}
+                fill="none"
+                stroke="#047857"
+                strokeWidth="2.4"
+                strokeDasharray="2 3"
+              />
+              {reforecastPts
+                .filter(p => p.expectation_value !== null)
+                .map(p => (
+                  <circle key={`rf-${p.flight_day}`} cx={x(p.flight_day)} cy={y(p.expectation_value as number)} r="2.4" fill="#047857" />
+                ))}
+            </>
+          )}
+
           {/* TODAY divider */}
           {todayX !== null && (
             <g>
@@ -374,7 +404,51 @@ export default function ContinuousFlightTimeline({
           </svg>
           Declared uncertainty
         </span>
+        {reforecastPts.length > 0 && (
+          <button
+            type="button"
+            onClick={() => setShowReforecast(v => !v)}
+            aria-pressed={showReforecast}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              background: 'none',
+              border: 'none',
+              padding: 0,
+              cursor: 'pointer',
+              color: showReforecast ? SLATE : MUTED,
+              fontSize: '0.74rem',
+              fontWeight: showReforecast ? 600 : 400
+            }}
+          >
+            <svg width="26" height="8" aria-hidden="true">
+              <line x1="0" y1="4" x2="26" y2="4" stroke="#047857" strokeWidth="2.4" strokeDasharray="2 3" />
+            </svg>
+            What we now expect, after intervening {showReforecast ? '(shown)' : '(hidden)'}
+          </button>
+        )}
       </div>
+
+      {flight.applied_intervention && (
+        <div
+          style={{
+            marginTop: 12,
+            background: '#F0FDF4',
+            border: '1px solid #BBF7D0',
+            borderRadius: 8,
+            padding: '10px 12px',
+            fontSize: '0.76rem',
+            color: '#166534',
+            lineHeight: 1.5
+          }}
+        >
+          <strong>{flight.applied_intervention.action_label}</strong> — confirmed by{' '}
+          {flight.applied_intervention.confirmed_by}, effective day{' '}
+          {flight.applied_intervention.effective_from_flight_day}. {flight.applied_intervention.reason}{' '}
+          {reforecastSeries?.disclosure}
+        </div>
+      )}
 
       {/* ── Narrated day detail — derived from governed facts, never authored per day ── */}
       {narrative && (

@@ -880,12 +880,58 @@ programme DAG — it sits on a different axis.
   `atlas-governance-check --enforce` exits 0; browser-validated at 1024/1280/1440 with no console
   errors and no horizontal overflow.
 
-#### `CTW-02` — Predictive Intervention Planning [NOT STARTED]
+#### `CTW-02` — Predictive Intervention Planning [COMPLETED]
 
 Campaign Outlook, Decision Moments, decision windows, intervention preview, planned interventions
 with conditional modes, reassessment, apply-and-reforecast, and the campaign story. Emits the
 `REFORECAST` trajectory kind `CTW-01` reserved. **Not authorised.**
 - *Hard Dependencies:* `CTW-01`, `CTW-01R`.
+- **Status:** Authorised and **implemented 2026-08-23**, after `CTW-03` unblocked it. Evidence in
+  [`COGNIX_CTW_02_PREDICTIVE_INTERVENTION_REPORT.md`](../reports/COGNIX_CTW_02_PREDICTIVE_INTERVENTION_REPORT.md).
+- **Delivered:**
+  - **Decision Moments** — at most three, ranked material-first — of three kinds: a forecast
+    contribution trough, a forecast demand peak, and a sustained observed departure from plan. Each
+    carries the period, issue, expected consequence, cited evidence, a deterministic *why*, a window
+    and a candidate action. **Every citation is from one of exactly three permitted sources** —
+    `GOVERNED_FORECAST`, `OBSERVED_DEVIATION`, `DECLARED_UNCERTAINTY` — asserted field-by-field.
+  - **Campaign Outlook** — headline, next decision, decision window and current action
+    (`MONITOR` / `PREPARE` / `REVIEW`), from governed engine outputs only.
+  - **Decision windows as arithmetic, not optimisation.** A window runs from tomorrow to the last day
+    of the period it targets, because acting on the first day of a days 6–9 period still changes days
+    6–9 and acting on day 9 changes only day 9. The cost of delay is stated because it is countable.
+    Where no window exists the surface says *"No reliable intervention window available."*
+  - **Intervention preview** — do nothing versus intervene over the **remaining horizon only**, both
+    sides CDI-02 at two promotional depths reshaped by the same CTW-03 forecast, with the trade-off
+    named and the numbers behind progressive disclosure.
+  - **Planned interventions** with `PREPARE_FOR_APPROVAL` as the governed default, `REMIND_ME`, and
+    `AUTOMATIC_EXECUTION` **declared unavailable and refused at the route** — never simulated.
+  - **Continuous reassessment** returning `KEEP`, `BRING_FORWARD`, `DELAY`, `RESCHEDULE`, `CANCEL`,
+    `NO_LONGER_NECESSARY` or `MAY_BE_TOO_LATE`, always with options rather than an instruction, and
+    **every reassessment appended, never replaced** — the record is the trail of why it changed.
+  - **Apply and reforecast** — on confirmation the original expectation and every observation are
+    untouched, the intervention is recorded with its reason, and a `REFORECAST` trajectory covering
+    only days from the effective day is published beside them, through the **same** governed forecast.
+    An intervention effective on an elapsed day is refused (`RJ-W9`).
+  - **Campaign story** from recorded events and declared predictions, with predictions marked *not yet
+    happened*.
+- **Nothing forecasts inside CTW-02.** With no forecast bound no predicted moment exists at all, and
+  the surface says why. A sustained departure is stated and **explicitly not projected forward** —
+  refusing to extrapolate is published as a reason, not left implicit.
+- **Three defects found by browser validation and fixed**, each with a regression test: a decision
+  window that closed a day too early and so reported "no window" where acting was still possible; a
+  planned intervention from a **previous** activated decision attaching itself to a fresh campaign,
+  because moment ids repeat across decisions; and a confirmation that was **written to the store
+  before validation**, leaving a rejected confirm committed while the caller was told it failed.
+  `I-INV-6` was also corrected — it rejected a direct confirmation, which an analyst is entitled to
+  make without waiting to be prompted.
+- **Hard Dependencies:** `CTW-01`, `CTW-01R`, `CTW-03`.
+- **Non-Scope:** revenue, stock predictions, external automatic execution, ML or learning claims, a
+  second forecasting engine, post-flight reconciliation, legacy Demand & Forecast migration.
+- **Validation:** `tsc` clean; **39 of 39 runners green**, `CTW-02` 82/82, with `CTW-01` 65,
+  `CTW-01R` 60, `CTW-03` 77, `CDI-05` 70, `CDI-07A` 155, `CDI-07B` 235, `CDI-08` 44, `ESF-6` 81 and
+  `DDF-01` 56 all unchanged; build clean; `atlas-governance-check --enforce` exits 0;
+  browser-validated at 1024/1280/1440, no overflow, no console errors, full journey exercised through
+  plan, reassess, confirm and reforecast.
 - **Blocking finding — RESOLVED 2026-08-23 by `CTW-03`.** A Decision Moment is a day that differs
   materially from other days, and under `FLAT_RATE_IDENTITY` no predicted day differed from any
   other. The owner resequenced the programme to take `CTW-03` first; the horizon is now shaped by a

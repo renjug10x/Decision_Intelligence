@@ -32,8 +32,11 @@ import {
   PREDICTED_REMAINING_DISCLOSURE,
   SIMULATED_ELAPSED_DISCLOSURE,
   UNCERTAINTY_DISCLOSURE,
+  AppliedIntervention,
   FlightAllocationProfile,
   FlightForecastBinding,
+  REFORECAST_DISCLOSURE,
+  ReforecastSeries,
   forecastShapedDisclosure,
   validateFlightProjection,
   ATTENTION_THRESHOLD_ATTENTION_PCT,
@@ -689,6 +692,81 @@ export function projectCampaignFlight(request: FlightProjectionRequest): Campaig
     }
   ];
 
+  /**
+   * CTW-02 reforecast. Only days from the intervention's effective day are recomputed, and they are
+   * shaped by the *same* forecast factors — the intervention changes what the campaign expects, not
+   * which model shapes it. Elapsed days are absent from this series by construction, so nothing can
+   * overwrite an observation even by accident.
+   */
+  let reforecast: ReforecastSeries[] | null = null;
+  let appliedIntervention: AppliedIntervention | null = null;
+
+  if (request.applied_intervention) {
+    const applied = request.applied_intervention;
+    const effective = applied.effective_from_flight_day;
+    if (!Number.isInteger(effective) || effective <= horizon.elapsed_days) {
+      reject(
+        'RJ-W9',
+        `An intervention cannot take effect on day ${effective}: ${horizon.elapsed_days} days have already elapsed and are never recomputed.`
+      );
+    }
+
+    const ivTimeline = applied.timeline;
+    if (ivTimeline.campaign_intent_id !== contractIntentId) {
+      reject('RJ-W4', 'The intervention projection is for a different decision.');
+    }
+
+    const ivPointsAfter = campaignPoints(
+      ivTimeline.trajectories.find(t => t.kind === 'INTERVENTION')!
+    ).slice(0, horizon.flight_days);
+
+    reforecast = (['DEMAND', 'CONTRIBUTION'] as FlightLens[]).map(lens => {
+      const src = ivTimeline.lenses.find(l => l.lens === lens);
+      const byPeriod = new Map<number, number | null>();
+      for (const v of src?.values || []) byPeriod.set(v.period_index, v.intervention);
+
+      const points: ContinuousSeriesPoint[] = [];
+      for (let i = effective - 1; i < ivPointsAfter.length; i++) {
+        const pt = ivPointsAfter[i];
+        const flat = byPeriod.get(pt.period_index) ?? null;
+        const factor = factors ? factors[i] : 1;
+        points.push({
+          flight_day: i + 1,
+          period_index: pt.period_index,
+          period_date: pt.period_date,
+          phase: 'IN_FLIGHT',
+          horizon_class: 'PREDICTED_REMAINING',
+          expectation_value: flat === null ? null : Number((flat * factor).toFixed(4)),
+          actual_value: null,
+          deviation_abs: null,
+          deviation_pct: null,
+          expectation_lower: null,
+          expectation_upper: null,
+          strength: 'DERIVED',
+          synthetic_demo: true,
+          disclosure: REFORECAST_DISCLOSURE
+        });
+      }
+      return { lens, points, disclosure: REFORECAST_DISCLOSURE };
+    });
+
+    appliedIntervention = {
+      intervention_id: applied.intervention_id,
+      action_label: applied.action_label,
+      effective_from_flight_day: effective,
+      confirmed_by: applied.confirmed_by,
+      statement: applied.statement,
+      reason: applied.reason
+    };
+
+    trajectories.push({
+      kind: 'REFORECAST',
+      role: 'What we now expect, after intervening',
+      covers: 'REMAINING_ONLY',
+      points: reforecast[0].points
+    });
+  }
+
   const activation: FlightActivation = {
     state: 'ACTIVE',
     contract_ref: toContractReference(contract),
@@ -720,6 +798,8 @@ export function projectCampaignFlight(request: FlightProjectionRequest): Campaig
       : FLAT_HORIZON_DISCLOSURE,
     allocation_profile: allocationProfile,
     forecast: forecastBinding,
+    applied_intervention: appliedIntervention,
+    reforecast,
     uncertainty: restrictEnvelope(timeline.attributable_effect_envelope, horizon),
     confidence_band: timeline.attributable_effect_envelope.band,
     timeline_projection_id: timeline.projection_id,

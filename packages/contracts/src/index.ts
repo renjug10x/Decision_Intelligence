@@ -16,6 +16,7 @@ export * from './campaign-decision-contract-model';
 export * from './campaign-experiment-model';
 export * from './campaign-continuous-timeline-model';
 export * from './forecast-model-model';
+export * from './campaign-intervention-model';
 export {
   type GrainDimension,
   type ObservationGrainKeyEntry,

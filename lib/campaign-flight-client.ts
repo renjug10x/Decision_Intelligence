@@ -17,6 +17,8 @@ export async function projectCampaignFlightClient(params: {
   contract_id: string;
   timeline: DecisionTimelineProjection;
   elapsed_telemetry: ElapsedTelemetryReading[];
+  /** CTW-02 — a confirmed intervention and the CDI-05 projection of the campaign as changed. */
+  applied_intervention?: FlightProjectionRequest['applied_intervention'];
 }): Promise<{ projection: CampaignFlightProjection | null; error?: string; rejection_id?: string }> {
   try {
     const body: FlightProjectionRequest = params;

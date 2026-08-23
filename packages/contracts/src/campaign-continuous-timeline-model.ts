@@ -244,8 +244,9 @@ export interface FlightTrajectory {
   /** Human-readable role, so a reader never has to infer meaning from an enum. */
   role:
     | 'What the activated decision expected'
-    | 'What the campaign is running at';
-  covers: 'FULL_HORIZON' | 'ELAPSED_ONLY';
+    | 'What the campaign is running at'
+    | 'What we now expect, after intervening';
+  covers: 'FULL_HORIZON' | 'ELAPSED_ONLY' | 'REMAINING_ONLY';
   points: ContinuousSeriesPoint[];
 }
 
@@ -304,6 +305,31 @@ export interface ElapsedTelemetryReading {
   seeded_status?: string;
 }
 
+/**
+ * CTW-02. An intervention that has been confirmed and now applies from a stated day.
+ *
+ * It never rewrites anything: the original expectation and the observed series stay exactly as they
+ * were, and the reforecast is published beside them as an additional series over the remaining days
+ * only. `effective_from_flight_day` is always after today, because an elapsed day cannot be
+ * re-decided.
+ */
+export interface AppliedIntervention {
+  intervention_id: string;
+  action_label: string;
+  effective_from_flight_day: number;
+  confirmed_by: string;
+  statement: string;
+  /** Why the campaign changed, carried on the projection so history explains itself. */
+  reason: string;
+}
+
+/** The reforecast over the remaining horizon, one series per lens. */
+export interface ReforecastSeries {
+  lens: FlightLens;
+  points: ContinuousSeriesPoint[];
+  disclosure: string;
+}
+
 export interface FlightProjectionRequest {
   tenant_id: string;
   session_id: string;
@@ -317,6 +343,12 @@ export interface FlightProjectionRequest {
    * horizon stays flat and says so, exactly as CTW-01 left it.
    */
   forecast?: ForecastExecution;
+  /**
+   * CTW-02. A confirmed intervention and the CDI-05 projection of the campaign as changed. The
+   * engine reforecasts only from `effective_from_flight_day`, through the same CTW-03 forecast
+   * shape — it runs no model of its own.
+   */
+  applied_intervention?: AppliedIntervention & { timeline: DecisionTimelineProjection };
   /** Forbidden — CTW-01 never accepts a caller-supplied expectation (RJ-W1). */
   expectation_override?: unknown;
   /** Forbidden — reforecast is CTW-02 (RJ-W2). */
@@ -346,6 +378,9 @@ export interface CampaignFlightProjection {
   allocation_profile: FlightAllocationProfile;
   /** The governed forecast that shaped the horizon, or null when nothing did. */
   forecast: FlightForecastBinding | null;
+  /** CTW-02 — the confirmed intervention, if any, and the reforecast it produced. */
+  applied_intervention: AppliedIntervention | null;
+  reforecast: ReforecastSeries[] | null;
 
   /**
    * The CDI-05 envelope, restricted to the flight window and unchanged in value. Rendered
@@ -437,9 +472,12 @@ export const FLIGHT_LENS_NON_SCOPE: Array<{ lens: string; reason: string }> = [
   }
 ];
 
+export const REFORECAST_DISCLOSURE =
+  'Reforecast from the day the intervention takes effect, using the same governed forecast shape. ' +
+  'The original expectation and every elapsed day are unchanged and still shown — nothing was ' +
+  'overwritten, and no second forecasting model was run.';
+
 export const CTW01_NON_SCOPE: string[] = [
-  'Adaptive intervention and trade-off comparison — CTW-02',
-  'Remaining-horizon reforecast after an intervention — CTW-02',
   'Post-flight reconciliation — extension of CDI-08 and the experiment comparison surface',
   'Any attested observation, learning candidate or learning case',
   'Any new origin of synthetic_demo = false',
@@ -461,7 +499,9 @@ export interface FlightInvariantViolation {
  * `W-INV-1` a predicted day may never carry OBSERVED strength
  * `W-INV-2` a predicted day may never carry an actual value
  * `W-INV-3` an elapsed day may only be OBSERVED_ELAPSED with an admitted observation
- * `W-INV-4` CTW-01 emits no REFORECAST trajectory
+ * `W-INV-4` a REFORECAST trajectory exists only where an intervention was applied, and covers
+ *           only days after it took effect — CTW-02 strengthened this from CTW-01's blanket ban,
+ *           which was correct while nothing could produce one and is now too weak to be useful
  * `W-INV-5` every day of the window is represented exactly once, in order
  * `W-INV-6` deviation is present exactly where an actual is present
  * `W-INV-7` where an uncertainty band is present it brackets the expectation it belongs to
@@ -525,11 +565,29 @@ export function validateFlightProjection(
     }
   }
 
-  if (projection.trajectories.some(t => t.kind === 'REFORECAST')) {
+  const reforecastTrajectory = projection.trajectories.find(t => t.kind === 'REFORECAST');
+  if (reforecastTrajectory && !projection.applied_intervention) {
     violations.push({
       invariant: 'W-INV-4',
-      detail: 'CTW-01 emitted a REFORECAST trajectory; reforecast is CTW-02'
+      detail: 'a REFORECAST trajectory exists with no applied intervention to justify it'
     });
+  }
+  if (reforecastTrajectory && projection.applied_intervention) {
+    const effective = projection.applied_intervention.effective_from_flight_day;
+    if (reforecastTrajectory.points.some(p => p.flight_day < effective)) {
+      violations.push({
+        invariant: 'W-INV-4',
+        detail: `the reforecast reaches back before day ${effective}, when the intervention took effect`
+      });
+    }
+  }
+  for (const series of projection.reforecast || []) {
+    if (series.points.some(p => p.actual_value !== null)) {
+      violations.push({
+        invariant: 'W-INV-4',
+        detail: `${series.lens} reforecast carries an actual value; a reforecast is entirely prediction`
+      });
+    }
   }
 
   return violations;

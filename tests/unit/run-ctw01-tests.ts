@@ -437,8 +437,8 @@ async function runTests() {
   // ── F. The CTW-02 boundary, and the refused metrics ────────────────────────────────
   console.log('\n-- F. Scope boundary --');
   assert(
-    !flight.trajectories.some(t => t.kind === 'REFORECAST'),
-    'F-01: CTW-01 emits no REFORECAST trajectory'
+    !flight.trajectories.some(t => t.kind === 'REFORECAST') && flight.applied_intervention === null,
+    'F-01: with no intervention applied there is no REFORECAST trajectory'
   );
   assert(
     flight.trajectories.some(t => t.kind === 'INTERVENTION' && t.covers === 'FULL_HORIZON') &&
@@ -462,9 +462,15 @@ async function runTests() {
       FLIGHT_LENS_NON_SCOPE.some(n => n.lens === 'INVENTORY'),
     'F-06: each refused lens publishes the reason it is refused'
   );
+  // CTW-02 deliberately changed this assertion. Adaptive intervention and remaining-horizon
+  // reforecast left this list when CTW-02 delivered them; what remains out of scope is post-flight
+  // reconciliation and the standing prohibitions. The assertion now checks that the list still
+  // publishes a real boundary rather than that it names a work package that has since landed.
   assert(
-    CTW01_NON_SCOPE.some(n => /CTW-02/.test(n)) && flight.non_scope.length === CTW01_NON_SCOPE.length,
-    'F-07: the CTW-02 boundary is published on the projection itself'
+    CTW01_NON_SCOPE.some(n => /Post-flight reconciliation/.test(n)) &&
+      CTW01_NON_SCOPE.some(n => /synthetic_demo = false/.test(n)) &&
+      flight.non_scope.length === CTW01_NON_SCOPE.length,
+    'F-07: the scope boundary is published on the projection itself'
   );
   assert(
     OBSERVED_ELAPSED_REQUIRED_INPUT.status === 'AWAITING_ATTESTED_OBSERVATION',
