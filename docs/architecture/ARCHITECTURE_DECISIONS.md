@@ -510,3 +510,570 @@ Each of `ACT_NOW`, `WAIT` and `DO_NOTHING` is consequently reachable as the best
 - **The prompt's rules are enforced on the response, not merely requested in the prompt.** A model that was steered, truncated or confused is exactly the case validation exists for. Items carrying a percentage, a currency symbol, a decimal quantity or a thousands-separated figure are rejected outright — this route has no data with which to support a measured claim, so a suggestion that states one is fabricating. Multi-sentence items, over-long items, duplicates of each other or of what is already recorded, echoed prompt scaffolding, and open questions that are not questions are all dropped, and the surviving list is clamped to the type's maximum.
 - **Injection surface:** the planner's existing entries are sent as context so drafts do not repeat them, and they are fenced as application data rather than instruction. The provider key is resolved only from `process.env.GEMINI_API_KEY`; a key supplied in a request body is structurally unable to reach the provider call, since the bounded prompt context has no such field. No error path echoes the key, an environment dump or a stack trace.
 - **Consequences:** Decision Context becomes materially easier to fill without becoming machine-authored. The provider is a convenience at an input boundary and holds no authority anywhere in the estate, so its absence degrades speed and nothing else. `.dockerignore` excludes host `.env` files from every build context (re-admitting `.env.example`, which carries no secret and is the only written statement of what the stack needs), and `docker-compose.yml` passes `GEMINI_API_KEY` through from the host environment rather than defining it.
+
+---
+
+#### ADR-044 Amendment A — two Gemini credentials, and the divergence is technical debt (Atlas runtime configuration, 2026-08-21)
+
+**What the original ruling covered, and what it left implicit.** ADR-044 recorded a *behavioural*
+divergence: the CDI-01 drafting route refuses with `503` where `lib/gemini.ts`'s NLQ and briefing
+routes fall back to mock analytics. It did not record the *credential transport* divergence sitting
+underneath it, and that omission has now cost real time.
+
+**The estate has two Gemini credential paths, and they are not interchangeable.**
+
+| | Legacy demo path | Governed server-side path |
+|---|---|---|
+| Routes | `/api/ask`, `/api/briefing`, `/api/decisions/[id]/approve` | `/api/v1/campaigns/decision-context/suggest` (ADR-044), `/api/v1/atlas/ask` research and interpretation (ATL-06B, ATL-06C) |
+| Where the key lives | entered by the user in platform setup, held in client state (`lib/context.tsx`) | `process.env.GEMINI_API_KEY`, read server-side at call time |
+| How it travels | in the **request body** | it does not travel |
+| On absence | mock analytics | refusal, naming what is missing |
+
+**The debt.** A client-held key transported in a request body is incompatible with ADR-049's rule that
+the provider key is resolved server-side only and appears in no request, record or log. It is retained
+because the demo routes predate that ruling and rewriting them is not this work; it is recorded here so
+it is a known divergence rather than an assumption. **Nothing new may use it**: a governed route
+accepting a key from a request body is a defect, not a precedent.
+
+**The operational consequence, which is what actually bit.** Because deployment documentation said the
+Gemini key "is entered in the app UI", no environment provisioned `GEMINI_API_KEY`, and the governed
+routes were inert in every deployed environment — correctly and silently, since refusal is their
+designed behaviour. `README.md`, `.env.example`, `docker-compose.ec2.yml`, `.gitlab-ci.yml` and
+`ops/ci-deploy-remote.sh` now state which key serves which path, and the deploy script warns when
+`GEMINI_API_KEY` is absent. It warns rather than blocks: the routes fail closed by design, so a missing
+key is a capability gap, not a broken deployment.
+
+**Setting the platform-setup key does not close `AC-ATL-06C-9`.** The Atlas reads the server variable
+and nothing else.
+
+
+### ADR-045: The Capability Atlas Is the Governed Capability Knowledge Layer, Built On the Existing Registries (ATL)
+- **Status:** Approved — governance registration 2026-08-20. **Not implemented** (`ATL-01` … `ATL-07` planned).
+- **Context:** Knowledge about what CogniX can do is distributed across `config/solutions.ts` (`SOL-*`), `config/experiments.ts` (`EXP-*`), `config/patterns.ts` (`PAT-*`), `config/domains.ts`, `config/personas.ts`, forty-plus `docs/reports/` work-package reports, the `MASTER_PLAN`, and the code itself. Each artefact serves one audience well. No artefact answers, for one capability, the full set: *what is it, why does it exist, how does it work, where is it implemented, how do I test it, how do I demonstrate it, what proves it works, what are its limits, where else does it apply, and what should I say to a client?* A seller, an architect and a developer currently reconstruct that answer by hand, differently each time, and an autonomous agent cannot reconstruct it at all.
+- **Decision:** The **CogniX Capability Atlas** is the governed knowledge, discovery, explanation and enablement layer for CogniX capabilities. It is **not a new parallel model**. It is a knowledge extension over the registries that already exist: `CognixSolution` remains the canonical contract for a Demonstration Solution, `config/experiments.ts` remains canonical for Innovation Experiments, `config/domains.ts` remains the domain catalogue and `config/personas.ts` remains the decision-lens catalogue. The Atlas adds the knowledge those registries deliberately do not carry — architecture, implementation references, test procedures, validation evidence, demo paths, client questions, market evidence, cross-domain reuse, provenance and review lifecycle — bound to the existing identifiers by reference.
+- **Consequences:** A capability has exactly one identity (`SOL-*` or `EXP-*`), never a second Atlas-only identity. Registry fields are never duplicated into an Atlas record; the Atlas references them. The Five-Second Rule fields (`fiveSecondProposition`, `businessQuestion`) stay owned by `DEMONSTRATION_SOLUTION_MODEL.md` and are consumed, not restated. Where the Atlas and a registry disagree, the registry is authoritative for its own fields and the Atlas record is a defect. Adding a capability to the Atlas that is absent from every registry is prohibited — it would recreate the fragmentation this ADR closes.
+
+#### ADR-045 Amendment A — capability identity is its own namespace (ATL-01 evidence, 2026-08-20)
+
+**Two clauses above are amended by ADR-052, and the reason is evidence rather than preference.**
+
+ADR-045 was written before the `ATL-01` inventory existed. It assumed every CogniX capability was
+already registered as a `SOL-*` or an `EXP-*`, and on that assumption ruled that a capability has
+exactly one identity drawn from those namespaces and that admitting a capability absent from every
+registry is prohibited. **The inventory falsified the assumption.** Twenty governed capabilities —
+`CDI-02`…`CDI-08`, `DDF-01`, `IFI-01`, `ESF-1`/`-2`/`-3`/`-6`, `WP10-B`/`-C`/`-D` — are contracted,
+engine-backed, API-exposed, test-covered and reported, and appear in no registry. Held literally, the
+prohibition would forbid the Atlas from describing most of what CogniX can actually do, which inverts
+the ADR's own purpose.
+
+Amended, therefore:
+- *"A capability has exactly one identity (`SOL-*` or `EXP-*`)"* → a capability has exactly one identity
+  in the **`CAP-*`** namespace (ADR-052). `SOL-*`, `EXP-*`, `PAT-*` and work-package identifiers remain
+  separate governed identities, reached from a capability by typed relationship.
+- *"Adding a capability to the Atlas that is absent from every registry is prohibited"* → a capability
+  absent from every registry is admitted **only** on implementation evidence, never on documentation
+  alone (ADR-052).
+
+**Everything else in ADR-045 stands unchanged**, and is in fact strengthened: registry fields are still
+never duplicated into an Atlas record, the registries remain authoritative for their own fields, and
+the Atlas still adds only the knowledge they do not carry.
+
+---
+
+### ADR-046: Capability Knowledge Is Served From a Registry, Never Authored In a Component
+- **Status:** Approved — governance registration 2026-08-20. **Not implemented** (`ATL-02`).
+- **Context:** The estate already demonstrates both the pattern and the anti-pattern. `config/solutions.ts` and `config/domains.ts` hold knowledge as typed, inspectable data. `components/QuestionsWorthAsking.tsx` holds its ten `CuriosityQuestion` records — question, why-asking, target experiment, target solution, narrative and evidence points — as a literal array inside the component. That content is real capability knowledge: it names `EXP-COMMITMENT-01`, `SOL-PROMO-01` and quantified evidence. Being inside a component, it is unsearchable, unreferenceable from any other surface, invisible to the relationship graph, and unreachable by an AI retrieval layer. Principle 12's *No Literal Standing In For A Calculation* rules that a displayed value must come from the engine that owns it; this ADR states the knowledge counterpart.
+- **Decision:** Atlas capability knowledge is stored in version-controlled registries under `config/` (or a dedicated content root established by `ATL-02`), accessed exclusively through a repository abstraction, and served to the presentation layer through API contracts. No Atlas surface authors capability prose inside a React component. `components/QuestionsWorthAsking.tsx` is explicitly identified as content to be migrated to the registry by `ATL-02`/`ATL-03`; the component becomes a renderer.
+- **No database is mandated.** The estate's registries are TypeScript modules and the demonstration data is synthetic and version-controlled. A capability registry is the same shape of problem and gets the same shape of answer. Because all access is through the repository abstraction, a later move to a service or store is a change behind one interface and requires a new ADR rather than a rewrite.
+- **Consequences:** Capability knowledge becomes diffable, reviewable and attributable through ordinary code review. Search, the relationship graph, semantic retrieval and the client-preparation pack all read one source. `ATL-04` acceptance includes a check that Atlas components contain labels and layout only. The migration of `QuestionsWorthAsking` is additive: the existing surface keeps working, its content moves.
+
+---
+
+### ADR-047: Innovation Lifecycle, Demonstration Maturity and Implementation Status Are Three Orthogonal Dimensions and Are Never Collapsed
+- **Status:** Approved — governance registration 2026-08-20. **Not implemented** (`ATL-01`).
+- **Context:** The estate already carries two maturity vocabularies, and a third concept is implied everywhere but named nowhere. `EXPERIMENT_LIFECYCLE.md` defines innovation lifecycle states — `Concept`, `Research`, `Prototype`, `Pilot Ready`, `Accelerator`, `Industry Pattern`, `Retired` — gating an idea's journey to a reusable asset. `CognixSolution.demoMaturity` defines demonstration readiness — `Production Ready`, `Interactive Prototype`, `Reference Pattern`. Neither answers *is the thing behind this screen actually computing, or is it a literal?* — the question the `DDF-01` defect register had to answer case by case (`D-DDF-1` hardcoded JSX decomposition, `D-DDF-3` ARIMA/Prophet/GenAI implemented as sine and cosine factors, `D-DDF-2` an unsupported accuracy claim). An Atlas that introduced a fourth, independent maturity ladder would contradict two authoritative vocabularies and still not capture that question.
+- **Decision:** No new maturity taxonomy is created. Atlas capability records carry three orthogonal dimensions, each owned by an existing authority where one exists:
+  - **Innovation lifecycle** — the `EXPERIMENT_LIFECYCLE.md` seven states. Owned by that document. Applies to the capability as an innovation asset.
+  - **Demonstration maturity** — the `CognixSolution.demoMaturity` three values. Owned by `DEMONSTRATION_SOLUTION_MODEL.md`. Applies to the capability as a demonstrable surface.
+  - **Implementation status** — introduced here because nothing owns it: `implemented`, `partially-implemented`, `simulated`, `experimental`, `concept`, `roadmap`. Applies to the running code behind the capability, and is recordable at field level, not only at capability level.
+- **The three do not imply one another, and that is the point.** A capability may be `Production Ready` for demonstration, `Prototype` in the innovation lifecycle, and `simulated` in implementation — a combination that is legitimate, common in a demonstration estate, and dangerous only when hidden. The Atlas shows all three together or none.
+- **Consequences:** Implementation status is never inferred from demo maturity, and a `Production Ready` label never implies computed behaviour. `ATL-01` must classify every inventoried capability on all three dimensions with file-level evidence. Prior `DDF-01` defect findings are inventory input, not rediscovery. No Atlas surface may display one dimension alone where the reader would reasonably take it for the others.
+
+---
+
+### ADR-048: Internal Capability Truth and External Market Evidence Are Separate Evidence Classes
+- **Status:** Approved — governance registration 2026-08-20. **Not implemented** (`ATL-05`, `ATL-06`).
+- **Context:** `ATL-06` introduces external research and current market evidence to support comparative and market-context questions. Principle 13 already rules that inferred demand is never represented as observed fact and that provenance travels on the datum rather than the page. The same failure mode appears one level up: an externally retrieved claim, or a synthesised comparison, read as a statement of what CogniX does. A market study asserting that a technique is standard practice does not make it a CogniX capability, and the distance between those two readings is exactly one undifferentiated paragraph.
+- **Decision:** CogniX-owned capability documentation, implementation evidence, architecture and tests are authoritative for statements about what CogniX does. External research may explain, summarise, compare, contextualise and supply market evidence, and may never redefine a capability. Every Atlas response separates content into three classes that are distinguishable **structurally in the payload and visually on the surface**: **From CogniX** (governed internal evidence, cited to a capability identifier), **Market Context** (externally retrieved, carrying source, publisher, publication date and retrieval date), and **AI Interpretation** (synthesis, which may not assert a CogniX capability fact without citing the From-CogniX statement it rests on).
+- **Consequences:** A CogniX-only question is answered from governed knowledge and an explicit gap statement, never from the web, however thin retrieval is. An external claim that cannot carry provenance is dropped rather than rendered. Intent misclassification fails safe toward internal-only. Generic market claims — the *"AI improves forecasting"* class — fail the standard for the same reason `D-DDF-2` failed: an unsupported claim is indistinguishable from a supported one to the executive reading it.
+
+---
+
+### ADR-049: Atlas AI Runs Server-Side Behind the Existing Provider Abstraction and Refuses Rather Than Fabricates
+- **Status:** Approved — governance registration 2026-08-20. **Not implemented** (`ATL-05`, `ATL-06`).
+- **Context:** ADR-006 established Gemini as a narrative and evidence-synthesis layer; ADR-018 separates GenAI from the deterministic and ML layers; `ARCHITECTURE.md` §3.4 isolates provider interaction behind `lib/gemini.ts` / `lib/ai-provider.ts`. ADR-044 then drew the sharpest line available: the CDI-01 drafting route returns `503` naming the missing variable and generates nothing, explicitly departing from `lib/gemini.ts`, whose NLQ and briefing routes fall back to mock analytics — *a mock briefing is a demo affordance, whereas mock decision context would be fabricated input to a governed contract*. Atlas answers describe governed capability knowledge, which places them on the governed-contract side of that line.
+- **Decision:** All Atlas AI passes through a server-side gateway that owns intent routing, retrieval, prompt assembly, guardrails, provenance assembly and cost control, with providers as adapters behind the existing abstraction. No provider SDK is imported into a client component and no model or grounding endpoint is called from the browser. **With no provider configured, or on provider failure, Atlas AI degrades to deterministic structured search results and says so; it never returns generated capability content from a fallback path.** Degrading to Level 1 is not a canned fallback — structured search returns real registry data, which is why it is permitted where a mock answer is not.
+- **Consequences:** Provider substitution changes no retrieval, record or surface behaviour, and `ATL-06` proves this with a second or fake adapter under test. Every answer sentence asserting a CogniX capability fact carries a citation to a capability identifier; an uncitable sentence is not emitted. The provider key is resolved server-side only, is never written into a capability record, fixture or log, and no error path echoes it. The Atlas is fully usable with no AI configured at all.
+
+---
+
+### ADR-050: Atlas Search Evolves In Three Levels and Level 1 Must Stand Alone
+- **Status:** Approved — governance registration 2026-08-20. **Not implemented** (`ATL-04`, `ATL-05`).
+- **Context:** Search is how every audience — and every future agent — enters the Atlas. Semantic retrieval and AI explanation are the eventual goal but depend on keys, indexes, quotas and providers. Principle 12 already rules that deterministic strategy generation must not depend exclusively on an external LLM being available; discovery deserves the same protection, since a capability catalogue that stops working without a key is not a governed knowledge layer.
+- **Decision:** Atlas search is built in three levels, each functioning without the levels above it. **Level 1 — Structured Search:** deterministic, explainable, reproducible retrieval over registry fields with filters for domain, sub-domain, business problem, persona lens, innovation lifecycle state, demonstration maturity, implementation status, cross-domain applicability and tags. **Level 2 — Semantic Search:** embedding retrieval over governed capability knowledge only, with every result traceable to the record and field that matched. **Level 3 — Ask CogniX:** grounded explanation with per-claim citations. Level 3 degrades to Level 2, Level 2 to Level 1, and each degradation is stated to the user.
+- **Consequences:** Level 1 ranking is documented and the response names the fields that matched, so a surprising result is inspectable rather than mysterious. The semantic index is additive and does not change the registry format. Zero-result searches return the nearest filter relaxation rather than an empty page. No Atlas surface becomes unusable because an AI dependency is absent.
+
+---
+
+### ADR-051: The Architectural Storyboard Is Superseded Through a Knowledge-Preservation Gate, and the Historical Implementation Is Not Merged
+- **Status:** Approved — governance registration 2026-08-20. **Not implemented** (`ATL-01` audit, `ATL-04` gate).
+- **Context:** The Capability Atlas is intended to supersede the Architectural Storyboard as the way CogniX explains itself. Two implementations of that storyboard exist on different lines of history. The authoritative CogniX branch carries a **12-slide** `components/ArchitectureExplorer.tsx`. The abandoned Lidl-era `main` line carries a **14-slide** version (2,303 lines) produced by later storyboard-restoration and presentation-framework work that was never brought across, together with a different `components/Help.tsx`. The 14-slide version contains architectural narrative — persona journeys, an enterprise blueprint, a recommendation lifecycle, a governance-and-trust narrative, an explicit account of why the reasoning layer is constrained, presenter notes and demo timings — some of which may not exist anywhere on the CogniX line. Merging that implementation would import Lidl-era branding and a superseded surface into an estate that completed identity neutralisation in Phase 1. Ignoring it would discard architectural knowledge.
+- **Decision:** **Preserve architectural knowledge, not obsolete storyboard implementation.** The historical 14-slide implementation, its restoration commits, its `ArchitectureExplorer.tsx` and its `Help.tsx` are **not merged, cherry-picked or ported**. `ATL-01` instead inspects **both** versions read-only — the 12-slide current version on the CogniX line and the 14-slide historical version on `main` — and identifies architectural knowledge unique to either. Every retained unit is assigned a destination: a capability record field, capability architecture, platform architecture, domain architecture, an ADR, or other governance. The current storyboard is not deleted or disabled during `ATL-01`.
+- **The retirement gate (`SB-GATE`), all six required:** ① both versions audited slide by slide with a retain/discard decision per unit of knowledge; ② every retained unit verifiably present at its destination; ③ destinations reachable from the Atlas or from governance, not only from a file; ④ persona journeys, the enterprise blueprint, the recommendation lifecycle, the governance-and-trust narrative and the constrained-reasoning narrative each have a named successor surface; ⑤ presenter notes and demo timings preserved as Demo Path content; ⑥ retirement proposed in a work package that also names what replaces the navigation entry.
+- **Consequences:** Architecture transparency cannot be lost as a side effect of adding the Atlas. If the gate cannot be met, the storyboard remains and the Atlas coexists with it. The historical branch stays available as a read-only audit source and is never a merge source.
+
+---
+
+### ADR-052: Capability Identity Is a First-Class `CAP-*` Namespace, Distinct From Solutions, Experiments, Patterns and Work Packages
+- **Status:** Approved — governance registration 2026-08-20. **Not implemented** (`ATL-02`).
+- **Context:** `ATL-01` established that the estate has no namespace meaning *"a thing CogniX can do"*. It has four namespaces meaning other things, each correct for its own purpose: `SOL-*` is a **packaged demonstration surface**, `EXP-*` is an **innovation experiment**, `PAT-*` is an **observed learning pattern**, and `CDI-*` / `ESF-*` / `IFI-*` / `DDF-*` / `WP10-*` are **units of delivery work**. Twenty governed capabilities sit in none of them. The obvious repairs were considered and each fails on evidence:
+  - **Work-package identifiers as capability identity** fails on cardinality. `DDF-01` is one work package that delivered four independently discoverable capabilities — Forecast Stability (ADR-040), Decision Gap (ADR-041), Decision Window (ADR-042) and Decision Regret (ADR-043) — each with its own definition, its own governing ruling and its own reason a user would search for it. Collapsing four capabilities into one identifier makes them unaddressable, and the Atlas exists to address them. The inverse also occurs: `CDI-07B` delivered three artefacts, and `ESF-6`/`CDI-08` split one predicate across two packages.
+  - **Forcing everything into `config/solutions.ts`** fails on meaning. A Demonstration Solution is a client-facing packaged surface satisfying the Five-Second Rule and carrying `fiveSecondProposition`, `demoMaturity` and `dataClassification`. Shared Decision State is a capability; it is not a demonstration solution and never will be. Admitting it would dilute a contract that currently works.
+  - **Leaving capabilities unaddressed** fails on the programme's purpose.
+- **Decision:** Capability identity is a **first-class `CAP-*` namespace**. A `CAP-*` identifier denotes *what CogniX can do*, is stable, immutable and never reused, and is the primary key of every Atlas knowledge record. `SOL-*`, `EXP-*`, `PAT-*` and work-package identifiers remain **separate governed identities that are not renamed, absorbed or deprecated**; a capability reaches them through typed relationships — *demonstrated-by* a solution, *originated-as* an experiment, *evidenced-by* a pattern, *delivered-by* one or more work packages.
+- **The relationship is many-to-many in both directions, which is the whole point.** One work package may deliver several capabilities (`DDF-01` → four). One capability may be delivered across several work packages (`CDI-08` + `ESF-6`). One solution may surface several capabilities (`SOL-DEMAND-02` surfaces the four `DDF-01` capabilities). A capability may have no solution, no experiment and no pattern, and still be real.
+- **Admission is on implementation evidence, never documentation.** A `CAP-*` identifier is minted only where the inventory can cite a contract, an engine, a route, a test or a report. A capability that exists only as a plan is recorded at `implementation status: roadmap` or `concept` and is labelled as such, exactly as `Demand Fusion` and `Forecast Regret` must be (`COGNIX_CAPABILITY_ATLAS.md` §1.2). This preserves the ADR-045 rule that the Atlas never invents capabilities, while removing the registry-membership test that `ATL-01` proved unworkable.
+- **No metadata is duplicated.** The `CAP-*` record carries identity, relationships and the knowledge extension of `CAPABILITY_KNOWLEDGE_MODEL.md`. It does **not** restate `CognixSolution` fields, experiment metadata, pattern content or lifecycle states — those are resolved through the relationship, and the source registry stays authoritative for them (ADR-045, unamended portion). Where a capability's lifecycle or demonstration maturity is knowable only through a related `EXP-*` or `SOL-*`, it is read from there, not copied.
+- **A registry is permitted, not mandated.** `ATL-02` determines whether a canonical `config/capabilities.ts` is justified, and the minimal schema and migration needed to add it without duplicating existing metadata. The estate's precedent argues for it — `config/solutions.ts`, `config/experiments.ts` and `config/domains.ts` are all typed registry modules — but the shape is `ATL-02`'s to establish, and `tests/unit/run-wp10d-tests.ts:159` shows the estate is willing to assert where a registry may and may not be consumed from.
+- **Consequences:** The four `DDF-01` capabilities become independently searchable, citable and demonstrable, which Level 1 search requires and which no other option delivered. Capability identity survives re-delivery: if a capability is rebuilt under a later work package, the `CAP-*` identifier is unchanged and a relationship is added. `ATL-01`'s twenty unregistered capabilities become addressable without inventing a solution or an experiment for each. The cost is one more namespace in an estate that already has several, accepted deliberately because the alternatives lose information the Atlas exists to carry. Identifier allocation, and the `PAT-BEH-05` / `PAT-INT-05` style of suffix collision recorded as `ATL-01` gap `G6`, are `ATL-02`'s to prevent by keying on the full identifier.
+
+---
+
+### ADR-053: A Contradiction Between External Evidence and Governed CogniX Truth Is Separated, Never Resolved
+- **Status:** Approved & **Implemented** (`ATL-06A`, 2026-08-21). Enforcement in `lib/atlas/grounding/contradiction.ts`; evidence in [`COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md`](../reports/COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md).
+- **Context:** ADR-048 established the three evidence classes and ruled that external research may never redefine a capability. It did not say what happens when the two disagree, and that omission is where the rule would have failed in practice. The hardest case for a grounded Atlas is not a question it cannot answer; it is a question where a credible external source and a governed record contradict each other. The tempting output is one fluent paragraph that reconciles them — the reader gets a clean answer, the seller gets a usable line, and a market expectation has silently become a CogniX capability. That paragraph is unattributable by construction: no citation can be attached to a sentence that is partly a governed fact and partly an external claim, which is exactly the `D-DDF-2` failure mode one level up.
+- **Decision:** **Governed CogniX facts take precedence, and a contradiction is rendered as three separated evidence classes rather than resolved into one statement.** The governed statement is quoted from the record and stated first, carrying its capability citation. The external claim is quoted **unaltered** and second, carrying its source, publisher, publication date and retrieval date. An interpretation may then observe what the gap between them suggests, third, and only by citing the From-CogniX statement it rests on. An interpretation may name a direction; it may never assert a CogniX capability fact.
+- **The contract enforces this, not the prose.** `ContradictionRecord` carries three separate strings and has **no field capable of holding a merged, reconciled or synthesised statement**; its `resolution` is a literal type with the single value `cognix-authoritative`. A surface cannot render a fourth, blended row because there is nothing to render.
+- **Detection is deterministic and declared.** A governed record yields *constraints* — statements it already makes about synthetic inputs, non-real implementation status, demonstration-grade maturity or early lifecycle. An external claim yields *assertions* — declared phrases attributing liveness, production use, scale or settled maturity. A constraint and an assertion on the same dimension, about the same capability, is a contradiction. Nothing is inferred from tone and no model is consulted, so the same inputs always produce the same separation.
+- **Consequences:** A capability that declares synthetic inputs is protected by the rule automatically, without anyone remembering to protect it — `CAP-SIGNAL-CONNECTOR` is defended by the same code path as `CAP-PROMOTION-INTELLIGENCE` because both record what their inputs actually are. Conversely, a capability that declares no constraint cannot manufacture a contradiction out of a harmless market claim, so the mechanism does not degrade into noise. A claim asserting a dimension the record does not constrain is simply market context. The cost is that a reader sees three statements where a chatbot would show one; that cost is the product.
+
+---
+
+### ADR-054: External Evidence Is Admitted, Not Merely Attributed — Provenance, Tier and Freshness Are Admission Conditions
+- **Status:** Approved & **Implemented** (`ATL-06A`, 2026-08-21). Enforcement in `lib/atlas/grounding/provenance.ts` and `lib/atlas/grounding/policy.ts`; policy published at `GET /api/v1/atlas/grounding`.
+- **Context:** ADR-048 requires every external claim to carry source, publisher, publication date and retrieval date, and rules that a claim which cannot carry provenance is dropped rather than rendered. Attribution alone is a weaker guarantee than it appears: a correctly attributed claim from an unknown blog, a correctly attributed claim from a vendor's own marketing page, and a correctly attributed claim from a study that expired three years ago are all *attributed*, and all three would sit beside a governed capability record looking equally authoritative to the executive reading them. Principle 13's rule that provenance travels on the datum is necessary and not sufficient.
+- **Decision:** External evidence passes a declared **admission gate** before it can enter the Market Context class, and admission is a pure function of the claim, an allowlist, the clock and the published policy. A claim is admitted only if it (a) carries every provenance field with no optional among them, (b) resolves to an `https` host that is on the trusted-source allowlist by exact or dot-bounded suffix match, (c) carries an admissible source tier — vendor marketing and unclassified sources are excluded by name, (d) carries a parseable, non-future publication date, since **a date is never inferred**, (e) falls within the currency bound declared for its topic class, and (f) does not itself assert a fact about what CogniX does. A rejected claim is **recorded with its reason and shown to the reader as a count and a reason**, so a thin market section and a censored one are distinguishable.
+- **Whether external knowledge is consulted at all is a separate, earlier gate.** Questions classify as `internal-only`, `external-permitted` or `external-required`, and the classification **fails safe downward**: any CogniX-identity or internal-question signal keeps the CogniX portion of the answer governed, an unclassifiable question is internal-only, and an unrecognised topic inherits the strictest currency bound rather than the most permissive. An `internal-only` question never reaches a provider at all, so a misbehaving adapter and a well-behaved one produce the same result for a question about this estate: nothing.
+- **Insufficiency is a refusal, not a thin answer.** Where a question can only be answered from external evidence and none can be admitted, the response refuses and says which of the three cases applies — no provider configured, evidence retrieved and all of it inadmissible, or nothing found. ADR-049 already established that this estate refuses rather than approximates; a sparse market section is not permitted to stand in for a refusal.
+- **Consequences:** The policy is **published** at `GET /api/v1/atlas/grounding` from the same constants the engine reads, for the reason Level 1 publishes its field weights: a rule that decides what a reader is not shown must be challengeable by that reader. Admission is testable with no provider in existence, which is why `ATL-06A` could prove it before `ATL-06B` builds one, and why `ATL-06B` cannot weaken it by supplying one. The allowlist is deliberately short — an allowlist that admits everything is not an allowlist — and extending it is `ATL-06C`'s work, on evidence, not a convenience. The cost is that genuinely useful evidence from an unlisted publisher is dropped; that is the correct direction to fail.
+
+---
+
+### ADR-055: Only Grounded Segments Become Market Claims, and Provenance Is Read From the Source, Not the Model
+- **Status:** Approved & **Implemented** (`ATL-06B`, 2026-08-21). Enforcement in `lib/atlas/grounding/providers/grounding-extraction.ts` and `source-resolution.ts`; evidence in [`COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md`](../reports/COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md).
+- **Context:** A model grounded with search returns **one continuous passage**. Some of it is supported by retrieved pages; the rest is the model writing plausible connective prose from training data. Both arrive in the same string, in the same register, and the ungrounded half is usually the more fluent. The conventional integration renders the passage and lists the sources beneath it, which publishes model recall as sourced market evidence — the exact failure ADR-048 exists to prevent, now arriving with a citation block attached. A second, quieter version of the same failure: grounding metadata carries a page title and a redirect URL but **no publisher and no publication date**, and `GroundingChunkWeb.domain` is not populated by the Gemini Developer API at all. Asking the model to supply those fields is trivial, works, and makes the provenance model-asserted — provenance theatre that satisfies ADR-054's field checks while defeating its purpose.
+- **Decision:** **A response segment becomes a market claim only where a `groundingSupport` covers it and names at least one retrieved source chunk.** Everything else is discarded, counted, and the count is shown to the reader; nothing is downgraded, hedged or retained "for context". **Provenance is obtained by resolving the grounding redirect to the real page and reading that page's own metadata** — publisher from what the site calls itself, publication date from `article:published_time`, JSON-LD `datePublished`, citation metadata or a `<time datetime>` — and never from the model, never from body copy, never from the retrieval date. What a page will not state stays empty, and ADR-054 then refuses the claim. **Failing closed is the intended outcome**: a market claim whose page will not say when it was written has not earned a place beside a governed capability record.
+- **The wire contract is transcribed, not imported.** The estate's installed `@google/generative-ai@0.24.1` mistypes grounding — `GroundingSupport.segment` as a `string` when it is an object of byte offsets, the chunk-index field spelled `groundingChunckIndices` against the wire's `groundingChunkIndices`, no `domain` on `GroundingChunkWeb`, and the legacy `googleSearchRetrieval` tool where current models take `googleSearch`. Extraction through those types silently yields zero supports, which would turn "only grounded segments survive" into "nothing survives" or, worse, invite the passage-plus-sources shortcut. `ATL-06B` therefore calls the documented REST contract directly: no new dependency, and the shape is stated in `gemini-grounding-types.ts` where it can be reviewed against the source.
+- **Segment offsets are byte offsets.** Slicing the passage as a JavaScript string misaligns every segment after the first non-ASCII character — one curly apostrophe in a quoted headline is enough — so extraction slices a byte buffer. This is recorded as a decision because the failure is silent, plausible-looking, and corrupts evidence rather than losing it.
+- **Google Search Suggestions are displayed as supplied.** Where the provider returns `searchEntryPoint.renderedContent`, it is rendered unaltered. Displaying it is a condition of using Grounding with Google Search, and a hand-rolled substitute is not permitted; it is the only place in the Atlas where third-party markup is injected, and it is confined to that field.
+- **Consequences:** With a live key, fewer claims are shown than a naive integration would show, and sometimes none — which is the correct reading of a search that found opinion rather than dated research. The reader is told how many model sentences were discarded, which is the number that distinguishes evidence from recall. A provider swap changes none of this: extraction, resolution and admission sit outside the adapter, so a different model behind the same seam is subject to the same arithmetic.
+
+---
+
+### ADR-056: External Research Is User-Initiated, Bounded and Cached; the Atlas Never Reaches Outward On Its Own
+- **Status:** Approved & **Implemented** (`ATL-06B`, 2026-08-21). Enforcement in `lib/atlas/grounding/engine.ts`, `providers/grounding-cache.ts` and the Ask CogniX surface.
+- **Context:** Once a grounding provider exists, the default posture is the decision. A system that searches whenever retrieval looks thin will search constantly: it will spend quota on questions the governed corpus already answers, send the reader's exact wording to a search engine without being asked, add a network round trip to every answer, and — most damagingly — make external evidence the thing that arrives when internal evidence is weak, which is precisely when a reader is least equipped to discount it. ADR-050 already ruled that no Atlas surface may become unusable because an AI dependency is absent; the same reasoning applies to a dependency that is present.
+- **Decision:** **External research runs only when a reader asks for it, on that question.** The Ask CogniX control is off by default and is not remembered as a preference; `ask()` defaults `research` to `false`; the API route treats its absence as false. The request is a request, not a grant: the ADR-054 intent policy still decides whether external evidence is admissible for the question at all, so asking for research on a question about what CogniX does still calls nothing. Internal structured search and the internal Ask CogniX path never invoke a provider under any setting. Where a question could only be answered externally and research was not requested, the response **refuses with a distinct reason** — `research-not-requested` — stating that nothing was looked up, which is a materially different statement from nothing having been found.
+- **Cost is bounded structurally.** Retrieval is cached on the normalised question, the permitted topics and the model, so a question repeated inside a demonstration is served without a second call; an **empty** retrieval is never cached, so one transient failure cannot become hours of silent emptiness. A per-process call budget bounds a caller in a loop. Both the cache state and the live call count are published at `GET /api/v1/atlas/grounding`.
+- **Consequences:** The Atlas has no ambient outbound behaviour: with nobody asking, it makes no external call, and that is provable rather than asserted. Turning the provider off returns the estate exactly to `ATL-05` — asserted by recomputing the governed answer from the `ATL-05` modules and comparing byte for byte, with the provider both absent and present. The cost is one more thing for a user to click; that click is what makes the difference between an Atlas that answers from its own records and one that quietly consults the internet on their behalf.
+
+---
+
+### ADR-057: An Interpretation May Only Reason From Admitted Evidence, and Every Reading Is Verified Before It Is Shown
+- **Status:** Approved & **Implemented** (`ATL-06C`, 2026-08-21). Enforcement in `lib/atlas/interpretation/premises.ts` and `verification.ts`; evidence in [`COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md`](../reports/COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md).
+- **Context:** ADR-048 defined **AI Interpretation** as the third evidence class and constrained it: it may not assert a CogniX capability fact without citing the From-CogniX statement it rests on. `ATL-06A` could only satisfy that by templating a reading from a detected contradiction, because anything broader needs a provider. `ATL-06B` supplied the provider and an admitted market corpus, and with them the sharpest risk in the programme: interpretation is the most persuasive surface the Atlas has. It reads as judgement rather than data, it is where a reader stops checking, and it is the one place where a fluent sentence can promote a market expectation into a capability claim without ever making a claim that looks false. `ATL-06B` also created a second, subtler hazard: the envelope now carries **rejected** claims and a count of **discarded** ungrounded model text, deliberately, so that omissions are auditable. Material kept for audit is material sitting one careless parameter away from being reasoned from.
+- **Decision:** **The premise set is built by construction, not by instruction.** An interpretation may reason from exactly two things: the governed statements in the From CogniX block, and the **admitted** statements in the Market Context block. Rejected claims and discarded segments are **audit material, never premises** — the module that assembles premises does not read them, so no prompt, parameter or provider can reach them. A prompt can be told to ignore evidence; a function that never receives it cannot be persuaded.
+- **Every candidate reading is verified before it is shown**, against declared rules checked in order from structural to semantic so a refusal names the first thing wrong: it carries text, no markup and no more than 500 characters; every cited premise id resolves; at least one cited premise is a governed CogniX record; it asserts no CogniX capability fact; it reproduces no claim that failed source admission; it introduces no number that a cited premise does not contain; and it names no organisation that a cited premise does not mention. **A reading that fails any rule is dropped, not hedged.** A caveated unsupported reading is still unsupported and is the more dangerous of the two, because the caveat reads as diligence. Drops are recorded with the rule they broke and shown to the reader.
+- **Two rules carry most of the weight.** `echoes-rejected-claim` exists because structural exclusion prevents the easy failure but not the interesting one: a provider that saw the same page in its own training data and reproduces the substance of a claim this estate refused. `unsupported-quantity` exists because numbers are what survive a meeting — a reader forgets the sentence and remembers *"forty per cent"* — so a figure appearing in no cited premise is the most damaging thing an interpretation can invent.
+- **Interpretation is a separate seam from grounding, and the interpretation adapter has no search tool.** They are different authorities: a grounding provider may go and look, an interpretation provider may only read what has already been admitted. One adapter holding both powers could source a claim and pronounce on it, and the separation of powers is the architecture. Output is constrained by `responseSchema`, so the citation is a required field rather than a convention the model is asked to observe.
+- **The templated reading is kept alongside the generated one.** It is the deterministic account of a contradiction, reproducible from the records with no provider at all, and trading it for a more fluent paragraph would give up the only reading in the class that can be re-derived. Each statement is labelled with its origin, because the two carry different risk and a reader is entitled to know which they are looking at.
+- **Consequences:** With no provider, or on provider failure, the class is exactly what `ATL-06A` produced and the audit states the degradation; nothing is generated from a fallback path (ADR-049). Verification is a pure function of the candidate, the premises and the rejection ledger, so every rule is provable without a provider — and a future adapter cannot weaken any of them. The visible cost is that a reader sometimes sees a refusal ledger where they expected a paragraph; that ledger is the product.
+
+---
+
+### ADR-058: Level 2 Semantic Retrieval Is Deferred — The Measured Failures Are Lexical, Not Semantic
+- **Status:** Approved (`ATL-06C` evaluation, 2026-08-21). **Deferred, not rejected.** Evidence and method in [`COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md`](../reports/COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md) §3; reproducible via `tests/unit/run-atl06c-tests.ts` group G.
+- **Context:** ADR-050 defined Level 2 as embedding retrieval over governed capability knowledge. It was chartered under the original `ATL-06B`, descoped when that phase was redefined as Grounded Market Intelligence, and left unassigned. Before spending an index on it, the question worth answering is narrower than *"would embeddings help"* — everything helps something. It is: **what is actually failing, and is the failure semantic?**
+- **The measurement.** Eighteen questions phrased the way a business person asks them, each deliberately avoiding the target capability's own vocabulary, each with one intended capability. They are not paraphrases of the `ATL-04` acceptance queries, which already pass and therefore cannot answer this question. Level 1 alone puts the intended capability in the top three for **10 of 18**, first for **6 of 18**, and for **three** the capability does not appear in the results at all. That last figure is the diagnosis: absence from a result set is not a ranking failure, it is a **lexical** one — no term matched, so no amount of re-weighting would have helped.
+- **The control.** A 22-entry declared alias vocabulary, mapping business phrasing onto governed terms (*"the right call afterwards"* → regret, *"goes off"* → half-life, *"plug our own data feed"* → connector), lifts top-three to **18 of 18** and first-place to **17 of 18**. The gap closes completely without embeddings, without a provider, and without a network call.
+- **Decision:** **Level 2 semantic retrieval is deferred.** The measured failures are vocabulary mismatches between business phrasing and governed terminology, and a declared alias layer closes them at a fraction of the cost while preserving the two properties ADR-050 requires and embeddings cannot offer: Level 1 must stand alone, and a surprising result must be **inspectable**. An alias entry is a line a human can read, argue with and revert. An embedding neighbourhood is not, and "the vector said so" is not an explanation an architecture board can act on. Embeddings become the right answer when a failure is shown to be **conceptual** rather than lexical — a question whose intent no reasonable phrase list would capture — and this evaluation found none.
+- **The alias layer is recommended, not shipped.** It is content: governed vocabulary mapping business language onto capability terminology, and this estate does not invent governed content inside a work package that was not authorised to create it — the same rule that produced `ATL-01`'s taxonomy correction. The prototype ships as an evaluation fixture, consumed by no runtime module, so the comparison stays reproducible and the decision stays the owner's.
+- **Consequences:** No embedding index, no vector dependency and no additional provider enter the estate on the strength of an assumption. The eighteen-question set is committed and re-run on every change, so a regression in Level 1 recall is visible rather than discovered in a demonstration. The recorded cost of deferring is explicit: **top-three recall on business-phrased questions is 56%**, and until the alias layer is authorised it stays there.
+
+---
+
+### ADR-059: The Lexical Retrieval Gap Is Closed With Governed Vocabulary, Declared as Content and Reported on Every Search
+- **Status:** Approved & **Implemented** (owner authorisation 2026-08-21, following the ADR-058 evaluation). Content in `content/atlas/vocabulary.ts`; validation in `lib/atlas/vocabulary-validator.ts`; published at `GET /api/v1/atlas/vocabulary`.
+- **Context:** ADR-058 measured the gap and deferred embeddings: on eighteen business-phrased questions Level 1 put the intended capability in the top three for 10 of 18, and for three it did not appear at all. Absence is a lexical failure, not a ranking one — no re-weighting reaches a record that matched no term. The obvious fix is a synonym table, and the obvious fix has an obvious failure mode: a synonym table is where retrieval quietly stops being explainable. Entries accumulate because a demo missed, they point at words nobody checked exist, they rewrite the query invisibly, and six months later nobody can say why a search returns what it returns. ADR-050's requirement that a surprising Level 1 result be **inspectable** dies quietly and nothing fails.
+- **Decision:** The gap is closed with a **governed vocabulary**, and three properties make it governance rather than configuration.
+  - **It is content, shaped like every other governed record.** Each alias carries an identifier in a `VOC-*` namespace, the business phrase, the governed terms it introduces, an **owner**, a **review date**, a **written rationale a reviewer can disagree with**, and `evidenced_by` — the capabilities whose governed text actually contains those terms. Adding one is a reviewable act; removing one is a single line.
+  - **Rule W6: a term must exist in the corpus.** Every governed term an alias introduces must appear in the governed text of a capability the alias names. An alias that cannot show its terms in the corpus is **inventing vocabulary**, which is exactly what `ATL-01` caught in the taxonomy and what rule V3 has forbidden since. This is not theoretical: W6 rejected six terms from the prototype ADR-058 measured — *hindsight*, *urgency*, *volatility*, *provenance*, *precedent*, *stale*. None of them is in this corpus. They were replaced with the words the records actually use, and one replacement — *half-life*, taken from the capability's own name — outperformed the invented term it replaced.
+  - **Expansion is reported, never silent.** The searcher's own words and the vocabulary's contribution are kept in **separate fields** through query understanding and into the search response, which returns which alias fired, what it added and why. The surface renders it. An alias-driven match is attributed to the alias that reached it.
+- **An alias never outranks the searcher.** Expanded terms score at a published factor of **0.75** of a direct hit, so a capability the searcher actually named always beats one the vocabulary reached for them. The vocabulary closes a lexical gap; it does not get to win an argument with the words a person chose. This is asserted head-to-head, not merely documented.
+- **Consequences:** Top-three recall on business-phrased questions moves from **10/18 to 18/18**, and first-place from 6/18 to 16/18, with no embedding index, no vector dependency, no provider and no network call — and both figures are re-measured on every test run, with expansion switchable off so the baseline stays reproducible. The estate keeps what embeddings would have cost it: Level 1 stands alone, and every rule that changes what a searcher finds is a line a human can read, argue with and revert. The cost is a maintained list. That cost is deliberate: a list someone has to justify entries in is the mechanism, not an overhead on it.
+
+---
+
+### ADR-060: Persona And Domain Are Exploration Dimensions Of The Atlas, Not Global Application State (`ATL-04R`)
+
+- **Status:** Approved & **Implemented** (`ATL-04R`, 2026-08-21). Enforcement in `app/page.tsx`, `components/atlas/CapabilityAtlas.tsx`, `content/atlas/capability-areas.ts`; evidence in [`COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md`](../reports/COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md).
+- **Context:** The shell carried two global header selectors: Domain Context and Persona. Both asserted
+  session-wide state. A persona selector says *the user IS this persona for this session*; a domain
+  selector says *the application HAS this domain identity*. Neither claim is true of an innovation
+  atlas. The people who use it need to read one capability as an executive and then as an architect,
+  in the same minute, and a capability's reach ACROSS domains is one of the things they are trying to
+  understand — so making domain an application identity hides the answer to a question the Atlas
+  exists to answer. The selectors were also disconnected from the Atlas entirely: `CapabilityAtlas`
+  never read `role` or `activeDomainId`, so the two most prominent controls in the product did nothing
+  on the surface they appeared to govern.
+- **Decision:** Both become exploration dimensions inside the Capability Atlas, and neither becomes
+  identity. A user does not become a persona; they view governed records **through the lens of** one
+  of four audience lenses, switchable freely and at no cost. Domain is a filter over an exploration,
+  not a property of the session. The four-value `AudienceLens` vocabulary stays deliberately separate
+  from the nineteen-entry product persona catalogue, as ADR-045 requires: a persona is who a
+  capability SERVES, a lens is who is READING, and collapsing them would either invent a sales persona
+  in the product or lose the Sales lens.
+- **A lens reorders and never hides.** `LENS_FIELD_ORDER` changes emphasis; `NEVER_SUPPRESSED` keeps
+  name, summary, the three maturity dimensions and known limitations present under every lens. There
+  is no per-persona copy of any capability record, and there never will be.
+- **No authentication role is introduced.** Exploration is not authorisation. Nothing about the lens
+  reaches the identity system, and the removal of the header selector removed a writer of `role`
+  rather than a reader of it.
+- **Consequences:** `DOMAIN_SELECTED` and `PERSONA_SELECTED` remain members of the canonical journey
+  event union and are emitted from the Atlas with new `source` values, so the discovery funnel stays
+  measurable — the control was retired, not the observation. Any future surface tempted to ask "which
+  persona is the user?" must instead ask "which lens is the reader using right now?", and must accept
+  that the answer can change on the next click.
+
+---
+
+### ADR-061: Ambiguous Exploration Is Resolved By Deterministic Progressive Clarification, Not By Guessing And Not By A Model (`ATL-04R`)
+
+- **Status:** Approved & **Implemented** (`ATL-04R`, 2026-08-21). Enforcement in `lib/atlas/clarification.ts`, `app/api/v1/atlas/clarify/route.ts`, `content/atlas/capability-areas.ts`; evidence in [`COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md`](../reports/COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md).
+- **Context:** Level 1 answered every query identically: score, sort, render. For a precise query that
+  is correct. For *"what capabilities does CogniX have on promotions?"* it returned two dozen
+  capabilities spread across several problem spaces with no indication that the question had more than
+  one reading — a large flat result set standing in for an answer, which is the behaviour that made
+  the Atlas feel like a search engine rather than a place to explore.
+- **Decision:** Where a question is genuinely open, the Atlas ASKS. Clarification is assembled entirely
+  from governed records — capability areas and their declared aspects, the existing `LENS_LEXICON` and
+  `FILTER_LEXICON`, the governed alias vocabulary and the domain catalogue — and is decided by counting
+  those structures. No model, no provider, no credential, no network call, no embedding.
+- **Five rules bound it, and they are asserted rather than intended:** it never asks for something the
+  query already declared; it never asks more than twice; a choice may only narrow to capabilities the
+  query already reached, so it cannot widen a result set or introduce a capability from elsewhere;
+  every inference is returned marked `inferred` and is removable, so nothing is applied silently; and
+  prepared responses are shortcuts rather than restrictions, with free text accepted at every step.
+- **Confidence is qualitative and stays that way.** `IntentState` has four values and no percentage.
+  Nothing in the estate calibrates a confidence number, and printing an uncalibrated one to make the
+  interface look decisive is the unsupported-metric failure Principle 12 forbids.
+- **Consequences:** Clarification works when everything else is unavailable, which is the property that
+  makes it safe to put in front of the whole Atlas — it is how a reader reaches everything else. The
+  cost is that it can only be as good as the governed area aspects behind it: a clarification the
+  corpus cannot express is a content gap to be authored, not a prompt to be tuned. That is the intended
+  trade.
+
+---
+
+### ADR-062: A Plural Query Reaching Nothing Is A Mechanical Defect And Is Fixed Mechanically (`ATL-04R`)
+
+- **Status:** Approved & **Implemented** (`ATL-04R`, 2026-08-21). Enforcement in `lib/atlas/query-understanding.ts`, `lib/atlas/capability-search.ts`; evidence in [`COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md`](../reports/COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md).
+- **Context:** `ATL-04R` measured a defect that had been in Level 1 since `ATL-04` and had never been
+  seen because nobody had queried the plural. The corpus is written in the singular and `containsWord`
+  anchors to word boundaries, so `promotions` returned **nothing** while `promotion` returned five
+  capabilities; `decisions` returned nothing against twenty-six for `decision`; `capabilities`
+  returned one against twenty-four. The first acceptance scenario for the clarification engine is
+  literally *"What capabilities does CogniX have on Promotions?"*, and it was surfacing the wrong
+  capability areas entirely — not because ranking was wrong, but because the words never met.
+- **Decision:** Normalise the searcher's own word morphologically, by declared English rules, and only
+  ever by ADDING a form. The searcher's word is never removed or rewritten, so nothing that matched
+  before stops matching. A form-derived hit carries `FORM_TERM_WEIGHT_FACTOR` (0.9) and is attributed
+  through `SearchMatch.via_form`, so the reader sees that `promotions` reached `promotion`.
+- **The weighting order is now three-tiered and published:** a word the searcher wrote exactly, then
+  the same word in another form (0.9), then a term the governed vocabulary supplied (0.75). A record
+  the searcher actually named still outranks one anything else reached for them.
+- **`cognix` becomes a stopword** for the reason the other stopwords are: in a corpus where every
+  record is a CogniX capability it matches everything and therefore discriminates nothing.
+- **This is not a substitute for the governed vocabulary (ADR-059).** Twenty aliases were NOT added for
+  words the corpus already contains; conversely, normalisation reaches no capability whose text shares
+  no term with the query. The `ATL-06C` measurement holds: three of eighteen business-phrased questions
+  are still absent from the unexpanded baseline, which is the lexical gap only governed vocabulary
+  closes. The recorded baseline moved on one axis only — top-one from 6 of 18 to 7 — and
+  `run-atl06c-tests.ts` G2 records the new figure and why it moved.
+- **Consequences:** Level 1 stays one deterministic mechanism with no second phrase syntax. The risk is
+  over-normalisation of a word that is not a plural, which the rules decline to touch (`analysis`,
+  `bus`, `-ss`, `-us`, `-is`) and which the suite asserts.
+
+#### ADR-062 Amendment A — the corpus's own noun is a stopword too (`ATL-FINAL`, 2026-08-22)
+
+- **Status:** Approved & **Implemented** (`ATL-FINAL`, 2026-08-22). Enforcement in
+  `lib/atlas/query-understanding.ts` (`STOPWORDS`), `lib/atlas/clarification.ts`; regression in
+  `tests/unit/run-atl04r-tests.ts` C1–C8.
+- **What the browser acceptance found.** The original decision made `cognix` a stopword on the
+  grounds that a word matching every record discriminates none of them, and then left the word
+  `capability` in. It is the same word. Measured on the live estate,
+  *"What capabilities does CogniX have on Promotions?"* returned **27 of 38** capabilities and
+  ranked **Enterprise Signal second on a promotions question**; the correct answer led, so the
+  defect was invisible to anyone reading only the first result. After the amendment the same
+  question returns **9**, all of them promotion work.
+- **Decision:** `capability` and `capabilities` join `cognix` in `STOPWORDS`. No capability in the
+  registry is named with the word, so nothing becomes unfindable, and *"capability atlas"* still
+  resolves on `atlas`. This removes a non-discriminating term; it adds no vocabulary, which the
+  governed alias register (ADR-059) remains the only route for.
+- **The clarification engine had to follow.** The original ADR-062 text observes that the first
+  acceptance scenario is literally that query. It was treated as the canonical *area-ambiguous*
+  question — but its area spread was the artefact, not a property of the question. With the noise
+  removed the question settles on Campaign & Promotion, and the engine then asked *"which aspect of
+  Campaign & Promotion?"* of a reader who had just said Promotion. The rule that already lowers the
+  area-dominance bar for a declared intent now also **suppresses the aspect question where the area
+  was inferred from the reader's own words and an intent was declared with it** — the same rule 2,
+  one dimension further in. A reader who picked an area *from a clarification round* is still
+  offered the next question: that is the progressive flow, not an interrogation.
+- **Consequences:** *"Show me Promotion capabilities from an architect perspective."* now reaches
+  results with no further question, which is what `ATL-04R` C8 always asserted and what the artefact
+  had been satisfying for the wrong reason. C1 and C5 were re-pointed to a query that is multi-area
+  in substance — the owner's own *"Promotions, demand, signals and inventory"* — and two new
+  assertions (C2a, C2b) hold the corrected single-area behaviour so the artefact cannot return
+  unnoticed. The 18-question `ATL-06C` retrieval baseline is unmoved: none of those questions
+  contains the word.
+- **A second mechanical defect, found the same way: a hyphenated query reached nothing.**
+  `pre-mortem` returned **zero** results while `pre mortem` returned the right capability, and the
+  corpus contains the hyphenated spelling eleven times. `IDENTIFIER_PATTERN` is applied to the
+  upper-cased query, so `PRE-MORTEM` read as a governed identifier, matched no record, and took the
+  whole query out of the residual with it — leaving no content words to match on. `half-life` and
+  `decision-gap` failed identically, which is the original ADR-062 finding in a different disguise:
+  the words never met. **Only a token the searcher actually wrote in upper case is now consumed as
+  an identifier.** `DDF-01` still yields an identifier and no terms; a lower-case hyphenated token
+  yields the identifier reading *and* its words, so the result is a superset and nothing that
+  matched before stops matching.
+
+---
+
+### ADR-063: Explanatory Visuals Are Configuration Carried By Capability Knowledge, And Carry No Numbers (`ATL-04R`)
+
+- **Status:** Approved & **Implemented** (`ATL-04R`, 2026-08-21). Enforcement in `packages/contracts/src/capability-atlas-model.ts`, `components/atlas/visuals/CapabilityVisual.tsx`, `lib/atlas/landscape-validator.ts`; evidence in [`COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md`](../reports/COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md).
+- **Context:** A relationship, a flow, a distance or a comparison is understood faster as structure
+  than as a paragraph, and the Atlas explains exactly those things. The estate also has a worked
+  example of how visual explanation goes wrong: the Architectural Storyboard's twelve slides were
+  hand-written JSX carrying twelve fabricated outcome constants — *"98% Audit Score"*, *"£12.4M
+  National ROI"* — every one of which `ATL-01` marked Discard.
+- **Decision:** A visual is a `VisualSpec` on a capability's knowledge module, and the component is a
+  renderer. That is ADR-046 applied to pictures: a diagram authored inside a component is capability
+  knowledge in JSX, which is the thing the Atlas backend exists to prevent.
+- **The schema cannot express a number, deliberately.** There is no value, no axis and no scale, so no
+  bar can be sized to a figure and no node can carry one. Rule L7 additionally rejects a quantity
+  smuggled into a label. Where governed quantitative evidence exists it is cited as evidence, in
+  words, beside the visual.
+- **A text equivalent is mandatory, not an attribute.** `description` is required by the schema and
+  rendered as visible text; the graphic is `aria-hidden`. A reader who cannot see the visual reads
+  what it says rather than what it is.
+- **The pattern set is closed and shrinks.** Six patterns were designed; four shipped. `half-life` was
+  drafted for `CAP-DECISION-CONTRACT` and refused by that capability's own record — *Decision Half-Life
+  publishes validity states and refuses any duration, countdown, expiry estimate or decay curve* (owner
+  ruling W2) — so the capability took a `flow` and the pattern was deleted rather than left available
+  for someone to reach for. `relationship` was deleted because nothing used it. A pattern with no
+  caller is a framework, not an explanation.
+- **Consequences:** Visuals are authored where they explain and absent elsewhere — ten of thirty-eight
+  capabilities carry one, and that distribution is the intended one. Because the specs are governed
+  data rather than page markup, `ATL-06D` can embed the same visuals in client-facing output without
+  re-authoring them, which was the second reason for the boundary.
+
+---
+
+### ADR-064: A Lens Changes The Questions, Never The Answers (`ATL-06D`)
+
+- **Status:** Approved & **Implemented** (`ATL-06D`, 2026-08-21). Enforcement in `lib/atlas/lens.ts`,
+  `components/atlas/CapabilityDetail.tsx`, `app/api/v1/atlas/capabilities/route.ts`; evidence in
+  [`COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md`](../reports/COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md).
+- **Context:** `ADR-045` established that an audience lens REORDERS AND NEVER HIDES, and `ATL-04R`
+  implemented that literally: the lens reordered the disclosure sections of the capability detail and
+  did nothing else. Owner evaluation of the live interface found the honest consequence, recorded as
+  defect `D-ATL-04R-1`:
+
+  > Selecting Sales, Architect or Developer visibly changes the selected lens, but the overall Atlas
+  > experience does not change materially enough from the default Innovation Executive presentation.
+
+  The interface said so itself. The lens bar carried the note *"Ordering only — nothing is hidden, and
+  the facts do not change."* That sentence was an accurate description of a control that did almost
+  nothing, and a reader who selected **Developer** met the same four executive questions, the same
+  opened section and the same ordering of capabilities as everyone else.
+
+  The tempting repair — let a lens filter, so Sales sees less — is the one that must never be made.
+  A Sales lens that could suppress a limitation is a mechanism for overselling, and `ATL-06D` §20
+  exists precisely to prevent that.
+- **Decision:** A lens decides **which questions are asked**, not which answers are available. The
+  governed `LensProfile` declares, per lens: the four questions answered above the fold, the sections
+  brought forward, the section opened on arrival, how much supplementary evidence detail renders
+  inline, and the ranking signals that order a capability list. Every headline answer is resolved
+  from fields already on the governed record, and `LensHeadline.reads` names those fields so the
+  claim "this is a reading, not a new fact" is auditable rather than asserted.
+
+  Three properties are enforced rather than promised:
+
+  1. `orderForLens` returns a **permutation** — same members, same count. A lens cannot filter,
+     checked at the route boundary and over the whole registry in `run-atl06d-tests.ts` §B.
+  2. No lens alters identity, lifecycle, demonstration maturity, implementation status, limitations,
+     validation evidence, architecture or demo facts — asserted field-by-field, 38 capabilities × 4
+     lenses, rather than trusted to a comment.
+  3. Evidence depth signposts rather than withholds. A `referenced` lens declines to lead an
+     executive with a repository symbol and NAMES the lens that renders it, so nothing is concealed.
+
+  The lens affinity score orders lists and is then discarded. It is not returned by the API, not
+  rendered, and not convertible into a confidence percentage — a lens affinity printed as *"87%
+  relevant"* would be the fabricated-metric failure `ATL-01` recorded and Principle 12 forbids.
+- **Consequences:** `ADR-045` survives unamended and is now materially observable: four lenses
+  produce four different question sets, four different opening sections and four different orderings
+  over one unchanged corpus, verified in a browser on `CAP-DECISION-GAP` (`ATL-06D` §36). Prior
+  assertions that grepped for the replaced strings — `ATL-04` H4/H5 and `ATL-04R` G13 — were
+  re-pointed at the same intent against the governed profile, which is a stricter check than the
+  string match was. `ATL-06D` consumes the same profile for recommendation ranking, so the lens is
+  one governed mechanism rather than two that could disagree.
+
+---
+
+### ADR-065: A Capability Enters A Client Pack By Accumulating Rationale (`ATL-06D`)
+
+- **Status:** Approved & **Implemented** (`ATL-06D`, 2026-08-21). Enforcement in
+  `lib/atlas/preparation/recommend.ts`, `packages/contracts/src/atlas-preparation-model.ts`; evidence in
+  [`COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md`](../reports/COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md).
+- **Context:** A client preparation feature has one obvious implementation: search the corpus for the
+  brief's words and list what comes back. `ATL-06D` §11 and §12 forbid both halves of that — the bare
+  list (*"Recommended: Decision Gap, Intent Fusion, Forecast Stability"*) and the keyword flood
+  (fifteen capabilities because fifteen matched a word). The failure is not cosmetic: a seller who
+  cannot say why a capability is in their pack cannot defend it in the room, and will improvise.
+- **Decision:** Recommendation is **admission by rationale**, not ranking by score. A capability
+  accumulates `RecommendationRationale` entries from governed connections — a declared `bp-*` the
+  client's situation matched, a registered domain, an assessed cross-domain applicability, a
+  published contract for an integration conversation, a demonstration path for a demonstration
+  objective, the reader's lens. A capability that accumulates none is **not recommendable**, so no
+  code path produces the bare list and rule `P1` checks a property construction already guarantees.
+
+  A lens signal alone is never sufficient: it says something about the reader and nothing about the
+  client, so at least one basis must argue from the conversation itself.
+
+  The lead cut is **separation-tested**. Where the sixth capability scores within
+  `LEAD_SEPARATION_RATIO` of the fifth, the field is flat, the cut would be arbitrary, and the pack
+  widens the lead set and says the field is close — the `AMBIGUITY_SEPARATION_RATIO` idea from
+  `ATL-05` applied to selection instead of interpretation.
+- **Consequences:** Scoring reuses the ADR-050 search and the ADR-059 vocabulary rather than
+  introducing a second relevance model. The score orders and is discarded; the reader receives the
+  rationale in words, which is the thing they can actually check. An early version of the intake
+  tokenised `bp-*` labels and matched any word over four characters, which made **platform** — from
+  the label *"Knowing what the platform can do"* — a trigger, so *"integrates with an existing
+  planning platform"* was read as a capability-discovery problem. Declared, reviewable phrase
+  lexicons replaced it; generic words in governed labels are not evidence of a business problem.
+
+---
+
+### ADR-066: Sales Integrity Is A Contract Rule, Not A Copy Review (`ATL-06D`)
+
+- **Status:** Approved & **Implemented** (`ATL-06D`, 2026-08-21). Enforcement in
+  `lib/atlas/preparation/integrity.ts`, `packages/contracts/src/atlas-preparation-model.ts`,
+  `app/api/v1/atlas/prepare/route.ts`; evidence in
+  [`COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md`](../reports/COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md).
+- **Context:** Six phases of this programme were spent making limitations visible. `ATL-06D` is the
+  first surface where a person has a commercial reason to want them quieter, and it arrives at the
+  moment the pack is most useful. A guideline saying "always mention limitations" would not survive
+  that pressure, because nothing checks a guideline.
+- **Decision:** Overselling is prevented **structurally**.
+
+  1. `DemoWarning[]` and `AvoidClaiming[]` are non-optional arrays on `PreparationPack`. Rule `P2`
+     refuses a pack that recommends a non-`implemented` capability carrying no demonstration warning.
+     A pack with violations is a **500 from the route**, not a page with a caveat: it is a document
+     that could mislead a client, so it is not returned.
+  2. Every warning is DERIVED and names the governed field it came from (`derived_from`). A warning
+     that cannot name one is not emitted — §21 forbids inventing warnings to populate a section, so a
+     capability with nothing to warn about produces nothing and the pack is honest about that too.
+  3. Warnings, limitations and maturity are **lens-invariant**, asserted directly: no warning a
+     Developer pack carries is absent from the Sales pack for the same capability.
+  4. `AvoidClaiming.instead` is required. Telling a seller what not to say without giving them the
+     true sentence is advice that gets discarded in the room.
+
+  Scoping by tier is a legibility measure and is bounded by a declared non-negotiable set: status,
+  synthetic-data, open-defect and missing-evidence warnings are never scoped away. Demonstration-path
+  warnings for a demo not in the sequence are, because a wall of warnings nobody reads is how the one
+  that mattered gets missed — measured at 35 warnings across 11 recommendations before scoping.
+- **Consequences:** A preparation pack cannot describe a simulated capability as available, cannot
+  script a demonstration from a capability with no authored demo path, and cannot answer a client
+  question about a non-`implemented` capability without stating its status. Competitive positioning
+  (§19) grounds in CogniX evidence and states that a claim about a named vendor requires market
+  evidence the pack does not hold — it never describes a competitor's functionality and never asserts
+  superiority, both of which would be fabrication about a third party.
+
+---
+
+### ADR-067: Gemini Model Selection Is One Governed Server-Side Configuration, and Nothing Falls Back Silently
+- **Status:** Approved & **Implemented** (2026-08-21). Configuration in `config/gemini-models.ts`; enforcement in `tests/unit/run-atl06b-tests.ts` A7–A7e; published at `GET /api/v1/atlas/grounding`.
+- **Context:** Model names were hard-coded independently in four places — `lib/gemini.ts`, the Atlas grounding adapter, the Atlas interpretation adapter and the live validation script — each carrying its own copy of `gemini-2.5-flash` and friends. When Google retired those aliases everything that talks to a model broke at once, and **every test kept passing**. The tests passed because they run against recorded fixtures, which is correct and deliberate: a live search cannot be made to return a stale source on demand, so refusal behaviour has to be proven against recordings. What a fixture cannot notice is that the model named in the request no longer exists. The defect was therefore invisible to the suite, invisible to the type checker, invisible to the build, and visible only as a failed round trip nobody could run because the credential was also missing — which is how a one-line configuration error consumed several phases of diagnosis.
+- **Decision:** **One governed configuration, read by every call site.** `config/gemini-models.ts` is the single source of the model list. The grounding adapter, the interpretation adapter, the legacy `lib/gemini.ts` client and the live validation script all resolve from it **at call time**, so an operator changing the model does not restart to take effect and no name is written anywhere to drift. A model name appearing anywhere else in the Atlas provider layer is a defect, asserted directly against the source.
+- **The default is a single verified model, not a chain.** `gemini-3.6-flash`, verified against the live API for both generation and Google Search grounding. The previous design carried a fallback chain and retried the next entry on a 404 — **that is how the defect hid**: a retired primary quietly became a working secondary until the secondary went too, and the only symptom was a slower first call. An operator may still configure a chain, deliberately and in one place, by setting `GEMINI_MODEL` to a comma-separated list; nothing falls back by default, and when a model is gone the error names the models tried and the variable that changes them, rather than reading as "the provider is down".
+- **`GEMINI_MODEL` is server-side and is deliberately not a `NEXT_PUBLIC_*` variable.** A model name is not a secret, but a client that could choose the model could choose a weaker, cheaper or retired one. A malformed override **throws at the call that needs it, naming the variable** — it never resolves to an empty list, because "no model configured" and "no provider configured" must not look the same to a reader.
+- **Scope note.** Only the model names moved in `lib/gemini.ts`. Its credential handling is unchanged and remains the legacy client-supplied-key path recorded as technical debt in ADR-044 Amendment A. The change does mean the CDI-01 drafting route (ADR-044), which reaches Gemini through that file, stops pointing at retired aliases — it was broken by the same defect.
+- **Consequences:** A model retirement is now a one-line environment change in one place, and the failure that announces it names both. The fixture-backed suites keep their value and gain the check they were structurally unable to make: that the identifier being sent is the one the configuration governs. The residual exposure is unchanged and unavoidable — only a credentialed round trip can prove a model still exists, which is why `AC-ATL-06C-9` remains the gate it is.
+
+---
+
+### ADR-068: Capability Governance Flags and Blocks but Never Promotes, and Live-Provider Drift Is a Governed Subject in Its Own Right
+- **Status:** Approved & **Implemented** (`ATL-07`, 2026-08-21). Engine in `lib/atlas/governance/`; command `npx tsx scripts/atlas-governance-check.ts`; verification record in `config/atlas-provider-verification.ts`.
+- **Context:** Seven phases produced a corpus that is accurate on the day each record was written. Nothing was checking the day after. Two decay paths matter and they are not the same problem. **Internal decay** is a record describing code that has since moved, citing a file that has since gone, or claiming a lifecycle tier it never met — detectable from the repository. **External decay** is the estate's belief about a live provider going quietly out of date, and the `ATL-06` sequence proved the estate had no defence against it at all: three defects — a credential path no deployment provisioned, model aliases Google had retired, and a segment `startIndex` elided at its default value — all reached a credentialed run before anything failed, and **every fixture-backed suite stayed green through all three**. That is not a testing failure. Fixtures prove refusal behaviour a live search cannot be made to produce on demand, which is why they are the right instrument; they simply cannot notice that the contract they recorded has changed. Both instruments are needed and only one existed.
+- **Decision, first half — automation flags and blocks; it never promotes.** The governance engine returns findings and nothing else. `GovernanceFinding` has no field capable of changing a record, the engine has **no write path**, and both are asserted directly rather than promised. This is `AC-ATL-07-3` made structural, and the reason is specific: an engine that could correct a record would eventually be asked to tidy one up, and the three maturity dimensions this programme spent seven phases keeping honest are exactly what a tidy-up smooths over. A record that fails its completeness tier is refused publication; the remedy text says in as many words that the automation will not lower the lifecycle state to make the finding go away.
+- **Decision, second half — the live provider is a governed subject.** `config/atlas-provider-verification.ts` records what was verified, the commit it passed on, the **files whose change invalidates it**, and the individual wire-contract assumptions with the code that depends on each. Three checks run from that record, **none of which needs a credential**: drift when the provider layer moves ahead of the verified commit, staleness when the verification ages past its window even though nothing in the repository changed, and a blocking failure when the configured model is not the one that actually passed. The credentialed run is what refreshes the belief; these checks are what notice it has gone stale. An unanswerable drift question — a shallow clone, missing history — is **reported, never read as a pass**, because a governance check that reads silence as health is worse than no check.
+- **Advisory before blocking, deliberately.** Every check declares one of two severities and the command is advisory by default, with `--enforce` as the switch and the CI job set to report only. Governance automation that blocks on the day it lands teaches contributors to route around it; which families become blocking is left as an owner decision with the current findings on the table. Two values, not a spectrum — a middle severity is where a check goes to be ignored.
+- **Consequences:** The first real run found what seven phases had not: **20 of 38 records claim a lifecycle tier they do not meet**, all for the same missing field, which is a corpus-population gap rather than twenty separate mistakes; **12** carry no lifecycle state and are therefore exempt from the check that would otherwise govern them, reported rather than quietly passing; and cited source files have moved under 11 records since a human last read them. It also found a defect in itself on that run — a validation observation naming a deliberately retired surface was flagged as a broken citation — which is corrected by separating what a record claims as **current** from what it records as **observed**, because a check that cries wolf on a correct record is worse than no check. None of these findings changed a single record, which is the point.
+
+---
+
+### ADR-069: The Innovation Backlog Is a Separate Governed Register — An Idea Is Not a Work Package and Is Never a Capability
+- **Status:** Approved (2026-08-22). Register: [`COGNIX_INNOVATION_BACKLOG.md`](../governance/COGNIX_INNOVATION_BACKLOG.md). Registered in [`MASTER_PLAN.md`](../governance/MASTER_PLAN.md). **Governance only — no runtime implementation.**
+- **Context:** CogniX accumulated a body of agreed future innovation ideas — observation acquisition, signal trust progression, evidence maturity, market studies, domain packs, data connectivity, AI provider governance, a continuous campaign twin — with nowhere governed to record them. The two available homes were both wrong. Writing them into `MASTER_PLAN.md` would make unauthorised exploration read as committed delivery, which is the exact failure this programme spends most of its discipline preventing on screen. Registering them as `CAP-*` capabilities would put things CogniX cannot do into the registry that answers *what CogniX can do* — and `ATL-03`'s standing rule is that no record may claim a capability that does not exist. Leaving them unrecorded was the third option and the one actually in force, which is why an agreed idea could be raised twice and answered differently each time.
+- **Decision:** **A third register, in the `IB-*` namespace, governing the space before authorisation.** The Master Plan governs authorised delivery. `EXPERIMENT_LIFECYCLE.md` governs the maturity of an experiment that exists. The Innovation Backlog governs whether an idea is worth exploring and whether it should be proposed for authorisation. The three do not overlap and none is a view of another.
+- **Entry into `MASTER_PLAN.md` is the authorisation event, and nothing else is.** An idea at `Approved` has been approved *to be planned*; it has no work package, no scope and no schedule. The word was chosen deliberately and its limit is stated in the register, because "approved" is the stage most likely to be misread as permission to build.
+- **The lifecycle borrows rather than coins.** `Research` is the same state, with the same exit criteria, as `EXPERIMENT_LIFECYCLE.md` §2.2. `Retired` is §3 unchanged. `Candidate Experiment` is the **handoff** into that lifecycle at `Concept`, not a competing maturity state — after which two governed objects legitimately coexist for one subject: a backlog idea on the authorisation track and an `EXP-*` entry on the maturity track. A fourth vocabulary for states that already have names is how a reader ends up unable to say which document is authoritative.
+- **An idea is never a capability.** No `IB-*` entry is registered in `config/capabilities.ts`, appears in Atlas capability search, or is counted in the capability landscape. ADR-052's capability identity is unamended. This is also why the register is not surfaced by trivially reusing the Observability & Governance *Capability lifecycle* section: that section is backed by the `CAP-*` landscape, and pointing it at ideas would make the landscape stop being a partition of the registry.
+- **Every entry cites existing governed identifiers only.** An entry may state what it builds on, depends on and could unlock using capabilities, contracts, work packages and rulings that already exist. It may not invent a status, a dependency, a capability name or an architecture to make itself read better. An idea whose value can only be stated in invented terms is not yet at `Research`.
+- **Consequences:** A developer can now ask what the highest-priority innovation candidate is, what it depends on, whether it is authorised, and what the next work package would be, and get the same answer from the repository every time. The cost is a third register to keep honest, and one standing hazard: an idea that sits at `Approved` indefinitely looks committed to a casual reader. The register answers that structurally — the status board publishes the count of ideas at `Approved`, `Planned` and `In Delivery`, and today all three are zero.
+
+---
+
+### ADR-070: A Continuous Decision Twin Is Three Declared Series Over One Horizon, and Activation Binds the In-Flight Baseline to the Decision Contract
+- **Status:** Approved as a planning ruling (2026-08-22) and **Implemented unamended by `CTW-01`** (2026-08-22). Enforcement is executable rather than editorial: `validateFlightProjection` in `packages/contracts/src/campaign-continuous-timeline-model.ts` carries invariants `W-INV-1`…`W-INV-7`, the engine refuses to return a projection that violates them (`RJ-W8`), and `tests/unit/run-ctw01-tests.ts` tampers with a valid projection to prove each invariant bites. `CTW-02` remains unauthorised. *The ruling was frozen before the design existed, which is the only point at which such a ruling is cheap; it needed no amendment once it met the code.*
+- **Context:** The Live Decision Twin today reads `archetype.decision_twin` — a static seeded literal — and calls no engine, while the pre-flight view beside it runs four governed engines on every configuration change. `telemetry_streams.length === current_day` in all seven archetypes, so the remaining horizon is not predicted-and-hidden; it is absent. There is no activation, `handleApplyInFlightAction` has an empty body, and the twin never reads the campaign configuration. Making that continuous means, unavoidably, putting predicted future days on the same axis as elapsed ones and letting a user change the campaign mid-flight. Both are exactly the operations that produce a fabricated number presented as a measured one.
+- **Decision, part 1 — observed, simulated and predicted are three separately declared series, never one blended line.** They are distinct in the data and distinct on screen. A future prediction may never render or read as an observation, and a series may not be visually continuous across the boundary in a way that implies the same evidentiary status on both sides. `TimelineSeriesPoint` already carries `basis`, `strength` and `synthetic_demo` per point, and `EvidenceStrength` already orders `OBSERVED` above `DERIVED` above `SEEDED_ASSUMPTION` — the model that keeps them apart exists and must be used rather than bypassed with a fourth ad-hoc vocabulary. The existing prohibitions are unamended: no archetype datum may carry the governed bare `OBSERVED` class, claim a live feed, or reintroduce `confidence_pct`. A continuous twin over seeded data is still seeded data and says so.
+- **Decision, part 2 — activation binds to `DecisionContract`, and no second baseline is created.** `activeMode` is local React state with two values and no transition semantics; it is not a governed baseline and must not become one by accretion. `DecisionContract` (`CDI-07A`) already is what activation needs: an immutable `decision_basis_digest` over sixteen canonical inputs, a content-derived `contract_digest`, an `ACTIVE`/`SUPERSEDED`/`WITHDRAWN` status, declared assumptions, triggers with `WATCH`/`DEGRADED`/`REASSESS_REQUIRED` effects, and `prediction_envelopes` carrying a tolerance declared **before** the outcome. The in-flight period is assessed against that contract's basis, and the seeded `is_decision_still_valid` string resolves to the governed `DecisionValidityState` rather than remaining a parallel vocabulary. A new "activated campaign" record competing with `DecisionContract` would give the estate two truths about what was decided.
+- **Decision, part 3 — an intervention forks the trajectory; it never overwrites it.** The original pre-flight trajectory is bound to the contract digest and does not move. Activating an intervention records the intervention, adds a new trajectory, and reforecasts **only** `current_day + 1 … flight_days`; elapsed observed days are never recomputed. Contract supersession (`supersedes` / `superseded_by`) already models a decision that changed with both versions readable. Four states stay distinguishable — what we expected, what happened, what we now expect, what happens if we intervene — because that quadruple is the decision-intelligence concept the capability exists to demonstrate, and collapsing any two of them removes the reason to build it.
+- **Decision, part 4 — a completed campaign produces an observation *candidate*, and no learning.** Capturing an outcome is not learning and may never be described as it. Admission stays governed by `ESF-6` (`source × context → authority`) and correspondence by `CDI-08` (`contract × observation → comparability`). The twin creates **no new origin of `synthetic_demo = false`**, and `learning_case_status` reads `NON_AUTHORITATIVE` for as long as that is true. Post-flight reconciliation **extends** `PredictionOutcomeComparison` and the `CampaignDecisionExperiment` comparison surface; it does not introduce a third history model.
+- **Projected quantities are bounded by what the estate can already defend.** Demand and contribution project from `CDI-05` under `FLAT_RATE_IDENTITY`; deviation is against the activated contract's basis; uncertainty renders `TimelineConfidenceEnvelope` **with its `declared_horizon_uncertainty_profile` basis shown**, because a declared profile is not a calibrated interval. **Revenue is not added** — `CDI-05` publishes it as `NOT_AVAILABLE` with a `RequiredAuthoritativeInput`, and that refusal is correct. A stock *series* requires a declared depletion basis; `WP10-C` supplies scalars, and `scalar_annotations` exists precisely so a scalar is not drawn as a trend. Adding a quantity means declaring its basis first, never because a demonstration would look better with it.
+- **Consequences:** The continuous twin becomes largely a **second consumer of `DecisionTimelineProjection`** rather than a new projection engine, and `POST_CAMPAIGN` — already structurally present and numerically empty — is the slot post-flight fills. One genuinely new governed concept is required and is deliberately small: `TimelineTrajectoryKind` today has two values (`COUNTERFACTUAL`, `INTERVENTION`) and cannot express an observed series or a mid-flight reforecast. That extension is the first thing the first work package must freeze, and it is why the recommended decomposition puts the timeline and activation work ahead of the intervention work rather than beside it.
+
+---
+
+### ADR-071: One Governed Forecasting Path, and a Model Identifier Names the Implementation That Ran (`FM-01`)
+- **Status:** Approved and **implemented by `FM-01`** (2026-08-23). Enforcement is executable rather than editorial: `tests/unit/run-fm01-tests.ts` §M and §I strip comments from every file on the forecast path and fail on any surviving retired wire value, assert that the retired engine is *absent* from `lib/query-engine.ts` rather than merely unreferenced, and require every registered model to name an implementation file that exists and demonstrably fits and predicts.
+- **Context:** `CTW-03` built a governed forecast boundary **beside** the legacy `getForecastProjections` rather than replacing it, and said so: retiring the legacy path was raised as an owner decision with its own regression surface. That left the estate with two forecasting paths and one of them fitted nothing. The Continuous Live Decision Twin read a genuine Holt-Winters fit; Demand & Forecast, one screen away, multiplied a fourteen-day mean by a closed-form curve over a loop index and called the result a projection. `arima`, `baseline` and `TOTAL_GARBAGE_XYZ` all reached the same branch and returned identical totals — recorded in [`COGNIX_FORECAST_MODEL_TRUTH_RECORD.md`](../governance/COGNIX_FORECAST_MODEL_TRUTH_RECORD.md) §3, verified by execution. Two paths is not a transitional state that resolves itself; it is a standing invitation for the next work package to extend whichever one it happens to find.
+- **Decision, part 1 — there is one forecasting implementation, reached through one boundary.** `Qualified series → ForecastDataset + provenance → governed model selection → the model's own implementation → fit → per-period forecast → validated uncertainty → envelope + diagnostics` is the whole architecture, and both Demand & Forecast and the Twin are consumers of it. Neither UI computes a projection, adjusts one, or holds a second notion of what a forecast is. A future data upload plugs in at `ForecastDataset` and needs nothing else to change, which is the property that makes this boundary worth having rather than merely tidy.
+- **Decision, part 2 — the legacy path is removed, not wrapped.** `getForecastProjections`, `getFutureDays` and the frozen `2026-06-04` window anchor are deleted. A compatibility shim translating `arima → HOLT_WINTERS_ADDITIVE` was considered and refused: a translation layer is how a fake model name survives a migration and becomes provenance again three work packages later. `GET /api/data?type=forecast` answers `410 Gone` naming its replacement, because a stale client deserves an explanation and not an empty body.
+- **Decision, part 3 — an unregistered model is refused on every path, identically.** A model appears in the registry only where an adapter genuinely fits and predicts it, so the registry is the only thing a surface may enumerate when offering a choice. `arima`, `prophet`, `genai`, `baseline`, `adaptive`, `seasonality` and a garbage string are now refused identically with `MODEL_NOT_REGISTERED` — the exact inversion of `D-FM-4`, where they were served identically.
+- **Decision, part 4 — a declared commercial assumption is applied after the model and published beside it.** Promotion depth, cannibalisation and an event uplift are things a person asserted, not things the data supports. They multiply the model's output and never enter the fit, and both quantities are published: `baseline_value` is what the model expects and `value` is what the model expects with the assumptions applied. The surface draws both when they differ, because the distance between those two lines is the part of the outlook nobody measured.
+- **Consequences:** Every recorded defect of the legacy path — `D-FM-1`, `D-FM-2`, `D-FM-3`, `D-FM-4`, `D-FM-5`, `D-FM-7` — closes by the removal of the code that carried it rather than by correction in place, and each has a regression assertion that reproduces the original mechanism and requires it to fail. `kpi.growthRate`, whose history seed cancelled algebraically, has no successor field: it is replaced by a comparison of the model's expectation against the observed run rate over a stated window, which is a different quantity and is named differently. The dashboard windows move from `2026-05-22 → 2026-06-04` to `2026-05-21 → 2026-06-03`, because the retired anchor sat one day past the data and that day entered every mean as a zero.
+
+---
+
+### ADR-072: Uncertainty Is Published Twice — What the Model Implies and What Its Errors Demanded — and Never as a Bare Confidence Percentage (`FM-01`)
+- **Status:** Approved and **implemented by `FM-01`** (2026-08-23). Enforced by `F-INV-7` and `F-INV-8` in `validateForecastExecution`, by the `interval_calibration_held_out_coverage` diagnostic, and by `tests/unit/run-fm01-tests.ts` §C, which measures leave-one-fold-out coverage at every offered horizon for every registered model and is allowed to fail.
+- **Context:** `CTW-03` measured what its intervals actually covered and published the answer rather than hiding it: **46% and 63% against a nominal 80%**. That was the honest thing to do and it was not a fix. A planner reading a range that contains the truth half the time is worse off than one reading no range at all, because the range looks like information. Two responses were available and both were wrong. Relabelling it a 50% interval would be honest about the label and silent about the question. Widening it until the diagnostic passed would be tuning a number to match a claim — the precise failure mode this estate exists to refuse.
+- **Decision, part 1 — model-implied and empirically calibrated uncertainty are two published quantities, never one.** `ForecastPoint.lower`/`.upper` is what the fitted model's own mathematics produces. `ForecastPoint.calibrated_lower`/`.calibrated_upper` is that interval rescaled by a factor measured from the model's realised errors on periods it did not see. Both are on every execution. The `interval_coverage_near_nominal` diagnostic keeps its exact prior meaning — it judges the **model-implied** interval, still describes it as *"not calibrated to realised coverage"*, and still fails on this series. A calibration that made an existing failing check pass would have destroyed the evidence it was built from.
+- **Decision, part 2 — the calibration is conformal, and it rescales rather than replaces.** The nonconformity score is `|error| ÷ model half-width at that step`, and the multiplier is its `⌈(n+1)q⌉/n` quantile over every rolling-origin backtest point. Dividing by the model's own half-width keeps the *shape* of the horizon the model's: an interval that widens with horizon because the model says it should still does, and only its overall scale is corrected. A flat additive correction would have flattened exactly the horizon degradation the chart exists to show.
+- **Decision, part 3 — the number that leads is the one that is allowed to disappoint.** A multiplier estimated on all folds and then scored on all folds lands near target by construction; that figure is published as `calibrated_coverage_in_sample` and is not the answer. `held_out_coverage` re-estimates the multiplier for each fold from the *other* folds, excluding any residual sharing a period with the fold being judged, so no point contributes to the width that judges it. It is what the surface reports and what the diagnostic is scored on.
+- **Decision, part 4 — where the evidence is too thin, no calibrated interval is published at all.** Below twenty held-out points or three folds the calibration is returned with `reliable: false`, its sample size stated, and **no calibrated bounds on any point** — `F-INV-8` refuses an execution that publishes them anyway. An unreliable calibration is worse than none, because it looks like one. The multiplier is additionally clamped to `[0.5, 4]`, and where the clamp bites the unclamped measurement is published as a limitation, because the measurement is the honest figure.
+- **Decision, part 5 — no decision surface shows a bare confidence percentage.** The headline is *"Forecast range"*. Where it is calibrated the surface says what it was calibrated against and what share of held-out days it covered; where it is not, it says the range is the model's own and reports the coverage that was measured. `Confidence: 80%` is prohibited on any decision-facing surface, and the `DDF-01` prohibition on `confidence_pct` is unweakened. This is the presentation half of ADR-040's ruling that stability is a property of the evidence stream rather than of the model.
+- **Consequences:** On the governed demand series the calibration multiplier is `×2.65` for Holt-Winters at a fourteen-day horizon, which is a plain statement that the fitted model was two and a half times more confident than its own errors justified. Published held-out coverage lands at 81.3% (Holt-Winters) and 76.8% (Seasonal Naive) against an 80% target, where the model-implied intervals measured 50.0% and 64.3%. Because a thirty-day horizon over ninety days of history yields only two disjoint backtest folds, the calibration runs its **own** rolling-origin pass at a one-week stride while the metrics pass keeps disjoint folds unchanged — `CTW-03`'s recorded MASE and coverage figures are therefore preserved exactly, and the cost of the denser folds is stated as a limitation on every calibration: the held-out points are not independent of one another.

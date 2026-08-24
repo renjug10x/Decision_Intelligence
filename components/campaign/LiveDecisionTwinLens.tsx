@@ -19,14 +19,35 @@ import {
   Check
 } from 'lucide-react';
 import { CampaignArchetype } from '@/lib/campaign-archetypes';
+import { CampaignFlightProjection } from '@/packages/contracts/src/campaign-continuous-timeline-model';
+import ContinuousFlightTimeline from '@/components/campaign/ContinuousFlightTimeline';
+import CampaignStory from '@/components/campaign/CampaignStory';
+import { CampaignStoryEvent } from '@/packages/contracts/src/campaign-intervention-model';
+import {
+  CAMPAIGN_OUTLOOK_SECTION_ID,
+  CAMPAIGN_TIMELINE_SECTION_ID,
+  IN_FLIGHT_DEVIATIONS_SECTION_ID
+} from '@/lib/campaign-decision-navigation';
 
 interface LiveDecisionTwinLensProps {
   archetype: CampaignArchetype;
+  /** CTW-01 — the continuous timeline, assessed against the activated decision contract. */
+  flight?: CampaignFlightProjection | null;
+  flightError?: string | null;
+  /** CTW-02 — the outlook, moments and planning surface, rendered above the timeline. */
+  outlookSlot?: React.ReactNode;
+  story?: CampaignStoryEvent[];
+  onReturnToPlanning?: () => void;
   onApplyInFlightAction?: (action: any) => void;
 }
 
 export default function LiveDecisionTwinLens({
   archetype,
+  flight = null,
+  flightError = null,
+  outlookSlot = null,
+  story = [],
+  onReturnToPlanning,
   onApplyInFlightAction
 }: LiveDecisionTwinLensProps) {
   const twin = archetype.decision_twin;
@@ -81,7 +102,9 @@ export default function LiveDecisionTwinLens({
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <div>
               <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
-                Live Decision Twin · Day {twin.current_day} of {twin.flight_days}
+                Live Decision Twin · Day{' '}
+                {flight ? flight.horizon.today_flight_day : twin.current_day} of{' '}
+                {flight ? flight.horizon.flight_days : twin.flight_days}
                 <span
                   style={{
                     fontSize: '0.68rem',
@@ -132,71 +155,76 @@ export default function LiveDecisionTwinLens({
 
         {/* Telemetry Stream Daily Progression Cards */}
         <div style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748B', textTransform: 'uppercase', marginBottom: 8 }}>
-            Daily In-Flight Telemetry — Simulated (Expected vs Simulated-Observed Trajectories)
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))',
-              gap: 10
-            }}
-          >
-            {twin.telemetry_streams.map(stream => {
-              const isSevere = stream.deviation_status === 'SEVERE_DEVIATION';
-              const isMild = stream.deviation_status === 'MILD_DRIFT';
-
-              return (
-                <div
-                  key={stream.day_index}
-                  style={{
-                    background: isSevere ? '#FEF2F2' : isMild ? '#FFFBEB' : '#F8FAFC',
-                    border: `1px solid ${isSevere ? '#FECACA' : isMild ? '#FDE68A' : '#E2E8F0'}`,
-                    borderRadius: 8,
-                    padding: '10px 12px'
-                  }}
-                >
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0F172A' }}>
-                      {stream.day_label}
-                    </span>
-                    <span
-                      style={{
-                        fontSize: '0.65rem',
-                        fontWeight: 600,
-                        color: isSevere ? '#DC2626' : isMild ? '#D97706' : '#059669'
-                      }}
-                    >
-                      {stream.deviation_status.replace('_', ' ')}
-                    </span>
-                  </div>
-
-                  <div style={{ fontSize: '0.75rem', color: '#64748B', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Demand Index:</span>
-                    <strong>{stream.observed_demand_index} (exp {stream.expected_demand_index})</strong>
-                  </div>
-
-                  <div style={{ fontSize: '0.75rem', color: '#64748B', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Daily Margin:</span>
-                    <strong style={{ color: stream.observed_margin_gbp < stream.expected_margin_gbp ? '#DC2626' : '#059669' }}>
-                      £{stream.observed_margin_gbp}
-                    </strong>
-                  </div>
-
-                  <div style={{ fontSize: '0.75rem', color: '#64748B', display: 'flex', justifyContent: 'space-between' }}>
-                    <span>Depot Stock:</span>
-                    <span>{stream.observed_inventory_units.toLocaleString()}u</span>
-                  </div>
-                </div>
-              );
-            })}
+          <div style={{ fontSize: '0.78rem', color: '#475569', lineHeight: 1.55 }}>
+            {flight
+              ? 'The day-by-day demonstration telemetry that used to sit here is now read on the timeline below — select any elapsed day to see its demand, contribution, depot stock and world-model status together, against the decision that was activated.'
+              : 'Day-by-day demonstration telemetry is shown on the campaign timeline once a decision is activated.'}
           </div>
         </div>
       </div>
 
+      {/* ── CTW-02: outlook and decision moments, above the timeline ── */}
+      {outlookSlot && <div id={CAMPAIGN_OUTLOOK_SECTION_ID}>{outlookSlot}</div>}
+
+      {/* ── CTW-01: the continuous campaign timeline ── */}
+      {/* The anchor wraps both branches: a reader sent here when there is no governed timeline
+          must land on the statement that there is none, never on nothing at all. */}
+      <div id={CAMPAIGN_TIMELINE_SECTION_ID}>
+        {flight ? (
+          <ContinuousFlightTimeline flight={flight} />
+        ) : (
+          <div
+            style={{
+              background: '#FFFBEB',
+              border: '1px solid #FDE68A',
+              borderRadius: 12,
+              padding: '18px 20px',
+              display: 'flex',
+              gap: 10,
+              alignItems: 'flex-start'
+            }}
+          >
+            <AlertTriangle size={18} color="#B45309" style={{ flexShrink: 0, marginTop: 1 }} />
+            <div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#92400E' }}>
+                No governed campaign timeline for this configuration
+              </div>
+              <p style={{ fontSize: '0.8rem', color: '#92400E', margin: '4px 0 0 0', lineHeight: 1.5 }}>
+                {flightError ||
+                  'This campaign has no activated decision, so there is no baseline to assess it against.'}{' '}
+                The demonstration telemetry below is shown as-is and is not a comparison against any
+                decision.
+              </p>
+              {onReturnToPlanning && (
+                <button
+                  type="button"
+                  onClick={onReturnToPlanning}
+                  style={{
+                    marginTop: 10,
+                    padding: '7px 14px',
+                    borderRadius: 7,
+                    border: '1px solid #FDE68A',
+                    background: '#FFFFFF',
+                    color: '#92400E',
+                    fontSize: '0.78rem',
+                    fontWeight: 600,
+                    cursor: 'pointer'
+                  }}
+                >
+                  Return to review and activate
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── CTW-02: the campaign story ── */}
+      {story.length > 0 && <CampaignStory events={story} />}
+
       {/* ── Section 2: In-Flight Deviations & Adaptive Interventions ── */}
       <div
+        id={IN_FLIGHT_DEVIATIONS_SECTION_ID}
         style={{
           display: 'grid',
           gridTemplateColumns: 'minmax(320px, 1.2fr) minmax(320px, 1.4fr)',

@@ -43,3 +43,11 @@ next-env.d.ts
 # Google Cloud SDK
 /google-cloud-cli-darwin-arm.tar.gz
 /google-cloud-sdk/
+
+# Live provider validation evidence (ATL-06C, AC-ATL-06C-9).
+# `scripts/atlas-live-grounding-check.ts --out` writes raw grounded-response detail: publisher URLs,
+# retrieved claims, search queries and provider output. It is diagnostic material, not a governed
+# record, and it is never committed — the repository carries only the sanitised summary in
+# docs/reports/COGNIX_ATL_06C_LIVE_VALIDATION_SUMMARY.md.
+live-evidence.json
+live-evidence*.json

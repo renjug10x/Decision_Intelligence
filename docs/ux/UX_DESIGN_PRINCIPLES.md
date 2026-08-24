@@ -199,3 +199,104 @@ Rules: the graph must make the commercial situation legible **in seconds** and w
 - **Forecast Confidence vs Forecast Stability (Tier 1):** presented as two distinct readings with distinct labels, never merged into one "trust" number and never captioned as *model accuracy* absent a backtest. `INDETERMINATE` stability is rendered distinctly and never collapsed into a favourable score.
 - **Decision Window (Tier 1):** a duration renders **only** where a constraint is declared, and the declared constraint is named on disclosure. With none declared the state is `INDETERMINATE` and **no countdown, clock, progress bar or decay animation is drawn**. Modelled demo deadlines are visibly labelled as modelled. The Decision Window must **never** share an indicator with, be labelled as, or substitute for `CDI-07A` Decision Half-Life validity (§5.6) — that prohibition is unchanged and is not relaxed by this section.
 - **Decision Regret (Tier 1 → Tier 2):** `ACT_NOW` / `WAIT` / `DO_NOTHING` as comparable alternatives with visible trade-offs — never an opaque single-number optimisation. Where they do not separate materially, CogniX says so and **names no winner**; where readiness evidence would gate an option, it is shown as *not currently actionable* rather than recommended.
+
+---
+
+## 7. Capability Atlas UX (`ATL-04`)
+
+Design direction for the Capability Atlas. Governance: [`COGNIX_CAPABILITY_ATLAS.md`](../governance/COGNIX_CAPABILITY_ATLAS.md).
+Not implemented — `ATL-04`.
+
+### 7.1 Design intent
+The Atlas is an **exploration surface for curious professionals**, not a documentation site. A visitor
+arrives with a question, finds a capability, understands it to the depth they need, and leaves knowing
+how to demonstrate it — without reading everything.
+
+It inherits §1 unchanged: light, spacious, executive, calm, zero placeholder metrics. It is explicitly
+**not** a dark surface, not a wiki, not a developer documentation site, and not a chatbot-first product.
+Ask CogniX is one entry point among several, never the whole experience.
+
+### 7.2 Search-first landing
+Search is the primary affordance and sits **above** any capability list. A grid of cards is never the
+first thing a visitor meets.
+
+```text
+CogniX Capability Atlas
+
+Explore what CogniX can do, how capabilities work,
+where they apply and how to demonstrate them.
+
+[ Search capabilities, business problems, use cases,
+  architectures, technologies or client questions... ]
+
+Explore as:  [ Innovation Executive ] [ COO ] [ Category Lead ] [ Operations Lead ]
+
+Domain:  Retail & Grocery [ACTIVE]     Future Domain Packs [COMING SOON]
+```
+
+The lens row is rendered from `config/personas.ts` and the domain row from `config/domains.ts` — neither
+is hard-coded, and `coming_soon` domains are shown honestly as such. The placeholder teaches what can be
+searched: problems, use cases, architectures, technologies, client questions — not just names. Search
+works with no AI configured (ADR-050 Level 1).
+
+### 7.3 Capability detail — progressive disclosure
+Information priority, not a demand that all of it be visible at once. Most is collapsed, lens-prioritised
+or absent when the record has no content for it.
+
+1. What it is · 2. Why it exists · 3. What problem it solves · 4. Why it matters · 5. See it in CogniX ·
+6. Try it yourself · 7. Example scenarios · 8. Business value · 9. How it works · 10. Architecture ·
+11. Data and signals · 12. Testing and validation · 13. Why it is different · 14. Market context ·
+15. Cross-domain applications · 16. Questions Worth Asking · 17. Demo Path · 18. Related capabilities ·
+19. Artefacts and evidence · 20. Known limitations · 21. Roadmap and next experiments
+
+**Rules:**
+- **Above the fold:** capability name, the registry's `fiveSecondProposition`, all three maturity
+  dimensions, domain and platform-reuse indicator, and the lens switcher. Nothing else. The §3 word
+  ceiling (40–60 words before meaningful interaction) applies.
+- **First scroll:** items 1–5, reordered by the active lens.
+- **On demand:** items 9–15 and 19 expand; never pre-opened accordions; maximum two levels of
+  disclosure on the page.
+- **Never suppressed by any lens:** capability name, `fiveSecondProposition`, all three maturity
+  dimensions, and item 20. A Sales lens must never hide that a capability is simulated.
+- **Absent means absent:** a section with no content is omitted, not rendered empty. Where absence is
+  itself meaningful — "no market study performed", "reuse not assessed" — it is stated explicitly,
+  following the §6.4 pattern of showing the absence rather than filling it.
+- Flow follows the established `What? → Why? → Evidence → What If?` grammar (§5.2). No new interaction
+  grammar is introduced.
+
+### 7.4 Maturity presentation (binding — ADR-047)
+**The three dimensions are always shown together** — innovation lifecycle state, demonstration maturity,
+and implementation status. One shown alone would be read as the others, which is precisely the confusion
+this rule exists to prevent. A `Production Ready` demonstration badge must never imply computed
+behaviour.
+
+Simulated, experimental, concept and roadmap markers use a consistent, non-decorative treatment that
+survives every lens, and do not rely on colour alone.
+
+### 7.5 Evidence presentation
+- Citations are inline and resolvable: activating one navigates to the cited capability or evidence.
+- External evidence shows source, publisher and date **without interaction** — provenance hidden behind
+  a tooltip does not satisfy ADR-048.
+- The three evidence classes — **From CogniX**, **Market Context**, **AI Interpretation** — are
+  distinguishable by structure and label, not by colour alone.
+
+### 7.6 Other Atlas surfaces
+Capability cards (name, five-second proposition, three maturity dimensions, domain, reuse indicator) ·
+filters with visible active state and one-click clear · relationship view, where relationships are a
+visual hero rather than a bullet list · Platform Capability Map derived from record fields ·
+Demo Path selectable by duration and audience, with prerequisites and warnings shown **before** the
+steps · Questions Worth Asking presented adjacent to relevant content as an invitation to explore,
+never as a trailing FAQ block · Ask CogniX with inline citations (`ATL-05`) · the client-preparation
+pack, printable and shareable, with warnings prominent (`ATL-06`).
+
+### 7.7 Accessibility and responsiveness
+Search, filters, lens switching and disclosure controls fully keyboard operable · status and
+evidence-class distinctions never by colour alone · expandable regions announce state to assistive
+technology · usable on a tablet in a client meeting, with the Demo Path legible at presentation
+distance · relationship and map visualisations provide a textual equivalent.
+
+### 7.8 Reuse
+The Atlas is built inside the existing shell and reuses what works: the §1.2 G10X semantic colour model,
+the §4 design system component tokens, the §3.1 One Authoritative Page Title rule, the existing icon
+system, and Chart.js via `react-chartjs-2` where a visualisation is warranted. New tokens are additive.
+**Atlas work must not restyle existing operational or decision surfaces.**

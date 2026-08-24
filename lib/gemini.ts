@@ -3,16 +3,17 @@
 
 import { GoogleGenAI } from '@google/genai';
 import { GoogleGenerativeAI, GenerativeModel } from '@google/generative-ai';
+import { resolveGeminiModels } from '../config/gemini-models';
 
 let _client: GoogleGenerativeAI | null = null;
 let _model: GenerativeModel | null = null;
 
-// Models verified against current Google AI Studio keys (Aug 2026).
-const GEMINI_MODELS = [
-  'gemini-3.6-flash',
-  'gemini-3.7-flash',
-  'gemini-2.0-flash',
-] as const;
+// Models come from the single governed configuration (ADR-067). This file previously carried its own
+// hard-coded list, which is the defect that ruling exists to prevent: the same retired aliases were
+// written here, in the Atlas grounding adapter and in the Atlas interpretation adapter, and all three
+// went stale together. Only the MODEL NAMES move here — the credential handling in this file is
+// unchanged and remains the legacy path recorded as technical debt in ADR-044 Amendment A.
+const GEMINI_MODELS = resolveGeminiModels();
 
 const GEMINI_REST_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
