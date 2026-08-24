@@ -1,7 +1,7 @@
 'use client';
 import {
-  Compass, HelpCircle, Layers, GitBranch, Database,
-  Tag, TrendingUp, Package, Box, Settings as SettingsIcon, HelpCircle as HelpIcon,
+  Compass, Layers, GitBranch, Database,
+  Tag, TrendingUp, Package, Box, Settings as SettingsIcon,
   LogOut, Briefcase, Store, Target
 } from 'lucide-react';
 import { useApp } from '@/lib/context';
@@ -19,20 +19,41 @@ const ROLE_META: Record<string, { Icon: any; label: string }> = {
 interface SidebarProps {
   currentPage: string;
   onNavigate: (page: string) => void;
+  /*
+   * ATL-FINAL. Below 1024px the stylesheet slides this panel off-screen with
+   * `transform: translateX(-100%)` and offers `.sidebar.open` to bring it back — and nothing in the
+   * estate had ever set that class. Browser acceptance at 1024 and 720 found the consequence: the
+   * Capability Atlas, Observability & Governance, every demonstration surface and Exit Demo were all
+   * unreachable, with no menu control anywhere on the page. The rule was written; the switch was
+   * never wired to it.
+   *
+   * `open` is that switch, and `onDismiss` closes the panel after a choice so a narrow reader is not
+   * left looking at the menu they just used.
+   */
+  open?: boolean;
+  onDismiss?: () => void;
 }
 
-export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
+export default function Sidebar({ currentPage, onNavigate, open = false, onDismiss }: SidebarProps) {
   const { role, setIsAuthenticated, setPlatformSetupComplete } = useApp();
   const { logout } = useAuth();
   const roleMeta = ROLE_META[role] || ROLE_META.exec;
 
+  /* Navigating dismisses the narrow-viewport panel; at full width `onDismiss` is a no-op. */
+  const go = (page: string) => { onNavigate(page); onDismiss?.(); };
+
   const handleWordmarkClick = () => {
+    // The event type is unchanged — it is a member of the frozen canonical union and the discovery
+    // funnel is measured through it. Only the surface it opens moved.
     trackJourneyEvent({ event_type: 'PORTFOLIO_OPENED', source: 'wordmark_home', page: currentPage });
-    onNavigate('portfolio');
+    go('atlas');
   };
 
   return (
-    <div className="sidebar" style={{ background: '#F8FAFC', borderRight: '1px solid var(--border)' }}>
+    <div
+      className={`sidebar${open ? ' open' : ''}`}
+      style={{ background: '#F8FAFC', borderRight: '1px solid var(--border)' }}
+    >
       {/* Brand Header */}
       <div className="sidebar-logo" style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)' }}>
         <CognixBrandLockup size="sm" centered={false} onClick={handleWordmarkClick} />
@@ -60,27 +81,20 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
       {/* Navigation Groups */}
       <nav className="sidebar-nav" style={{ padding: '14px 10px' }}>
         
-        {/* Explore Section */}
-        <div className="nav-section-label" style={{ color: 'var(--text-muted)', fontSize: '0.625rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '0 8px 6px' }}>
-          Explore
-        </div>
-
+        {/*
+          ATL-04R: the "Explore" grouping is gone, and with it the Portfolio and Questions entries.
+          Three sidebar destinations over one governed estate made them read as three products; they
+          are now views inside the Capability Atlas, which is the single discovery destination. The
+          Atlas needs no group heading of its own — a heading over one item is a category, not
+          navigation.
+        */}
         <button
-          className={`nav-item ${currentPage === 'portfolio' ? 'active' : ''}`}
-          onClick={() => onNavigate('portfolio')}
+          className={`nav-item ${currentPage === 'atlas' ? 'active' : ''}`}
+          onClick={() => go('atlas')}
           style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
         >
-          <Compass size={14} color={currentPage === 'portfolio' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
-          <span>Portfolio</span>
-        </button>
-
-        <button
-          className={`nav-item ${currentPage === 'curiosity' ? 'active' : ''}`}
-          onClick={() => onNavigate('curiosity')}
-          style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
-        >
-          <HelpCircle size={14} color={currentPage === 'curiosity' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
-          <span>Questions</span>
+          <Compass size={14} color={currentPage === 'atlas' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
+          <span>Capability Atlas</span>
         </button>
 
         {/* Experiments Section */}
@@ -90,7 +104,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
         <button
           className={`nav-item ${currentPage === 'commitment-intelligence' ? 'active' : ''}`}
-          onClick={() => onNavigate('commitment-intelligence')}
+          onClick={() => go('commitment-intelligence')}
           style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
         >
           <Layers size={14} color={currentPage === 'commitment-intelligence' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
@@ -99,7 +113,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
         <button
           className={`nav-item ${currentPage === 'decision-ripple' ? 'active' : ''}`}
-          onClick={() => onNavigate('decision-ripple')}
+          onClick={() => go('decision-ripple')}
           style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
         >
           <GitBranch size={14} color={currentPage === 'decision-ripple' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
@@ -108,7 +122,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
         <button
           className={`nav-item ${currentPage === 'enterprise-memory' ? 'active' : ''}`}
-          onClick={() => onNavigate('enterprise-memory')}
+          onClick={() => go('enterprise-memory')}
           style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
         >
           <Database size={14} color={currentPage === 'enterprise-memory' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
@@ -117,7 +131,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
         <button
           className={`nav-item ${currentPage === 'opportunity-intelligence' ? 'active' : ''}`}
-          onClick={() => onNavigate('opportunity-intelligence')}
+          onClick={() => go('opportunity-intelligence')}
           style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
         >
           <TrendingUp size={14} color={currentPage === 'opportunity-intelligence' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
@@ -126,7 +140,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
         <button
           className={`nav-item nav-item-has-tooltip ${currentPage === 'campaign-decision' ? 'active' : ''}`}
-          onClick={() => onNavigate('campaign-decision')}
+          onClick={() => go('campaign-decision')}
           style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
           aria-describedby="campaign-decision-nav-tooltip"
         >
@@ -144,7 +158,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
         <button
           className={`nav-item ${currentPage === 'solution-promo' ? 'active' : ''}`}
-          onClick={() => onNavigate('solution-promo')}
+          onClick={() => go('solution-promo')}
           style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
         >
           <Tag size={14} color={currentPage === 'solution-promo' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
@@ -153,7 +167,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
         <button
           className={`nav-item ${currentPage === 'solution-demand' ? 'active' : ''}`}
-          onClick={() => onNavigate('solution-demand')}
+          onClick={() => go('solution-demand')}
           style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
         >
           <TrendingUp size={14} color={currentPage === 'solution-demand' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
@@ -162,7 +176,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
         <button
           className={`nav-item ${currentPage === 'solution-inventory' ? 'active' : ''}`}
-          onClick={() => onNavigate('solution-inventory')}
+          onClick={() => go('solution-inventory')}
           style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
         >
           <Box size={14} color={currentPage === 'solution-inventory' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
@@ -171,7 +185,7 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
         <button
           className={`nav-item ${currentPage === 'solution-category' ? 'active' : ''}`}
-          onClick={() => onNavigate('solution-category')}
+          onClick={() => go('solution-category')}
           style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
         >
           <Package size={14} color={currentPage === 'solution-category' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
@@ -182,20 +196,19 @@ export default function Sidebar({ currentPage, onNavigate }: SidebarProps) {
 
       {/* Footer: De-emphasized Admin & Exit Demo */}
       <div className="sidebar-footer" style={{ padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
+        {/*
+          ATL-04R: About is no longer a destination. What sat behind it was a five-tab module whose
+          default tab was a retired storyboard; its live diagnostics moved into Observability &
+          Governance and its identification role became a header control. What remains here is one
+          entry, named for what it now contains.
+        */}
         <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
           <button
-            onClick={() => onNavigate('settings')}
-            title="IP & Governance Settings"
-            style={{ flex: 1, padding: '5px 8px', fontSize: '0.75rem', borderRadius: 4, background: '#FFFFFF', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+            onClick={() => go('settings')}
+            title="Observability & Governance"
+            style={{ flex: 1, padding: '6px 8px', fontSize: '0.75rem', borderRadius: 4, background: '#FFFFFF', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
           >
-            <SettingsIcon size={12} /> Governance
-          </button>
-          <button
-            onClick={() => onNavigate('help')}
-            title="About CogniX Studio"
-            style={{ flex: 1, padding: '5px 8px', fontSize: '0.75rem', borderRadius: 4, background: '#FFFFFF', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
-          >
-            <HelpIcon size={12} /> About
+            <SettingsIcon size={12} /> Observability &amp; Governance
           </button>
         </div>
 

@@ -418,11 +418,12 @@ Capability-family governance, canonical demand vocabulary, domain principles, th
 - **Enhancement Dependencies:** `CDI-02` counterfactual semantics (reused for `DO_NOTHING`), `CDI-04` readiness gating semantics, `CDI-05` trajectory rendering precedent, `CDI-06` selection/refusal semantics.
 - **Architectural rulings:** ADR-040 (stability is a property of the evidence stream, never the model), ADR-041 (gap is engine-computed opportunity minus executable capacity, no fourth capacity number), ADR-042 (window derives from a declared constraint and is not a decay curve), ADR-043 (regret is comparative expected value over declared alternatives; "frontier" carries two qualified meanings).
 - **Binding constraint:** purely additive on `IFI-01`; read-only on `WP10-C`; no governed contract, engine or authority rule changes meaning. Existing Demand & Forecast behaviour and all Campaign/Intent/Signal/Commitment flows remain functional.
-- **Defect register the governance task records at `7ad9c2df`:** **D-DDF-1** the `IFI-01` decomposition on the demand surface is hardcoded JSX and the engine is never called — the "12pp gap" does not respond to the promotion slider; **D-DDF-2** *"91% Model Accuracy"* is an unsupported backtest claim over an unqualified engine constant; **D-DDF-3** the ARIMA/Prophet/GenAI model selector is implemented as sine/cosine factors; **D-DDF-4** supplier capacity is defined in three places and only one responds to scenario change; **D-DDF-5** Cannibalisation and Event Boost are read from Shared Decision State but never written to it; **D-DDF-6** an unsupported *"confirmed via live API feed"* evidence claim; **D-DDF-7** a *"14 to 90 Days"* horizon claim on a surface offering 7/14/30; **D-DDF-8** dark-theme chart styling on a light executive surface. D-DDF-1 is corrected **before** Decision Gap is computed, because a gap over a static panel is a caption rather than a calculation.
+- **Defect register the governance task records at `7ad9c2df`:** **D-DDF-1** the `IFI-01` decomposition on the demand surface is hardcoded JSX and the engine is never called — the "12pp gap" does not respond to the promotion slider; **D-DDF-2** *"91% Model Accuracy"* is an unsupported backtest claim over an unqualified engine constant; **D-DDF-3** the ARIMA/Prophet/GenAI model selector is implemented as sine/cosine factors *(closed at the surface by `DDF-01` and **in full by `FM-01`, 2026-08-23** — the five residual wire-value sites are deleted with the engine, and `run-fm01-tests.ts` `I-01` is the source-level guard `run-ddf01-tests.ts` X9 could not be)*; **D-DDF-4** supplier capacity is defined in three places and only one responds to scenario change; **D-DDF-5** Cannibalisation and Event Boost are read from Shared Decision State but never written to it; **D-DDF-6** an unsupported *"confirmed via live API feed"* evidence claim; **D-DDF-7** a *"14 to 90 Days"* horizon claim on a surface offering 7/14/30; **D-DDF-8** dark-theme chart styling on a light executive surface. D-DDF-1 is corrected **before** Decision Gap is computed, because a gap over a static panel is a caption rather than a calculation.
 - **Acceptance Criteria:** `AC-DDF-01` … `AC-DDF-37`, of which the release-blocking `[HARD]` set governs preservation, engine binding, provenance honesty, internal consistency, recomputation and build cleanliness. Full text in the planning report.
 - **Test Requirements:** semantic assertions executing real route handlers and engines; full regression green at `CDI-01`…`CDI-07B` 21/36/31/49/70/93/155/235, `CDI-08` 44, `ESF-6` 81, `ESF-2` 19, `ESF-3` 22, `IFI-01` 12, `WP10-D` 15, `WP10-B`, `WP10-C`, campaign-intelligence 133, campaign-decision-journey 96, bugfix 4/4; `tsc` clean across root, contracts, learning and world; production build clean.
 - **Exit Gate:** an executive understands, within five seconds, that the outlook is moving, that existing commitments cannot capture it, that time is limited, and what acting versus waiting costs — and can reach the evidence for each claim. **MET.** The surface leads with four cards — stability, gap, window, cost of choosing wrongly — and one recommendation bar; the evidence for every figure is one disclosure away, including the provenance class of each input.
 - **Validation at completion:** `tsc` clean across root, contracts, learning and world; 22/22 unit runners green with every recorded baseline matched exactly; `DDF-01` 56/56; production build clean; browser walkthrough at 1024/1280/1440 with no console errors and no horizontal overflow.
+- **Amended by `FM-01` (2026-08-23).** The projection this surface renders is no longer produced by `getForecastProjections`; it comes from the governed forecast boundary. `DDF-01`'s arithmetic spine, its four capabilities and its acceptance are unchanged, and its suite is now **57/57** — assertions `E1`…`E3` were migrated onto the governed boundary with their intent intact, and `E0` was added. `D-DDF-3` closes in full at the same time, at the surface **and** in the engine.
 
 ---
 
@@ -443,6 +444,66 @@ Capability-family governance, canonical demand vocabulary, domain principles, th
 - `DOT-11` (Signal Half-Life) is parallel-eligible only **after `ESF-4`** — grading precedes weighting, exactly as admission precedes grading (G4). It is **not** `CDI-07A` Decision Half-Life and must never share an indicator with it.
 - `DOT-7` (Counterfactual Demand Twin) is blocked behind `CDI-08` correspondence and non-trivial attested observation volume; started earlier it would be fitted to CogniX's own simulator.
 - The **Demand Observability Maturity Model** (`DEMAND_OBSERVABILITY_MODEL.md` §5) adds a **Level 0 — Synthetic / modelled demonstration**, which is where the estate stands today and where all of `DDF-01` operates. Levels are capability levels, not purchase levels: a level is reached when evidence is *admitted and resolved*, not when a feed is connected.
+
+---
+
+### Capability Enablement Workstream — CogniX Capability Atlas (ATL)
+
+> **The CogniX Capability Atlas is an independently scheduled workstream. It does not supersede, close, reorder or implicitly deprioritise existing incomplete CogniX work packages.**
+
+**The governed knowledge, discovery, explanation and enablement layer for the CogniX Enterprise Innovation Lab** — *"Explore what CogniX can do, how capabilities work, where they apply, how to demonstrate them, and how they can be reused."*
+
+Programme charter, status board, full work-package specifications, the `SB-GATE` storyboard gate and **How to Resume Capability Atlas Work** are in [`COGNIX_CAPABILITY_ATLAS.md`](COGNIX_CAPABILITY_ATLAS.md). Knowledge model: [`CAPABILITY_KNOWLEDGE_MODEL.md`](CAPABILITY_KNOWLEDGE_MODEL.md). Architecture, search and AI: [`CAPABILITY_ATLAS_ARCHITECTURE.md`](../architecture/CAPABILITY_ATLAS_ARCHITECTURE.md). Architectural rulings: ADR-045 … ADR-051.
+
+**Work packages:** `ATL-01` … `ATL-07`, plus `ATL-04R` (a corrective re-scope) and `ATL-FINAL` (closure, acceptance and baseline — deliberately not `ATL-08`, which would imply a ninth feature phase).
+
+**Namespaces:** `ATL` (Atlas work packages) and `CAP` (capability identity, ADR-052) are registered alongside `CDI`, `ESF`, `IFI`, `DDF`, `DOT`, `WP10`, `EXP`, `SOL` and `PAT`, none of which is renamed, absorbed or deprecated. It is deliberately **not** `CAT-*`, because `SOL-CAT-04` already exists in the solution registry and would make a `CAT-*` workstream ambiguous to both readers and search.
+
+**A first-class capability identity, not a second capability model (ADR-045 as amended by Amendment A, ADR-052).** The Atlas extends the registries that already exist rather than replacing them: `CognixSolution` / `config/solutions.ts` remains canonical for Demonstration Solutions, `config/experiments.ts` for Innovation Experiments, [`EXPERIMENT_LIFECYCLE.md`](EXPERIMENT_LIFECYCLE.md) for lifecycle states, [`IP_GOVERNANCE.md`](IP_GOVERNANCE.md) for classification, `config/domains.ts` for domains and `config/personas.ts` for decision lenses. A capability keeps exactly one identity — a stable `CAP-*` identifier denoting *what CogniX can do* — while `SOL-*`, `EXP-*`, `PAT-*` and work-package identifiers remain separate governed identities reached by typed relationship. One work package may deliver several capabilities (`DDF-01` delivered Forecast Stability, Decision Gap, Decision Window and Decision Regret) and one capability may span several work packages (`CDI-08` + `ESF-6`). The Atlas adds only the knowledge those registries deliberately do not carry: architecture, implementation references, contracts, usage, test procedures, validation evidence, demo paths, client questions and responses, market evidence, competitive context, cross-domain reuse, provenance, retrieval metadata, the capability relationship graph, ownership and review lifecycle, and known limitations.
+
+**Maturity is three orthogonal dimensions, never one (ADR-047):** innovation lifecycle state (owned by `EXPERIMENT_LIFECYCLE.md`), demonstration maturity (owned by `CognixSolution.demoMaturity`), and implementation status (`implemented` / `partially-implemented` / `simulated` / `experimental` / `concept` / `roadmap`, introduced because nothing owned it). They do not imply one another and are always shown together — the direct governance response to the `D-DDF-1` / `D-DDF-2` / `D-DDF-3` defect class and to Principle 12's *No Literal Standing In For A Calculation*.
+
+#### ATL Work Package Specifications:
+
+- **`ATL-01` — Capability Discovery, Governance & Information Model [COMPLETED]:** Forensic, evidence-reconciled inventory of what CogniX actually does, reconciled against `SOL-*`/`EXP-*`/`PAT-*` registries, `packages/contracts`, the `tests/unit/` runners and the `docs/reports/` evidence base; three-dimension maturity classification at field level; unregistered-capability and orphaned-component detection; taxonomy confirmation as an extension of `config/domains.ts` and `config/personas.ts`; and the ADR-051 dual-version storyboard audit. **No runtime implementation.**
+  - *Hard Dependencies:* none — programme entry point.
+  - *Integration Dependencies:* none. *Enhancement Dependencies:* none.
+  - **Completed 2026-08-20.** 33 capabilities inventoried — 9 registered, 20 governed but **unregistered** (`CDI-02`…`CDI-08`, `DDF-01`, `IFI-01`, `ESF-1`/`-2`/`-3`/`-6`, `WP10-B`/`-C`/`-D`), 4 further experience/platform; 8 orphaned components; 0 unbacked registry entries; 9 contradictions recorded and **not** fixed; gaps `G1`…`G6`. `SB-GATE` **1 of 6 met** — the storyboard is **not** retired and is untouched. Evidence: [`COGNIX_ATL_01_CAPABILITY_INVENTORY_REPORT.md`](../reports/COGNIX_ATL_01_CAPABILITY_INVENTORY_REPORT.md), [`COGNIX_ATL_01_STORYBOARD_MIGRATION_ASSESSMENT.md`](../reports/COGNIX_ATL_01_STORYBOARD_MIGRATION_ASSESSMENT.md).
+- **`ATL-02` — Capability Knowledge Backend [COMPLETED]:** *Implemented 2026-08-20; evidence in [`COGNIX_ATL_02_CAPABILITY_KNOWLEDGE_BACKEND_REPORT.md`](../reports/COGNIX_ATL_02_CAPABILITY_KNOWLEDGE_BACKEND_REPORT.md).* The `CAP-*` capability identity namespace and, where justified, a canonical `config/capabilities.ts` registry — minimal schema and migration only, duplicating no existing `CognixSolution`, experiment, pattern or lifecycle metadata (ADR-052). Canonical knowledge extension keyed on `capabilityId` with typed relationships (*demonstrated-by* `SOL-*`, *originated-as* `EXP-*`, *evidenced-by* `PAT-*`, *delivered-by* work packages, many-to-many in both directions); validator; repository abstraction; read APIs under `app/api/v1/atlas/*` with the full filter set; relationship resolution; versioning and provenance; migration of the `components/QuestionsWorthAsking.tsx` `CuriosityQuestion` content into the registry (ADR-046); test runner following the `tests/unit/run-*-tests.ts` convention.
+  - *Hard Dependencies:* `ATL-01`.
+  - *Integration Dependencies:* `config/solutions.ts`, `config/experiments.ts`. *Enhancement Dependencies:* `packages/contracts` conventions.
+- **`ATL-03` — Retail & Grocery Knowledge Population [COMPLETED]:** *38 capabilities and 38 knowledge modules, 2026-08-20; evidence in [`COGNIX_ATL_03_KNOWLEDGE_POPULATION_REPORT.md`](../reports/COGNIX_ATL_03_KNOWLEDGE_POPULATION_REPORT.md).* Governed knowledge for every inventoried capability in `retail_grocery` and the cross-domain platform set, evidence-checked against implementation and tests. No record may claim a capability that does not exist.
+  - *Hard Dependencies:* `ATL-01`, `ATL-02`.
+- **`ATL-04` — Atlas UX & Structured Search [COMPLETED]:** *Delivered 2026-08-20; evidence in [`COGNIX_ATL_04_ATLAS_UX_SEARCH_REPORT.md`](../reports/COGNIX_ATL_04_ATLAS_UX_SEARCH_REPORT.md). Storyboard retirement not proposed; SB-GATE unchanged at 0 of 6 advanced.* Search-first landing, capability detail with progressive disclosure ([`UX_DESIGN_PRINCIPLES.md`](../ux/UX_DESIGN_PRINCIPLES.md) §7), Level 1 deterministic structured search with filters, audience lenses from `config/personas.ts`, relationship view, three-dimension maturity badges, Demo Path, Questions Worth Asking. Storyboard retirement only if `SB-GATE` passes.
+  - *Hard Dependencies:* `ATL-02`, `ATL-03`. *Integration Dependencies:* `SB-GATE` (ADR-051).
+- **`ATL-04R` — Unified Capability Exploration Experience [COMPLETED]:** *Delivered 2026-08-21; evidence in [`COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md`](../reports/COGNIX_ATL_04R_UNIFIED_CAPABILITY_EXPLORATION_REPORT.md). A refinement of `ATL-04`, not a reopening of it: `ATL-04` proved the backend-driven Atlas and its acceptance criteria stand. `SB-GATE` advanced 1 of 6 → 3 of 6; the storyboard is retained.* One Capability Atlas absorbing Portfolio and Questions Worth Asking as views; the `Explore` sidebar grouping and the global Domain and Persona header selectors removed; persona as an in-Atlas lens and domain as an exploration dimension (ADR-060); seven governed capability areas partitioning the registry; deterministic progressive clarification for ambiguous questions, provider-free and bounded to two steps (ADR-061); a governed business-problem catalogue; a knowledge-driven visual explainability framework across ten capabilities (ADR-063); filters behind progressive disclosure; About retired as a destination in favour of a lightweight header surface over one governed platform-metadata source; Governance renamed and reorganised as Observability & Governance. One proven Level 1 defect fixed: a plural query matched nothing (ADR-062).
+  - *Hard Dependencies:* `ATL-02`, `ATL-03`, `ATL-04`. *Integration Dependencies:* `SB-GATE` (ADR-051), and the `ATL-05`/`ATL-06` trust boundaries, which it consumes unchanged.
+  - *Non-Scope:* `ATL-06D` in any form. No storyboard retirement.
+- **`ATL-05` — Internal AI Retrieval & Ask CogniX [COMPLETED]:** *Delivered 2026-08-20; evidence in [`COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md`](../reports/COGNIX_ATL_05_INTERNAL_AI_ASK_COGNIX_REPORT.md). Internal-only retrieval; no provider adapter, no embedding retriever, no external grounding.* Semantic retrieval over governed capability knowledge only; Atlas AI gateway behind the existing provider abstraction; query routing; per-claim citations; guardrails; evaluation suite. **No external web access in this phase.**
+  - *Hard Dependencies:* `ATL-03`, `ATL-04`.
+- **`ATL-06A` — External Grounding & Provenance Architecture [COMPLETED]:** *Delivered 2026-08-21; evidence in [`COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md`](../reports/COGNIX_ATL_06A_EXTERNAL_GROUNDING_PROVENANCE_REPORT.md). No provider adapter, no network call, no market content.* The three ADR-048 evidence classes as a typed contract and a rendered surface; the external-grounding contract with full source provenance; question classification governing when external knowledge is permitted at all, failing safe toward internal-only; source admission by allowlist, tier, provenance completeness and date plausibility; per-topic freshness bounds; **contradiction precedence** (ADR-053) — a governed CogniX fact is authoritative and a disagreement resolves into three separated classes, never a synthesised statement; explicit refusal on insufficient grounding; the grounding provider interface with **no adapter behind it**; the declared policy published at `GET /api/v1/atlas/grounding`.
+  - *Hard Dependencies:* `ATL-05`.
+- **`ATL-06B` — Grounded Market Intelligence [COMPLETED]:** *Delivered 2026-08-21; evidence in [`COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md`](../reports/COGNIX_ATL_06B_GROUNDED_MARKET_INTELLIGENCE_REPORT.md). Owner-redefined from "Google AI Provider & Semantic Retrieval" on 2026-08-21.* The server-side Google Search grounding adapter behind the `ATL-06A` provider seam; grounded-segment extraction, so **only response segments carrying a grounding support that names a retrieved source become market claims** and ungrounded model text is discarded, counted and reported (ADR-055); source resolution with publisher, title and publication date read from the resolved page rather than from the model; freshness, source admission and a visible rejection ledger; **user-initiated research** — off by default, per question, never invoked by internal search or the internal Ask CogniX path (ADR-056); caching and a call budget; the visible **Market Context** evidence class with search transparency. `run-atl06a-tests.ts` passes unchanged; with the provider off the estate is byte-for-byte `ATL-05`.
+  - *Hard Dependencies:* `ATL-06A`, `ATL-05`.
+  - *Descoped:* **Level 2 semantic retrieval**, chartered under the earlier `ATL-06B`, is not delivered and is not yet assigned to a phase. It is reported as outstanding at `GET /api/v1/atlas/grounding`.
+- **`ATL-06C` — AI Explanation & Hybrid Reasoning [COMPLETED]:** *Delivered 2026-08-21; evidence in [`COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md`](../reports/COGNIX_ATL_06C_AI_EXPLANATION_REPORT.md).* The third ADR-048 evidence class as a reading rather than a template. The premise set is built **by construction**: governed From-CogniX statements plus **admitted** Market Context claims, and nothing else — rejected claims and discarded ungrounded segments are audit material and are structurally unreachable from the interpretation path (ADR-057). Every candidate reading is verified against eight declared rules and **dropped rather than hedged** when it fails, with the refusal shown; an interpretation may not assert a CogniX capability fact, reproduce a refused claim, or introduce a number, organisation or publisher no cited premise contains. The interpretation adapter is a seam separate from the grounding adapter and carries **no search tool**. With no provider or on failure it degrades to the `ATL-06A` templated reading and says so. **Level 2 semantic retrieval is deferred on measurement** (ADR-058): the failures are lexical, and the governed alias vocabulary authorised by the owner on 2026-08-21 closes them entirely (**ADR-059**) — 22 aliases as governed content with owner, review date, rationale and evidenced capabilities, validated by rules W1–W8, expansions reported on every search response and discounted below a direct hit, taking top-three recall from 10/18 to 18/18 with no embedding index.
+  - *Hard Dependencies:* `ATL-06A`, `ATL-06B`.
+  - *Closed 2026-08-21:* `AC-ATL-06C-9` — a real credentialed Gemini/Search grounding round trip passed on commit `f1c390bc` against `gemini-3.6-flash`: 25 grounding supports, 25/25 exact byte-offset reconstruction, both market scenarios invoking the provider, the internal Decision Gap question **not** invoking it despite research being requested, and credential-safe failure behaviour. Sanitised evidence in [`COGNIX_ATL_06C_LIVE_VALIDATION_SUMMARY.md`](../reports/COGNIX_ATL_06C_LIVE_VALIDATION_SUMMARY.md); the raw payload is git-ignored and never committed. Three blockers preceded it — a missing server-side credential path (ADR-044 Amendment A), retired model aliases (ADR-067) and an elided `startIndex` in the live segment contract — **none detectable by a fixture-backed suite**, which is why the live gate existed.
+- **`ATL-06D` — Client Conversation Pack [COMPLETED]:** *Delivered 2026-08-21; evidence in [`COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md`](../reports/COGNIX_ATL_06D_CLIENT_CONVERSATION_REPORT.md).* **"Prepare me for a client conversation"** — a preparation pack read from governed records for one stated conversation, reached from the Atlas rather than added beside it. A capability enters a pack by **accumulating rationale** and one that accumulates none is not recommendable, so the bare list §11 forbids has no code path (**ADR-065**); the lead cut is separation-tested and widens rather than implying a confidence the evidence does not support. Demonstration steps are **quoted from authored demo paths and never written** — the registry holds 33 three-minute and 5 ten-minute paths and no deep-dive or executive paths, so the executive and technical readings talk about capabilities instead of scripting demos that were never authored. Overselling is prevented **structurally** (**ADR-066**): demo warnings and prohibitions are non-optional arrays, rule `P2` refuses a pack recommending a non-`implemented` capability with no warning, a pack failing its rules is a 500 rather than a page with a caveat, every warning names the governed field it derives from, and warnings, limitations and maturity are **proven identical under all four lenses**. Nothing about the client is inferred from model memory — *"Prepare me for Tesco"* yields the name and nothing else. External research is default OFF and reaches outward only through the unmodified ATL-06A gate: the engine contains no `fetch`, no endpoint and no credential.
+  - *Hard Dependencies:* `ATL-06A`, `ATL-06B`, `ATL-06C`, `ATL-03`.
+  - *Also delivered:* **`D-ATL-04R-1`** — the persona-lens residual the owner reported on the live `ATL-04R` interface — is corrected (**ADR-064**). A lens now decides the four questions answered above the fold, which sections lead, which one opens, evidence depth and capability ordering; `ADR-045` survives unamended and lens invariance is asserted field-by-field across 38 capabilities × 4 lenses. Browser-verified on `CAP-DECISION-GAP`: 4/4 distinct question sets, opened sections and section orders.
+  - *Closed 2026-08-21:* `AC-ATL-06D-6` — the inherited `AC-ATL-06C-9` passed live, so the pack's Market Context path now rests on a provider round trip proven against a real search rather than only against recordings. `run-atl06d-tests.ts` revalidated at 96/96 after the closure.
+- **`ATL-07` — Capability Lifecycle Governance & Automation [COMPLETED]:** *Delivered 2026-08-21; evidence in [`COGNIX_ATL_07_GOVERNANCE_AUTOMATION_REPORT.md`](../reports/COGNIX_ATL_07_GOVERNANCE_AUTOMATION_REPORT.md).* Thirteen checks over the 38-record corpus from one command (`npx tsx scripts/atlas-governance-check.ts`), advisory by default with `--enforce` as the switch, wired into `.gitlab-ci.yml` as a reporting-only job that fetches full history. Completeness tiers, cited-path existence, source drift against `reviewed_at`, review windows, ownership, demo readiness, market-evidence freshness on ATL-06A's imported bounds, and undeclared limitations. **Live-provider drift is a first-class subject** (ADR-068): `config/atlas-provider-verification.ts` records what was verified, the commit it passed on and the files whose change invalidates it, and four checks run from it **without needing a credential**. **The engine has no write path** — it flags and blocks and never promotes a maturity state, asserted structurally. First run: 20 records claiming a lifecycle tier they do not meet (one missing field across the set), 12 with no lifecycle state, 11 with source drift since review, 0 provider drift. Nothing was changed to improve those numbers.
+  - *Hard Dependencies:* `ATL-02`, `ATL-03`.
+  - *Outstanding for an owner:* superseded by `ATL-FINAL` — the 20 tier gaps are closed and findings are on the Observability & Governance surface. What remains is in [`COGNIX_ATLAS_RESIDUAL_REGISTER.md`](COGNIX_ATLAS_RESIDUAL_REGISTER.md).
+
+- **`ATL-FINAL` — Capability Atlas Closure, Acceptance & Baseline [COMPLETED]:** *Delivered 2026-08-22; evidence in [`COGNIX_ATL_FINAL_CLOSURE_REPORT.md`](../reports/COGNIX_ATL_FINAL_CLOSURE_REPORT.md) and [`COGNIX_ATLAS_RESIDUAL_REGISTER.md`](COGNIX_ATLAS_RESIDUAL_REGISTER.md).* A closure and acceptance pass, registered as `ATL-FINAL` rather than `ATL-08` because it adds no capability. Eighteen residuals reconciled and classified — **seven closed, eleven left open with the reason recorded**, the open rows being the evidence that nothing was written to reach a clean sheet. **Governance clean: 0 blocking findings, `--enforce` exits 0.** The 20 `GOV-REC-1` tier gaps closed by authoring, for each capability, the premise its own architecture rests on, with `run-atlfinal-tests.ts` C3 asserting that no two records share an assumption. The 12 lifecycle nulls preserved and measured by capability type — **all nine `enabling-service` records, 9 of 9** — because the innovation lifecycle describes how an idea matures through the lab and the platform substrate was built rather than incubated. `data_sources` 3 → 14 and stopped there; a mechanical sweep of the remaining 24 produced provenance claims that were wrong on inspection. `external_evidence` still 0 with no allowlist, provenance or freshness rule relaxed. `tsx` declared as the test dependency two runners had always needed: `cdi07a` **155/0**, `cdi07b` **235/0**, **estate 35 of 35 runners green, 2,314 counted assertions, zero failures**. **`CDI-07A`/`CDI-07B` split decision closed on route evidence — do not split**; every artefact of both is a nested sub-resource of a decision contract, so neither passes the *independently reused* limb, and the registry stays at 38. Atlas Health added as the seventh Observability & Governance section: same engine, four lenses, counts declared overlapping, and the two repository checks declared **unmeasured** rather than reported as a zero the route could not earn. SB-GATE re-evaluated as governed data — **3 of 6, storyboard RETAINED, gate not weakened**. Runbook rewritten to v2.0.0 carrying no figures of its own. **Browser acceptance at 1440/1024/720 found three defects no suite could** (ADR-062 Amendment A): navigation unreachable below 1024px because `.sidebar.open` was never set, the query `pre-mortem` reaching nothing while the corpus holds that spelling eleven times, and the word `capability` scoring as a content word in a corpus of capabilities. Baseline established; **branch left unmerged**.
+  - *Hard Dependencies:* `ATL-01` … `ATL-07`, `ATL-04R`.
+  - *Outstanding for an owner:* confirm the 20 authored assumptions at each record's next review (R-13) · decide a lifecycle state, or none, for the three non-`enabling-service` nulls (R-12) · decide which check families become blocking in CI · decide whether to commission the market study that would populate `external_evidence` (R-04).
+
+**Architectural Storyboard disposition (ADR-051).** *Preserve architectural knowledge, not obsolete storyboard implementation.* Two implementations exist on different lines of history — the 12-slide `components/ArchitectureExplorer.tsx` on this line, and a 14-slide version on the abandoned Lidl-era `main`. The historical implementation is **never merged, cherry-picked or ported**; it is a read-only audit source. `ATL-01` audits both, assigns a destination to every unit of retained architectural knowledge, and completes the six-item `SB-GATE` checklist. The current storyboard is not deleted or disabled during `ATL-01`.
+
+**Separation discipline.** No `ATL` phase depends on any non-Atlas work package completing, and no non-Atlas work package depends on an `ATL` phase. No existing work item may be moved into the `ATL` namespace. `ATL-01` **reports** contradictions and pre-existing inconsistencies between governance and implementation; it does not fix them.
 
 ---
 
@@ -618,6 +679,438 @@ $$\text{Architecture/APIs} \rightarrow \text{Enterprise World} \rightarrow \text
 - Do **NOT** introduce Apache Kafka prematurely (use Redis Streams / NATS).
 - Do **NOT** implement autonomous model retraining without human gates.
 - Do **NOT** create raw cross-tenant data sharing or un-governed LLM decision engines.
+
+---
+
+# INNOVATION BACKLOG — REGISTERED, NOT AUTHORISED
+
+> **The [`COGNIX_INNOVATION_BACKLOG.md`](COGNIX_INNOVATION_BACKLOG.md) register is not part of this
+> plan's authorised scope. Nothing in it is committed delivery work.**
+
+**Namespace registration.** `IB` (innovation backlog ideas) is registered alongside `CDI`, `ESF`,
+`IFI`, `DDF`, `DOT`, `WP10`, `ATL`, `CAP`, `EXP`, `SOL` and `PAT`. No existing work item is renamed,
+absorbed, deprecated or moved into it, and no `IB-*` entry is a work package.
+
+**Separation rule, binding.** This Master Plan is the **only** source of authorised delivery scope.
+An idea becomes committed work at the moment it is written into this document as a work package with
+an identifier and a specification — that edit, and no other, is the authorisation. Backlog stages
+(`Idea` → `Research` → `Candidate Experiment` → `Approved` → `Planned` → `In Delivery`) are
+authorisation states, reconciled with [`EXPERIMENT_LIFECYCLE.md`](EXPERIMENT_LIFECYCLE.md) rather
+than competing with it: `Research` and `Retired` are that document's states unchanged, and
+`Candidate Experiment` is the handoff into it at `Concept`. `Approved` means approved *to be
+planned*; it authorises nothing. See **ADR-069**.
+
+**An `IB-*` idea is never a `CAP-*` capability.** It is not registered in `config/capabilities.ts`
+and never appears in Atlas capability search, because the Atlas answers *what CogniX can do*
+(ADR-052) and `ATL-03`'s rule that no record may claim a capability that does not exist is
+unweakened.
+
+**Current register state (2026-08-22):** 13 ideas across 6 themes — Learning & Evidence, Market &
+Product Discovery, Domain Expansion, Data & Integration Fabric, Platform AI Governance, Campaign
+Intelligence. **Ideas at `Approved`, `Planned` or `In Delivery`: zero.** Work packages authorised by
+the register: **none**.
+
+### Demo priority is a separate axis from programme priority
+
+Two facts, both true, neither derived from the other.
+
+- **Existing programme continuation — unchanged.** `ESF-4 — Signal Quality, Confidence & Provenance`
+  is the existing programme's continuation point, as
+  [`COGNIX_MASTER_PLAN_FORENSIC_STATUS_ASSESSMENT.md`](../reports/COGNIX_MASTER_PLAN_FORENSIC_STATUS_ASSESSMENT.md)
+  §7 finds: the only unstarted package whose hard dependency is satisfied, sitting at exactly that
+  point in the frozen post-`CDI-07B` sequence, unblocking the most (`ESF-5`, `DOT-11`), and closing
+  the last unqualified figures on a governed contract (`EnterpriseSignal.quality` / `.confidence`).
+  **Earliest prerequisite-sensitive and highest-value are the same package.** The earlier
+  consolidation-assessment verdict of *"valuable, wrongly positioned as next"* was a sequencing
+  judgement made before admission landed; ruling **G4** made it parallel-eligible **after** `ESF-6`,
+  and that condition is met. Nothing in the backlog reopens, reorders or deprioritises it.
+- **Demo-priority innovation — separate.** `IB-13 — Continuous Live Decision Twin` is prioritised
+  within the register because upcoming client demonstrations would benefit materially from a
+  continuous decision journey rather than a five-day simulated snapshot. It was raised 2026-08-22,
+  **after** `CDI-08`, `ESF-6`, `DDF-01` and `ATL-06D` completed, and is not recorded as having
+  preceded `ESF-4`.
+
+`IB-13` does **not** supersede `ESF-4`: different capability, different contracts
+(`campaign-timeline-model` / `campaign-decision-contract-model` versus `enterprise-signal-model` /
+`external-signal-connector-model`), no overlap, neither blocking the other. `IB-13` **can** be
+authorised independently — its hard dependencies `CDI-02`, `CDI-05` and `CDI-07A` are all
+`[COMPLETED]`. The owner may authorise `ESF-4` continuation, the `IB-13` demo-priority enhancement,
+or controlled parallel execution of both, without ambiguity.
+
+**If `IB-13` is authorised**, the smallest safe decomposition is two work packages — recommended in
+the register §5.8 and **not authorised here**: `CTW-01` (Continuous Campaign Timeline & Activation)
+then `CTW-02` (Adaptive Trajectory & Intervention Reforecast). Post-flight reconciliation is
+deliberately **not** a third package: it is extension work on `CDI-08` and the
+`CampaignDecisionExperiment` comparison surface, and a separate package would create a competing
+history model. The `CTW-*` identifiers become real only on entry into this document. Design
+constraints are frozen in advance by **ADR-070**.
+
+---
+
+### Demo-Priority Innovation Capability — Continuous Live Decision Twin (CTW)
+
+**Authorised by the owner on 2026-08-22 as a deliberate demo-priority override**, to support upcoming
+client demonstrations. The `CTW` namespace is registered alongside `CDI`, `ESF`, `IFI`, `DDF`, `DOT`,
+`WP10`, `ATL`, `CAP`, `IB`, `EXP`, `SOL` and `PAT`. It originates from `IB-13` in
+[`COGNIX_INNOVATION_BACKLOG.md`](COGNIX_INNOVATION_BACKLOG.md) §5; that entry is now `In Delivery`
+and this section, not the register, is the authorised scope.
+
+**`ESF-4 — Signal Quality, Confidence & Provenance` remains the canonical continuation point of this
+plan.** It is **temporarily parked, not superseded, cancelled, or architecturally deprioritised.**
+The forensic status assessment §7 finding stands unamended: `ESF-4` is the only unstarted package
+whose hard dependency is satisfied, and earliest prerequisite-sensitive and highest-value are the
+same package. `CTW` overlaps it in no contract and no file, and does not sit ahead of it in the
+programme DAG — it sits on a different axis.
+
+#### `CTW-01` — Continuous Campaign Timeline & Activation [COMPLETED]
+
+- **Status:** Authorised and **implemented 2026-08-22**. Evidence in
+  [`COGNIX_CTW_01_CONTINUOUS_TIMELINE_REPORT.md`](../reports/COGNIX_CTW_01_CONTINUOUS_TIMELINE_REPORT.md).
+- **Objective:** Turn Promotion Intelligence from a governed pre-flight assessment beside an
+  unrelated in-flight snapshot into one continuous decision lifecycle —
+  `Pre-flight Decision Intelligence → Review → Activate → Campaign in flight`, over the whole
+  campaign horizon rather than only the elapsed part of it.
+- **Delivered:**
+  - `packages/contracts/src/campaign-continuous-timeline-model.ts` — the governed contract:
+    `CampaignHorizonClass` (`OBSERVED_ELAPSED` / `SIMULATED_ELAPSED` / `PREDICTED_REMAINING`),
+    `FlightActivation`, `FlightHorizon`, `ContinuousSeriesPoint`, `ContinuousLensSeries`,
+    `FlightDeviationSummary`, `CampaignFlightProjection`, and `validateFlightProjection` — the
+    seven invariants `W-INV-1`…`W-INV-7` as executable checks rather than prose.
+  - `TimelineTrajectoryKind` extended additively with `OBSERVED` and `REFORECAST`. **CDI-05 is
+    unchanged and still emits exactly `COUNTERFACTUAL` and `INTERVENTION`**, asserted in both
+    `run-cdi05-tests.ts` and `run-ctw01-tests.ts`. `REFORECAST` is reserved for `CTW-02` and is
+    emitted by nothing at this baseline.
+  - `lib/campaign-continuous-timeline-engine.ts`, `app/api/v1/campaigns/flight/route.ts`,
+    `lib/campaign-flight-client.ts`.
+  - `components/campaign/FlightActivationPanel.tsx` (Review & Activate),
+    `components/campaign/ContinuousFlightTimeline.tsx` (the timeline), and the wiring in
+    `components/PromotionPlanner.tsx`, `components/campaign/LiveDecisionTwinLens.tsx` and
+    `components/campaign/CampaignDiscoveryHero.tsx`.
+  - `tests/unit/run-ctw01-tests.ts` — 65 assertions across activation, class separation, horizon,
+    deviation, uncertainty, the `CTW-02` boundary, CDI-05 invariance, and all seven archetypes.
+- **Activation binds to the existing `DecisionContract`; no second baseline exists (ADR-070).**
+  Activation registers the intent, evaluates the CDI-06 outcome frontier and creates an `ACTIVE`
+  CDI-07A contract by the same governed path the Campaign Decision Canvas uses. Where the declared
+  constraints do not settle the choice, the frontier returns `CHOICE_REQUIRED` and a person decides,
+  on the record. Re-activating after a configuration change **supersedes** the prior contract
+  (`RJ-C8`) rather than replacing it, so both remain readable.
+- **Observed, simulated and predicted are three declared classes over one horizon.** A
+  `PREDICTED_REMAINING` day carries no actual, no deviation and never `OBSERVED` strength;
+  `OBSERVED_ELAPSED` requires an `ESF-6`-admitted observation and is therefore **unreachable at this
+  baseline**, so every elapsed day is `SIMULATED_ELAPSED` and says so. `OBSERVED_ELAPSED_REQUIRED_INPUT`
+  publishes what would change that.
+- **Metric boundary, as approved:** demand, contribution, deviation from the activated pre-flight
+  baseline, and declared uncertainty. **Revenue is not introduced** — the CDI-05 `NOT_AVAILABLE`
+  refusal stands. **No stock trajectory** — a series would need a declared depletion basis that
+  neither CDI-05 nor `WP10-C` supplies. Both refusals are published on the projection with reasons.
+- **The deviation is like-for-like, and the arithmetic says why.** Seeded campaign telemetry and the
+  CDI-05 projection are on different quantity bases and different populations, so they are never
+  subtracted from one another. The telemetry supplies only a **scale-free ratio** — computed with
+  numerator and denominator inside its own basis — which is applied to the contract-bound projection
+  so both sides of the comparison land in the same basis. This is the `DDF-01` ratio precedent
+  (ADR-041 Amendment A). An undefined ratio yields no actual and no deviation, never a defaulted
+  zero.
+- **Hard Dependencies:** `CDI-02`, `CDI-05`, `CDI-07A` (all `[COMPLETED]`).
+  **Integration Dependencies:** `CDI-06` (frontier, for activation), `WP10-C`.
+  **Enhancement Dependencies:** none.
+- **Non-Scope, published on every projection and asserted in the suite:** adaptive intervention and
+  trade-off comparison (`CTW-02`); remaining-horizon reforecast (`CTW-02`); post-flight
+  reconciliation (extension of `CDI-08` and the `CampaignDecisionExperiment` comparison surface); any
+  ML, learning candidate or learning case; any new origin of `synthetic_demo = false`; any change to
+  `CDI-01`…`CDI-08`, `ESF-6` or `WP10-C` semantics.
+- **Architectural ruling:** **ADR-070**, frozen before implementation and implemented unamended.
+- **Validation at completion:** `tsc` clean; **36 of 36 runners green** with every recorded baseline
+  matched exactly (`CDI-01`…`CDI-07B` 21/36/31/49/70/93/155/235, `CDI-08` 44, `ESF-6` 81, `DDF-01` 56,
+  campaign-intelligence 133, campaign-decision-journey 96, decision-dimensions 173, and the full
+  `ATL` set unchanged); `CTW-01` 65/65; production build clean; `atlas-governance-check --enforce`
+  exits 0; browser-validated at 1024/1280/1440 with no console errors and no horizontal overflow.
+
+#### `CTW-01R` — Campaign Decision Experience [COMPLETED]
+
+- **Status:** Authorised and **implemented 2026-08-23** as WP1 of the CTW structured programme.
+  Evidence in [`COGNIX_CTW_01R_CAMPAIGN_DECISION_EXPERIENCE_REPORT.md`](../reports/COGNIX_CTW_01R_CAMPAIGN_DECISION_EXPERIENCE_REPORT.md).
+- **Objective:** Make the `CTW-01` journey understandable, repeatable and demo-ready for a Promotion
+  Analyst **without changing its projection semantics**. A refinement of `CTW-01`, not a reopening
+  of it: `CTW-01`'s acceptance stands and its 65 assertions pass unchanged.
+- **Delivered:**
+  - **Decision Confirmation.** The two free-text resolution boxes are replaced by governed choices —
+    a decision owner (six roles, custom permitted) and a decision rationale (six reasons, optional
+    context) — each with a helper written for an analyst, above an explanation of *why* a person is
+    being asked at all. `CDI-07A` provenance is unchanged: the answers still become `resolved_by` and
+    `resolution_statement` under `HUMAN_RESOLVED`, and free text qualifies the governed reason rather
+    than replacing it. The refusal names which answer is still missing.
+  - **Promotion experiment lifecycle** on the **existing** governed experiment architecture. No
+    competing history model: `CampaignDecisionExperiment`, `saveCampaignExperimentClient` and
+    `ExperimentHistoryDrawer` are reused as they stand. *New promotion experiment* closes the record
+    in progress — preserved, never deleted — via `POST /api/v1/campaigns/experiments/close-active`,
+    deliberately **not** the session reset, because the Campaign Decision Canvas shares this session
+    and must not lose a draft. Stage is **derived, never stored**: `Draft` → `Activated` → `In flight`.
+  - **`COMPLETED` is deliberately not a stage.** `current_day < flight_days` in all seven archetypes,
+    so nothing in this build can pass a campaign's final day; a completed stage would be a state no
+    record could reach. `PROMOTION_STAGE_NOT_DERIVABLE` publishes the reason, and the suite asserts
+    the underlying claim against the archetype data rather than trusting it.
+  - **Narrated timeline.** Every day of the horizon carries a `FlightDayNarrative` derived in the
+    engine from the governed figures — headline, statement, attention state, the reason for that
+    state, both lens readings, and the basis list. Nothing is authored per campaign or per day;
+    changing the data changes the words, which the suite proves by narrating the same day twice on
+    different telemetry. Attention follows declared thresholds (`2%` monitor, `5%` attention) in
+    either direction, because a campaign well ahead of the activated decision has departed from it
+    just as surely as one behind.
+  - **Duplication removed.** The five-day telemetry card strip is retired in favour of the continuous
+    timeline as the visual hero, and **nothing it showed was lost**: demand, contribution, depot stock
+    and the world model's own day status all moved into the day detail, each with its own basis, and
+    the seeded status is explicitly distinguished from CogniX's assessment against the activated
+    decision.
+- **The flat predicted horizon is now disclosed rather than concealed.** `FLAT_HORIZON_DISCLOSURE` is
+  published on every projection: under `FLAT_RATE_IDENTITY` every remaining day carries the same
+  expectation, so what widens with horizon is confidence, not demand. The suite asserts the
+  disclosure is *true of the data*, so it fails if the projection ever stops being flat.
+- **Projection semantics unchanged.** No engine arithmetic, horizon, deviation, uncertainty or
+  invariant was altered. Narration is additive beside the series, never folded into the points
+  `CTW-01` froze.
+- **Also fixed:** a **pre-existing** horizontal overflow on the planning view below ~1240px — seven
+  `nowrap` archetype chips forced a minimum page width that `overflowX: auto` did not relieve. Two
+  `flexWrap: 'wrap'` declarations. Presentation only; it was invisible to `CTW-01`'s validation
+  because that was performed on the in-flight view, where the configuration block is not rendered.
+- **Hard Dependencies:** `CTW-01`. **Integration Dependencies:** `CampaignDecisionExperiment` /
+  `campaign-experiment-store`, `CDI-07A`.
+- **Non-Scope:** adaptive intervention, decision moments, reforecast, post-flight reconciliation, any
+  change to projection semantics, any forecasting model.
+- **Validation:** `tsc` clean; **37 of 37 runners green** with every recorded baseline matched exactly
+  and `CTW-01` unchanged at 65/65; `CTW-01R` 59/59; production build clean;
+  `atlas-governance-check --enforce` exits 0; browser-validated at 1024/1280/1440 with no console
+  errors and no horizontal overflow.
+
+#### `CTW-02` — Predictive Intervention Planning [COMPLETED]
+
+Campaign Outlook, Decision Moments, decision windows, intervention preview, planned interventions
+with conditional modes, reassessment, apply-and-reforecast, and the campaign story. Emits the
+`REFORECAST` trajectory kind `CTW-01` reserved. **Not authorised.**
+- *Hard Dependencies:* `CTW-01`, `CTW-01R`.
+- **Status:** Authorised and **implemented 2026-08-23**, after `CTW-03` unblocked it. Evidence in
+  [`COGNIX_CTW_02_PREDICTIVE_INTERVENTION_REPORT.md`](../reports/COGNIX_CTW_02_PREDICTIVE_INTERVENTION_REPORT.md).
+- **Delivered:**
+  - **Decision Moments** — at most three, ranked material-first — of three kinds: a forecast
+    contribution trough, a forecast demand peak, and a sustained observed departure from plan. Each
+    carries the period, issue, expected consequence, cited evidence, a deterministic *why*, a window
+    and a candidate action. **Every citation is from one of exactly three permitted sources** —
+    `GOVERNED_FORECAST`, `OBSERVED_DEVIATION`, `DECLARED_UNCERTAINTY` — asserted field-by-field.
+  - **Campaign Outlook** — headline, next decision, decision window and current action
+    (`MONITOR` / `PREPARE` / `REVIEW`), from governed engine outputs only.
+  - **Decision windows as arithmetic, not optimisation.** A window runs from tomorrow to the last day
+    of the period it targets, because acting on the first day of a days 6–9 period still changes days
+    6–9 and acting on day 9 changes only day 9. The cost of delay is stated because it is countable.
+    Where no window exists the surface says *"No reliable intervention window available."*
+  - **Intervention preview** — do nothing versus intervene over the **remaining horizon only**, both
+    sides CDI-02 at two promotional depths reshaped by the same CTW-03 forecast, with the trade-off
+    named and the numbers behind progressive disclosure.
+  - **Planned interventions** with `PREPARE_FOR_APPROVAL` as the governed default, `REMIND_ME`, and
+    `AUTOMATIC_EXECUTION` **declared unavailable and refused at the route** — never simulated.
+  - **Continuous reassessment** returning `KEEP`, `BRING_FORWARD`, `DELAY`, `RESCHEDULE`, `CANCEL`,
+    `NO_LONGER_NECESSARY` or `MAY_BE_TOO_LATE`, always with options rather than an instruction, and
+    **every reassessment appended, never replaced** — the record is the trail of why it changed.
+  - **Apply and reforecast** — on confirmation the original expectation and every observation are
+    untouched, the intervention is recorded with its reason, and a `REFORECAST` trajectory covering
+    only days from the effective day is published beside them, through the **same** governed forecast.
+    An intervention effective on an elapsed day is refused (`RJ-W9`).
+  - **Campaign story** from recorded events and declared predictions, with predictions marked *not yet
+    happened*.
+- **Nothing forecasts inside CTW-02.** With no forecast bound no predicted moment exists at all, and
+  the surface says why. A sustained departure is stated and **explicitly not projected forward** —
+  refusing to extrapolate is published as a reason, not left implicit.
+- **Three defects found by browser validation and fixed**, each with a regression test: a decision
+  window that closed a day too early and so reported "no window" where acting was still possible; a
+  planned intervention from a **previous** activated decision attaching itself to a fresh campaign,
+  because moment ids repeat across decisions; and a confirmation that was **written to the store
+  before validation**, leaving a rejected confirm committed while the caller was told it failed.
+  `I-INV-6` was also corrected — it rejected a direct confirmation, which an analyst is entitled to
+  make without waiting to be prompted.
+- **Hard Dependencies:** `CTW-01`, `CTW-01R`, `CTW-03`.
+- **Non-Scope:** revenue, stock predictions, external automatic execution, ML or learning claims, a
+  second forecasting engine, post-flight reconciliation, legacy Demand & Forecast migration.
+- **Validation:** `tsc` clean; **39 of 39 runners green**, `CTW-02` 82/82, with `CTW-01` 65,
+  `CTW-01R` 60, `CTW-03` 77, `CDI-05` 70, `CDI-07A` 155, `CDI-07B` 235, `CDI-08` 44, `ESF-6` 81 and
+  `DDF-01` 56 all unchanged; build clean; `atlas-governance-check --enforce` exits 0;
+  browser-validated at 1024/1280/1440, no overflow, no console errors, full journey exercised through
+  plan, reassess, confirm and reforecast.
+- **Blocking finding — RESOLVED 2026-08-23 by `CTW-03`.** A Decision Moment is a day that differs
+  materially from other days, and under `FLAT_RATE_IDENTITY` no predicted day differed from any
+  other. The owner resequenced the programme to take `CTW-03` first; the horizon is now shaped by a
+  governed forecast under `FORECAST_SHAPED`, predicted days genuinely vary, and a Decision Moment can
+  be derived from evidence rather than invented. **`CTW-02` is unblocked.** It must derive moments
+  from the bound forecast, the observed deviation and the declared uncertainty — never from an
+  extrapolation of its own.
+
+#### `CTW-03` — Governed Forecast Model Execution Boundary [COMPLETED]
+
+- **Status:** Authorised and **implemented 2026-08-23** as WP3 of the CTW programme, taken **before**
+  `CTW-02` on the owner's resequencing decision. Evidence in
+  [`COGNIX_CTW_03_FORECAST_MODEL_BOUNDARY_REPORT.md`](../reports/COGNIX_CTW_03_FORECAST_MODEL_BOUNDARY_REPORT.md).
+- **Objective:** One authoritative boundary between dataset, model selection, fitting, prediction,
+  uncertainty and the Decision Twin, such that **the model named to a user is the implementation
+  that produced the forecast**. The factual baseline it corrects is
+  [`COGNIX_FORECAST_MODEL_TRUTH_RECORD.md`](COGNIX_FORECAST_MODEL_TRUTH_RECORD.md).
+- **Delivered:**
+  - **Governed contract** (`packages/contracts/src/forecast-model-model.ts`) carrying model identity,
+    family, runtime, implementation reference, version, grain, seasonal period, minimum history,
+    maximum horizon, per-model dataset requirements, qualification, fit metadata, per-period points,
+    uncertainty basis, backtest metrics, diagnostics, data provenance and typed refusals.
+  - **Two genuinely executing models.** `HOLT_WINTERS_ADDITIVE` — ETS(A,A,A) with weekly seasonality,
+    estimating three smoothing parameters by deterministic coarse-to-fine search over in-sample
+    one-step squared error, initialised by classical decomposition over every complete cycle, with a
+    prediction interval from its own residual variance and the additive-error variance expansion.
+    `SEASONAL_NAIVE` — the benchmark and the MASE denominator, which estimates nothing and says so.
+    **No model is registered without an adapter that fits and predicts.**
+  - **Qualification precedes execution.** Insufficient history, gaps, duplicates, non-finite values
+    and out-of-range horizons are typed refusals carrying remediation, never silent fits.
+  - **Validation is measured.** Rolling-origin backtesting on **identical folds across models**, with
+    MAE, RMSE, MAPE (withheld on a zero actual), sMAPE, MASE and **measured interval coverage**. A
+    winner is named only when every model scored and the MASE gap exceeds a declared margin.
+  - **Routes:** `GET /api/v1/forecast/models`, `POST /api/v1/forecast/execute`,
+    `POST /api/v1/forecast/compare`.
+  - **Twin integration (§29).** The flight projection consumes the boundary and **nothing downstream
+    branches on `model_id`**. A bound forecast sets `allocation_profile: 'FORECAST_SHAPED'`, which
+    redistributes the activated contract's total across the window using the model's per-day shape —
+    information-preserving, total unchanged, **not a second baseline** (ADR-070 unamended).
+- **`D-FM-6` resolved.** The predicted horizon genuinely varies day to day, which is what unblocks
+  `CTW-02`. Without a bound forecast the horizon stays flat and says so.
+- **Measured finding, published rather than tuned away:** on the governed demand series the
+  **benchmark scores better than the fitted model** (MASE 1.493 against 1.536 on identical folds),
+  and **measured interval coverage is materially below nominal** (46% and 63% against 80%). Both are
+  reported on the artefact and on screen. Nothing was widened, refitted or reselected to improve
+  them.
+- **Defects:** `D-FM-1`…`D-FM-4` resolved **on the governed path** and open on the legacy path;
+  `D-FM-5` does not intersect; `D-FM-6` resolved; **`D-FM-7` newly opened** — the legacy day-of-week
+  table asserts Fri/Sat 1.15 and Mon/Tue 0.88 where the data shows Sat/Sun ≈ 1.18 and Friday at
+  0.928. Register and disposition in the truth record §5.1.
+- **Hard Dependencies:** `CTW-01R`. **Non-Scope:** data upload, MCP, ML/learning, retiring the legacy
+  `getForecastProjections` path, `CTW-02`.
+- **Validation:** `tsc` clean; **38 of 38 runners green**, `CTW-03` 77/77, `CTW-01` unchanged at
+  65/65, `CTW-01R` 60/60 with two assertions **deliberately strengthened** to require the disclosure
+  to match the horizon's actual shape; build clean; `atlas-governance-check --enforce` exits 0;
+  browser-validated at 1024/1280/1440 with no console errors and no horizontal overflow.
+
+**`CTW-02` absorbs the earlier "Adaptive Trajectory & Intervention Reforecast" scope.** The
+trajectory mechanics recorded when `CTW-01` was authorised — preserve the original trajectory on
+activation, record the intervention, add a new trajectory, reforecast **only** the remaining horizon,
+never recompute elapsed days and never overwrite history — are unchanged and are carried into
+`CTW-02` above rather than standing as a separate package. Nothing in that scope was dropped; it was
+widened by the owner's CTW programme brief to include the outlook, decision moments, planning and
+reassessment that surround it.
+
+**Post-flight reconciliation is deliberately not a `CTW` work package.** It is extension work on
+`CDI-08` `PredictionOutcomeComparison` and the `CampaignDecisionExperiment` comparison surface. A
+third package here would build a competing history model.
+
+#### `FM-01` — Governed Forecast Migration & Release 1.0 Hardening [COMPLETED]
+
+- **Status:** Authorised and **implemented 2026-08-23** as the final engineering pass before owner
+  acceptance of Release 1.0. Evidence in
+  [`COGNIX_FM_01_GOVERNED_FORECAST_MIGRATION_REPORT.md`](../reports/COGNIX_FM_01_GOVERNED_FORECAST_MIGRATION_REPORT.md).
+- **Objective:** *Replace the remaining legacy Demand & Forecast projection path with the `CTW-03`
+  governed forecast execution boundary and establish one authoritative forecasting architecture for
+  Release 1.0.* `CTW-03` built the boundary beside the legacy path and recorded the migration as an
+  owner decision; the owner authorised it.
+- **Namespace:** `FM` is registered alongside `CTW`, `CDI`, `ESF`, `IFI`, `DDF`, `DOT`, `WP10`,
+  `ATL`, `CAP`, `IB`, `EXP`, `SOL` and `PAT`. It renames, absorbs and deprecates none of them.
+- **Delivered:**
+  - **One forecasting architecture.** `getForecastProjections`, `getFutureDays` and the frozen
+    `2026-06-04` window anchor are **deleted**, not wrapped. Demand & Forecast consumes
+    `lib/demand-forecast.ts` → `lib/forecast/forecast-engine.ts` through
+    `POST /api/v1/demand/forecast`; the Twin reaches the same boundary through
+    `app/api/v1/campaigns/flight/route.ts`. `GET /api/data?type=forecast` answers `410 Gone` naming
+    its replacement. **No compatibility shim translates a retired model name** — a translation layer
+    is how a fake name survives a migration and becomes provenance again.
+  - **Empirical interval calibration** (`lib/forecast/calibration.ts`). Split conformal prediction
+    with a normalised nonconformity score over rolling-origin backtest residuals, published as a
+    second interval beside the model-implied one rather than in place of it. New invariants
+    `F-INV-7` and `F-INV-8`.
+  - **Rebuilt Demand & Forecast experience** — `components/demand/DemandForecastChart.tsx` and
+    `components/demand/ForecastModelPanel.tsx`, in the same visual grammar as the Twin: hatched
+    predicted region, labelled `TODAY` divider, solid observed against dashed forecast, calibrated
+    range band, per-day narration derived from governed figures, and the model's own expectation
+    drawn beside the assumed one wherever a commercial assumption is non-neutral.
+  - **`tests/unit/run-fm01-tests.ts`** — 112 assertions across migration, defect closure, model
+    identity, calibration, projection and release coherence.
+- **The six defects closed, each by removal of the code that carried it, each with a regression that
+  reproduces the original mechanism and requires it to fail:** `D-FM-1` (the 7.14% understatement),
+  `D-FM-2` (the frozen anchor), `D-FM-3` (the timezone-skewed weekday table), `D-FM-4` (`arima`
+  indistinguishable from garbage), `D-FM-5` (a growth rate whose history seed cancelled) and
+  `D-FM-7` (a declared weekday table contradicting its own data). Full closure evidence in
+  [`COGNIX_FORECAST_MODEL_TRUTH_RECORD.md`](COGNIX_FORECAST_MODEL_TRUTH_RECORD.md) §5.2.
+  `D-DDF-3` closes in full at the same time — the five residual wire-value sites are deleted, and
+  `run-fm01-tests.ts` `I-01` is the guard `run-ddf01-tests.ts` X9 could not be.
+- **The uncertainty finding, corrected rather than relabelled.** `CTW-03`'s measured coverage of
+  46.4% and 62.5% against a nominal 80% is now met with a calibration measured on held-out folds:
+  **81.3%** (Holt-Winters) and **76.8%** (Seasonal Naive) at a 14-day horizon, from multipliers of
+  ×2.65 and ×1.63. The multiplier is itself published — ×2.65 says the fitted model was two and a
+  half times more confident than its own errors justified. **The uncomfortable diagnostic was kept:**
+  `interval_coverage_near_nominal` still judges the model-implied interval, still fails, and still
+  says it is not calibrated. **`CTW-03`'s recorded MASE and coverage are preserved exactly**, because
+  the calibration runs its own rolling pass rather than changing the metrics folds.
+- **Two genuine models, and the benchmark still wins.** No model was added. On the governed series
+  the measured recommendation remains **Same weekday last week** (MASE 1.493 against 1.536), and the
+  surface shows it. A recommendation never overrides a chosen model.
+- **Capability Atlas.** Three capabilities registered — `CAP-CONTINUOUS-DECISION-TWIN`
+  (`CTW-01`, `CTW-01R`), `CAP-GOVERNED-FORECAST` (`CTW-03`, `FM-01`) and
+  `CAP-PREDICTIVE-INTERVENTION` (`CTW-02`) — with knowledge modules, placement in the landscape,
+  visual specs and reciprocated relationships. `CAP-DEMAND-FORECAST` is amended to record the
+  migration. Corpus 38 → 41.
+- **Hard Dependencies:** `CTW-03`, `DDF-01`.
+  **Non-Scope:** data upload, connectors, MCP, media management, AI-key-management UI, organisational
+  learning, ML training, post-flight campaign learning, automatic external execution, `ESF-4`, any
+  new forecasting model, any unrelated Atlas feature.
+- **Architectural rulings:** **ADR-071** (one governed forecasting path; a model identifier names the
+  implementation that ran) and **ADR-072** (uncertainty is published twice and never as a bare
+  confidence percentage). ADR-040 and ADR-070 are unamended.
+- **Validation:** `tsc` clean across root, contracts, learning and world; **40 of 40 runners green**;
+  `FM-01` 112/112; production build clean; `atlas-governance-check --enforce` exits 0; credential
+  isolation holds; browser-validated at 1440/1280/1024/375 with no page-level horizontal overflow and
+  no application console errors, and the full Promotion journey re-exercised end to end after the
+  migration.
+- **Recorded baseline movements, each with its reason.** `DDF-01` 56 → **57** (three projection
+  assertions migrated onto the governed boundary, one added). `ATL-02` 119 → **122** and `ATL-04R`
+  121 → **124** (per-capability assertions over a corpus of 41). `ATL-07` D1 changed from the literal
+  `38` to `CAPABILITY_REGISTRY.length` — the check it was always making. `ATL-04` C2 no longer names
+  one of the two demand-forecast capabilities as permanently first, because
+  `CAP-GOVERNED-FORECAST` now leads *"forecast uncertainty"* and that is the better answer.
+  `ATL-06C` G2's unexpanded top-three baseline **degrades from 10 to 8** as the corpus grows, which
+  is the expected direction and strengthens the finding it exists to support: the governed vocabulary
+  still returns 18 of 18. Every other recorded count is matched exactly.
+
+---
+
+## RELEASE 1.0 — ENGINEERING BASELINE
+
+**Recorded 2026-08-23 at the close of `FM-01`.** This estate had no release-baseline concept; this
+section is the minimum record that makes owner acceptance and DevOps handoff possible, and is
+deliberately not a release-management framework.
+
+| | |
+|---|---|
+| **Baseline** | `FM-01` completion on `claude/cognix-capability-atlas-v2` |
+| **Engineering state** | **READY for owner acceptance testing** |
+| **What "ready" means** | Every authorised work package is `[COMPLETED]`, every recorded defect on the forecast path is closed with regression evidence, the full test estate is green, the production build is clean, governance enforces clean, and credential isolation holds |
+| **What it does not mean** | The owner has not tested it. Acceptance is the next gate and DevOps handoff follows acceptance, not this record |
+| **Canonical continuation after Release 1.0** | **`ESF-4` — Signal Quality, Confidence & Provenance.** Parked, **not** superseded, cancelled or deprioritised. `FM-01` does not unpark it |
+| **Detailed evidence** | [`COGNIX_FM_01_GOVERNED_FORECAST_MIGRATION_REPORT.md`](../reports/COGNIX_FM_01_GOVERNED_FORECAST_MIGRATION_REPORT.md) |
+
+**What Release 1.0 contains, at capability level:** Phases 0–9, Programme 10 A–D, `IFI-01`,
+`CDI-01`…`CDI-08`, `ESF-1`/`-2`/`-3`/`-6`, `DDF-01`, `ATL-01`…`ATL-07` with `ATL-04R` and
+`ATL-FINAL`, the `CTW` programme (`CTW-01`, `CTW-01R`, `CTW-03`, `CTW-02`) and `FM-01`.
+
+**What Release 1.0 deliberately does not contain**, so that no demonstration implies otherwise: user
+data upload, connectors or MCP, enterprise integrations, media or video management, an
+AI-key-management UI, organisational learning, ML training, post-flight campaign learning, automatic
+external intervention execution, and every `DOT` roadmap capability. The estate operates at **Demand
+Observability Level 0 — synthetic / modelled demonstration** throughout, and every governed artefact
+says so.
+
+**Three limitations travel with the release** and are recorded on the capability records rather than
+softened: no observation in the estate carries `ESF-6` admission, so every elapsed day of a campaign
+is `SIMULATED_ELAPSED`; the Twin's in-flight band is a declared profile rather than a calibrated
+interval; and the forecast calibration is estimated on one synthetic series from overlapping folds,
+so its coverage figure is an estimate rather than a measurement of repeated trials.
 
 ---
 

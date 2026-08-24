@@ -121,3 +121,28 @@ export async function fetchExecutionBriefClient(
     return null;
   }
 }
+
+/**
+ * CTW-01R — end the experiment in progress so the next preservation allocates a fresh identity.
+ * History is preserved; nothing is deleted, and no other store is touched.
+ */
+export async function closeActiveCampaignExperimentClient(params?: {
+  tenant_id?: string;
+  session_id?: string;
+}): Promise<{ closed_experiment_id: string | null; next_experiment_id: string } | null> {
+  try {
+    const res = await fetch('/api/v1/campaigns/experiments/close-active', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        tenant_id: params?.tenant_id || DEFAULT_TENANT,
+        session_id: params?.session_id || DEFAULT_SESSION
+      })
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    return json.data || null;
+  } catch {
+    return null;
+  }
+}

@@ -30,7 +30,7 @@ import {
 } from '../../lib/demand-decision-frontier/demand-frontier-engine';
 
 import { evaluateIntentFusion } from '../../lib/intent-fusion/intent-fusion-engine';
-import { getForecastProjections } from '../../lib/query-engine';
+import { projectDemand, isDemandRefusal } from '../../lib/demand-forecast';
 import {
   getDecisionState,
   transitionDecisionState,
@@ -738,29 +738,41 @@ async function runTests() {
   // Projection engine end-to-end
   // ══════════════════════════════════════════════════════════════════════════
 
-  const projection = await getForecastProjections({
-    metric: 'units', horizon: 14, model: 'adaptive',
-    promoLift: 20, cannibalization: 0, eventBoost: 'none'
+  // FM-01 migrated these three from the retired `getForecastProjections` onto the governed
+  // boundary. The assertions are the DDF-01 ones unchanged in intent: a complete series for the
+  // requested horizon, a promotion depth that genuinely moves it, and the offered horizons being
+  // the horizons produced.
+  const DEMAND_MODEL = 'HOLT_WINTERS_ADDITIVE' as const;
+  const projection = await projectDemand({
+    metric: 'units', horizon: 14, modelId: DEMAND_MODEL,
+    promoLift: 20, cannibalization: 0, eventBoost: 'none',
+    executedAsOf: '2026-08-23T00:00:00.000Z', backtest: false
   });
+  assert(!isDemandRefusal(projection), 'E0: The governed boundary produces a units projection for the national scope');
+  if (isDemandRefusal(projection)) throw new Error('demand projection refused');
   assert(
     projection.forecast.length === 14 &&
-    projection.history.length === 14 &&
-    projection.kpi.projectedValue > 0,
+    projection.history.length > 0 &&
+    projection.kpi.projected_total > 0,
     'E1: The projection engine returns a complete units series for the requested horizon'
   );
 
-  const projectionHighPromo = await getForecastProjections({
-    metric: 'units', horizon: 14, model: 'adaptive',
-    promoLift: 45, cannibalization: 0, eventBoost: 'none'
+  const projectionHighPromo = await projectDemand({
+    metric: 'units', horizon: 14, modelId: DEMAND_MODEL,
+    promoLift: 45, cannibalization: 0, eventBoost: 'none',
+    executedAsOf: '2026-08-23T00:00:00.000Z', backtest: false
   });
+  if (isDemandRefusal(projectionHighPromo)) throw new Error('demand projection refused');
   const lowTotal = projection.forecast.reduce((a, f) => a + f.value, 0);
   const highTotal = projectionHighPromo.forecast.reduce((a, f) => a + f.value, 0);
   assert(highTotal > lowTotal, 'E2: Promotion depth genuinely moves the projection the frontier is built on');
 
-  const horizon30 = await getForecastProjections({
-    metric: 'units', horizon: 30, model: 'adaptive',
-    promoLift: 20, cannibalization: 0, eventBoost: 'none'
+  const horizon30 = await projectDemand({
+    metric: 'units', horizon: 30, modelId: DEMAND_MODEL,
+    promoLift: 20, cannibalization: 0, eventBoost: 'none',
+    executedAsOf: '2026-08-23T00:00:00.000Z', backtest: false
   });
+  if (isDemandRefusal(horizon30)) throw new Error('demand projection refused');
   assert(
     horizon30.forecast.length === 30,
     'E3: The supported horizons the selector offers are the horizons the engine produces (D-DDF-7)'

@@ -27,41 +27,67 @@ async function getSupplyChain() {
 }
 
 // ── Date helpers ─────────────────────────────────────────────────────────────
-export function getLast7Days(): string[] {
-  const dates: string[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date('2026-06-04');
-    d.setDate(d.getDate() - i);
-    dates.push(d.toISOString().split('T')[0]);
-  }
-  return dates;
+/**
+ * FM-01 — the window is derived from the data, and the arithmetic is UTC-only.
+ *
+ * Two recorded defects lived in the three functions this replaces
+ * (`COGNIX_FORECAST_MODEL_TRUTH_RECORD.md` §5):
+ *
+ *   `D-FM-2` — every window was anchored to a hard-coded `new Date('2026-06-04')`. The source's last
+ *              day is `2026-06-03`, so every window ended on a day with no rows. That day was then
+ *              summed as zero and divided into means, which is the mechanical cause of `D-FM-1`'s
+ *              7.14% understatement and of the phantom zero that terminated every sparkline.
+ *   `D-FM-3` — `new Date('YYYY-MM-DD')` parses as UTC midnight while `getDate()`/`getDay()` read the
+ *              local calendar. West of UTC that is the previous day, which shifted the whole
+ *              day-of-week pattern by one.
+ *
+ * The anchor is now the last day the source actually carries rows for, and no local time is read
+ * anywhere on this path.
+ */
+function addUtcDays(isoDate: string, days: number): string {
+  const [y, m, d] = isoDate.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d) + days * 86400000).toISOString().slice(0, 10);
 }
 
-export function getLast14Days(): string[] {
-  const dates: string[] = [];
-  for (let i = 13; i >= 0; i--) {
-    const d = new Date('2026-06-04');
-    d.setDate(d.getDate() - i);
-    dates.push(d.toISOString().split('T')[0]);
-  }
-  return dates;
+/** `count` consecutive days ending on `anchor` inclusive, oldest first. */
+export function daysEndingAt(anchor: string, count: number): string[] {
+  return Array.from({ length: count }, (_, i) => addUtcDays(anchor, i - (count - 1)));
 }
 
-export function getPrev7Days(): string[] {
-  const dates: string[] = [];
-  for (let i = 13; i >= 7; i--) {
-    const d = new Date('2026-06-04');
-    d.setDate(d.getDate() - i);
-    dates.push(d.toISOString().split('T')[0]);
+let _coverageAnchor: string | null = null;
+
+/**
+ * The last calendar day the demand source holds rows for. Read once from the data itself, so a new
+ * dataset moves every window with it and no window can end on a day that does not exist.
+ */
+export async function getCoverageAnchor(): Promise<string> {
+  if (_coverageAnchor === null) {
+    const sales = await getSales();
+    let latest = '';
+    for (const row of sales) if (row.date > latest) latest = row.date;
+    _coverageAnchor = latest;
   }
-  return dates;
+  return _coverageAnchor;
+}
+
+export async function getLast7Days(): Promise<string[]> {
+  return daysEndingAt(await getCoverageAnchor(), 7);
+}
+
+export async function getLast14Days(): Promise<string[]> {
+  return daysEndingAt(await getCoverageAnchor(), 14);
+}
+
+export async function getPrev7Days(): Promise<string[]> {
+  const anchor = await getCoverageAnchor();
+  return daysEndingAt(addUtcDays(anchor, -7), 7);
 }
 
 // ── KPI summary for dashboard ────────────────────────────────────────────────
 export async function getKPISummary(storeId?: string, category?: string) {
   const sales = await getSales();
-  const last7  = new Set(getLast7Days());
-  const prev7  = new Set(getPrev7Days());
+  const last7  = new Set(await getLast7Days());
+  const prev7  = new Set(await getPrev7Days());
 
   const filter = (s: any, dateSet: Set<string>) =>
     dateSet.has(s.date) &&
@@ -106,7 +132,7 @@ export async function getKPISummary(storeId?: string, category?: string) {
 // ── Revenue by day (last 14) for sparklines ──────────────────────────────────
 export async function getRevenueTrend(storeId?: string, category?: string) {
   const sales = await getSales();
-  const dates = getLast14Days();
+  const dates = await getLast14Days();
   return dates.map(date => {
     const daySales = sales.filter(s =>
       s.date === date && 
@@ -124,7 +150,7 @@ export async function getRevenueTrend(storeId?: string, category?: string) {
 // ── Revenue by region ────────────────────────────────────────────────────────
 export async function getRevenueByRegion(category?: string) {
   const sales = await getSales();
-  const last7 = new Set(getLast7Days());
+  const last7 = new Set(await getLast7Days());
   const storeMap = Object.fromEntries(stores.map((s: any) => [s.store_id, s.region]));
   const byRegion: Record<string, number> = {};
   sales.filter(s => last7.has(s.date) && (!category || s.category === category)).forEach(s => {
@@ -139,8 +165,8 @@ export async function getRevenueByRegion(category?: string) {
 // ── Category performance (last 7 days vs prev 7) ─────────────────────────────
 export async function getCategoryPerformance(storeId?: string, category?: string) {
   const sales = await getSales();
-  const last7 = new Set(getLast7Days());
-  const prev7 = new Set(getPrev7Days());
+  const last7 = new Set(await getLast7Days());
+  const prev7 = new Set(await getPrev7Days());
 
   const aggregate = (dateSet: Set<string>) => {
     const map: Record<string, { revenue: number; units: number; margin: number[]; waste: number }> = {};
@@ -175,8 +201,8 @@ export async function getCategoryPerformance(storeId?: string, category?: string
 // ── Underperforming SKUs ─────────────────────────────────────────────────────
 export async function getUnderperformingSkus(category?: string, storeId?: string) {
   const sales = await getSales();
-  const last7 = new Set(getLast7Days());
-  const prev7 = new Set(getPrev7Days());
+  const last7 = new Set(await getLast7Days());
+  const prev7 = new Set(await getPrev7Days());
   const prodMap = Object.fromEntries(products.map((p: any) => [p.sku_id, p]));
 
   const agg = (dateSet: Set<string>) => {
@@ -220,7 +246,7 @@ export async function getUnderperformingSkus(category?: string, storeId?: string
 // ── Supply chain disruptions ─────────────────────────────────────────────────
 export async function getSupplyChainAlerts(storeId?: string, category?: string) {
   const sc = await getSupplyChain();
-  const last14 = new Set(getLast14Days());
+  const last14 = new Set(await getLast14Days());
   const supplierMap = Object.fromEntries(suppliers.map((s: any) => [s.supplier_id, s.category]));
   
   const recent = sc.filter(d => 
@@ -260,7 +286,7 @@ export async function getSupplyChainAlerts(storeId?: string, category?: string) 
 // ── Supply chain timeline (last 14 days) ────────────────────────────────────
 export async function getSupplyTimeline() {
   const sc = await getSupplyChain();
-  const dates = getLast14Days();
+  const dates = await getLast14Days();
   return dates.map(date => {
     const day = sc.filter(d => d.status && d.date === date);
     const onTime = day.filter(d => d.status === 'on_time').length;
@@ -280,9 +306,9 @@ export async function detectAnomalies(
 ) {
   const sales = await getSales();
   const sc    = await getSupplyChain();
-  const last7  = new Set(getLast7Days());
-  const prev7  = new Set(getPrev7Days());
-  const last14 = new Set(getLast14Days());
+  const last7  = new Set(await getLast7Days());
+  const prev7  = new Set(await getPrev7Days());
+  const last14 = new Set(await getLast14Days());
 
   const alerts = [];
 
@@ -404,8 +430,8 @@ export async function detectAnomalies(
 // ── Store performance for copilot ────────────────────────────────────────────
 export async function getStorePerformance(storeId: string) {
   const sales = await getSales();
-  const last7 = new Set(getLast7Days());
-  const prev7 = new Set(getPrev7Days());
+  const last7 = new Set(await getLast7Days());
+  const prev7 = new Set(await getPrev7Days());
 
   const curr = sales.filter(s => last7.has(s.date) && s.store_id === storeId);
   const prev = sales.filter(s => prev7.has(s.date) && s.store_id === storeId);
@@ -414,7 +440,7 @@ export async function getStorePerformance(storeId: string) {
   const avg  = (arr: any[], f: string) => arr.length ? sum(arr,f)/arr.length : 0;
 
   // Revenue by day
-  const trend = getLast7Days().map(date => ({
+  const trend = (await getLast7Days()).map(date => ({
     date,
     revenue: sales.filter(s=>s.date===date&&s.store_id===storeId).reduce((a,b)=>a+b.revenue,0),
   }));
@@ -440,122 +466,18 @@ export async function getStorePerformance(storeId: string) {
   };
 }
 
-export function getFutureDays(days: number): string[] {
-  const dates: string[] = [];
-  for (let i = 1; i <= days; i++) {
-    const d = new Date('2026-06-04');
-    d.setDate(d.getDate() + i);
-    dates.push(d.toISOString().split('T')[0]);
-  }
-  return dates;
-}
-
-export async function getForecastProjections(params: {
-  storeId?: string;
-  category?: string;
-  metric: 'revenue' | 'units' | 'waste';
-  horizon: number;
-  model: 'arima' | 'prophet' | 'genai' | 'baseline' | 'seasonality' | 'adaptive';
-  promoLift: number;
-  cannibalization: number;
-  eventBoost: string;
-}) {
-  const { storeId, category, metric, horizon, model, promoLift, cannibalization, eventBoost } = params;
-  const sales = await getSales();
-  const historyDates = getLast14Days();
-  const futureDates = getFutureDays(horizon);
-
-  const field = metric === 'revenue' ? 'revenue' : metric === 'units' ? 'units_sold' : 'waste_units';
-
-  // 1. Compile history
-  const history = historyDates.map(date => {
-    const daySales = sales.filter(s =>
-      s.date === date &&
-      (!storeId || s.store_id === storeId) &&
-      (!category || s.category === category)
-    );
-    const value = daySales.reduce((a, b) => a + (b[field] || 0), 0);
-    return { date, value };
-  });
-
-  const historyTotal = history.reduce((acc, h) => acc + h.value, 0);
-  const historyAvg = historyTotal / (history.length || 1);
-
-  // 2. Generate future projections with deterministic seasonal & trend adjustments
-  const forecast = futureDates.map((date, index) => {
-    const dateObj = new Date(date);
-    const dayOfWeek = dateObj.getDay();
-
-    // Day-of-week seasonality baseline
-    let seasonality = 1.0;
-    if (dayOfWeek === 5 || dayOfWeek === 6) seasonality = 1.15;
-    if (dayOfWeek === 1 || dayOfWeek === 2) seasonality = 0.88;
-
-    // Method-specific variance calculation (deterministic projection curves)
-    let modelFactor = 1.0;
-    if (model === 'prophet' || model === 'seasonality') {
-      // Trend & Seasonality cyclical adjustment
-      modelFactor = 1.0 + Math.sin(index * 0.8) * 0.12;
-    } else if (model === 'genai' || model === 'adaptive') {
-      // Adaptive Contextualised multi-factor harmonic adjustment
-      modelFactor = 1.0 + (Math.sin(index * 1.5) * 0.04) + (Math.cos(index * 2.3) * 0.02);
-    } else {
-      // Statistical Moving Average Baseline (linear trend damping)
-      modelFactor = 1.0 - (index * 0.005);
-    }
-
-    // Baseline value before adjustments
-    let value = historyAvg * seasonality * modelFactor;
-
-    // Apply adjustments
-    const promoUplift = 1.0 + (promoLift / 100);
-    const cannRate = 1.0 - (cannibalization / 100);
-
-    let eventMultiplier = 1.0;
-    if (eventBoost === 'heatwave') {
-      if (!category || category === 'Chilled' || category === 'Produce') {
-        eventMultiplier = 1.25;
-      } else if (category === 'BWS') {
-        eventMultiplier = 1.20;
-      }
-    } else if (eventBoost === 'holiday') {
-      eventMultiplier = 1.15;
-    } else if (eventBoost === 'christmas') {
-      eventMultiplier = 1.35;
-    }
-
-    value = value * promoUplift * cannRate * eventMultiplier;
-
-    // Add some random micro-variance
-    const noise = 1 + (Math.sin(index * 3.14) * 0.01);
-    value = Math.max(0, Math.round(value * noise));
-
-    return { date, value };
-  });
-
-  const projectedValue = forecast.reduce((acc, f) => acc + f.value, 0);
-  const forecastAvg = projectedValue / (forecast.length || 1);
-
-  const growthRate = historyAvg > 0 ? (forecastAvg - historyAvg) / historyAvg : 0;
-
-  let riskLevel: 'low' | 'medium' | 'high' = 'low';
-  if (metric === 'waste') {
-    if (growthRate > 0.15) riskLevel = 'high';
-    else if (growthRate > 0.05) riskLevel = 'medium';
-  } else {
-    if (growthRate > 0.25) riskLevel = 'high';
-    else if (growthRate > 0.10) riskLevel = 'medium';
-  }
-
-  return {
-    history,
-    forecast,
-    kpi: {
-      projectedValue,
-      growthRate,
-      riskLevel
-    }
-  };
-}
+/**
+ * `getForecastProjections` and `getFutureDays` were removed by `FM-01`.
+ *
+ * They were the last forecasting path in CogniX that fitted nothing. A `model` parameter chose among
+ * three closed-form curves over a loop index — `arima`, `baseline` and any unrecognised string all
+ * reached the same branch and returned identical totals — over a fourteen-day mean whose denominator
+ * included a day with no rows. Demand & Forecast now consumes the same governed boundary as the
+ * Continuous Live Decision Twin: `lib/demand-forecast.ts` → `lib/forecast/forecast-engine.ts`, via
+ * `POST /api/v1/demand/forecast`.
+ *
+ * Nothing translates the old wire values. `arima`, `prophet` and `genai` are refused at the boundary
+ * exactly as any other unregistered name is, which is the whole point of the registry.
+ */
 
 export { stores, products, suppliers, promotions };

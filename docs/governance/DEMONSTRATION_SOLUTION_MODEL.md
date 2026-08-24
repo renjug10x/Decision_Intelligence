@@ -98,6 +98,16 @@ Discovery & Pattern Extraction
 
 ---
 
+## 4.1 Relationship to the Capability Atlas
+
+`CognixSolution` remains the **canonical contract for a Demonstration Solution** and is not superseded. The CogniX Capability Atlas (`ATL-01` … `ATL-07`) is a *knowledge extension* over this model, not a competing one (ADR-045): it binds to `SOL-*` identifiers by reference, consumes these fields without restating them, and adds only knowledge this schema deliberately does not carry — architecture, implementation references, test procedures, validation evidence, demo paths, client questions, market evidence, cross-domain reuse, provenance and review lifecycle.
+
+`demoMaturity` remains the authority for demonstration readiness. The Atlas treats it as one of three orthogonal maturity dimensions alongside the [`EXPERIMENT_LIFECYCLE.md`](EXPERIMENT_LIFECYCLE.md) states and an implementation-status dimension (ADR-047); it never collapses them into one field.
+
+See [`COGNIX_CAPABILITY_ATLAS.md`](COGNIX_CAPABILITY_ATLAS.md) and [`CAPABILITY_KNOWLEDGE_MODEL.md`](CAPABILITY_KNOWLEDGE_MODEL.md).
+
+---
+
 ## 5. Canonical Solution Registry
 
 Solutions are registered in [`config/solutions.ts`](file:///Users/renjunair/projects/Decision_Intelligence/config/solutions.ts).

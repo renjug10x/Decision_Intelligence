@@ -14,6 +14,9 @@ export * from './campaign-timeline-model';
 export * from './campaign-frontier-model';
 export * from './campaign-decision-contract-model';
 export * from './campaign-experiment-model';
+export * from './campaign-continuous-timeline-model';
+export * from './forecast-model-model';
+export * from './campaign-intervention-model';
 export {
   type GrainDimension,
   type ObservationGrainKeyEntry,
@@ -95,3 +98,6 @@ export * from './learning-pattern-model';
 export * from './memory-model';
 export * from './attested-observation-model';
 export * from './demand-decision-frontier-model';
+export * from './capability-atlas-model';
+export * from './atlas-grounding-model';
+export * from './atlas-governance-model';

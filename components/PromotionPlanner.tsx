@@ -37,8 +37,34 @@ import {
   evaluateCampaignDecisionClient,
   discoverCampaignOpportunityClient,
   evaluateCampaignReadinessClient,
-  projectDecisionTimelineClient
+  projectDecisionTimelineClient,
+  registerCampaignIntentClient,
+  evaluateOutcomeFrontierClient,
+  createDecisionContractClient,
+  getCurrentDecisionContractClient
 } from '@/lib/campaign-intent-client';
+import {
+  projectCampaignFlightClient,
+  buildElapsedTelemetryFromArchetype
+} from '@/lib/campaign-flight-client';
+import {
+  DecisionContract,
+  DecisionContractReference,
+  DecisionResolution,
+  computeContractDigest
+} from '@/packages/contracts/src/campaign-decision-contract-model';
+import {
+  CampaignFlightProjection,
+  buildResolutionStatement,
+  decisionOwnerLabel,
+  derivePromotionExperimentStage
+} from '@/packages/contracts/src/campaign-continuous-timeline-model';
+import { CampaignDecisionExperiment } from '@/packages/contracts/src/campaign-experiment-model';
+import {
+  listCampaignExperimentsClient,
+  saveCampaignExperimentClient,
+  closeActiveCampaignExperimentClient
+} from '@/lib/campaign-experiment-client';
 
 // Modular Campaign Intelligence Components
 import CampaignDiscoveryHero from '@/components/campaign/CampaignDiscoveryHero';
@@ -49,18 +75,44 @@ import InverseAnalysisLens from '@/components/campaign/InverseAnalysisLens';
 import DecisionGraphLens from '@/components/campaign/DecisionGraphLens';
 import InterventionWorkspace, { ActiveIntervention } from '@/components/campaign/InterventionWorkspace';
 import LiveDecisionTwinLens from '@/components/campaign/LiveDecisionTwinLens';
+import FlightActivationPanel, { ActivationChoice } from '@/components/campaign/FlightActivationPanel';
+import CampaignOutlookPanel from '@/components/campaign/CampaignOutlookPanel';
+import {
+  deriveDecisionMoments,
+  deriveCampaignOutlook,
+  buildCampaignStory
+} from '@/lib/campaign-intervention-engine';
+import {
+  DecisionMoment,
+  InterventionPreview,
+  PlannedIntervention,
+  PlannedInterventionMode,
+  ReassessmentVerdict,
+  DEFAULT_INTERVENTION_MODE
+} from '@/packages/contracts/src/campaign-intervention-model';
+import {
+  listPlannedInterventionsClient,
+  planInterventionClient,
+  previewInterventionClient,
+  reassessInterventionClient,
+  confirmInterventionClient
+} from '@/lib/campaign-intervention-client';
+import { ExperimentHistoryDrawer } from '@/components/campaign/ExperimentHistoryDrawer';
+import {
+  DecisionAnalyticsLensId,
+  FLIGHT_ACTIVATION_SECTION_ID,
+  PRE_FLIGHT_LENSES_SECTION_ID,
+  resolveDecisionAnalyticsTarget,
+  scrollToDecisionAnalyticsTarget
+} from '@/lib/campaign-decision-navigation';
 
 interface PromotionPlannerProps {
   onNavigateToExperiment?: (experimentId: string) => void;
   onNavigateToCanvas?: () => void;
 }
 
-export type AnalyticalLensId =
-  | 'DEMAND'
-  | 'OPPORTUNITY'
-  | 'FRONTIER'
-  | 'INVERSE'
-  | 'GRAPH';
+/** Declared in `lib/campaign-decision-navigation`, which also resolves which lens to open. */
+export type AnalyticalLensId = DecisionAnalyticsLensId;
 
 export default function PromotionPlanner({
   onNavigateToExperiment,
@@ -100,6 +152,93 @@ export default function PromotionPlanner({
   const [liveTimeline, setLiveTimeline] = useState<any>(null);
   const [apiError, setApiError] = useState<string | null>(null);
 
+  // ── CTW-01 Activation & Continuous Flight ────────────────────────────────────────────
+  // The activated CDI-07A contract IS the governed baseline. Nothing here holds an
+  // expectation of its own, and the configuration signature is recorded so a decision
+  // activated for one configuration can never be rendered against another (ADR-070).
+  const [decisionContract, setDecisionContract] = useState<DecisionContract | null>(null);
+  const [activatedSignature, setActivatedSignature] = useState<string | null>(null);
+  const [activating, setActivating] = useState<boolean>(false);
+  const [activationError, setActivationError] = useState<string | null>(null);
+  const [activationChoices, setActivationChoices] = useState<ActivationChoice[]>([]);
+  const [selectedPlayId, setSelectedPlayId] = useState<string>('');
+  // CTW-01R — governed decision confirmation. These map onto CDI-07A `resolved_by` and
+  // `resolution_statement`; the provenance is unchanged, only how it is collected.
+  const [ownerRoleId, setOwnerRoleId] = useState<string>('');
+  const [ownerCustom, setOwnerCustom] = useState<string>('');
+  const [rationaleId, setRationaleId] = useState<string>('');
+  const [rationaleContext, setRationaleContext] = useState<string>('');
+  // CTW-01R — promotion experiment lifecycle, on the existing governed experiment architecture.
+  const [experiments, setExperiments] = useState<CampaignDecisionExperiment[]>([]);
+  const [historyOpen, setHistoryOpen] = useState<boolean>(false);
+  const activeExperimentIdRef = React.useRef<string | null>(null);
+  const [flight, setFlight] = useState<CampaignFlightProjection | null>(null);
+  const [flightError, setFlightError] = useState<string | null>(null);
+
+  // ── CTW-02 Predictive Intervention Planning ──────────────────────────────────────────
+  const [plans, setPlans] = useState<PlannedIntervention[]>([]);
+  const [preview, setPreview] = useState<InterventionPreview | null>(null);
+  const [previewingMomentId, setPreviewingMomentId] = useState<string | null>(null);
+  const [interventionBusy, setInterventionBusy] = useState<boolean>(false);
+  const [interventionError, setInterventionError] = useState<string | null>(null);
+
+  /**
+   * Moments are derived from the governed projection, in the same deterministic engine the tests
+   * exercise. Deriving them here rather than on the server keeps them exactly in step with the
+   * flight on screen; the derivation reads nothing the projection does not carry.
+   */
+  const momentsResult = React.useMemo(() => {
+    if (!flight) return { moments: [] as DecisionMoment[], note: null as string | null };
+    try {
+      return deriveDecisionMoments(flight, discountDepth);
+    } catch {
+      return { moments: [] as DecisionMoment[], note: null as string | null };
+    }
+  }, [flight, discountDepth]);
+
+  const outlook = React.useMemo(
+    () => (flight ? deriveCampaignOutlook(flight, momentsResult.moments, plans) : null),
+    [flight, momentsResult.moments, plans]
+  );
+  const story = React.useMemo(
+    () => (flight ? buildCampaignStory(flight, momentsResult.moments, plans) : []),
+    [flight, momentsResult.moments, plans]
+  );
+
+  /** Everything that changes what was decided. Any change invalidates an existing activation. */
+  const configurationSignature = [
+    archetype.id,
+    skuId,
+    mechanic,
+    String(discountDepth),
+    targetRegion,
+    String(durationDays)
+  ].join('|');
+
+  const staleActivation = decisionContract !== null && activatedSignature !== configurationSignature;
+  const flightReady =
+    decisionContract !== null && decisionContract.status === 'ACTIVE' && !staleActivation;
+
+  /**
+   * Where "Explore Decision Analytics" goes from here. The destination is resolved from the state
+   * on screen rather than fixed, because the deeper evidence for a pre-flight decision (the
+   * analytical lenses) is not the deeper evidence for a campaign already in flight (its outlook,
+   * decision moments and observed trajectory). Resolving it here also lets the control name its
+   * own destination rather than leaving the reader to guess.
+   */
+  const exploreTarget = React.useMemo(
+    () =>
+      resolveDecisionAnalyticsTarget({
+        mode: activeMode,
+        decision_verdict: archetype.discovery.decision_verdict,
+        readiness_state: liveReadiness?.readiness?.state ?? null,
+        has_flight: flight !== null,
+        outlook_action: outlook?.current_action ?? null,
+        moment_count: momentsResult.moments.length
+      }),
+    [activeMode, archetype, liveReadiness, flight, outlook, momentsResult.moments.length]
+  );
+
   // When selected archetype changes, reset default configuration parameters
   const handleSelectArchetype = (archId: string) => {
     const arch = getArchetypeById(archId);
@@ -113,6 +252,467 @@ export default function PromotionPlanner({
     setDurationDays(arch.default_duration_days);
     setProposedIntervention(null);
   };
+
+  /**
+   * Activation: register the intent, evaluate the outcome frontier, and create an ACTIVE
+   * decision contract. This is the same governed path the Campaign Decision Canvas uses —
+   * CTW-01 adds no contract type and no second baseline.
+   */
+  const handleActivate = async () => {
+    setActivating(true);
+    setActivationError(null);
+    setFlightError(null);
+
+    try {
+      const intent = buildCampaignIntentFromArchetype(archetype, {
+        sku_id: skuId,
+        mechanic: mechanic as any,
+        discount_depth_pct: discountDepth,
+        target_region: targetRegion,
+        duration_days: durationDays,
+        tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+        session_id: CAMPAIGN_DEMO_SESSION_ID
+      });
+
+      const registered = await registerCampaignIntentClient(intent as any);
+      if (!registered?.intent) {
+        setActivationError(
+          registered?.error ||
+            'CogniX could not register this campaign intent, so there is nothing to activate.'
+        );
+        return;
+      }
+
+      // CDI-06 returns the response envelope; the frontier itself is one level in.
+      const frontierResponse: any = await evaluateOutcomeFrontierClient({
+        tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+        session_id: CAMPAIGN_DEMO_SESSION_ID,
+        campaign_intent_id: (intent as any).intent_id
+      });
+      const frontier: any = frontierResponse?.frontier;
+      if (!frontier || frontier.frontier_status !== 'EMITTED') {
+        setActivationError(
+          'CogniX did not emit an outcome frontier for this configuration, so no decision can be activated against it.'
+        );
+        return;
+      }
+
+      const selection = frontier.selection;
+      let resolution: DecisionResolution;
+
+      if (selection?.status === 'SELECTED' && selection.selected_play_id) {
+        setActivationChoices([]);
+        resolution = {
+          route: 'CONSTRAINT_RESOLVED',
+          selected_play_id: selection.selected_play_id,
+          selection_status: 'SELECTED',
+          selection_basis: selection.selection_basis
+        };
+      } else if (selection?.status === 'CHOICE_REQUIRED') {
+        // More than one option survives the declared constraints, so a person decides and
+        // the contract records who and why. The choice is never made silently.
+        const survivors: string[] = [...(frontier.frontier_play_ids || [])];
+        for (const play of frontier.plays || []) {
+          if (play.admissibility === 'ADMISSIBLE' && play.play_kind === 'DO_NOTHING' && !survivors.includes(play.play_id)) {
+            survivors.push(play.play_id);
+          }
+        }
+        const choices: ActivationChoice[] = survivors
+          .map(id => {
+            const play = (frontier.plays || []).find((p: any) => p.play_id === id);
+            return { play_id: id, label: play?.label ? `${play.label}` : id };
+          })
+          .sort((a, b) => a.label.localeCompare(b.label));
+        setActivationChoices(choices);
+
+        // Name what is missing rather than restating the rule — a reader who has filled two
+        // of the three fields should not have to guess which one is still empty.
+        const owner = decisionOwnerLabel(ownerRoleId, ownerCustom);
+        const statement = buildResolutionStatement(rationaleId, rationaleContext);
+
+        const missing: string[] = [];
+        if (!selectedPlayId) missing.push('the option being activated');
+        else if (!survivors.includes(selectedPlayId)) missing.push('an option that is still admissible for this configuration');
+        if (!owner.trim()) missing.push('the decision owner');
+        if (!statement.trim()) missing.push('the decision rationale');
+        if (missing.length > 0) {
+          setActivationError(
+            `This decision needs a person's confirmation before it can be activated. Still needed: ${missing.join(', ')}.`
+          );
+          return;
+        }
+        resolution = {
+          route: 'HUMAN_RESOLVED',
+          selected_play_id: selectedPlayId,
+          resolved_by: owner.trim(),
+          resolution_statement: statement.trim(),
+          presented_alternatives: survivors
+        };
+      } else {
+        setActivationError(
+          'No admissible option survives the declared constraints for this configuration, so there is no decision to activate.'
+        );
+        return;
+      }
+
+      /**
+       * Re-activating after a configuration change does not replace the previous decision —
+       * it supersedes it, and both stay readable. CDI-07A refuses a second ACTIVE contract
+       * that does not name the one it displaces (RJ-C8), which is the rule that stops a
+       * session quietly acquiring two baselines.
+       */
+      const existingActive = await getCurrentDecisionContractClient(
+        CAMPAIGN_DEMO_TENANT_ID,
+        CAMPAIGN_DEMO_SESSION_ID
+      );
+      const supersedes: DecisionContractReference | undefined =
+        existingActive && existingActive.status === 'ACTIVE'
+          ? {
+              contract_id: existingActive.contract_id,
+              contract_version: existingActive.contract_version,
+              contract_digest: computeContractDigest(existingActive),
+              decision_basis_digest: existingActive.decision_basis_digest,
+              tenant_id: existingActive.tenant_id,
+              session_id: existingActive.session_id,
+              status: existingActive.status
+            }
+          : undefined;
+
+      const created = await createDecisionContractClient({
+        tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+        session_id: CAMPAIGN_DEMO_SESSION_ID,
+        frontier,
+        campaign_intent: intent as any,
+        resolution,
+        created_as_of: new Date().toISOString(),
+        ...(supersedes ? { supersedes } : {})
+      } as any);
+
+      if (!created.contract) {
+        setActivationError(created.error || 'CogniX could not record this decision as a contract.');
+        return;
+      }
+
+      setDecisionContract(created.contract);
+      setActivatedSignature(configurationSignature);
+      setActivationChoices([]);
+      setActivationError(null);
+      await preservePromotionExperiment(intent, created.contract);
+    } catch (e: any) {
+      setActivationError(e?.message || 'CogniX could not activate this decision.');
+    } finally {
+      setActivating(false);
+    }
+  };
+
+  /**
+   * Preserve this promotion decision on the existing governed experiment architecture.
+   *
+   * One decision owns one record: the first preservation asks the server for an identity and
+   * every later one sends it back, exactly as the Campaign Decision Canvas does. No competing
+   * history model is created — `CampaignDecisionExperiment` already is promotion history.
+   */
+  const preservePromotionExperiment = async (
+    intent: any,
+    contract: DecisionContract | null
+  ) => {
+    if (!intent || !liveEvaluation) return;
+    const campaignDelta = liveEvaluation?.counterfactual?.campaign_delta;
+    const saved = await saveCampaignExperimentClient({
+      ...(activeExperimentIdRef.current ? { experiment_id: activeExperimentIdRef.current } : {}),
+      campaign_intent_id: intent.campaign_intent_id,
+      framing_question: intent.campaign_intent.framing_question,
+      objective_type: intent.campaign_intent.objective_type,
+      objective_label: intent.campaign_intent.objective_type,
+      category: intent.campaign_intent.category,
+      sku_scope: intent.campaign_intent.sku_scope,
+      region: intent.audience_market.region,
+      audience_segment: intent.audience_market.customer_segment,
+      sales_channel: intent.audience_market.channel,
+      timing_mode: intent.audience_market.timing_mode,
+      planned_window:
+        intent.audience_market.planned_start && intent.audience_market.planned_end
+          ? `${intent.audience_market.planned_start} to ${intent.audience_market.planned_end}`
+          : 'Optimal discovery window',
+      intervention_posture: intent.campaign_intent.intervention_posture,
+      posture_label: intent.campaign_intent.intervention_posture,
+      primary_metric: intent.baseline_objective.primary_metric,
+      target_direction: intent.baseline_objective.target_direction,
+      major_constraints: intent.baseline_objective.capacity_cap_note
+        ? [intent.baseline_objective.capacity_cap_note]
+        : [],
+      decision_recommendation: contract
+        ? 'Activated promotion decision'
+        : 'Promotion decision not yet activated',
+      incremental_demand_pct: campaignDelta?.attributable_uplift_pp ?? 0,
+      contribution_impact_gbp: campaignDelta?.contribution_delta_gbp ?? 0,
+      readiness_status: (liveReadiness?.readiness?.state as any) ?? 'NOT_ASSESSED',
+      readiness_summary:
+        liveReadiness?.readiness?.headline ?? 'Operational readiness has not been assessed.',
+      primary_trade_off: archetype.discovery.primary_tension_title,
+      evidence_posture: 'Demonstration evidence basis: uncalibrated simulation data',
+      technical_provenance: {
+        surface: 'PromotionPlanner',
+        package: 'CTW-01R',
+        tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+        session_id: CAMPAIGN_DEMO_SESSION_ID
+      },
+      intent_snapshot: intent,
+      evaluation_snapshot: liveEvaluation,
+      readiness_snapshot: liveReadiness,
+      timeline_snapshot: liveTimeline,
+      contract_snapshot: contract
+    } as any);
+    if (saved) {
+      activeExperimentIdRef.current = saved.experiment_id;
+      const listed = await listCampaignExperimentsClient({
+        tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+        session_id: CAMPAIGN_DEMO_SESSION_ID
+      });
+      if (listed) setExperiments(listed.experiments);
+    }
+  };
+
+  /**
+   * Start a fresh promotion experiment. The one in progress is *closed*, not deleted: it stays
+   * readable in history and the next preservation allocates a new identity. Deliberately not a
+   * session reset — the Campaign Decision Canvas shares this session and must not lose a draft.
+   */
+  const handleNewExperiment = async () => {
+    await closeActiveCampaignExperimentClient({
+      tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+      session_id: CAMPAIGN_DEMO_SESSION_ID
+    });
+    activeExperimentIdRef.current = null;
+    setDecisionContract(null);
+    setActivatedSignature(null);
+    setFlight(null);
+    setFlightError(null);
+    setActivationError(null);
+    setActivationChoices([]);
+    setSelectedPlayId('');
+    setOwnerRoleId('');
+    setOwnerCustom('');
+    setRationaleId('');
+    setRationaleContext('');
+    setProposedIntervention(null);
+    setActiveMode('PLANNING');
+    const listed = await listCampaignExperimentsClient({
+      tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+      session_id: CAMPAIGN_DEMO_SESSION_ID
+    });
+    if (listed) setExperiments(listed.experiments);
+  };
+
+  // ── CTW-02 handlers ────────────────────────────────────────────────────────────────
+  const refreshPlans = async () => {
+    setPlans(
+      await listPlannedInterventionsClient({
+        tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+        session_id: CAMPAIGN_DEMO_SESSION_ID
+      })
+    );
+  };
+
+  const handleSelectMoment = async (m: DecisionMoment) => {
+    if (!m.candidate || !decisionContract || !flight) return;
+    setInterventionBusy(true);
+    setPreviewingMomentId(m.moment_id);
+    setInterventionError(null);
+    const intent = buildCampaignIntentFromArchetype(archetype, {
+      sku_id: skuId,
+      mechanic: mechanic as any,
+      discount_depth_pct: discountDepth,
+      target_region: targetRegion,
+      duration_days: durationDays,
+      tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+      session_id: CAMPAIGN_DEMO_SESSION_ID
+    });
+    const effective = m.window.available
+      ? (m.window.first_flight_day as number)
+      : flight.horizon.today_flight_day + 1;
+    const result = await previewInterventionClient({
+      tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+      session_id: CAMPAIGN_DEMO_SESSION_ID,
+      contract_id: decisionContract.contract_id,
+      campaign_intent: intent,
+      candidate: m.candidate,
+      effective_from_flight_day: effective,
+      elapsed_telemetry: buildElapsedTelemetryFromArchetype(archetype),
+      moment_id: m.moment_id
+    });
+    setPreview(result);
+    if (!result) setInterventionError('CogniX could not compare these two options for this configuration.');
+    setInterventionBusy(false);
+  };
+
+  const handlePlan = async (
+    m: DecisionMoment,
+    mode: PlannedInterventionMode,
+    owner: string,
+    rationale: string
+  ) => {
+    if (!m.candidate || !decisionContract || !flight) return;
+    setInterventionBusy(true);
+    setInterventionError(null);
+    const { plan, error } = await planInterventionClient({
+      tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+      session_id: CAMPAIGN_DEMO_SESSION_ID,
+      contract_id: decisionContract.contract_id,
+      decision_basis_digest: decisionContract.decision_basis_digest,
+      moment_id: m.moment_id,
+      moment_kind: m.kind,
+      action: m.candidate,
+      targeted_flight_day: m.flight_day,
+      window: m.window,
+      trigger_condition: m.window.available
+        ? `When the campaign reaches day ${m.window.first_flight_day}`
+        : 'No window remains; this plan is a record of intent only',
+      mode: mode || DEFAULT_INTERVENTION_MODE,
+      created_by: owner,
+      rationale,
+      created_at: new Date().toISOString()
+    });
+    if (!plan) setInterventionError(error || 'CogniX could not record this planned intervention.');
+    await refreshPlans();
+    setInterventionBusy(false);
+  };
+
+  const handleReassess = async (p: PlannedIntervention, decision?: ReassessmentVerdict) => {
+    if (!flight) return;
+    setInterventionBusy(true);
+    setInterventionError(null);
+    const res = await reassessInterventionClient({
+      intervention_id: p.intervention_id,
+      tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+      session_id: CAMPAIGN_DEMO_SESSION_ID,
+      moments: momentsResult.moments,
+      today_flight_day: flight.horizon.today_flight_day,
+      decision
+    });
+    if (res.error) setInterventionError(res.error);
+    await refreshPlans();
+    setInterventionBusy(false);
+  };
+
+  const handleConfirmIntervention = async (p: PlannedIntervention, owner: string, statement: string) => {
+    if (!flight) return;
+    setInterventionBusy(true);
+    setInterventionError(null);
+    const effective = Math.max(
+      flight.horizon.today_flight_day + 1,
+      p.window.first_flight_day ?? flight.horizon.today_flight_day + 1
+    );
+    const { error } = await confirmInterventionClient({
+      intervention_id: p.intervention_id,
+      tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+      session_id: CAMPAIGN_DEMO_SESSION_ID,
+      confirmed_by: owner,
+      statement,
+      effective_from_flight_day: effective,
+      today_flight_day: flight.horizon.today_flight_day
+    });
+    if (error) setInterventionError(error);
+    await refreshPlans();
+    setInterventionBusy(false);
+  };
+
+  /** Keep planned interventions in step with the session. */
+  useEffect(() => {
+    void refreshPlans();
+  }, []);
+
+  /** Load promotion history once, so the drawer has something to show before any activation. */
+  useEffect(() => {
+    let cancelled = false;
+    listCampaignExperimentsClient({
+      tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+      session_id: CAMPAIGN_DEMO_SESSION_ID
+    }).then(listed => {
+      if (!cancelled && listed) setExperiments(listed.experiments);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /**
+   * The continuous flight, projected only when a decision is activated for *this*
+   * configuration. A stale activation clears the flight rather than rendering the running
+   * campaign against a decision nobody took.
+   */
+  useEffect(() => {
+    let cancelled = false;
+
+    async function runFlight() {
+      if (!flightReady || !decisionContract || !liveTimeline) {
+        setFlight(null);
+        return;
+      }
+      /**
+       * A confirmed intervention is carried into the projection so the reforecast appears beside the
+       * original expectation rather than only in the plan record. The changed campaign is projected
+       * by re-running CDI-05 at the confirmed depth — the same engine, no second model — and the
+       * flight engine reshapes only the days from the effective day onward.
+       */
+      const confirmed = plans.find(
+        p => p.status === 'CONFIRMED' && p.contract_id === decisionContract.contract_id && p.confirmation
+      );
+      let appliedIntervention: any = undefined;
+      if (confirmed?.confirmation) {
+        const changedIntent = buildCampaignIntentFromArchetype(archetype, {
+          sku_id: skuId,
+          mechanic: mechanic as any,
+          discount_depth_pct: confirmed.action.proposed_discount_pct,
+          target_region: targetRegion,
+          duration_days: durationDays,
+          tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+          session_id: CAMPAIGN_DEMO_SESSION_ID
+        });
+        const changedTimeline: any = await projectDecisionTimelineClient({
+          tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+          session_id: CAMPAIGN_DEMO_SESSION_ID,
+          campaign_intent_id: (changedIntent as any).intent_id,
+          campaign_intent: changedIntent as any
+        });
+        if (changedTimeline) {
+          appliedIntervention = {
+            intervention_id: confirmed.intervention_id,
+            action_label: confirmed.action.label,
+            effective_from_flight_day: confirmed.confirmation.effective_from_flight_day,
+            confirmed_by: confirmed.confirmation.confirmed_by,
+            statement: confirmed.confirmation.statement,
+            reason: confirmed.rationale || confirmed.confirmation.statement,
+            timeline: changedTimeline.projection || changedTimeline
+          };
+        }
+      }
+
+      const result = await projectCampaignFlightClient({
+        tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+        session_id: CAMPAIGN_DEMO_SESSION_ID,
+        contract_id: decisionContract.contract_id,
+        timeline: liveTimeline.projection || liveTimeline,
+        elapsed_telemetry: buildElapsedTelemetryFromArchetype(archetype),
+        ...(appliedIntervention ? { applied_intervention: appliedIntervention } : {})
+      });
+      if (cancelled) return;
+      setFlight(result.projection);
+      setFlightError(
+        result.projection ? null : result.error || 'CogniX could not project this campaign in flight.'
+      );
+    }
+
+    runFlight();
+    return () => {
+      cancelled = true;
+    };
+  }, [flightReady, decisionContract, liveTimeline, archetype, plans, skuId, mechanic, targetRegion, durationDays]);
+
+  /** An unactivated or stale configuration has no flight to show, so the mode falls back. */
+  useEffect(() => {
+    if (activeMode === 'DECISION_TWIN' && !flightReady) setActiveMode('PLANNING');
+  }, [activeMode, flightReady]);
 
   // Re-evaluate through the governed engines whenever the scenario configuration changes.
   // The request tenant/session MUST match the inline intent's tenant/session — the engines
@@ -235,10 +835,23 @@ export default function PromotionPlanner({
         currentRegion={targetRegion}
         currentDuration={durationDays}
         activeMode={activeMode}
-        onSwitchMode={setActiveMode}
+        flightAvailable={flightReady}
+        onSwitchMode={mode => {
+          if (mode === 'DECISION_TWIN' && !flightReady) {
+            const el = document.getElementById(FLIGHT_ACTIVATION_SECTION_ID);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            return;
+          }
+          setActiveMode(mode);
+        }}
+        exploreDestinationLabel={exploreTarget.destination_label}
         onExploreDecision={() => {
-          const el = document.getElementById('analytical-lenses-section');
-          if (el) el.scrollIntoView({ behavior: 'smooth' });
+          // Pre-flight this selects the lens holding the relevant evidence and scrolls to it;
+          // in flight there are no lenses, so it scrolls to the deepest in-flight analysis the
+          // campaign currently has. The target declares its own fallbacks, so the control always
+          // lands somewhere the mode actually renders.
+          if (exploreTarget.lens_id) setActiveLens(exploreTarget.lens_id);
+          scrollToDecisionAnalyticsTarget(exploreTarget);
         }}
         onSelectLens={lensId => setActiveLens(lensId as AnalyticalLensId)}
       />
@@ -300,7 +913,10 @@ export default function PromotionPlanner({
                 Select Campaign Archetype ({CAMPAIGN_ARCHETYPES.length} simulated scenarios)
               </div>
 
-              <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 4 }}>
+              {/* `overflowX: auto` alone does not stop seven nowrap chips forcing a ~1240px
+                  minimum width on the page, which pushed the whole planning view into horizontal
+                  overflow below that. Wrapping is what actually lets the row shrink. */}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', overflowX: 'auto', paddingBottom: 4 }}>
                 {CAMPAIGN_ARCHETYPES.map(arch => {
                   const isSelected = selectedArchetypeId === arch.id;
 
@@ -486,13 +1102,44 @@ export default function PromotionPlanner({
             onNavigateToCommitment={handleNavigateToCommitments}
           />
 
+          {/* ── CTW-01 Review & Activate — the pre-flight to in-flight transition ── */}
+          <div id={FLIGHT_ACTIVATION_SECTION_ID}>
+            <FlightActivationPanel
+              contract={decisionContract}
+              staleActivation={staleActivation}
+              activating={activating}
+              error={activationError}
+              readinessState={liveReadiness?.readiness?.state || liveReadiness?.state}
+              stage={derivePromotionExperimentStage({
+                hasActiveContract: flightReady,
+                elapsedDays: flight ? flight.horizon.elapsed_days : 0
+              })}
+              choices={activationChoices}
+              selectedPlayId={selectedPlayId}
+              ownerRoleId={ownerRoleId}
+              ownerCustom={ownerCustom}
+              rationaleId={rationaleId}
+              rationaleContext={rationaleContext}
+              onSelectPlay={setSelectedPlayId}
+              onOwnerRoleChange={setOwnerRoleId}
+              onOwnerCustomChange={setOwnerCustom}
+              onRationaleChange={setRationaleId}
+              onRationaleContextChange={setRationaleContext}
+              onActivate={handleActivate}
+              onOpenFlight={() => setActiveMode('DECISION_TWIN')}
+              onNewExperiment={handleNewExperiment}
+              onOpenHistory={() => setHistoryOpen(true)}
+            />
+          </div>
+
           {/* ── Progressive Disclosure Analytical Lenses Section ── */}
-          <div id="analytical-lenses-section" style={{ marginBottom: 24 }}>
+          <div id={PRE_FLIGHT_LENSES_SECTION_ID} style={{ marginBottom: 24 }}>
             {/* Lenses Tab Bar */}
             <div
               style={{
                 display: 'flex',
                 gap: 4,
+                flexWrap: 'wrap',
                 borderBottom: '1px solid #E2E8F0',
                 marginBottom: 20,
                 overflowX: 'auto'
@@ -582,11 +1229,44 @@ export default function PromotionPlanner({
         </>
       )}
 
+      {/* ── Promotion experiment history — the existing governed drawer, not a second model ── */}
+      <ExperimentHistoryDrawer
+        isOpen={historyOpen}
+        experiments={experiments}
+        onClose={() => setHistoryOpen(false)}
+        onReviewExperiment={() => setHistoryOpen(false)}
+        onViewBrief={() => setHistoryOpen(false)}
+        onCompareExperiments={() => setHistoryOpen(false)}
+      />
+
       {/* ── Mode 2: Live Decision Twin Experience (Campaign-In-Flight, simulated) ── */}
       {activeMode === 'DECISION_TWIN' && (
         <LiveDecisionTwinLens
           key={archetype.id}
           archetype={archetype}
+          flight={flight}
+          flightError={flightError}
+          story={story}
+          outlookSlot={
+            outlook ? (
+              <CampaignOutlookPanel
+                outlook={outlook}
+                moments={momentsResult.moments}
+                note={momentsResult.note}
+                plans={plans}
+                contractId={decisionContract?.contract_id ?? ''}
+                preview={preview}
+                previewingMomentId={previewingMomentId}
+                busy={interventionBusy}
+                error={interventionError}
+                onSelectMoment={handleSelectMoment}
+                onPlan={handlePlan}
+                onReassess={handleReassess}
+                onConfirm={handleConfirmIntervention}
+              />
+            ) : null
+          }
+          onReturnToPlanning={() => setActiveMode('PLANNING')}
           onApplyInFlightAction={handleApplyInFlightAction}
         />
       )}
