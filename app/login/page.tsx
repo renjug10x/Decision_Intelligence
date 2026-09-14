@@ -481,6 +481,15 @@ export default function LoginRoutePage() {
                   />
                   <span className="login-gdpr-label">
                     {i18n.login.gdpr.privacyPolicy.prefix}{' '}
+                    <a
+                      href={externalLinks.termsAndConditions}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {i18n.login.gdpr.privacyPolicy.termsLink}
+                    </a>
+                    {' '}
+                    {i18n.login.gdpr.privacyPolicy.conjunction}{' '}
                     <a href={externalLinks.privacyPolicy} target="_blank" rel="noopener noreferrer">
                       {i18n.login.gdpr.privacyPolicy.link}
                     </a>
