@@ -64,6 +64,11 @@ function runTests() {
     audience_market: {
       ...findBestDraft.audience_market,
       region: 'North West',
+      /*
+       * FIND_BEST_WINDOW *without* planned dates — the state this fixture is about. The default
+       * draft now opens on the canonical scenario's own window, so the dates have to be cleared
+       * explicitly rather than assumed absent.
+       */
       timing_mode: 'FIND_BEST_WINDOW',
       planned_start: undefined,
       planned_end: undefined,
@@ -214,7 +219,14 @@ function runTests() {
     audience_market: {
       ...createDefaultCampaignIntentDraft('tenant_uk_retail_01', 'sess_cdi03_fbw2').audience_market,
       region: 'North West',
+      /*
+       * FIND_BEST_WINDOW *without* planned dates — the state this fixture is about. The default
+       * draft now opens on the canonical scenario's own window, so the dates have to be cleared
+       * explicitly rather than assumed absent.
+       */
       timing_mode: 'FIND_BEST_WINDOW',
+      planned_start: undefined,
+      planned_end: undefined,
       store_cohort_hint: 'Superstore'
     }
   });
@@ -352,7 +364,14 @@ function runTests() {
     },
     audience_market: {
       ...evalDraft.audience_market,
+      /*
+       * FIND_BEST_WINDOW *without* planned dates — the state this fixture is about. The default
+       * draft now opens on the canonical scenario's own window, so the dates have to be cleared
+       * explicitly rather than assumed absent.
+       */
       timing_mode: 'FIND_BEST_WINDOW',
+      planned_start: undefined,
+      planned_end: undefined,
       region: 'Midlands'
     }
   });

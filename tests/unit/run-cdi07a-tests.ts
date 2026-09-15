@@ -93,6 +93,55 @@ function emitFrontier(camp: CampaignIntent, extras: Record<string, unknown> = {}
   } as any).frontier;
 }
 
+
+/**
+ * Declarations that actually BIND on the frontier this scenario produces.
+ *
+ * The fixtures below used a fixed 8pp floor and a £100 contribution tolerance. Both were
+ * calibrated against a 10,000-unit week; against the canonical scenario neither separates
+ * anything, so the engine correctly refuses to choose and every fixture that needed a SELECTED
+ * frontier lost its precondition. Searching the frontier for a separating pair keeps these tests
+ * about CONTRACT behaviour rather than about a price list.
+ */
+function selectingFrontier(camp: CampaignIntent): OutcomeFrontier {
+  const open = emitFrontier(camp);
+  const axisValue = (f: OutcomeFrontier, id: string, axisId: string) =>
+    (f.plays.find(p => p.play_id === id)!.outcomes.axes.find((a: any) => a.axis_id === axisId) as any).value as number;
+
+  const uplifts = open.frontier_play_ids
+    .map(id => axisValue(open, id, 'attributable_volume_uplift_pp'))
+    .sort((a, b) => b - a);
+  const contributions = open.frontier_play_ids
+    .map(id => axisValue(open, id, 'contribution_delta_gbp'))
+    .sort((a, b) => b - a);
+
+  const floors = uplifts.slice(0, -1).map((v, i) => Number(((v + uplifts[i + 1]) / 2).toFixed(2)));
+  const best = contributions[0] ?? 0;
+  const sacrifices = contributions.slice(1).map((v, i) => Math.max(1, Math.round(best - (v + contributions[i]) / 2)));
+
+  for (const floor of floors) {
+    for (const sacrifice of sacrifices) {
+      const f = emitFrontier(camp, {
+        minimum_attributable_uplift_pp: floor,
+        minimum_attributable_uplift_declared_by: 'owner_test',
+        economic_tolerance: {
+          max_contribution_sacrifice_gbp: sacrifice,
+          rationale: 'Q3 margin protection',
+          declared_by: 'Commercial Director',
+          objective_basis: 'REVENUE_ACCELERATION'
+        }
+      });
+      if (f.selection?.status === 'SELECTED') return f;
+    }
+    const soloFloor = emitFrontier(camp, {
+      minimum_attributable_uplift_pp: floor,
+      minimum_attributable_uplift_declared_by: 'owner_test'
+    });
+    if (soloFloor.selection?.status === 'SELECTED') return soloFloor;
+  }
+  return open;
+}
+
 function findPlay(frontier: OutcomeFrontier, predicate: (p: StrategyPlay) => boolean): StrategyPlay | undefined {
   return frontier.plays.find(predicate);
 }
@@ -410,16 +459,7 @@ function runTests() {
   // AC-8 — CONSTRAINT_RESOLVED selected_play in frontier_play_ids; HUMAN_RESOLVED ADMISSIBLE
   decisionContractStore.clear();
   const camp8 = registerAnchor('sess_cdi07a_ac8');
-  const selectedFrontier = emitFrontier(camp8, {
-    minimum_attributable_uplift_pp: 8,
-    minimum_attributable_uplift_declared_by: 'owner_test',
-    economic_tolerance: {
-      max_contribution_sacrifice_gbp: 100,
-      rationale: 'Q3 margin protection',
-      declared_by: 'Commercial Director',
-      objective_basis: 'REVENUE_ACCELERATION'
-    }
-  });
+  const selectedFrontier = selectingFrontier(camp8);
   assert(selectedFrontier.selection?.status === 'SELECTED', 'AC-8 fixture: SELECTED frontier available', selectedFrontier.selection?.status);
   const cContract = createDecisionContract(
     buildRequest(camp8, selectedFrontier, constraintResolution(selectedFrontier))

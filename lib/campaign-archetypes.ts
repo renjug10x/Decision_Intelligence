@@ -14,6 +14,13 @@
  */
 
 import { CampaignIntent, CampaignObjectiveType, InterventionPosture, PrimaryObjectiveMetric } from '../packages/contracts/src/campaign-intent-model';
+import {
+  CANONICAL_SCENARIO,
+  canonicalStoreCount,
+  canonicalContributionAtDepthGbp,
+  canonicalImpliedUnitCostGbp,
+  canonicalWeeklyPopulationUnits
+} from '../packages/contracts/src/canonical-scenario-model';
 
 /**
  * Single source of tenant/session identity for the campaign demo surface.
@@ -23,14 +30,100 @@ import { CampaignIntent, CampaignObjectiveType, InterventionPosture, PrimaryObje
 export const CAMPAIGN_DEMO_TENANT_ID = 'tenant_uk_retail_01';
 export const CAMPAIGN_DEMO_SESSION_ID = 'sess_001';
 
-/** Store counts for the demo world's targetable regions (mirrors the region selector). */
-export const REGION_STORE_COUNTS: Record<string, number> = {
-  National: 50,
-  'North West': 18,
-  London: 14,
-  Midlands: 10,
-  Yorkshire: 8
-};
+/**
+ * Targetable scopes for the canonical decision case, read from its declared estate.
+ *
+ * These were a 50-store POC estate in which "National" and "North West" differed by a factor of
+ * three, so a promotion described as national and a promotion described as regional reached
+ * almost the same shops. The estate is illustrative and the journey speaks in SCOPES; the counts
+ * exist so targeting arithmetic has a denominator, not so a store count becomes a headline.
+ */
+export const REGION_STORE_COUNTS: Record<string, number> =
+  { ...CANONICAL_SCENARIO.estate.region_store_counts };
+
+/**
+ * Promotion economics for an archetype, DERIVED from its own price, cost and volume and from the
+ * canonical supplier-funding agreement.
+ *
+ * The elasticity curves were seeded with a `unit_contribution_gbp` that fell only 0.7% per point
+ * of depth — a 20% price cut costing 14% of margin. At that rate the pounds beside every discount
+ * tier were roughly a fortieth of the exposure the Demand journey had just published for the same
+ * decision, and a reader moving between the two screens had no way to reconcile them.
+ *
+ * What is DERIVED here: unit contribution at depth, and the net contribution the depth delivers.
+ * What stays SEEDED: the demand response itself. Elasticity is a behavioural property of the
+ * category and belongs to the archetype; it is not something the price sheet can tell us.
+ */
+export interface DerivedElasticityInputs {
+  list_price_gbp: number;
+  unit_cost_gbp: number;
+  baseline_units: number;
+  cannibalisation_rate: number;
+}
+
+export function deriveElasticityEconomics(
+  points: readonly (Omit<ElasticityPoint, 'unit_contribution_gbp' | 'net_contribution_delta_gbp'>)[],
+  inputs: DerivedElasticityInputs
+): ElasticityPoint[] {
+  const baselineContribution =
+    inputs.baseline_units * canonicalContributionAtDepthGbp(0, inputs.list_price_gbp, inputs.unit_cost_gbp);
+
+  return points.map(pt => {
+    const contribution = canonicalContributionAtDepthGbp(pt.discount_pct, inputs.list_price_gbp, inputs.unit_cost_gbp);
+    // Cannibalisation is charged against the INCREMENTAL volume the promotion creates, not against
+    // the base: volume that was always going to sell cannot be taken from a neighbouring line.
+    const incremental = inputs.baseline_units * (pt.expected_demand_uplift_pct / 100) * (1 - inputs.cannibalisation_rate);
+    const promotedUnits = inputs.baseline_units + incremental;
+    return {
+      ...pt,
+      unit_contribution_gbp: Number(contribution.toFixed(3)),
+      net_contribution_delta_gbp: Math.round(promotedUnits * contribution - baselineContribution)
+    };
+  });
+}
+
+/**
+ * The demand response of the canonical decision case to promotional depth.
+ *
+ * These are NET percentages: the volume that actually shows up after portfolio cannibalisation,
+ * which is how the CDI-02 causal engine attributes demand. They are aligned to that engine
+ * deliberately. Before this, the planning curve read a point of depth as 2.4pp of demand and the
+ * causal engine read the same point as 0.55pp — so the Promotion surface and the Campaign
+ * Decision assessment on the SAME screen disagreed about whether the committed promotion made
+ * money, and each was internally consistent enough to look right on its own.
+ *
+ * The 14% tier carries a deliberate bump above the linear response: a threshold price point wins
+ * feature space and signage that a 12% cut does not, and the volume follows the display as much
+ * as the price. SEEDED OBSERVATION — a behavioural property of the category that no price sheet
+ * can derive.
+ */
+const CANONICAL_DEPTH_RESPONSE = [
+  { discount_pct: 0, expected_demand_uplift_pct: 0, notes: 'No promotion — the un-promoted base' },
+  { discount_pct: 5, expected_demand_uplift_pct: 11.7, notes: 'Shallow cut, contribution still building' },
+  { discount_pct: 10, expected_demand_uplift_pct: 23.4, notes: 'Volume response accelerating' },
+  { discount_pct: 14, expected_demand_uplift_pct: 35.5, is_cognix_recommended: true, notes: 'Threshold price point wins feature space — best contribution on this curve' },
+  { discount_pct: 20, expected_demand_uplift_pct: 46.8, is_current: true, notes: 'The committed plan — more volume, materially less contribution than 14%' },
+  { discount_pct: 25, expected_demand_uplift_pct: 58.5, notes: 'Response saturating while price investment keeps rising' },
+  { discount_pct: 30, expected_demand_uplift_pct: 70.2, notes: 'Contribution collapse' }
+] as const;
+
+/** Compact pounds for narrative composed in this module. Display converts it like any other amount. */
+function formatGbpShort(v: number): string {
+  const abs = Math.abs(v);
+  const sign = v < 0 ? '−' : '';
+  if (abs >= 1_000_000) return `${sign}£${(abs / 1_000_000).toFixed(2)}M`;
+  if (abs >= 1_000) return `${sign}£${(abs / 1_000).toFixed(1)}K`;
+  return `${sign}£${Math.round(abs).toLocaleString('en-GB')}`;
+}
+
+/** Units an archetype sells across its own campaign window at its own default scope. */
+export function archetypeBaselineUnits(
+  baseWeeklyUnitsPerStore: number,
+  region: string,
+  durationDays: number
+): number {
+  return baseWeeklyUnitsPerStore * canonicalStoreCount(region) * (durationDays / 7);
+}
 
 export type ArchetypeId =
   | 'ARCH-CHILLED-ELASTIC'
@@ -262,41 +355,122 @@ export interface CampaignArchetype {
   };
 }
 
+/**
+ * Net contribution a promotional play delivers, DERIVED from its depth, its scope and its length.
+ *
+ * This is where targeting earns its keep: a shallower cut across fewer stores for fewer days
+ * gives away less margin on base volume, and the arithmetic now shows that rather than asserting
+ * it. The plays used to carry their own pound values against a `stores_count` of 50, 18 or 24 —
+ * a 50-store estate in which "national" and "targeted" were nearly the same shops.
+ */
+export function deriveFrontierPlayContributionGbp(
+  discountPct: number,
+  storesCount: number,
+  durationDays: number,
+  expectedUpliftPct: number,
+  cannibalisationRate = 0
+): number {
+  const baseWeeklyUnitsPerStore = canonicalWeeklyPopulationUnits() / canonicalStoreCount('National');
+  const baselineUnits = baseWeeklyUnitsPerStore * storesCount * (durationDays / 7);
+  const contribution = canonicalContributionAtDepthGbp(discountPct);
+  const incremental = baselineUnits * (expectedUpliftPct / 100) * (1 - cannibalisationRate);
+  return Math.round((baselineUnits + incremental) * contribution - baselineUnits * canonicalContributionAtDepthGbp(0));
+}
+
+/**
+ * The canonical decision case's elasticity curve: seeded demand response, derived economics.
+ * Everything the Promotion surface publishes about depth resolves through this one object.
+ */
+export const CANONICAL_ELASTICITY_CURVE: ElasticityPoint[] = deriveElasticityEconomics(
+  CANONICAL_DEPTH_RESPONSE,
+  {
+    list_price_gbp: CANONICAL_SCENARIO.economics.list_price_gbp,
+    unit_cost_gbp: canonicalImpliedUnitCostGbp(),
+    baseline_units: archetypeBaselineUnits(
+      canonicalWeeklyPopulationUnits() / canonicalStoreCount('National'),
+      CANONICAL_SCENARIO.identity.market_scope_label,
+      CANONICAL_SCENARIO.calendar.promotion_duration_days
+    ),
+    /*
+     * Zero, and not because there is no cannibalisation: the responses above are already NET of
+     * it, the same basis the causal engine attributes on. Charging it a second time here is how a
+     * planning curve and a causal engine end up disagreeing about the same campaign.
+     */
+    cannibalisation_rate: 0
+  }
+);
+
+/** One tier of the canonical curve, by depth. Plays read the curve rather than restating it. */
+export function curvePoint(discountPct: number): ElasticityPoint {
+  return CANONICAL_ELASTICITY_CURVE.find(p => p.discount_pct === discountPct) ?? CANONICAL_ELASTICITY_CURVE[0];
+}
+
+/** The depth the committed plan is running at, and the depth this curve says is best. */
+export const CANONICAL_CURRENT_POINT =
+  CANONICAL_ELASTICITY_CURVE.find(p => p.is_current) ?? CANONICAL_ELASTICITY_CURVE[0];
+export const CANONICAL_RECOMMENDED_POINT =
+  CANONICAL_ELASTICITY_CURVE.find(p => p.is_cognix_recommended) ?? CANONICAL_ELASTICITY_CURVE[0];
+
 export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
   'ARCH-CHILLED-ELASTIC': {
     id: 'ARCH-CHILLED-ELASTIC',
     name: 'Highly Elastic Chilled Dairy',
     tagline: 'High volume sensitivity with sharp margin compression past 15% discount',
-    category: 'Dairy',
-    default_sku: 'P004',
-    sku_name: 'Cheddar Mature 400g',
-    cost_price: 1.82,
-    rrp: 2.49,
-    base_weekly_units_per_store: 84,
+    /*
+     * THE canonical decision case. Identity, price, cost and volume are read from the canonical
+     * scenario rather than restated, so this archetype and the Demand journey are provably the
+     * same product at the same scale. A separate £1.82 cost and an 84-unit week belonged to the
+     * 50-store estate this archetype was written against.
+     */
+    category: CANONICAL_SCENARIO.identity.category,
+    default_sku: CANONICAL_SCENARIO.identity.sku_id,
+    sku_name: CANONICAL_SCENARIO.identity.sku_name,
+    cost_price: canonicalImpliedUnitCostGbp(),
+    rrp: CANONICAL_SCENARIO.economics.list_price_gbp,
+    base_weekly_units_per_store: canonicalWeeklyPopulationUnits() / canonicalStoreCount('National'),
     price_elasticity: 2.4,
     cannibalisation_rate: 0.08,
-    default_discount_pct: 20,
-    default_duration_days: 14,
-    default_region: 'National',
+    default_discount_pct: CANONICAL_SCENARIO.economics.promotion_depth_pct,
+    default_duration_days: CANONICAL_SCENARIO.calendar.promotion_duration_days,
+    default_region: CANONICAL_SCENARIO.identity.market_scope_label,
     default_mechanic: 'price_cut',
     default_objective: 'VOLUME',
     intervention_posture: 'CONSIDER_PROMOTION',
 
+    /*
+     * The discovery narrative is COMPOSED from the derived curve, not written alongside it. It
+     * previously asserted a £3,300 loss while the tiers beneath it were being recomputed from the
+     * scenario's own prices — the headline and the evidence under it would have drifted apart on
+     * the first change to any assumption.
+     */
     discovery: {
-      headline: 'CogniX found substantial demand upside with national margin dilution',
-      core_narrative: 'Your campaign creates +48% demand surge, but national execution at 20% discount destroys £3,300 in net commercial contribution.',
-      key_finding: '71% of incremental volume is concentrated across 18 high-yield stores in the North West and Midlands.',
+      headline: 'The committed depth buys volume the estate cannot serve, and leaves contribution behind',
+      core_narrative:
+        `A ${CANONICAL_CURRENT_POINT.discount_pct}% cut across the whole estate lifts demand `
+        + `${CANONICAL_CURRENT_POINT.expected_demand_uplift_pct}% and adds `
+        + `${formatGbpShort(CANONICAL_CURRENT_POINT.net_contribution_delta_gbp)} of contribution. `
+        + `The same curve returns ${formatGbpShort(CANONICAL_RECOMMENDED_POINT.net_contribution_delta_gbp)} at `
+        + `${CANONICAL_RECOMMENDED_POINT.discount_pct}% — `
+        + `${formatGbpShort(CANONICAL_RECOMMENDED_POINT.net_contribution_delta_gbp - CANONICAL_CURRENT_POINT.net_contribution_delta_gbp)} more, `
+        + `on demand the supply agreement can actually serve.`,
+      key_finding:
+        `${CANONICAL_SCENARIO.estate.high_opportunity_incremental_share_pct}% of the incremental volume comes from `
+        + `${CANONICAL_SCENARIO.estate.high_opportunity_store_count.toLocaleString('en-GB')} stores — around a quarter of the estate, `
+        + `concentrated in the ${CANONICAL_SCENARIO.identity.focus_region} and the Midlands.`,
       decision_verdict: 'CONDITIONAL GO',
       confidence: 'HIGH',
-      expected_demand_uplift_pct: 48.0,
-      net_contribution_delta_gbp: -3320,
+      expected_demand_uplift_pct: CANONICAL_CURRENT_POINT.expected_demand_uplift_pct,
+      net_contribution_delta_gbp: CANONICAL_CURRENT_POINT.net_contribution_delta_gbp,
       primary_tension_title: 'Primary Tension: Demand Growth ↔ Margin Protection',
-      primary_tension_description: 'The proposed 20% discount prioritises gross volume (+48%) at the expense of unit contribution, turning an operational success into a commercial sacrifice.',
+      primary_tension_description:
+        `The committed ${CANONICAL_CURRENT_POINT.discount_pct}% cut buys volume `
+        + `(+${CANONICAL_CURRENT_POINT.expected_demand_uplift_pct}%) with unit contribution, and creates demand beyond what the `
+        + `supply agreement can serve. It is a volume success, a contribution sacrifice, and an availability risk at once.`,
       dominant_conflict: ['Demand Growth', 'Margin Protection']
     },
 
     waterfall: [
-      { id: 'wf_base', label: 'Baseline Run-Rate', driver_class: 'ambient', contribution_pp: 100.0, value_display: '100.0 pp', rationale: 'Historical sales run-rate across 50 stores.', provenance: 'SEEDED_OBSERVATION' },
+      { id: 'wf_base', label: 'Baseline Run-Rate', driver_class: 'ambient', contribution_pp: 100.0, value_display: '100.0 pp', rationale: 'Historical sales run-rate across the national estate.', provenance: 'SEEDED_OBSERVATION' },
       { id: 'wf_drift', label: 'Seasonal Category Drift', driver_class: 'ambient', contribution_pp: 1.8, value_display: '+1.8 pp', rationale: 'Mild upward ambient trend in dairy demand.', provenance: 'DERIVED' },
       { id: 'wf_elas', label: 'Price Elasticity (20% Cut)', driver_class: 'intervention', contribution_pp: 36.4, value_display: '+36.4 pp', rationale: 'Strong volume response to headline price reduction.', provenance: 'DERIVED' },
       { id: 'wf_media', label: 'Feature Space & Signage', driver_class: 'intervention', contribution_pp: 7.2, value_display: '+7.2 pp', rationale: 'Gondola end placement and mobile app boost.', provenance: 'SIMULATED' },
@@ -305,15 +479,7 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
       { id: 'wf_net', label: 'Net Campaign-Window Demand', driver_class: 'intervention', contribution_pp: 48.0, value_display: '+48.0 pp', rationale: 'Total expected demand change across the window including ambient drivers; intervention-attributable share is +41.4 pp (CDI-02 basis excludes ambient movement).', provenance: 'DERIVED' }
     ],
 
-    elasticity_curve: [
-      { discount_pct: 0, expected_demand_uplift_pct: 0, unit_contribution_gbp: 0.67, net_contribution_delta_gbp: 0, notes: 'Baseline zero promotion' },
-      { discount_pct: 5, expected_demand_uplift_pct: 12.0, unit_contribution_gbp: 0.647, net_contribution_delta_gbp: 1840, notes: 'Accretive shallow discount' },
-      { discount_pct: 10, expected_demand_uplift_pct: 24.5, unit_contribution_gbp: 0.623, net_contribution_delta_gbp: 3420, notes: 'Optimal sweet spot' },
-      { discount_pct: 14, expected_demand_uplift_pct: 38.6, unit_contribution_gbp: 0.604, net_contribution_delta_gbp: 4120, is_cognix_recommended: true, notes: 'CogniX Recommended configuration' },
-      { discount_pct: 20, expected_demand_uplift_pct: 48.0, unit_contribution_gbp: 0.576, net_contribution_delta_gbp: -3320, is_current: true, notes: 'Current plan — margin erosion dominates' },
-      { discount_pct: 25, expected_demand_uplift_pct: 58.2, unit_contribution_gbp: 0.553, net_contribution_delta_gbp: -7850, notes: 'Severe economic destruction' },
-      { discount_pct: 30, expected_demand_uplift_pct: 67.0, unit_contribution_gbp: 0.529, net_contribution_delta_gbp: -12600, notes: 'Infeasible margin collapse' }
-    ],
+    elasticity_curve: CANONICAL_ELASTICITY_CURVE,
 
     opportunity_matrix: [
       {
@@ -321,7 +487,7 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
         window_label: 'Thu – Sun (Peak)',
         opportunity_index: 91,
         tier: 'PREFERRED',
-        store_count: 5,
+        store_count: canonicalStoreCount('North West'),
         factors: [
           { factor_id: 'f1', label: 'Demand Propensity', points: 27, rationale: 'High category basket attachment index (1.38)' },
           { factor_id: 'f2', label: 'DC Stock Headroom', points: 22, rationale: 'Regional warehouse holds 8.2 days forward cover' },
@@ -343,7 +509,7 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
         window_label: 'Thu – Sun (Peak)',
         opportunity_index: 84,
         tier: 'PREFERRED',
-        store_count: 5,
+        store_count: Math.round(canonicalStoreCount('National') * 0.1),
         factors: [
           { factor_id: 'f1', label: 'Demand Propensity', points: 24, rationale: 'Strong family shopper footfall' },
           { factor_id: 'f2', label: 'DC Stock Headroom', points: 20, rationale: 'Adequate depot inventory' },
@@ -365,7 +531,7 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
         window_label: 'Thu – Sun (Peak)',
         opportunity_index: 48,
         tier: 'AVOID',
-        store_count: 6,
+        store_count: Math.round(canonicalStoreCount('National') * 0.12),
         factors: [
           { factor_id: 'f1', label: 'Demand Propensity', points: 12, rationale: 'Smaller basket sizes in Metro stores' },
           { factor_id: 'f2', label: 'DC Stock Headroom', points: 11, rationale: 'Tight backroom space constraints' },
@@ -387,7 +553,7 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
         window_label: 'Thu – Sun (Peak)',
         opportunity_index: 76,
         tier: 'ACCEPTABLE',
-        store_count: 4,
+        store_count: Math.round(canonicalStoreCount('National') * 0.08),
         factors: [
           { factor_id: 'f1', label: 'Demand Propensity', points: 22, rationale: 'Consistent baseline demand' },
           { factor_id: 'f2', label: 'DC Stock Headroom', points: 18, rationale: 'Direct supplier delivery access' },
@@ -409,7 +575,7 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
         window_label: 'Thu – Sun (Peak)',
         opportunity_index: 59,
         tier: 'SUBOPTIMAL',
-        store_count: 4,
+        store_count: Math.round(canonicalStoreCount('National') * 0.08),
         factors: [
           { factor_id: 'f1', label: 'Demand Propensity', points: 16, rationale: 'Average category velocity' },
           { factor_id: 'f2', label: 'DC Stock Headroom', points: 14, rationale: 'Bristol DC buffer' },
@@ -428,33 +594,39 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
       }
     ],
 
+    /*
+     * Every play is ONE point on the canonical curve applied to a declared scope and window.
+     * Nothing here carries its own pounds, its own uplift or its own estate — a play that could
+     * restate any of those is a play that can silently contradict the curve drawn beside it.
+     * All five run the same 14-day window so a reader is comparing decisions, not calendars.
+     */
     frontier_plays: [
       {
         id: 'play_current',
         name: 'Current Plan',
-        badge: 'Proposed',
-        discount_pct: 20,
-        stores_count: 50,
-        duration_days: 14,
-        expected_demand_uplift_pct: 48.0,
-        net_contribution_delta_gbp: -3320,
+        badge: 'Committed',
+        discount_pct: CANONICAL_CURRENT_POINT.discount_pct,
+        stores_count: canonicalStoreCount('National'),
+        duration_days: CANONICAL_SCENARIO.calendar.promotion_duration_days,
+        expected_demand_uplift_pct: CANONICAL_CURRENT_POINT.expected_demand_uplift_pct,
+        net_contribution_delta_gbp: CANONICAL_CURRENT_POINT.net_contribution_delta_gbp,
         supply_exposure: 'HIGH',
         waste_impact_pct: -4.2,
-        rationale: 'National blanket 20% discount maximising volume (+48%) at significant margin sacrifice (-£3.3K).',
+        rationale: `The committed ${CANONICAL_CURRENT_POINT.discount_pct}% cut across the whole estate. It buys the most volume of any play that pays its way, and it creates the demand this supply agreement cannot serve.`,
         is_current: true
       },
       {
         id: 'play_cognix',
         name: 'CogniX Recommended',
         badge: 'Pareto Optimal',
-        discount_pct: 14,
-        stores_count: 18,
-        duration_days: 9,
-        expected_demand_uplift_pct: 38.6,
-        net_contribution_delta_gbp: 4120,
-        supply_exposure: 'LOW',
+        discount_pct: CANONICAL_RECOMMENDED_POINT.discount_pct,
+        stores_count: canonicalStoreCount('National'),
+        duration_days: CANONICAL_SCENARIO.calendar.promotion_duration_days,
+        expected_demand_uplift_pct: CANONICAL_RECOMMENDED_POINT.expected_demand_uplift_pct,
+        net_contribution_delta_gbp: CANONICAL_RECOMMENDED_POINT.net_contribution_delta_gbp,
+        supply_exposure: 'MODERATE',
         waste_impact_pct: -3.8,
-        rationale: 'Concentrated 14% discount across 18 high-opportunity stores, securing +£4.1K net profit.',
+        rationale: `A ${CANONICAL_RECOMMENDED_POINT.discount_pct}% cut across the same estate. Less volume than the committed plan and materially more contribution, because the price given away on base volume falls faster than the volume it buys.`,
         is_recommended: true
       },
       {
@@ -462,39 +634,44 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
         name: 'Margin Optimised',
         badge: 'Profit Focus',
         discount_pct: 10,
-        stores_count: 24,
-        duration_days: 14,
-        expected_demand_uplift_pct: 24.5,
-        net_contribution_delta_gbp: 3420,
+        stores_count: canonicalStoreCount('National'),
+        duration_days: CANONICAL_SCENARIO.calendar.promotion_duration_days,
+        expected_demand_uplift_pct: curvePoint(10).expected_demand_uplift_pct,
+        net_contribution_delta_gbp: curvePoint(10).net_contribution_delta_gbp,
         supply_exposure: 'LOW',
         waste_impact_pct: -2.1,
-        rationale: 'Conservative 10% price reduction protecting unit economics while capturing +24.5% demand.'
+        rationale: 'A conservative cut that protects unit economics and stays comfortably inside what the supplier can serve.'
       },
       {
         id: 'play_volume',
         name: 'Demand Maximised',
         badge: 'Volume Surge',
         discount_pct: 25,
-        stores_count: 50,
-        duration_days: 14,
-        expected_demand_uplift_pct: 58.2,
-        net_contribution_delta_gbp: -7850,
+        stores_count: canonicalStoreCount('National'),
+        duration_days: CANONICAL_SCENARIO.calendar.promotion_duration_days,
+        expected_demand_uplift_pct: curvePoint(25).expected_demand_uplift_pct,
+        net_contribution_delta_gbp: curvePoint(25).net_contribution_delta_gbp,
         supply_exposure: 'CRITICAL',
         waste_impact_pct: -6.0,
-        rationale: 'Aggressive 25% price cut to gain top-line volume (+58.2%) with heavy contribution loss.'
+        rationale: 'Buys top-line volume outright. The response is saturating while the price investment keeps rising, and the demand created is far beyond anything the network can serve.'
       },
       {
-        id: 'play_conservative',
-        name: 'Targeted Weekend Burst',
-        badge: 'Low Risk',
-        discount_pct: 12,
-        stores_count: 12,
-        duration_days: 4,
-        expected_demand_uplift_pct: 18.4,
-        net_contribution_delta_gbp: 1950,
+        id: 'play_targeted',
+        name: 'Targeted High-Yield Cluster',
+        badge: 'Supply Safe',
+        discount_pct: CANONICAL_RECOMMENDED_POINT.discount_pct,
+        stores_count: CANONICAL_SCENARIO.estate.high_opportunity_store_count,
+        duration_days: CANONICAL_SCENARIO.calendar.promotion_duration_days,
+        expected_demand_uplift_pct: CANONICAL_RECOMMENDED_POINT.expected_demand_uplift_pct,
+        net_contribution_delta_gbp: deriveFrontierPlayContributionGbp(
+          CANONICAL_RECOMMENDED_POINT.discount_pct,
+          CANONICAL_SCENARIO.estate.high_opportunity_store_count,
+          CANONICAL_SCENARIO.calendar.promotion_duration_days,
+          CANONICAL_RECOMMENDED_POINT.expected_demand_uplift_pct
+        ),
         supply_exposure: 'LOW',
         waste_impact_pct: -1.5,
-        rationale: 'Short 4-day weekend campaign targeting only core superstores.'
+        rationale: `The same depth confined to the ${CANONICAL_SCENARIO.estate.high_opportunity_store_count.toLocaleString('en-GB')} stores that deliver ${CANONICAL_SCENARIO.estate.high_opportunity_incremental_share_pct}% of the incremental volume. Less contribution than running it estate-wide, and it opens no Decision Gap at all.`
       }
     ],
 
@@ -519,10 +696,10 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
       },
       {
         id: 'inv_3',
-        condition_text: 'Campaign store scope <= 18 high-yield stores',
+        condition_text: `Campaign store scope <= ${CANONICAL_SCENARIO.estate.high_opportunity_store_count.toLocaleString('en-GB')} high-yield stores`,
         target_parameter: 'STORE_SCOPE',
         target_value: 18,
-        target_display: '18 stores',
+        target_display: `${CANONICAL_SCENARIO.estate.high_opportunity_store_count.toLocaleString('en-GB')} stores`,
         explanation: 'Pruning 32 low-yield stores eliminates £2,800 of margin drag while retaining 71% of incremental demand.',
         modelling_action_label: 'Target 18 Stores →'
       },
@@ -595,11 +772,11 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
         { id: 'n_sig1', label: 'DC Stock Buildup Signal', category: 'SIGNAL', provenance: 'SEEDED_OBSERVATION', summary: 'North West depot holds 9.2 days stock', detail: 'Seeded depot inventory snapshot from the demonstration world model (Warrington Regional DC).' },
         { id: 'n_sig2', label: 'Competitor Price Cut', category: 'SIGNAL', provenance: 'SEEDED_OBSERVATION', summary: 'Rival discounted cheddar to £2.19', detail: 'Seeded competitor price observation from the demonstration world model (SKU P004).' },
         { id: 'n_ev1', label: 'Price Elasticity Model', category: 'EVIDENCE', provenance: 'DERIVED', summary: 'Price elasticity ε = 2.4 (High)', detail: 'Econometric regression over past 52 weeks promotion cycles.' },
-        { id: 'n_hyp1', label: 'Targeted Regional Uplift', category: 'HYPOTHESIS', provenance: 'DERIVED', summary: 'Regional promo clears stock profitably', detail: 'Hypothesis that 18 stores generate 71% of volume response.' },
+        { id: 'n_hyp1', label: 'Targeted Regional Uplift', category: 'HYPOTHESIS', provenance: 'DERIVED', summary: 'Regional promo clears stock profitably', detail: `Hypothesis that ${CANONICAL_SCENARIO.estate.high_opportunity_store_count.toLocaleString('en-GB')} stores generate ${CANONICAL_SCENARIO.estate.high_opportunity_incremental_share_pct}% of the volume response.` },
         { id: 'n_opp1', label: 'North West High Opportunity', category: 'DEMAND', provenance: 'DERIVED', summary: 'Opportunity Index: 91/100', detail: 'High demand propensity + stock headroom in North West.' },
-        { id: 'n_econ1', label: 'National Margin Erosion Risk', category: 'ECONOMICS', provenance: 'DERIVED', summary: 'National 20% promo loses -£3.3K', detail: 'Unit contribution falls from £0.67 to £0.576 across 50 stores.' },
-        { id: 'n_dec1', label: 'CONDITIONAL GO Verdict', category: 'DECISION', provenance: 'DERIVED', summary: 'Reconfigure to 14% / 18 stores', detail: 'Approve only under focused store scope and shallower discount.' },
-        { id: 'n_int1', label: 'Proposed Intervention', category: 'INTERVENTION', provenance: 'DERIVED', summary: '14% / 18 stores / 9 days (+£4.1K)', detail: 'Rebalanced campaign ready for executive commitment.' }
+        { id: 'n_econ1', label: 'National Margin Erosion Risk', category: 'ECONOMICS', provenance: 'DERIVED', summary: `National ${CANONICAL_SCENARIO.economics.promotion_depth_pct}% promo loses ${formatGbpShort(CANONICAL_CURRENT_POINT.net_contribution_delta_gbp)}`, detail: `Unit contribution falls from £${canonicalContributionAtDepthGbp(0).toFixed(2)} to £${CANONICAL_CURRENT_POINT.unit_contribution_gbp.toFixed(2)} across the national estate.` },
+        { id: 'n_dec1', label: 'CONDITIONAL GO Verdict', category: 'DECISION', provenance: 'DERIVED', summary: `Reconfigure to ${CANONICAL_RECOMMENDED_POINT.discount_pct}% across the high-yield cluster`, detail: 'Approve only under focused store scope and shallower discount.' },
+        { id: 'n_int1', label: 'Proposed Intervention', category: 'INTERVENTION', provenance: 'DERIVED', summary: `${CANONICAL_RECOMMENDED_POINT.discount_pct}% / ${CANONICAL_SCENARIO.estate.high_opportunity_store_count.toLocaleString('en-GB')} stores / 9 days (${formatGbpShort(CANONICAL_RECOMMENDED_POINT.net_contribution_delta_gbp)})`, detail: 'Rebalanced campaign ready for executive commitment.' }
       ],
       links: [
         { from: 'n_sig1', to: 'n_hyp1', label: 'informs' },
@@ -652,7 +829,7 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
       post_campaign_learning: {
         what_we_believed: 'National 20% discount would drive gross volume across all regions equally.',
         what_we_expected: '+48% demand surge, -£3.3K net contribution nationally.',
-        what_we_decided: 'Accepted CogniX recommendation to reconfigure to 14% discount across 18 high-yield stores.',
+        what_we_decided: `Accepted the CogniX recommendation: reconfigure to ${CANONICAL_RECOMMENDED_POINT.discount_pct}% across the high-yield store cluster.`,
         interventions_applied: 'Day 5: Reallocated 2,400 units to North West depot to prevent weekend stockout.',
         what_actually_happened: '+41.2% demand uplift achieved; +£4,280 net contribution realised; zero store stockouts.',
         what_cognix_learned: 'Confirmed high price elasticity (ε=2.38) in North West superstores; validated 14% discount inflection threshold.',
@@ -1907,7 +2084,7 @@ export function estimateInterventionEconomics(
       ? pt
       : best
   );
-  const baselineStores = REGION_STORE_COUNTS[archetype.default_region] ?? 50;
+  const baselineStores = canonicalStoreCount(archetype.default_region);
   const storeScale = baselineStores > 0 ? proposal.stores / baselineStores : 1;
   const durationScale =
     archetype.default_duration_days > 0 ? proposal.duration_days / archetype.default_duration_days : 1;

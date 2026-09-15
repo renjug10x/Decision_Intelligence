@@ -30,6 +30,8 @@ import {
   DayAttention,
   FlightLens
 } from '@/packages/contracts/src/campaign-continuous-timeline-model';
+import { useCurrency } from '@/context/CurrencyContext';
+import { currencySymbol } from '@/lib/currency/format';
 
 const ATTENTION_STYLE: Record<DayAttention, { bg: string; border: string; text: string; label: string }> = {
   NONE: { bg: '#F0FDF4', border: '#BBF7D0', text: '#166534', label: 'Tracking to plan' },
@@ -47,9 +49,13 @@ const W = 900;
 const H = 300;
 const PAD = { top: 18, right: 20, bottom: 34, left: 66 };
 
-function fmt(lens: FlightLens, v: number | null): string {
+/**
+ * Contribution is money and converts through the currency layer; demand is units and does not.
+ * The formatter is injected rather than imported so this stays a pure function of its inputs.
+ */
+function fmt(lens: FlightLens, v: number | null, formatMoney: (v: number) => string): string {
   if (v === null) return '—';
-  if (lens === 'CONTRIBUTION') return `£${Math.round(v).toLocaleString('en-GB')}`;
+  if (lens === 'CONTRIBUTION') return formatMoney(Math.round(v));
   return Math.round(v).toLocaleString('en-GB');
 }
 
@@ -58,6 +64,11 @@ export default function ContinuousFlightTimeline({
 }: {
   flight: CampaignFlightProjection;
 }) {
+  const { money, currency, convert, rates } = useCurrency();
+  const moneyCompact = (v: number) => money(v, { compact: false });
+  const moneySymbol = currencySymbol(currency);
+  const convertAmount = (v: number) => convert(v);
+
   const [lens, setLens] = useState<FlightLens>('DEMAND');
   /**
    * Which day the reader is inspecting. Defaults to today, because that is the day an analyst
@@ -131,7 +142,7 @@ export default function ContinuousFlightTimeline({
    */
   const tickDecimals = (yMax - yMin) / 1000 < 4 ? 1 : 0;
   const tickLabel = (t: number) =>
-    `${lens === 'CONTRIBUTION' ? '£' : ''}${(t / 1000).toFixed(tickDecimals)}k`;
+    `${lens === 'CONTRIBUTION' ? moneySymbol : ''}${(convertAmount(t) / 1000).toFixed(tickDecimals)}k`;
   const dayStep = horizon.flight_days > 16 ? 3 : horizon.flight_days > 8 ? 2 : 1;
 
   const activeDay =
@@ -525,7 +536,7 @@ export default function ContinuousFlightTimeline({
                   {r.lens === 'DEMAND' ? 'Demand' : 'Contribution'}
                 </div>
                 <div style={{ fontSize: '0.86rem', fontWeight: 700, color: SLATE, marginTop: 3 }}>
-                  {r.actual_value !== null ? fmt(r.lens, r.actual_value) : fmt(r.lens, r.expectation_value)}
+                  {r.actual_value !== null ? fmt(r.lens, r.actual_value, moneyCompact) : fmt(r.lens, r.expectation_value, moneyCompact)}
                   {r.deviation_pct !== null && (
                     <span
                       style={{
@@ -542,9 +553,9 @@ export default function ContinuousFlightTimeline({
                 </div>
                 <div style={{ fontSize: '0.68rem', color: MUTED, marginTop: 2 }}>
                   {r.actual_value !== null
-                    ? `expected ${fmt(r.lens, r.expectation_value)}`
+                    ? `expected ${fmt(r.lens, r.expectation_value, moneyCompact)}`
                     : r.expectation_lower !== null && r.expectation_upper !== null
-                      ? `${fmt(r.lens, r.expectation_lower)} – ${fmt(r.lens, r.expectation_upper)} declared range`
+                      ? `${fmt(r.lens, r.expectation_lower, moneyCompact)} – ${fmt(r.lens, r.expectation_upper, moneyCompact)} declared range`
                       : 'projected'}
                 </div>
               </div>
@@ -632,7 +643,7 @@ export default function ContinuousFlightTimeline({
               Expected on the final day
             </div>
             <div style={{ fontSize: '1.15rem', fontWeight: 700, color: SLATE, marginTop: 4 }}>
-              {fmt(series.lens, pts[pts.length - 1]?.expectation_value ?? null)}
+              {fmt(series.lens, pts[pts.length - 1]?.expectation_value ?? null, moneyCompact)}
             </div>
           </div>
         </div>

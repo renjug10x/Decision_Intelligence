@@ -9,6 +9,7 @@ import ExecutionBriefing from '@/components/ExecutionBriefing';
 
 import storesData from '@/data/stores.json';
 import { useDecisionState } from '@/context/DecisionStateContext';
+import { useCurrency } from '@/context/CurrencyContext';
 import { fetchCurrentScenarioSignals } from '@/lib/enterprise-signal-client';
 import { getOrCreateSessionId } from '@/lib/journey-client';
 import { evaluateDemandDecisionFrontier } from '@/lib/demand-decision-frontier/demand-frontier-engine';
@@ -29,16 +30,13 @@ import {
   ModelComparison
 } from '@/packages/contracts/src/forecast-model-model';
 import type { DemandProjection } from '@/lib/demand-forecast';
+import { currencySymbol } from '@/lib/currency/format';
 
 const TENANT_ID = 'tenant_uk_retail_01';
 
 const fmt = {
-  money: (v: number) => {
-    const abs = Math.abs(v);
-    if (abs >= 1_000_000) return `£${(v / 1_000_000).toFixed(2)}M`;
-    if (abs >= 1000) return `£${(v / 1000).toFixed(1)}K`;
-    return `£${Math.round(v).toLocaleString()}`;
-  },
+  // Money deliberately absent: it is formatted through the currency layer inside the component,
+  // so a pound sign can never be written into this surface from module scope.
   wow: (v: number) => `${v >= 0 ? '+' : ''}${(v * 100).toFixed(1)}%`,
   int: (v: number) => Math.round(v).toLocaleString(),
   pp: (v: number) => `${v.toFixed(1)}pp`,
@@ -87,6 +85,12 @@ const INITIAL_MODEL_ID = 'HOLT_WINTERS_ADDITIVE';
 export default function Forecasting({ onNavigateToExperiment }: ForecastingProps = {}) {
   const { role, apiKey, selectedStore, setSelectedStore } = useApp();
   const { decisionState, executeCommand } = useDecisionState();
+  /*
+   * Every money value on this surface converts here and only here. `money` takes the modelled GBP
+   * amount; `localise` converts pounds inside sentences the engine composed for itself.
+   */
+  const { money, localise, currency, convert } = useCurrency();
+  const currencySign = currencySymbol(currency);
 
   // ── Governance Scoping ─────────────────────────────────────────────────────
   const [storeName, setStoreName] = useState('Manchester Piccadilly');
@@ -401,8 +405,12 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
   // ── Chart series ───────────────────────────────────────────────────────────
   const isMoney = metric === 'revenue';
   const axisFormat = useCallback((v: number) => (
-    Math.abs(v) >= 1000 ? `${isMoney ? '£' : ''}${(v / 1000).toFixed(0)}k` : `${isMoney ? '£' : ''}${Math.round(v)}`
-  ), [isMoney]);
+    isMoney
+      ? (Math.abs(convert(v)) >= 1000
+          ? `${currencySign}${(convert(v) / 1000).toFixed(0)}k`
+          : `${currencySign}${Math.round(convert(v))}`)
+      : (Math.abs(v) >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${Math.round(v)}`)
+  ), [isMoney, convert, currencySign]);
 
   const chartSeries = useMemo(() => {
     if (!result) return null;
@@ -444,7 +452,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
         kind: 'observed' as const,
         headline: `${activeDate} — observed`,
         statement:
-          `${isMoney ? fmt.money(observed.value) : fmt.int(observed.value)} recorded. This day has happened and is ` +
+          `${isMoney ? money(observed.value) : fmt.int(observed.value)} recorded. This day has happened and is ` +
           'not a projection.',
         basis: [`Source ${result.execution.data_provenance.source}`, `Measure ${result.execution.data_provenance.measure}`]
       };
@@ -470,9 +478,9 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
       kind: 'forecast' as const,
       headline: `${activeDate} — day ${point.horizon_step} of the forecast`,
       statement:
-        `${isMoney ? fmt.money(point.value) : fmt.int(point.value)} expected` +
+        `${isMoney ? money(point.value) : fmt.int(point.value)} expected` +
         (point.range_lower !== null && point.range_upper !== null
-          ? `, in a range of ${isMoney ? fmt.money(point.range_lower) : fmt.int(point.range_lower)} to ${isMoney ? fmt.money(point.range_upper) : fmt.int(point.range_upper)}`
+          ? `, in a range of ${isMoney ? money(point.range_lower) : fmt.int(point.range_lower)} to ${isMoney ? money(point.range_upper) : fmt.int(point.range_upper)}`
           : '') +
         `. ${narration?.statement ?? ''}${decisionSentence}`,
       basis
@@ -703,8 +711,8 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
                 </span>
               </div>
               <div style={{ fontSize: '0.6875rem', color: C.muted, marginTop: 6, lineHeight: 1.45 }}>
-                {fmt.money(gap.revenue_at_risk_gbp)} of revenue we cannot currently serve,
-                carrying {fmt.money(gap.margin_at_risk_gbp)} gross margin.
+                {money(gap.revenue_at_risk_gbp)} of revenue we cannot currently serve,
+                carrying {money(gap.margin_at_risk_gbp)} gross margin.
               </div>
               <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.hairline}`, display: 'flex', justifyContent: 'space-between', fontSize: '0.625rem', color: C.faint }}>
                 <span>Emerging <strong style={{ color: C.body }}>+{gap.emerging_demand_pct}%</strong></span>
@@ -726,7 +734,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
               </div>
               {window_.is_indeterminate ? (
                 <div style={{ fontSize: '0.75rem', color: C.muted, marginTop: 8, lineHeight: 1.5 }}>
-                  <strong style={{ color: C.body }}>Not enough evidence yet.</strong> {window_.explanation}
+                  <strong style={{ color: C.body }}>Not enough evidence yet.</strong> {localise(window_.explanation)}
                 </div>
               ) : (
                 <>
@@ -759,14 +767,14 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
               </div>
               <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginTop: 6 }}>
                 <span style={{ fontSize: '1.5rem', fontWeight: 800, color: C.ink, letterSpacing: '-0.02em' }}>
-                  {fmt.money(regret.alternatives.do_nothing.expected_regret_gbp)}
+                  {money(regret.alternatives.do_nothing.expected_regret_gbp)}
                 </span>
                 <span style={{ fontSize: '0.75rem', color: C.muted }}>if we hold</span>
               </div>
               <div style={{ fontSize: '0.6875rem', color: C.muted, marginTop: 6, lineHeight: 1.45 }}>
                 {regret.recommended_action === 'CHOICE_REQUIRED'
                   ? 'The alternatives do not separate materially on these inputs. CogniX names no winner.'
-                  : `Waiting instead forgoes ${fmt.money(regret.alternatives.wait.expected_regret_gbp)}.`}
+                  : `Waiting instead forgoes ${money(regret.alternatives.wait.expected_regret_gbp)}.`}
               </div>
               <div style={{ marginTop: 8, paddingTop: 8, borderTop: `1px solid ${C.hairline}`, fontSize: '0.625rem', color: C.faint }}>
                 Modelled expected values, not calibrated probabilities
@@ -795,7 +803,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
                 {!simActive && (
                   <div style={{ fontSize: '0.75rem', color: C.muted, marginTop: 3, lineHeight: 1.45 }}>
                     {intervention.is_actionable
-                      ? `Recovers ${fmt.int(intervention.expected_units_recovered)} of ${fmt.int(gap.exposed_demand_units)} exposed units — ${fmt.money(intervention.expected_margin_recovered_gbp)} gross margin for ${fmt.money(intervention.intervention_cost_gbp)} of flex premium, leaving ${fmt.pp(intervention.residual_gap_pp)} exposed.`
+                      ? `Recovers ${fmt.int(intervention.expected_units_recovered)} of ${fmt.int(gap.exposed_demand_units)} exposed units — ${money(intervention.expected_margin_recovered_gbp)} gross margin for ${money(intervention.intervention_cost_gbp)} of flex premium, leaving ${fmt.pp(intervention.residual_gap_pp)} exposed.`
                       : intervention.gated_reason}
                   </div>
                 )}
@@ -988,7 +996,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
                   ))}
                   {!window_.is_indeterminate && (
                     <div style={{ fontSize: '0.75rem', color: C.body, lineHeight: 1.6, background: C.sunken, padding: 12, borderRadius: 8, border: `1px solid ${C.line}` }}>
-                      {window_.explanation} {window_.timezone_note}
+                      {localise(window_.explanation)} {window_.timezone_note}
                     </div>
                   )}
                 </div>
@@ -1018,13 +1026,13 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
                           <div style={{ marginTop: 10, paddingTop: 10, borderTop: `1px solid ${C.line}`, display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem' }}>
                             <span style={{ color: C.muted }}>Expected value</span>
                             <strong style={{ color: alt.expected_decision_value_gbp >= 0 ? C.good : C.risk }}>
-                              {fmt.money(alt.expected_decision_value_gbp)}
+                              {money(alt.expected_decision_value_gbp)}
                             </strong>
                           </div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', marginTop: 4 }}>
                             <span style={{ color: C.muted }}>Regret</span>
                             <strong style={{ color: alt.expected_regret_gbp === 0 ? C.good : '#6D28D9' }}>
-                              {fmt.money(alt.expected_regret_gbp)}
+                              {money(alt.expected_regret_gbp)}
                             </strong>
                           </div>
                           {alt.feasibility_status !== 'FEASIBLE' && (
@@ -1047,12 +1055,12 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '6px 18px', fontSize: '0.75rem', color: C.body }}>
                       <span>Exposed demand: <strong>{fmt.int(regret.shared_inputs_summary.exposed_demand_units)} units</strong></span>
                       <span>Recoverable within window: <strong>{fmt.int(regret.shared_inputs_summary.capturable_units)} units</strong></span>
-                      <span>Revenue per unit: <strong>£{regret.shared_inputs_summary.revenue_per_unit_gbp.toFixed(2)}</strong></span>
-                      <span>Gross margin per unit: <strong>£{regret.shared_inputs_summary.gross_margin_per_unit_gbp.toFixed(2)}</strong></span>
+                      <span>Revenue per unit: <strong>{money(regret.shared_inputs_summary.revenue_per_unit_gbp, { compact: false, decimals: 2 })}</strong></span>
+                      <span>Gross margin per unit: <strong>{money(regret.shared_inputs_summary.gross_margin_per_unit_gbp, { compact: false, decimals: 2 })}</strong></span>
                       <span>Demand holds at: <strong>{regret.shared_inputs_summary.demand_materialises_probability_pct}%</strong></span>
                       <span>Erosion if we wait: <strong>{regret.shared_inputs_summary.lead_time_erosion_pct}%</strong></span>
-                      <span>Flex premium: <strong>{fmt.money(regret.shared_inputs_summary.intervention_cost_gbp)}</strong></span>
-                      <span>Separation threshold: <strong>{fmt.money(regret.separation_threshold_gbp)}</strong></span>
+                      <span>Flex premium: <strong>{money(regret.shared_inputs_summary.intervention_cost_gbp)}</strong></span>
+                      <span>Separation threshold: <strong>{money(regret.separation_threshold_gbp)}</strong></span>
                     </div>
                   </div>
 
@@ -1223,7 +1231,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
                     activeNarration.kind === 'observed' ? 'neutral' : 'warn')}
                 </div>
                 <div style={{ fontSize: '0.75rem', color: C.body, marginTop: 3, lineHeight: 1.5 }}>
-                  {activeNarration.statement}
+                  {localise(activeNarration.statement)}
                 </div>
                 <div style={{ fontSize: '0.625rem', color: C.faint, marginTop: 5, lineHeight: 1.5 }}>
                   {activeNarration.basis.join(' · ')}
@@ -1249,7 +1257,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
               <label style={{ ...eyebrow, display: 'block', marginBottom: 6 }}>Projection summary metric</label>
               <select className="select w-full" value={metric} onChange={e => setMetric(e.target.value as any)}
                 style={{ height: 36, fontSize: '0.8125rem' }}>
-                <option value="revenue">Gross revenue (£)</option>
+                <option value="revenue">Gross revenue ({currencySign})</option>
                 <option value="units">Units demanded</option>
                 <option value="waste">Expected waste</option>
               </select>
@@ -1319,11 +1327,11 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
           <div style={{ ...card, padding: '16px 20px' }}>
             <div style={eyebrow}>Projected total ({horizon} days)</div>
             <div style={{ fontSize: '1.625rem', fontWeight: 800, color: C.ink, marginTop: 4, letterSpacing: '-0.02em' }}>
-              {isMoney ? fmt.money(result.kpi.projected_total) : fmt.int(result.kpi.projected_total)}
+              {isMoney ? money(result.kpi.projected_total) : fmt.int(result.kpi.projected_total)}
             </div>
             <div style={{ fontSize: '0.75rem', color: C.muted, marginTop: 2 }}>
               {result.kpi.projected_total_lower !== null && result.kpi.projected_total_upper !== null
-                ? `Range ${isMoney ? fmt.money(result.kpi.projected_total_lower) : fmt.int(result.kpi.projected_total_lower)} to ${isMoney ? fmt.money(result.kpi.projected_total_upper) : fmt.int(result.kpi.projected_total_upper)}`
+                ? `Range ${isMoney ? money(result.kpi.projected_total_lower) : fmt.int(result.kpi.projected_total_lower)} to ${isMoney ? money(result.kpi.projected_total_upper) : fmt.int(result.kpi.projected_total_upper)}`
                 : 'No range is published for this projection'}
             </div>
           </div>
@@ -1404,7 +1412,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
         briefing={{
           title: 'Demand planning execution briefing',
           situation: gap
-            ? `Emerging demand is running ${fmt.pp(gap.exposed_demand_pp)} above what current commitments can serve — ${fmt.int(gap.exposed_demand_units)} units, ${fmt.money(gap.revenue_at_risk_gbp)} of revenue.`
+            ? `Emerging demand is running ${fmt.pp(gap.exposed_demand_pp)} above what current commitments can serve — ${fmt.int(gap.exposed_demand_units)} units, ${money(gap.revenue_at_risk_gbp)} of revenue.`
             : 'Decision intelligence is unavailable for the current scope.',
           whyNow: window_ && !window_.is_indeterminate
             ? `The ${window_.declared_constraint_name} closes at ${window_.deadline_display} — ${window_.remaining_hours}h from scenario time ${window_.scenario_now_display}.`
@@ -1416,7 +1424,7 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
           dependencies: ['FreshDirect volume flex notice (modelled)', 'Trafford DC allocation schedule (modelled)'],
           timeHorizon: `Next ${horizon} days`,
           expectedOutcome: intervention?.is_actionable
-            ? `Modelled recovery of ${fmt.int(intervention.expected_units_recovered)} units — ${fmt.money(intervention.expected_margin_recovered_gbp)} gross margin for ${fmt.money(intervention.intervention_cost_gbp)} of flex premium.`
+            ? `Modelled recovery of ${fmt.int(intervention.expected_units_recovered)} units — ${money(intervention.expected_margin_recovered_gbp)} gross margin for ${money(intervention.intervention_cost_gbp)} of flex premium.`
             : 'No modelled recovery required.',
           confidence: stability?.evidence_confidence_pct ?? 0,
           patternId: 'PAT-OPP-02',

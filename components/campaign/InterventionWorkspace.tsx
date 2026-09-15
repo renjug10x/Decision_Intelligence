@@ -14,6 +14,8 @@ import {
   Check
 } from 'lucide-react';
 import { CampaignArchetype, estimateInterventionEconomics, REGION_STORE_COUNTS } from '@/lib/campaign-archetypes';
+import { canonicalStoreCount } from '@/packages/contracts/src/canonical-scenario-model';
+import { useCurrency } from '@/context/CurrencyContext';
 
 export interface ActiveIntervention {
   title: string;
@@ -48,6 +50,7 @@ export default function InterventionWorkspace({
   onRejectIntervention,
   onNavigateToCommitment
 }: InterventionWorkspaceProps) {
+  const { money, localise } = useCurrency();
   const [acceptedBrief, setAcceptedBrief] = useState<boolean>(false);
   const [commitmentPrepared, setCommitmentPrepared] = useState<boolean>(false);
 
@@ -55,7 +58,7 @@ export default function InterventionWorkspace({
 
   // Current-configuration economics derived from the archetype's seeded elasticity curve
   // at the ACTUAL selected discount/region/duration — never the archetype's default story.
-  const currentStores = REGION_STORE_COUNTS[currentRegion] ?? 50;
+  const currentStores = canonicalStoreCount(currentRegion);
   const currentEconomics = estimateInterventionEconomics(archetype, {
     discount_pct: currentDiscount,
     stores: currentStores,
@@ -66,11 +69,8 @@ export default function InterventionWorkspace({
   const executionTrigger =
     archetype.change_triggers.find(t => t.severity === 'VETO') || archetype.change_triggers[0];
 
-  const formatGbp = (v: number) => {
-    const abs = Math.abs(v);
-    const str = abs >= 1000 ? `£${(abs / 1000).toFixed(1)}K` : `£${abs.toFixed(0)}`;
-    return v >= 0 ? `+${str}` : `-${str}`;
-  };
+  /* Signed money in the reader's currency, converted once from the modelled GBP amount. */
+  const formatGbp = (v: number) => money(v, { signed: true });
 
   const handleAccept = () => {
     if (intervention) {

@@ -19,6 +19,8 @@ import {
   estimateInterventionEconomics,
   REGION_STORE_COUNTS
 } from '@/lib/campaign-archetypes';
+import { canonicalStoreCount } from '@/packages/contracts/src/canonical-scenario-model';
+import { useCurrency } from '@/context/CurrencyContext';
 
 interface InverseAnalysisLensProps {
   archetype: CampaignArchetype;
@@ -39,10 +41,11 @@ export default function InverseAnalysisLens({
   archetype,
   onProposeIntervention
 }: InverseAnalysisLensProps) {
+  const { money, localise } = useCurrency();
   const [testedHypothesis, setTestedHypothesis] = useState<Record<string, boolean>>({});
 
   const handleModelCondition = (cond: InverseCondition) => {
-    const defaultScope = REGION_STORE_COUNTS[archetype.default_region] ?? 50;
+    const defaultScope = canonicalStoreCount(archetype.default_region);
     let disc = archetype.default_discount_pct;
     let scope = defaultScope;
     const dur = archetype.default_duration_days;
@@ -168,7 +171,7 @@ export default function InverseAnalysisLens({
                   </span>
                 </div>
                 <div style={{ fontSize: '0.8rem', color: '#475569', lineHeight: 1.4 }}>
-                  {cond.explanation}
+                  {localise(cond.explanation)}
                 </div>
               </div>
 

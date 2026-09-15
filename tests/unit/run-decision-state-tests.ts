@@ -6,6 +6,7 @@
 
 import { decisionStateStore } from '../../lib/decision-state-store';
 import { calculateDerivedImpacts } from '../../packages/contracts/src/decision-state-model';
+import { canonicalWeeklyPopulationUnits, CANONICAL_SCENARIO } from '../../packages/contracts/src/canonical-scenario-model';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -29,7 +30,10 @@ function runTests() {
   assert(stateA !== null, 'Decision state should be created');
   assert(stateA.state_version === 1, 'Initial state version should be 1');
   assert(stateA.scenario_parameters.promotion_lift === 20, 'Initial promo lift should be 20');
-  assert(stateA.derived_impacts.weekly_demand_units === 12000, 'Initial demand units for lift 20% should be 12000');
+  assert(
+    stateA.derived_impacts.weekly_demand_units === Math.round(canonicalWeeklyPopulationUnits() * 1.2),
+    'Initial demand units for lift 20% should be the canonical weekly population lifted 20%'
+  );
   console.log('✓ Test 1 Passed: State initialises correctly from baseline');
 
   // Test 2: Retrieval by ID and Session
@@ -51,7 +55,10 @@ function runTests() {
   assert(transitionRes.status === 'success', 'Transition should succeed');
   assert(transitionRes.new_version === 2, 'New version should be 2');
   assert(transitionRes.state.scenario_parameters.promotion_lift === 28, 'Promo lift should update to 28');
-  assert(transitionRes.derived_impacts.weekly_demand_units === 12800, 'Derived demand should update to 12800');
+  assert(
+    transitionRes.derived_impacts.weekly_demand_units === Math.round(canonicalWeeklyPopulationUnits() * 1.28),
+    'Derived demand should update to the canonical weekly population lifted 28%'
+  );
   console.log('✓ Test 3 Passed: Valid transition updated state and version to 2');
 
   // Test 4: Optimistic Concurrency Version Conflict
@@ -78,7 +85,15 @@ function runTests() {
   assert(interventionRes.status === 'success', 'Intervention selection should succeed');
   assert(interventionRes.new_version === 3, 'Version should increment to 3');
   assert(interventionRes.state.selected_interventions.includes('SLA_FLEX_RULE_4'), 'Intervention should be selected');
-  assert(interventionRes.derived_impacts.supplier_capacity_units === 12200, 'Flex capacity should add 1200 units (11000 + 1200)');
+  {
+    const population = canonicalWeeklyPopulationUnits();
+    const allocation = Math.round(population * CANONICAL_SCENARIO.supply.supplier_capacity_index);
+    const flex = Math.round(population * (CANONICAL_SCENARIO.supply.supplier_flex_rate_pct / 100));
+    assert(
+      interventionRes.derived_impacts.supplier_capacity_units === allocation + flex,
+      'Flex capacity adds the declared flex allowance on top of the standing allocation'
+    );
+  }
   console.log('✓ Test 5 Passed: Intervention selection updated capacity flex deterministically');
 
   // Test 6: Reset to Baseline

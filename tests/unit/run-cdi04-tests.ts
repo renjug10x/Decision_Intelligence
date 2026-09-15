@@ -30,6 +30,7 @@ import { evaluateCampaignDecision } from '../../lib/campaign-causal-engine';
 import { discoverCampaignOpportunity } from '../../lib/campaign-opportunity-engine';
 import { decisionStateStore } from '../../lib/decision-state-store';
 import { calculateDerivedImpacts } from '../../packages/contracts/src/decision-state-model';
+import { CANONICAL_SCENARIO, canonicalWeeklyPopulationUnits } from '../../packages/contracts/src/canonical-scenario-model';
 
 function runTests() {
   console.log('====================================================');
@@ -50,7 +51,7 @@ function runTests() {
   }
 
   // --- Policy / parity guards (build-time) ---
-  assert(assertRecoveryLeverParity().ok, 'Test 1: WP10-C recovery lever parity (1200/500)');
+  assert(assertRecoveryLeverParity().ok, 'Test 1: WP10-C recovery lever parity (mirror matches the engine)', assertRecoveryLeverParity().violations.join('; '));
   assert(
     READINESS_THRESHOLD_POLICY.provenance === 'synthetic_demonstration_policy' &&
       READINESS_THRESHOLD_POLICY.thresholds.every(
@@ -315,7 +316,19 @@ function runTests() {
   // Cap K7 independent: negative contribution never GO even if other dims clear-ish
   assert(v3aReady.readiness.state_caps_applied.includes('K7') || v3aReady.readiness.state === 'DO_NOT_PROCEED', 'Test 20: K7 / V3a structural backstop on negative contribution');
 
-  // Operational feasibility: gap 1000 vs headroom 1700 ⇒ CONSTRAINED CONDITIONAL_GO
+  /*
+   * Operational feasibility: a gap the recovery levers can still cover ⇒ CONSTRAINED,
+   * CONDITIONAL_GO, no veto. Both quantities are derived from the same canonical population the
+   * engine works on. The literals they replace (1,000 and 1,700) were the same relationship
+   * expressed against a 10,000-unit week, and asserting them after a repricing would only ever
+   * have proved that the scenario had not moved.
+   */
+  const expectedGapUnits = calculateDerivedImpacts(
+    { promotion_lift: 20, supplier_capacity_cap: 10, forecast_horizon_days: 14,
+      promotion_method: '20_percent_off', campaign_scope: 'national', cannibalisation_factor: 0, event_boost: 'none' },
+    []
+  ).commitment_gap_units;
+  const expectedHeadroomUnits = Object.values(WP10C_RECOVERY_LEVER_HEADROOM).reduce((a, b) => a + b, 0);
   // Use VALUE_TRADE + shallow mechanic so Commercial does not V3a-veto the fixture.
   clearCampaignIntents();
   decisionStateStore.clearStore();
@@ -342,18 +355,18 @@ function runTests() {
   const feas = opsReady.readiness.operational_feasibility;
   assert(
     !!feas &&
-      feas.commitment_gap_units === 1000 &&
-      feas.recoverable_headroom_units === 1700 &&
+      feas.commitment_gap_units === expectedGapUnits &&
+      feas.recoverable_headroom_units === expectedHeadroomUnits &&
       feas.structurally_infeasible === false &&
       opsReady.readiness.dimensions.find(d => d.dimension === 'OPERATIONAL')!.state === 'CONSTRAINED' &&
       opsReady.readiness.conditions.some(c => /SLA_FLEX_RULE_4/.test(c.discharge_test)) &&
       opsReady.readiness.state === 'CONDITIONAL_GO' &&
       opsReady.readiness.vetoes.length === 0,
-    'Test 21: gap 1000 ≤ headroom 1700 ⇒ CONSTRAINED + SLA_FLEX discharge ⇒ CONDITIONAL_GO',
+    'Test 21: a coverable gap ⇒ CONSTRAINED + SLA_FLEX discharge ⇒ CONDITIONAL_GO',
     `gap=${feas?.commitment_gap_units} headroom=${feas?.recoverable_headroom_units} state=${opsReady.readiness.state} op=${opsReady.readiness.dimensions.find(d => d.dimension === 'OPERATIONAL')?.state} vetoes=${JSON.stringify(opsReady.readiness.vetoes)} dims=${opsReady.readiness.dimensions.map(d => d.dimension+':'+d.state).join(',')}`
   );
 
-  // V4 — gap 3000 > 1700
+  // V4 — a gap beyond everything the recovery levers can reach
   const di = calculateDerivedImpacts(
     {
       promotion_lift: 50,
@@ -366,8 +379,10 @@ function runTests() {
     },
     []
   );
-  // 15000 demand - 10000 capacity = 5000 gap > 1700
-  assert(di.commitment_gap_units > 1700, 'Test 22a: high-lift fixture produces gap > recoverable headroom');
+  // A 50% lift against no allocation headroom opens a gap no lever can close.
+  assert(di.commitment_gap_units > expectedHeadroomUnits,
+    'Test 22a: high-lift fixture produces gap > recoverable headroom',
+    `gap=${di.commitment_gap_units} headroom=${expectedHeadroomUnits}`);
 
   // Simulate infeasible via evaluateOperational bundle with patched DS
   const ds = decisionStateStore.getCurrentStateBySession(opsCamp.session_id, opsCamp.tenant_id)!;
@@ -383,9 +398,9 @@ function runTests() {
       ...ds,
       derived_impacts: {
         ...ds.derived_impacts,
-        commitment_gap_units: 3000,
-        supplier_capacity_units: 10000,
-        financial_exposure_gbp: 360000,
+        commitment_gap_units: expectedHeadroomUnits + 1,
+        supplier_capacity_units: canonicalWeeklyPopulationUnits(),
+        financial_exposure_gbp: Math.round((expectedHeadroomUnits + 1) * CANONICAL_SCENARIO.economics.list_price_gbp),
         stockout_probability_pct: 70,
         delivery_risk_pct: 40
       },
@@ -398,7 +413,7 @@ function runTests() {
   assert(
     opInfeas.feasibility?.structurally_infeasible === true &&
       opInfeas.vetoes.some(v => v.veto_id === 'V4' && v.veto_basis === 'OPERATIONAL_INFEASIBILITY'),
-    'Test 22: gap 3000 > headroom 1700 ⇒ V4 OPERATIONAL_INFEASIBILITY'
+    'Test 22: a gap beyond every recovery lever ⇒ V4 OPERATIONAL_INFEASIBILITY'
   );
 
   // Stockout 92 alone ⇒ CONSTRAINED not veto

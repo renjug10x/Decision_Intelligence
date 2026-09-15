@@ -127,6 +127,8 @@ import {
   executeDecisionCommand
 } from '@/lib/decision-state-client';
 import { useApp } from '@/lib/context';
+import { useCurrency } from '@/context/CurrencyContext';
+import { CANONICAL_SCENARIO } from '@/packages/contracts/src/canonical-scenario-model';
 
 interface CampaignDecisionCanvasProps {
   onNavigateToExperiment?: (experimentId: string) => void;
@@ -215,23 +217,29 @@ function humaniseFieldPath(path?: string): string {
     .join(' — ');
 }
 
-function formatSnapshotValue(sv: { value?: unknown; unit?: string; source_field_path?: string }): string {
+function formatSnapshotValue(
+  sv: { value?: unknown; unit?: string; source_field_path?: string },
+  formatMoney: (v: number) => string
+): string {
   const raw = sv?.value;
   const n = typeof raw === 'number' ? raw : Number(raw);
   const unit = (sv?.unit || '').toLowerCase();
   const path = (sv?.source_field_path || '').toLowerCase();
   if (Number.isFinite(n)) {
     if (unit.includes('gbp') || unit.includes('£') || path.includes('contribution') || path.includes('gbp')) {
-      return `£${n.toFixed(2)}`;
+      return formatMoney(n);
     }
     return n.toFixed(2);
   }
   return String(raw ?? '—');
 }
 
-function formatOutcomeSnapshot(snapshot: Array<{ value?: unknown; unit?: string; source_field_path?: string }> | undefined): string {
-  if (!snapshot?.length) return '0.00 / £0.00';
-  return snapshot.map(formatSnapshotValue).join(' / ');
+function formatOutcomeSnapshot(
+  snapshot: Array<{ value?: unknown; unit?: string; source_field_path?: string }> | undefined,
+  formatMoney: (v: number) => string
+): string {
+  if (!snapshot?.length) return `0.00 / ${formatMoney(0)}`;
+  return snapshot.map(sv => formatSnapshotValue(sv, formatMoney)).join(' / ');
 }
 
 /**
@@ -473,6 +481,12 @@ const noticeProvenance = (notice: string | SurfaceNotice | null): string | undef
 export default function CampaignDecisionCanvas({
   onNavigateToExperiment
 }: CampaignDecisionCanvasProps = {}) {
+  /*
+   * The one place this surface turns a modelled pound into a displayed amount. `localise` handles
+   * sentences the decision engines composed with pounds already in them.
+   */
+  const { money, localise } = useCurrency();
+  const money2dp = (v: number) => money(v, { compact: false, decimals: 2 });
   const { apiKey } = useApp();
   const [intent, setIntent] = useState<CampaignIntent | null>(null);
   const [saving, setSaving] = useState(false);
@@ -1820,7 +1834,9 @@ export default function CampaignDecisionCanvas({
             {decisionIdentityLabel}
           </div>
           <p style={{ margin: 0, fontSize: '0.9375rem', color: 'var(--text-secondary)', maxWidth: 720, lineHeight: 1.55 }}>
-            This canvas establishes intent and constraints. Promotion is one possible lever — alongside non-promotion interventions and doing nothing. Prediction, readiness, and trade-offs arrive in later packages.
+            {CANONICAL_SCENARIO.identity.sku_name} · {CANONICAL_SCENARIO.identity.market_scope_label}, {CANONICAL_SCENARIO.calendar.forecast_horizon_days} days.
+            The product, scope and window come across from the demand outlook — what has not been decided is whether to
+            intervene at all. Promotion is one lever among several, and doing nothing is one of them.
           </p>
           <div style={{ marginTop: 12, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
             {displayedIntent.synthetic_demo && (
@@ -1828,6 +1844,9 @@ export default function CampaignDecisionCanvas({
                 <Sparkles size={12} /> Synthetic demo intent · schema {displayedIntent.schema_version}
               </div>
             )}
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+              Context carried from the demand decision
+            </span>
             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
               Capability reference CDI-01 · Campaign Decision Intelligence
             </span>
@@ -2004,7 +2023,9 @@ export default function CampaignDecisionCanvas({
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          {progress.completed_areas.length} of 4 stages reviewed
+          {progress.completed_areas.length === 0 && progress.ready_to_register
+            ? 'Context carried forward — review it, or register and go straight to the assessment'
+            : `${progress.completed_areas.length} of 4 stages reviewed`}
           {isRegistered ? ' · Decision registered' : ''}
         </span>
       </div>
@@ -2763,7 +2784,9 @@ export default function CampaignDecisionCanvas({
         )}
 
         <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-          {progress.completed_areas.length} of 4 stages reviewed
+          {progress.completed_areas.length === 0 && progress.ready_to_register
+            ? 'Context carried forward — review it, or register and go straight to the assessment'
+            : `${progress.completed_areas.length} of 4 stages reviewed`}
           {isRegistered ? ' · Decision registered' : ''}
           {isHistoricalView ? ' · Historical snapshot' : ''}
         </span>
@@ -2904,7 +2927,7 @@ export default function CampaignDecisionCanvas({
                   <div style={{ fontSize: '0.6875rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: 6 }}>{label}</div>
                   <div style={{ fontSize: '1.125rem', fontWeight: 650, color: 'var(--text-primary)' }}>{point.volume_index_pct.toFixed(1)}%</div>
                   <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginTop: 4 }}>
-                    {point.volume_units.toLocaleString()} units · £{point.contribution_gbp.toLocaleString()}
+                    {point.volume_units.toLocaleString()} units · {money(point.contribution_gbp, { compact: false })}
                   </div>
                 </div>
               ))}
@@ -2919,7 +2942,7 @@ export default function CampaignDecisionCanvas({
                 {evaluation.counterfactual.campaign_delta.volume_delta_units.toLocaleString()} units
                 {' · '}
                 {evaluation.counterfactual.campaign_delta.contribution_delta_gbp >= 0 ? '+' : ''}
-                £{evaluation.counterfactual.campaign_delta.contribution_delta_gbp.toLocaleString()}
+                {money(evaluation.counterfactual.campaign_delta.contribution_delta_gbp, { compact: false })}
               </div>
               <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                 {evaluation.counterfactual.campaign_delta.intervention_indistinguishable_from_do_nothing
@@ -3250,9 +3273,9 @@ export default function CampaignDecisionCanvas({
                 <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
                   {executiveLabel('objective_class', readiness.readiness.commercial_tolerance.objective_class)}
                   {' · '}
-                  Δ£{readiness.readiness.commercial_tolerance.contribution_delta_gbp}
+                  Δ{money(readiness.readiness.commercial_tolerance.contribution_delta_gbp, { compact: false, signed: true })}
                   {readiness.readiness.commercial_tolerance.tolerance_declared
-                    ? ` · tolerance headroom £${readiness.readiness.commercial_tolerance.headroom_gbp}`
+                    ? ` · tolerance headroom ${money(readiness.readiness.commercial_tolerance.headroom_gbp, { compact: false })}`
                     : ''}
                 </div>
               )}
@@ -3404,8 +3427,8 @@ export default function CampaignDecisionCanvas({
                 {timeline.projection.tier1.headline}
               </div>
               <div style={{ marginTop: 6, fontSize: '0.75rem', color: 'var(--text-secondary)' }}>
-                {timeline.projection.tier1.attributable_uplift_pp.toFixed(2)} pp incremental demand · £
-                {timeline.projection.tier1.contribution_delta_gbp.toLocaleString()} contribution impact · confidence{' '}
+                {timeline.projection.tier1.attributable_uplift_pp.toFixed(2)} pp incremental demand ·{' '}
+                {money(timeline.projection.tier1.contribution_delta_gbp, { compact: false })} contribution impact · confidence{' '}
                 {String(timeline.projection.tier1.confidence_band).toLowerCase()}
                 {timeline.projection.readiness_reference
                   ? ` · readiness ${executiveLabel('readiness_state', timeline.projection.readiness_reference.state)}`
@@ -4197,7 +4220,7 @@ export default function CampaignDecisionCanvas({
                           {decisionContract.basis.scenario_zero.framing || SCENARIO_ZERO_FRAMING}
                         </div>
                         <div style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-primary)' }}>
-                          Outcome at decision time: {formatOutcomeSnapshot(decisionContract.basis.scenario_zero.outcome_snapshot)}
+                          Outcome at decision time: {formatOutcomeSnapshot(decisionContract.basis.scenario_zero.outcome_snapshot, money2dp)}
                         </div>
                         {decisionContract.basis.scenario_zero.dominated_by?.length > 0 && (
                           <div

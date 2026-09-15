@@ -23,6 +23,7 @@
 
 import { DemandDecisionFrontierEvaluation } from '@/packages/contracts/src/index';
 import { demandLabel, deriveOutlookContributors } from '@/lib/demand-decision-language';
+import { useCurrency } from '@/context/CurrencyContext';
 
 const C = {
   ink: '#0F172A', body: '#334155', muted: '#64748B', faint: '#94A3B8',
@@ -32,12 +33,7 @@ const C = {
 
 const fmtPp = (v: number) => `${v >= 0 ? '+' : '−'}${Math.abs(v).toFixed(1)}pp`;
 const fmtInt = (v: number) => Math.round(v).toLocaleString();
-const fmtMoney = (v: number) => {
-  const abs = Math.abs(v);
-  if (abs >= 1_000_000) return `£${(v / 1_000_000).toFixed(2)}M`;
-  if (abs >= 1000) return `£${(v / 1000).toFixed(1)}K`;
-  return `£${Math.round(v).toLocaleString()}`;
-};
+
 
 interface Props {
   evaluation: DemandDecisionFrontierEvaluation;
@@ -58,6 +54,8 @@ interface Props {
 export default function DemandDecisionNarrative({
   evaluation, gap, promotionDepthPct, horizonDays, simulationActive, scenarioEvent
 }: Props) {
+  /* Money on this surface converts through the currency layer, never through a local pound sign. */
+  const { money: fmtMoney, localise } = useCurrency();
   const f = evaluation.demand_frontier;
   const stability = evaluation.forecast_stability;
   const contributors = deriveOutlookContributors(evaluation, promotionDepthPct, scenarioEvent);

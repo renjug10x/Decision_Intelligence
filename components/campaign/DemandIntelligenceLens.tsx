@@ -13,6 +13,7 @@ import {
   Check
 } from 'lucide-react';
 import { CampaignArchetype, WaterfallItem, ElasticityPoint } from '@/lib/campaign-archetypes';
+import { useCurrency } from '@/context/CurrencyContext';
 
 interface DemandIntelligenceLensProps {
   archetype: CampaignArchetype;
@@ -27,6 +28,7 @@ export default function DemandIntelligenceLens({
   onApplyDiscount,
   onApplyIntervention
 }: DemandIntelligenceLensProps) {
+  const { money, localise } = useCurrency();
   const [selectedWaterfallItem, setSelectedWaterfallItem] = useState<WaterfallItem | null>(null);
   const [hoveredElasticityPoint, setHoveredElasticityPoint] = useState<ElasticityPoint | null>(null);
 
@@ -36,11 +38,8 @@ export default function DemandIntelligenceLens({
   // Find max contribution for waterfall bar scaling
   const maxPp = Math.max(...waterfall.map(w => Math.abs(w.contribution_pp)), 100);
 
-  const formatGbp = (v: number) => {
-    const abs = Math.abs(v);
-    const str = abs >= 1000 ? `£${(abs / 1000).toFixed(1)}K` : `£${abs.toFixed(0)}`;
-    return v >= 0 ? `+${str}` : `-${str}`;
-  };
+  /* Signed money in the reader's currency, converted once from the modelled GBP amount. */
+  const formatGbp = (v: number) => money(v, { signed: true });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 24 }}>

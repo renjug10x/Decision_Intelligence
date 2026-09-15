@@ -1,3 +1,5 @@
+export * from './canonical-scenario-model';
+export * from './currency-model';
 export * from './enterprise-world-model';
 export * from './enterprise-world-seed';
 export * from './journey-model';

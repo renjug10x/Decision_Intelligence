@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { CampaignArchetype } from '@/lib/campaign-archetypes';
 import { label as executiveLabel } from '@/lib/campaign-decision-language';
+import { useCurrency } from '@/context/CurrencyContext';
 
 interface CampaignDiscoveryHeroProps {
   archetype: CampaignArchetype;
@@ -57,6 +58,7 @@ export default function CampaignDiscoveryHero({
   onExploreDecision,
   onSelectLens
 }: CampaignDiscoveryHeroProps) {
+  const { money, localise } = useCurrency();
   const d = archetype.discovery;
 
   /** The seeded verdict codes, stated as a decision rather than as a status word. */
@@ -92,11 +94,8 @@ export default function CampaignDiscoveryHero({
   const VerdictIcon = vStyle.icon;
 
   // Format currency display
-  const formatGbp = (v: number) => {
-    const abs = Math.abs(v);
-    const str = abs >= 1000 ? `£${(abs / 1000).toFixed(1)}K` : `£${abs.toFixed(0)}`;
-    return v >= 0 ? `+${str}` : `-${str}`;
-  };
+  /* Signed money in the reader's currency, converted once from the modelled GBP amount. */
+  const formatGbp = (v: number) => money(v, { signed: true });
 
   return (
     <div
@@ -253,7 +252,7 @@ export default function CampaignDiscoveryHero({
           }}
         >
           <span style={{ color: '#2563EB' }}>CogniX found something:</span>
-          <span>{d.headline}</span>
+          <span>{localise(d.headline)}</span>
         </h1>
         <p
           style={{
@@ -264,7 +263,7 @@ export default function CampaignDiscoveryHero({
             maxWidth: 920
           }}
         >
-          {d.core_narrative}
+          {localise(d.core_narrative)}
         </p>
       </div>
 
@@ -437,7 +436,7 @@ export default function CampaignDiscoveryHero({
               Contribution impact:{' '}
               <strong>
                 {typeof liveEvaluation?.counterfactual?.campaign_delta?.contribution_delta_gbp === 'number'
-                  ? `${liveEvaluation.counterfactual.campaign_delta.contribution_delta_gbp >= 0 ? '+' : '-'}£${Math.abs(liveEvaluation.counterfactual.campaign_delta.contribution_delta_gbp).toFixed(0)}`
+                  ? money(liveEvaluation.counterfactual.campaign_delta.contribution_delta_gbp, { signed: true })
                   : 'unavailable'}
               </strong>
             </span>
@@ -480,7 +479,7 @@ export default function CampaignDiscoveryHero({
             }}
           />
           <span style={{ fontSize: '0.875rem', color: '#334155', fontWeight: 500 }}>
-            <strong>Key Discovery:</strong> {d.key_finding}
+            <strong>Key Discovery:</strong> {localise(d.key_finding)}
           </span>
         </div>
 

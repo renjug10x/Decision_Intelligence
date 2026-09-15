@@ -27,6 +27,7 @@ import {
   registerCommercialIntent
 } from '../../lib/commercial-intent-store';
 import { transitionDecisionState, getDecisionState } from '../../lib/decision-state-store';
+import { canonicalWeeklyPopulationUnits } from '../../packages/contracts/src/canonical-scenario-model';
 
 function runTests() {
   console.log('====================================================');
@@ -245,7 +246,10 @@ function runTests() {
     },
     []
   );
-  assert(impacts.weekly_demand_units === 12000, 'Test 14: WP10-C derived impact regression clean');
+  assert(
+    impacts.weekly_demand_units === Math.round(canonicalWeeklyPopulationUnits() * 1.2),
+    'Test 14: WP10-C derived impact regression clean (promoted week = canonical population x 1.20)'
+  );
 
   // TEST 15: IFI-01 Commercial Intent validation regression
   assert(

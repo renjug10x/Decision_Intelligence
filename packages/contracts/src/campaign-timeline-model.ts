@@ -6,6 +6,7 @@
  * Contracts frozen in docs/reports/COGNIX_CDI_05_DECISION_TIMELINE_DESIGN_GATE.md §8.
  */
 
+import { canonicalWeeklyPopulationUnits } from './canonical-scenario-model';
 import { CampaignIntent } from './campaign-intent-model';
 import {
   CampaignEvaluationResponse,
@@ -48,7 +49,7 @@ export type TimelinePointBasis =
 export type TemporalAllocationProfile = 'FLAT_RATE_IDENTITY';
 
 /** CDI-02 weekly rate constant mirrored for lens rendering — not a second demand model. */
-export const CDI02_BASE_WEEKLY_UNITS = 10000;
+export const CDI02_BASE_WEEKLY_UNITS = canonicalWeeklyPopulationUnits();
 
 export interface TimelineSeriesPoint {
   period_index: number;

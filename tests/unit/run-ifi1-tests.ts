@@ -21,6 +21,7 @@ import {
 import { evaluateIntentFusion } from '../../lib/intent-fusion/intent-fusion-engine';
 import { transitionDecisionState, getDecisionState, resetDecisionState } from '../../lib/decision-state-store';
 import { simulateEnterpriseSignalTimelines } from '../../services/world/src/dynamic-signal-simulator';
+import { canonicalWeeklyPopulationUnits } from '../../packages/contracts/src/canonical-scenario-model';
 
 function runTests() {
   console.log('====================================================');
@@ -143,7 +144,10 @@ function runTests() {
 
   // TEST 11: WP10-C Decision State Impact Engine Regression
   const impacts = calculateDerivedImpacts({ promotion_lift: 20, supplier_capacity_cap: 10, forecast_horizon_days: 14, promotion_method: '20_percent_off', campaign_scope: 'national', cannibalisation_factor: 0, event_boost: 'none' }, []);
-  assert(impacts.weekly_demand_units === 12000, 'Test 11: WP10-C impact engine regression clean');
+  assert(
+    impacts.weekly_demand_units === Math.round(canonicalWeeklyPopulationUnits() * 1.2),
+    'Test 11: WP10-C impact engine regression clean'
+  );
 
   // TEST 12: ESF-1 Snapshot Model Validation Regression
   const validSig: any = { signal_id: 'sig_001', signal_type: 'SEARCH_VELOCITY_ACCELERATION', category: 'CUSTOMER', tenant_id: 'tenant_a', entity_type: 'SKU', entity_id: 'P004', observed_at: new Date().toISOString(), baseline_value: 100, observed_value: 118, delta: 18, delta_pct: 18, unit: 'percent', source_type: 'SYNTHETIC_WORLD', confidence: 90, quality: 95, schema_version: '1.0' };

@@ -9,7 +9,10 @@
 import { CampaignObjectiveType, CampaignIntent } from './campaign-intent-model';
 import { CampaignEvaluationResponse } from './campaign-counterfactual-model';
 import { OpportunityDiscoveryResponse } from './campaign-opportunity-model';
-import { DecisionScenarioParameters, calculateDerivedImpacts } from './decision-state-model';
+import { DecisionScenarioParameters, calculateDerivedImpacts,
+  BUFFER_OPTIMISATION_RATE_PCT
+} from './decision-state-model';
+import { CANONICAL_SCENARIO, canonicalWeeklyPopulationUnits } from './canonical-scenario-model';
 
 export type ReadinessDimensionId =
   | 'COMMERCIAL'
@@ -99,10 +102,18 @@ export interface RecoveryLever {
   source: 'wp10c_calculate_derived_impacts';
 }
 
-/** WP10-C lever headrooms mirrored from decision-state-model.ts calculateDerivedImpacts. */
+/**
+ * WP10-C lever headrooms, mirrored from `calculateDerivedImpacts` and derived from the same
+ * canonical population it works on. These were 1,200 and 500 — counts belonging to a 10,000-unit
+ * week — and `assertRecoveryLeverParity` below exists precisely so a mirror can never drift from
+ * the engine. Deriving both from the one declared population is what keeps that parity true by
+ * construction rather than by vigilance.
+ */
 export const WP10C_RECOVERY_LEVER_HEADROOM: Readonly<Record<string, number>> = {
-  SLA_FLEX_RULE_4: 1200,
-  BUFFER_OPTIMISATION_R002: 500
+  SLA_FLEX_RULE_4: Math.round(
+    canonicalWeeklyPopulationUnits() * (CANONICAL_SCENARIO.supply.supplier_flex_rate_pct / 100)
+  ),
+  BUFFER_OPTIMISATION_R002: Math.round(canonicalWeeklyPopulationUnits() * (BUFFER_OPTIMISATION_RATE_PCT / 100))
 };
 
 export interface OperationalFeasibility {

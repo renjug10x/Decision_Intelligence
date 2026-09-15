@@ -9,10 +9,30 @@ import ExecutionBriefing from '@/components/ExecutionBriefing';
 import { trackJourneyEvent, debouncedTrackJourneyEvent } from '@/lib/journey-client';
 
 import { useDecisionState } from '@/context/DecisionStateContext';
+import { useCurrency } from '@/context/CurrencyContext';
+import {
+  CANONICAL_SCENARIO,
+  canonicalBaseDemandUnits,
+  canonicalRealisedRevenuePerUnitGbp,
+  canonicalGrossMarginPerUnitGbp
+} from '@/packages/contracts/src/canonical-scenario-model';
 
 interface DecisionRippleProps {
   onNavigateToExperiment?: (experimentId: string) => void;
 }
+
+/**
+ * Volume response per point of promotional spend uplift, at full national reach. A modelled
+ * demonstration elasticity, not a measured one.
+ */
+const RIPPLE_VOLUME_RESPONSE_PER_POINT = 1.2;
+
+/**
+ * Cost to serve a unit of volume that lands outside the planned shift and delivery pattern:
+ * distribution-centre overtime, expedited freight and store replenishment labour. Expressed per
+ * unit so it scales with the decision rather than with a fixed budget line.
+ */
+const RIPPLE_SURGE_COST_PER_UNIT_GBP = 0.12;
 
 export default function DecisionRippleIntelligence({ onNavigateToExperiment }: DecisionRippleProps = {}) {
   const { decisionState, executeCommand } = useDecisionState();
@@ -60,11 +80,40 @@ export default function DecisionRippleIntelligence({ onNavigateToExperiment }: D
     setShowBriefing(true);
   };
 
+  /*
+   * Ripple economics are DERIVED from the canonical decision case, not declared here. Before this,
+   * this surface published a £595,200 revenue lift and a £48,000 overtime bill against a £480,000
+   * baseline that existed nowhere else in the product — a reader moving from the Decision Gap's
+   * £269.4K exposure to this screen was being shown a different company.
+   *
+   * The chain is: promotional spend lifts volume, volume above plan carries a surge cost to serve,
+   * and what survives is the margin the intervention actually adds.
+   */
+  const { money, localise } = useCurrency();
+
   const scopeMultiplier = campaignScope === 'national' ? 1.0 : campaignScope === 'regional' ? 0.6 : 0.75;
-  const directRevenue = Math.round(480000 * (1 + (budgetBoost * 0.012) * scopeMultiplier));
-  const laborOvertimeCost = Math.round(32000 * (1 + (budgetBoost * 0.025) * scopeMultiplier));
-  const marginErosionPercent = (2.2 * (budgetBoost / 15) * scopeMultiplier).toFixed(1);
-  const netMarginDelta = Math.round(directRevenue * 0.28 - laborOvertimeCost - 45000);
+
+  const baselineUnits = canonicalBaseDemandUnits();
+  const revenuePerUnit = canonicalRealisedRevenuePerUnitGbp();
+  const marginPerUnit = canonicalGrossMarginPerUnitGbp();
+
+  /** Volume response to promotional spend: RIPPLE_VOLUME_RESPONSE_PER_POINT per point, scaled by reach. */
+  const volumeLiftPct = budgetBoost * RIPPLE_VOLUME_RESPONSE_PER_POINT * scopeMultiplier;
+  const incrementalUnits = Math.round(baselineUnits * (volumeLiftPct / 100));
+
+  const directRevenue = Math.round(incrementalUnits * revenuePerUnit);
+  const incrementalMargin = incrementalUnits * marginPerUnit;
+  const laborOvertimeCost = Math.round(incrementalUnits * RIPPLE_SURGE_COST_PER_UNIT_GBP);
+  const netMarginDelta = Math.round(incrementalMargin - laborOvertimeCost);
+
+  /** Margin rate actually earned on the incremental volume, against the planned rate. */
+  const realisedMarginRatePct = directRevenue > 0 ? (netMarginDelta / directRevenue) * 100 : 0;
+  const marginErosionPercent = Math.max(
+    0,
+    CANONICAL_SCENARIO.economics.gross_margin_rate_pct - realisedMarginRatePct
+  ).toFixed(1);
+  /** Extra throughput the network must absorb, as a share of its planned handling for the horizon. */
+  const congestionPct = Math.round(volumeLiftPct);
 
   return (
     <div className="page-content animate-fade" style={{ maxWidth: 1140, margin: '0 auto', paddingBottom: 48 }}>
@@ -164,7 +213,7 @@ export default function DecisionRippleIntelligence({ onNavigateToExperiment }: D
           owner: 'Head of Logistics & Operations',
           dependencies: ['Trafford DC Shift Roster Adjustment', 'Store Manager Staggered Order Release'],
           timeHorizon: 'Next 72 Hours',
-          expectedOutcome: 'Eliminates £4,200 warehouse overtime penalty and guarantees 08:00 store availability in demonstration simulation.',
+          expectedOutcome: localise('Eliminates £4,200 warehouse overtime penalty and guarantees 08:00 store availability in demonstration simulation.'),
           confidence: 81,
           patternId: 'PAT-RIPPLE-04',
           contractStatus: 'VERIFIED',
@@ -289,12 +338,12 @@ export default function DecisionRippleIntelligence({ onNavigateToExperiment }: D
             Commercial Revenue Surge
           </h3>
           <div style={{ background: 'var(--bg-subtle)', padding: '12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginBottom: 10 }}>
-            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>Gross Revenue Lift</div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>Incremental revenue</div>
             <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--success)', marginTop: 2 }}>
-              £{directRevenue.toLocaleString()}
+              {money(directRevenue, { compact: false })}
             </div>
             <div style={{ fontSize: '0.6875rem', color: 'var(--success)', marginTop: 2 }}>
-              +{(budgetBoost * 1.2).toFixed(1)}% Sales Volume
+              +{volumeLiftPct.toFixed(1)}% volume · {incrementalUnits.toLocaleString()} units
             </div>
           </div>
           <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
@@ -318,12 +367,12 @@ export default function DecisionRippleIntelligence({ onNavigateToExperiment }: D
             DC & Logistics Overtime
           </h3>
           <div style={{ background: 'var(--bg-subtle)', padding: '12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginBottom: 10 }}>
-            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>Overtime Labor Expense</div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>Cost to serve the surge</div>
             <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--warning)', marginTop: 2 }}>
-              £{laborOvertimeCost.toLocaleString()}
+              {money(laborOvertimeCost, { compact: false })}
             </div>
             <div style={{ fontSize: '0.6875rem', color: 'var(--warning)', marginTop: 2 }}>
-              +{(budgetBoost * 2.5).toFixed(0)}% Warehouse Congestion
+              +{congestionPct}% above planned network throughput
             </div>
           </div>
           <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
@@ -347,16 +396,16 @@ export default function DecisionRippleIntelligence({ onNavigateToExperiment }: D
             Net Margin Erosion
           </h3>
           <div style={{ background: 'var(--bg-subtle)', padding: '12px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', marginBottom: 10 }}>
-            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>Margin Compression</div>
+            <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>Margin rate on incremental volume</div>
             <div style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--g10x-red)', marginTop: 2 }}>
-              -{marginErosionPercent}%
+              {realisedMarginRatePct.toFixed(1)}%
             </div>
             <div style={{ fontSize: '0.6875rem', color: 'var(--text-secondary)', marginTop: 2 }}>
-              Net Profit Delta: <strong style={{ color: netMarginDelta > 0 ? 'var(--success)' : 'var(--g10x-red)' }}>+£{netMarginDelta.toLocaleString()}</strong>
+              Gross margin added: <strong style={{ color: netMarginDelta > 0 ? 'var(--success)' : 'var(--g10x-red)' }}>{money(netMarginDelta, { compact: false, signed: true })}</strong>
             </div>
           </div>
           <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-            Overtime fees and expedited freight compress net margin by {marginErosionPercent}%.
+            Overtime, expedited freight and replenishment labour take {marginErosionPercent}pp off the {CANONICAL_SCENARIO.economics.gross_margin_rate_pct}% planned margin rate on this volume.
           </p>
         </div>
 

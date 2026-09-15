@@ -25,6 +25,7 @@ import {
 } from '../../lib/campaign-causal-engine';
 import { simulateEnterpriseSignalTimelines } from '../../services/world/src/dynamic-signal-simulator';
 import { listExternalSignalConnectors } from '../../services/world/src/external-signal-connector';
+import { canonicalWeeklyPopulationUnits } from '../../packages/contracts/src/canonical-scenario-model';
 
 function runTests() {
   console.log('====================================================');
@@ -292,8 +293,8 @@ function runTests() {
         event_boost: 'none'
       },
       []
-    ).weekly_demand_units === 12000,
-    'Test 15: WP10-C derived impact regression clean'
+    ).weekly_demand_units === Math.round(canonicalWeeklyPopulationUnits() * 1.2),
+    'Test 15: WP10-C derived impact regression clean (promoted week = canonical population x 1.20)'
   );
 
   // TEST 16: ESF-2 simulator regression

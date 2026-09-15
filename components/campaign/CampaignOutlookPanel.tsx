@@ -22,6 +22,7 @@ import {
   ReassessmentVerdict
 } from '@/packages/contracts/src/campaign-intervention-model';
 import { DECISION_OWNER_ROLES } from '@/packages/contracts/src/campaign-continuous-timeline-model';
+import { useCurrency } from '@/context/CurrencyContext';
 
 const LINE = '#E2E8F0';
 const SLATE = '#0F172A';
@@ -75,6 +76,7 @@ export default function CampaignOutlookPanel({
   onReassess: (p: PlannedIntervention, decision?: ReassessmentVerdict) => void;
   onConfirm: (p: PlannedIntervention, owner: string, statement: string) => void;
 }) {
+  const { money } = useCurrency();
   const [openMoment, setOpenMoment] = useState<string | null>(null);
   const [mode, setMode] = useState<PlannedInterventionMode>(DEFAULT_INTERVENTION_MODE);
   const [owner, setOwner] = useState('');
@@ -291,9 +293,9 @@ export default function CampaignOutlookPanel({
                     <div style={{ fontSize: '0.72rem', color: MUTED, marginTop: 5, lineHeight: 1.5 }}>
                       Remaining {preview.without_intervention.days_affected} days — demand{' '}
                       {Math.round(preview.without_intervention.remaining_demand_units).toLocaleString('en-GB')} →{' '}
-                      {Math.round(preview.with_intervention.remaining_demand_units).toLocaleString('en-GB')} units; contribution £
-                      {Math.round(preview.without_intervention.remaining_contribution_gbp).toLocaleString('en-GB')} → £
-                      {Math.round(preview.with_intervention.remaining_contribution_gbp).toLocaleString('en-GB')}.
+                      {Math.round(preview.with_intervention.remaining_demand_units).toLocaleString('en-GB')} units; contribution{' '}
+                      {money(preview.without_intervention.remaining_contribution_gbp, { compact: false })} →{' '}
+                      {money(preview.with_intervention.remaining_contribution_gbp, { compact: false })}.
                     </div>
                     <ul style={{ fontSize: '0.7rem', color: MUTED, margin: '5px 0 0 0', paddingLeft: 18, lineHeight: 1.5 }}>
                       {preview.basis.map(b => (

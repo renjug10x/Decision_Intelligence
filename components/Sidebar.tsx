@@ -7,6 +7,8 @@ import {
 import { useApp } from '@/lib/context';
 import { useAuth } from '@/context/AuthContext';
 import { CognixBrandLockup } from '@/components/CognixBrandLockup';
+import ScenarioControls from '@/components/ScenarioControls';
+import ScenarioContextStrip from '@/components/ScenarioContextStrip';
 
 import { trackJourneyEvent, resetSessionId } from '@/lib/journey-client';
 
@@ -78,6 +80,8 @@ export default function Sidebar({ currentPage, onNavigate, open = false, onDismi
         </div>
       </div>
 
+      <ScenarioContextStrip />
+
       {/* Navigation Groups */}
       <nav className="sidebar-nav" style={{ padding: '14px 10px' }}>
         
@@ -147,7 +151,7 @@ export default function Sidebar({ currentPage, onNavigate, open = false, onDismi
           <Target size={14} color={currentPage === 'campaign-decision' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
           <span>Campaign Decision</span>
           <span id="campaign-decision-nav-tooltip" className="nav-item-tooltip" role="tooltip">
-            What if promotional decisions first asked whether to intervene at all?
+            Whether to intervene at all, what it genuinely causes, and what happens if you wait.
           </span>
         </button>
 
@@ -157,21 +161,29 @@ export default function Sidebar({ currentPage, onNavigate, open = false, onDismi
         </div>
 
         <button
-          className={`nav-item ${currentPage === 'solution-promo' ? 'active' : ''}`}
+          className={`nav-item nav-item-has-tooltip ${currentPage === 'solution-promo' ? 'active' : ''}`}
           onClick={() => go('solution-promo')}
           style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
+          aria-describedby="solution-promo-nav-tooltip"
         >
           <Tag size={14} color={currentPage === 'solution-promo' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
           <span>Promotion</span>
+          <span id="solution-promo-nav-tooltip" className="nav-item-tooltip" role="tooltip">
+            How deep, how wide and how long — and what each choice is worth.
+          </span>
         </button>
 
         <button
-          className={`nav-item ${currentPage === 'solution-demand' ? 'active' : ''}`}
+          className={`nav-item nav-item-has-tooltip ${currentPage === 'solution-demand' ? 'active' : ''}`}
           onClick={() => go('solution-demand')}
           style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
+          aria-describedby="solution-demand-nav-tooltip"
         >
           <TrendingUp size={14} color={currentPage === 'solution-demand' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
           <span>Demand & Forecast</span>
+          <span id="solution-demand-nav-tooltip" className="nav-item-tooltip" role="tooltip">
+            What demand is doing, how much of it we can serve, and how long we have to act.
+          </span>
         </button>
 
         <button
@@ -202,6 +214,8 @@ export default function Sidebar({ currentPage, onNavigate, open = false, onDismi
           Governance and its identification role became a header control. What remains here is one
           entry, named for what it now contains.
         */}
+        <ScenarioControls />
+
         <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
           <button
             onClick={() => go('settings')}

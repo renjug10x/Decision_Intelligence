@@ -14,6 +14,7 @@ import {
   calculateDerivedImpacts
 } from '../../packages/contracts/src/index';
 import { simulateEnterpriseSignalTimelines } from '../../services/world/src/dynamic-signal-simulator';
+import { canonicalWeeklyPopulationUnits } from '../../packages/contracts/src/canonical-scenario-model';
 
 function runTests() {
   console.log('====================================================');
@@ -201,7 +202,10 @@ function runTests() {
 
   // TEST 17: WP10-C Decision State Impact Regression
   const impacts = calculateDerivedImpacts({ promotion_lift: 20, supplier_capacity_cap: 10, forecast_horizon_days: 14, promotion_method: '20_percent_off', campaign_scope: 'national', cannibalisation_factor: 0, event_boost: 'none' }, []);
-  assert(impacts.weekly_demand_units === 12000, 'Test 17: WP10-C decision state impact engine regression clean');
+  assert(
+    impacts.weekly_demand_units === Math.round(canonicalWeeklyPopulationUnits() * 1.2),
+    'Test 17: WP10-C decision state impact engine regression clean'
+  );
 
   // TEST 18: Explicit promotion_lift 0 stays 0 (falsy-zero must not become 20).
   const zeroLiftRes = simulateEnterpriseSignalTimelines({

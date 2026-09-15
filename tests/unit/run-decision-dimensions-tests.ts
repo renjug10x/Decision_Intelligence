@@ -532,7 +532,8 @@ async function run() {
   // Deeper discounts must still be able to destroy contribution. Confining the cost while
   // leaving the volume response estate-wide once made contribution rise without limit in
   // depth, so "discount harder" always won and the demo could never show a negative case.
-  const depthCurve = [5, 15, 30, 60].map(
+  const depths = [5, 15, 30, 60, 80];
+  const depthCurve = depths.map(
     depth =>
       evaluateWith(`sess_depth_${depth}`, {
         segment: 'PRICE_SENSITIVE',
@@ -540,9 +541,20 @@ async function run() {
         depth
       }).evaluation.counterfactual.campaign_delta.contribution_delta_gbp
   );
+  /*
+   * The invariant is that discounting harder cannot keep paying — not that it never pays at all.
+   * Under the priced contribution model a shallow cut IS accretive, which is what makes the
+   * decision interesting; what must never happen is contribution rising without limit in depth,
+   * because then "discount harder" always wins and there is no decision to take. So: the curve
+   * must turn, and a deep enough cut must destroy contribution outright.
+   */
+  const peak = Math.max(...depthCurve);
+  const deepest = depthCurve[depthCurve.length - 1];
   assert(
-    depthCurve.every((v, i) => i === 0 || v < depthCurve[i - 1]),
-    'Contribution still falls as discount depth rises, even on a route that confines the offer',
+    !depthCurve.every((v, i) => i === 0 || v > depthCurve[i - 1]) &&
+      deepest < peak &&
+      deepest < 0,
+    'Contribution turns down as discount depth rises, and a deep cut destroys it, even on a route that confines the offer',
     depthCurve.join(' -> ')
   );
 

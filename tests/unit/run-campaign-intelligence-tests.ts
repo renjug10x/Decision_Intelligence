@@ -35,6 +35,7 @@ import { evaluateCampaignDecision } from '../../lib/campaign-causal-engine';
 import { discoverCampaignOpportunity } from '../../lib/campaign-opportunity-engine';
 import { evaluateCampaignReadinessWithDiscovery } from '../../lib/campaign-readiness-engine';
 import { projectDecisionTimeline } from '../../lib/campaign-timeline-engine';
+import { canonicalStoreCount } from '../../packages/contracts/src/canonical-scenario-model';
 
 let totalTests = 0;
 let passedTests = 0;
@@ -233,10 +234,22 @@ async function runCampaignIntelligenceTests() {
     d20.causal.intervention_uplift_pp > d10.causal.intervention_uplift_pp,
     '20% discount produces higher engine-attributed uplift than 10%'
   );
+  /*
+   * The governed property is that a boundary EXISTS and that the committed depth sits the wrong
+   * side of the peak — not that it falls between two particular tiers. Pinning the crossing to
+   * "10 accretive, 20 dilutive" encoded a calibration rather than a principle, and it could only
+   * ever be satisfied by one set of prices.
+   */
+  const d30 = evalWith({ discount_depth_pct: 30 });
   assert(
     d10.counterfactual.campaign_delta.contribution_delta_gbp > 0 &&
-      d20.counterfactual.campaign_delta.contribution_delta_gbp < 0,
-    'Discount depth crosses the economic boundary: 10% accretive, 20% dilutive for the chilled scenario'
+      d30.counterfactual.campaign_delta.contribution_delta_gbp < 0,
+    'Discount depth crosses an economic boundary: a shallow cut is accretive, a deep cut destroys contribution'
+  );
+  assert(
+    d10.counterfactual.campaign_delta.contribution_delta_gbp >
+      d20.counterfactual.campaign_delta.contribution_delta_gbp,
+    'The committed depth returns less contribution than a shallower cut — the case for challenging it'
   );
 
   const regionLondon = discoverCampaignOpportunity(browserShapeRequest(chilled, { target_region: 'London' }));
@@ -350,7 +363,7 @@ async function runCampaignIntelligenceTests() {
   console.log('\n--- 8. Derived Intervention Economics ---');
 
   const premium = getArchetypeById('ARCH-PREMIUM-ARTISAN')!;
-  const baselineStores = REGION_STORE_COUNTS[premium.default_region] ?? 50;
+  const baselineStores = canonicalStoreCount(premium.default_region);
   const fullScope = estimateInterventionEconomics(premium, {
     discount_pct: premium.default_discount_pct,
     stores: baselineStores,

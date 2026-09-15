@@ -35,23 +35,39 @@ import { getCampaignIntentById } from './campaign-intent-store';
 import { getDecisionState } from './decision-state-store';
 import { simulateEnterpriseSignalTimelines } from '../services/world/src/dynamic-signal-simulator';
 import { SignalSimulationContext } from '../packages/contracts/src/enterprise-signal-model';
+import {
+  CANONICAL_SCENARIO,
+  canonicalWeeklyPopulationUnits,
+  canonicalContributionPerUnitAtListGbp,
+  canonicalContributionErosionPerDepthPoint
+} from '../packages/contracts/src/canonical-scenario-model';
 
 const ENGINE_VERSION = 'cdi02_causal_engine_v1.1.0';
 const SCHEMA_VERSION = '1.0';
-const BASE_WEEKLY_UNITS = 10000;
-const UNIT_CONTRIBUTION_GBP = 1.85;
-const WASTE_BASELINE_UNITS = 420;
+/*
+ * Campaign economics are the canonical decision case's economics. They used to be three literals
+ * — a 10,000-unit week, a £1.85 unit contribution and a 420-unit waste baseline — none of which
+ * could be reconciled with the £2.07 shelf reality the Demand journey was working in. A campaign
+ * evaluated in one economic universe and executed in another is not a decision; it is a coincidence.
+ */
+const BASE_WEEKLY_UNITS = canonicalWeeklyPopulationUnits();
+const UNIT_CONTRIBUTION_GBP = canonicalContributionPerUnitAtListGbp();
+const WASTE_BASELINE_UNITS = CANONICAL_SCENARIO.economics.waste_units_per_week;
 
 /**
- * Deterministic demo economics: each point of discount depth removes 0.7% of the unit
- * contribution earned on promoted volume. Without this, contribution is a pure function
- * of volume, so "discount harder" would always look better and the engine could never
- * return a negative campaign case. Breakeven lands around 13–15% depth: shallow promos
- * are accretive, deep promos destroy contribution.
+ * Share of unit contribution given up per point of discount depth.
  *
- * Calibration target for later ML work — not a learned elasticity.
+ * DERIVED, not assumed. One point of depth hands back 1% of the LIST price; the contribution it
+ * comes out of is `list - cost`. So the erosion rate is `list x 1% / (list - cost)` and moves with
+ * the scenario's own prices instead of sitting at a flat 0.7% that no price supported. At the
+ * canonical £2.49 list this resolves to about 2.39% per point, which reproduces the true promoted
+ * margin at 20% depth to within a penny — the previous figure overstated it by nearly £1 a unit.
+ *
+ * The consequence is deliberate and is the point of the journey: breakeven moves shallow, so a
+ * committed 20% national promotion now has to justify itself against the contribution it destroys
+ * rather than being flattered by a calibration that under-charged for depth.
  */
-const PROMO_CONTRIBUTION_EROSION_PER_DEPTH_POINT = 0.007;
+const PROMO_CONTRIBUTION_EROSION_PER_DEPTH_POINT = canonicalContributionErosionPerDepthPoint();
 
 /**
  * Drivers that act on the world whether or not we intervene. They belong to the
@@ -165,16 +181,22 @@ function nonPromotionResponsePp(campaign: CampaignIntent): number {
 }
 
 /**
- * The elasticity the flat 0.55pp-per-discount-point rate was calibrated against.
- *
- * That rate was not a cross-category average — it was tuned on the seeded Dairy scenario
- * (P004, ε≈2.4), together with the unit contribution and erosion constants above. Anchoring
- * on Dairy therefore leaves the calibrated demonstration economics exactly as they were and
- * expresses every other category relative to it, rather than silently re-tuning the whole
- * demo to fit a newly invented average.
+ * The elasticity every other category is expressed relative to: the canonical decision case's
+ * Dairy scenario. Anchoring here leaves the demonstration's own economics in place and states
+ * every other category as a multiple of them.
  */
-const CALIBRATION_CATEGORY_ELASTICITY = 2.4;
-const BASE_PP_PER_DISCOUNT_POINT = 0.55;
+const CALIBRATION_CATEGORY_ELASTICITY =
+  CANONICAL_SCENARIO.economics.promotional_response_pp_per_depth_point;
+
+/**
+ * Demand bought per point of discount depth, at the calibration elasticity.
+ *
+ * This was 0.55 — which made a point of depth worth 0.55pp here and 2.4pp on the Promotion
+ * surface, for the same product in the same category. The two screens disagreed by a factor of
+ * four about what a discount does, and each was internally consistent, so neither looked wrong
+ * on its own. Both now read the same declared rate.
+ */
+const BASE_PP_PER_DISCOUNT_POINT = CALIBRATION_CATEGORY_ELASTICITY;
 
 function mechanicResponsePp(depth: number, campaign: CampaignIntent): number {
   if (depth <= 0) return 0;
@@ -561,9 +583,15 @@ export function evaluateCausalDemandContribution(
       driver_id: 'portfolio_effects',
       driver_class: 'intervention',
       label: 'Portfolio / cannibalisation effects',
+      /*
+       * Cannibalisation scales with the volume the mechanic creates. A flat -1.2pp charged the
+       * same drag to a 5% cut and a 30% one, and left this engine reading a deeper promotion as
+       * cleaner than the Promotion surface did for the same campaign. The rate is the scenario's.
+       */
       contribution_pp:
         campaign.campaign_intent.intervention_posture === 'CONSIDER_PROMOTION' && mechanic.mechanic_attributed
-          ? -1.2
+          ? -Number((mechanicResponsePp(mechanic.discount_depth, campaign)
+              * (CANONICAL_SCENARIO.economics.cannibalisation_rate_pct / 100)).toFixed(2))
           : 0,
       attributed:
         campaign.campaign_intent.intervention_posture === 'CONSIDER_PROMOTION' && mechanic.mechanic_attributed,

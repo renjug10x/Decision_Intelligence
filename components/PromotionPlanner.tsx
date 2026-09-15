@@ -1054,9 +1054,15 @@ export default function PromotionPlanner({
                     background: '#FFFFFF'
                   }}
                 >
-                  {Object.entries(REGION_STORE_COUNTS).map(([region, stores]) => (
+                  {/*
+                    * Scope, not an estate census. "National (1450 Stores)" asserted a precise size
+                    * for a retailer this demonstration is not describing, and put a number in front
+                    * of a reader who needed to choose a reach. The count stays available where the
+                    * arithmetic needs it; the control names the scope.
+                    */}
+                  {Object.keys(REGION_STORE_COUNTS).map(region => (
                     <option key={region} value={region}>
-                      {region} ({stores} Stores)
+                      {region === 'National' ? 'National — whole estate' : `${region} — regional cluster`}
                     </option>
                   ))}
                 </select>

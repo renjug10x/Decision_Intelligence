@@ -3,6 +3,12 @@
  * Transport-neutral types, command registry, deterministic calculations, and schema definitions.
  */
 
+import {
+  CANONICAL_SCENARIO,
+  canonicalWeeklyPopulationUnits,
+  canonicalRealisedRevenuePerUnitGbp
+} from './canonical-scenario-model';
+
 export type DecisionCommandType =
   | 'SET_PROMOTION_LIFT'
   | 'SET_SUPPLIER_CAPACITY_CAP'
@@ -94,6 +100,15 @@ export interface DecisionStateTransitionResult {
 }
 
 /**
+ * Share of base weekly demand the buffer-optimisation lever releases. Declared here because it
+ * is a property of this engine's lever set, not of the retail scenario. Previously 500 units
+ * against a 10,000-unit population — the same 5%.
+ */
+export const BUFFER_OPTIMISATION_RATE_PCT = 5;
+
+const safeShare = (n: number, d: number) => (d > 0 ? n / d : 0);
+
+/**
  * Deterministic Derived Impact Engine
  * Pure function: Calculates exact cross-functional business consequences from parameters & interventions.
  */
@@ -101,16 +116,28 @@ export function calculateDerivedImpacts(
   params: DecisionScenarioParameters,
   interventions: string[]
 ): DecisionDerivedImpacts {
-  const BASE_DEMAND = 10000;
-  const BASE_SUPPLIER_CAPACITY = 10000;
+  /*
+   * The population these impacts are computed on IS the canonical scenario's un-promoted
+   * weekly demand. It used to be an abstract 10,000 units belonging to no product, region
+   * or price, which is how this surface came to publish pounds that the Demand journey had
+   * never heard of. Nothing here is declared: every quantity below is a ratio of the
+   * scenario, so the whole engine rescales from one number.
+   */
+  const BASE_DEMAND = canonicalWeeklyPopulationUnits();
+  const BASE_SUPPLIER_CAPACITY = BASE_DEMAND;
 
   // 1. Demand Lift
   const weekly_demand_units = Math.round(BASE_DEMAND * (1 + params.promotion_lift / 100));
 
-  // 2. Base Capacity & Interventions (e.g. SLA flex adds 1,200 units)
-  const flexUnits = interventions.includes('SLA_FLEX_RULE_4') ? 1200 : 0;
-  const bufferUnits = interventions.includes('BUFFER_OPTIMISATION_R002') ? 500 : 0;
-  const supplier_capacity_units = Math.round(BASE_SUPPLIER_CAPACITY * (1 + params.supplier_capacity_cap / 100)) + flexUnits + bufferUnits;
+  // 2. Base Capacity & Interventions. The flex clause releases a declared SHARE of base
+  //    weekly demand; the buffer lever releases a smaller share of the same base.
+  const flexUnits = interventions.includes('SLA_FLEX_RULE_4')
+    ? BASE_DEMAND * (CANONICAL_SCENARIO.supply.supplier_flex_rate_pct / 100)
+    : 0;
+  const bufferUnits = interventions.includes('BUFFER_OPTIMISATION_R002')
+    ? BASE_DEMAND * (BUFFER_OPTIMISATION_RATE_PCT / 100)
+    : 0;
+  const supplier_capacity_units = Math.round(BASE_SUPPLIER_CAPACITY * (1 + params.supplier_capacity_cap / 100)) + Math.round(flexUnits) + Math.round(bufferUnits);
 
   // 3. Commitment Gap
   const commitment_gap_units = Math.max(0, weekly_demand_units - supplier_capacity_units);
@@ -119,8 +146,15 @@ export function calculateDerivedImpacts(
   const baseRisk = Math.min(95, Math.round((commitment_gap_units / Math.max(1, weekly_demand_units)) * 100 * 2.5));
   const delivery_risk_pct = interventions.includes('SLA_FLEX_RULE_4') ? Math.max(5, baseRisk - 30) : baseRisk;
 
-  // 5. Financial Exposure (£120 per OOS unit)
-  const financial_exposure_gbp = commitment_gap_units * 120;
+  /*
+   * 5. Financial exposure. Revenue we cannot transact on the units we cannot serve, less the
+   *    share customers recover on a substitute line. Derived from the scenario's own realised
+   *    price — the previous £120 per unit was 58x the shelf price of the product in question.
+   */
+  const retained_share = 1 - (CANONICAL_SCENARIO.economics.substitution_recovery_pct / 100);
+  const financial_exposure_gbp = Math.round(
+    commitment_gap_units * canonicalRealisedRevenuePerUnitGbp() * retained_share
+  );
 
   // 6. DC Overtime (Ripple 2nd order)
   const scopeMultiplier = params.campaign_scope === 'national' ? 1.0 : params.campaign_scope === 'regional' ? 0.6 : 0.75;
@@ -130,8 +164,15 @@ export function calculateDerivedImpacts(
   const baseErosion = 1.2 + (params.promotion_lift / 15) * 1.0 * scopeMultiplier + (params.cannibalisation_factor * 0.1);
   const margin_erosion_pct = Number(baseErosion.toFixed(1));
 
-  // 8. Stockout Probability
-  const stockout_probability_pct = commitment_gap_units > 0 ? Math.min(92, Math.round(40 + (commitment_gap_units / 100))) : 5;
+  /*
+   * 8. Stockout probability, scaled against the gap as a SHARE of weekly demand rather than
+   *    against a raw count. A count-based rule pinned to a 10,000-unit population saturated at
+   *    92% the moment the scenario was resized.
+   */
+  const gap_share = safeShare(commitment_gap_units, weekly_demand_units);
+  const stockout_probability_pct = commitment_gap_units > 0
+    ? Math.min(92, Math.round(40 + gap_share * 100 * 1.2))
+    : 5;
 
   return {
     weekly_demand_units,

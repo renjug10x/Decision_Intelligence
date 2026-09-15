@@ -9,9 +9,13 @@ import ExecutionBriefing from '@/components/ExecutionBriefing';
 import ConfidenceScore, { DecisionMemory } from '@/components/ConfidenceScore';
 import { fetchWorldScenario } from '@/lib/world-client';
 
-const fmt = {
-  currency: (v: number) => `£${v >= 1000 ? (v / 1000).toFixed(1) + 'K' : v.toFixed(0)}`,
-};
+/**
+ * The scenario SKU is the largest single availability exposure on this surface, and it sits in a
+ * set of exposed lines. This multiple is what the rest of that set adds to it — declared here, and
+ * applied to the canonical scenario's OWN exposure, so the number on this screen moves when the
+ * decision case moves. It used to be a flat £420K that reconciled with nothing.
+ */
+const AVAILABILITY_PORTFOLIO_MULTIPLE = 3.1;
 
 const STOCKOUT_EVENTS = [
   {
@@ -91,12 +95,15 @@ const ROOT_CAUSE_COLORS: Record<string, string> = {
 };
 
 import { useDecisionState } from '@/context/DecisionStateContext';
+import { useCurrency } from '@/context/CurrencyContext';
+import { canonicalRevenueExposureGbp } from '@/packages/contracts/src/canonical-scenario-model';
 
 interface AvailabilityIntelligenceProps {
   onNavigateToExperiment?: (experimentId: string) => void;
 }
 
 export default function AvailabilityIntelligence({ onNavigateToExperiment }: AvailabilityIntelligenceProps = {}) {
+  const { money, localise } = useCurrency();
   const { role } = useApp();
   const { decisionState, executeCommand } = useDecisionState();
   const [resolvedEvents, setResolvedEvents] = useState<Record<string, boolean>>({});
@@ -200,7 +207,7 @@ export default function AvailabilityIntelligence({ onNavigateToExperiment }: Ava
               Revenue Exposure
             </div>
             <div style={{ fontSize: '1.1rem', fontWeight: 700, color: 'var(--warning)' }}>
-              £420K Over Next 7 Days
+              {money(canonicalRevenueExposureGbp(7) * AVAILABILITY_PORTFOLIO_MULTIPLE)} Over Next 7 Days
             </div>
           </div>
           <div>
@@ -276,7 +283,7 @@ export default function AvailabilityIntelligence({ onNavigateToExperiment }: Ava
           owner: 'Regional Supply Chain Operations',
           dependencies: ['Trafford DC Gate 2 Logistics Dispatch', 'Manchester Regional Freight Courier'],
           timeHorizon: 'Immediate (Next 4 Hours)',
-          expectedOutcome: 'Restores shelf availability across 5 stores and recovers £12,400 evening sales in demonstration simulation.',
+          expectedOutcome: localise('Restores shelf availability across 5 stores and recovers £12,400 evening sales in demonstration simulation.'),
           confidence: 88,
           patternId: 'PAT-INT-05',
           contractStatus: 'VERIFIED',
@@ -291,7 +298,7 @@ export default function AvailabilityIntelligence({ onNavigateToExperiment }: Ava
       {/* KPI Strip */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, marginBottom: 24 }}>
         {[
-          { label: 'Lost Revenue', value: fmt.currency(totalLostRevenue), sub: 'Estimated from OOS events', danger: true, Icon: TrendingDown },
+          { label: 'Lost Revenue', value: money(totalLostRevenue), sub: 'Estimated from OOS events', danger: true, Icon: TrendingDown },
           { label: 'OOS SKUs', value: totalEvents.toString(), sub: 'Active stockout events', danger: false, Icon: Package },
           { label: 'Stores Affected', value: totalStores.toString(), sub: 'Reporting OOS events', danger: false, Icon: Store },
           { label: 'Avg OOS Duration', value: '6.3h', sub: 'Per event this week', danger: false, Icon: AlertCircle },
@@ -345,7 +352,7 @@ export default function AvailabilityIntelligence({ onNavigateToExperiment }: Ava
                   </div>
                   <div style={{ textAlign: 'right', flexShrink: 0 }}>
                     <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: resolved ? 'var(--success)' : 'var(--danger)', textDecoration: resolved ? 'line-through' : 'none' }}>
-                      {fmt.currency(event.lostRevenue)}
+                      {money(event.lostRevenue)}
                     </div>
                     <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>lost revenue</div>
                   </div>
@@ -418,7 +425,7 @@ export default function AvailabilityIntelligence({ onNavigateToExperiment }: Ava
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '0.875rem', fontWeight: 700, color: s.severity === 'high' ? 'var(--danger)' : 'var(--warning)' }}>
-                      {fmt.currency(s.lostRevenue)}
+                      {money(s.lostRevenue)}
                     </div>
                     <div style={{ fontSize: '0.6875rem', color: 'var(--text-muted)' }}>lost</div>
                   </div>

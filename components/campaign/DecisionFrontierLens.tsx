@@ -13,6 +13,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { CampaignArchetype, FrontierPlay } from '@/lib/campaign-archetypes';
+import { useCurrency } from '@/context/CurrencyContext';
 
 interface DecisionFrontierLensProps {
   archetype: CampaignArchetype;
@@ -33,22 +34,20 @@ export default function DecisionFrontierLens({
   archetype,
   onProposeIntervention
 }: DecisionFrontierLensProps) {
+  const { money, localise } = useCurrency();
   const plays = archetype.frontier_plays;
   const [selectedPlay, setSelectedPlay] = useState<FrontierPlay>(
     plays.find(p => p.is_recommended) || plays[0]
   );
 
-  const formatGbp = (v: number) => {
-    const abs = Math.abs(v);
-    const str = abs >= 1000 ? `£${(abs / 1000).toFixed(1)}K` : `£${abs.toFixed(0)}`;
-    return v >= 0 ? `+${str}` : `-${str}`;
-  };
+  /* Signed money in the reader's currency, converted once from the modelled GBP amount. */
+  const formatGbp = (v: number) => money(v, { signed: true });
 
   const handleAdoptPlay = (play: FrontierPlay) => {
     onProposeIntervention({
       title: play.name,
       type: 'ADOPT_FRONTIER_PLAY',
-      description: play.rationale,
+      description: localise(play.rationale),
       proposed_discount: play.discount_pct,
       proposed_scope: play.stores_count,
       proposed_duration: play.duration_days,
@@ -106,7 +105,7 @@ export default function DecisionFrontierLens({
             {archetype.discovery.primary_tension_title}
           </h4>
           <p style={{ fontSize: '0.85rem', color: '#334155', margin: 0, lineHeight: 1.45 }}>
-            {archetype.discovery.primary_tension_description}
+            {localise(archetype.discovery.primary_tension_description)}
           </p>
         </div>
 
@@ -122,11 +121,7 @@ export default function DecisionFrontierLens({
           {(() => {
             const d = archetype.discovery;
             const currentPlay = plays.find(p => p.is_current) || plays[0];
-            const formatShortGbp = (v: number) => {
-              const abs = Math.abs(v);
-              const str = abs >= 1000 ? `£${(abs / 1000).toFixed(1)}K` : `£${abs.toFixed(0)}`;
-              return v >= 0 ? `+${str}` : `-${str}`;
-            };
+            const formatShortGbp = (v: number) => money(v, { signed: true });
             const supplyColor =
               currentPlay.supply_exposure === 'LOW'
                 ? '#10B981'
@@ -317,7 +312,7 @@ export default function DecisionFrontierLens({
                 Strategy Alternative Inspection: {selectedPlay.name}
               </div>
               <div style={{ fontSize: '0.85rem', color: '#1E293B', marginTop: 4, lineHeight: 1.4 }}>
-                {selectedPlay.rationale}
+                {localise(selectedPlay.rationale)}
               </div>
               <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: 4, display: 'flex', gap: 12 }}>
                 <span>Supply Exposure: <strong>{selectedPlay.supply_exposure}</strong></span>

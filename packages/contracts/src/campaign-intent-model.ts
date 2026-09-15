@@ -13,6 +13,7 @@
  */
 
 import { CommercialIntent } from './commercial-intent-model';
+import { CANONICAL_SCENARIO, CANONICAL_SCENARIO_ID, canonicalPromotionWindow } from './canonical-scenario-model';
 
 export type CampaignObjectiveType =
   | 'INVENTORY_CLEARANCE'
@@ -199,6 +200,17 @@ export function createDefaultCampaignIntentDraft(
   options?: { domain_id?: string; scenario_id?: string }
 ): CampaignIntent {
   const now = new Date().toISOString();
+  const window = canonicalPromotionWindow();
+  /*
+   * A new decision OPENS ON THE CONNECTED CASE.
+   *
+   * It used to open blank: four stages to retype, every downstream panel reading "Register intent
+   * first", and a presenter reconstructing by hand the product, region and horizon the previous
+   * two screens had just spent five minutes establishing. Carrying the CONTEXT forward is not the
+   * same as pre-deciding the OUTCOME — the posture stays UNDECIDED and no mechanic or depth is
+   * proposed, so what CogniX is for (is intervening worth it, and is promotion even the lever?)
+   * is still entirely the reader's to answer.
+   */
   return {
     campaign_intent_id: buildCampaignIntentId(tenantId, sessionId),
     tenant_id: tenantId,
@@ -208,12 +220,15 @@ export function createDefaultCampaignIntentDraft(
     campaign_intent: {
       objective_type: 'REVENUE_ACCELERATION',
       intervention_posture: 'UNDECIDED',
-      framing_question: 'Should we intervene on Dairy in the North West — and is promotion even the right lever?',
+      framing_question:
+        `A ${CANONICAL_SCENARIO.economics.promotion_depth_pct}% promotion on `
+        + `${CANONICAL_SCENARIO.identity.sku_name} is already committed ${CANONICAL_SCENARIO.identity.market_scope_label.toLowerCase()}, `
+        + `and demand has moved above the plan it was built on. Is it still the right intervention?`,
       // Catalogue-backed: P004 (Cheddar Mature 400g) is a Dairy line. The earlier default,
       // "Fresh Dairy", matched no catalogue category, so the seeded decision opened against
       // a category the estate does not stock.
       category: 'DAIRY',
-      sku_scope: ['P004'],
+      sku_scope: [CANONICAL_SCENARIO.identity.sku_id],
       provisional_mechanic: undefined,
       provisional_discount_depth: undefined
     },
@@ -228,7 +243,7 @@ export function createDefaultCampaignIntentDraft(
       capacity_cap_note: 'Supplier capacity headroom remains a binding constraint to validate later.'
     },
     audience_market: {
-      region: 'North West',
+      region: CANONICAL_SCENARIO.identity.focus_region,
       // A new decision has not yet chosen who to target or how to reach them. The neutral
       // values say exactly that, and leave targeting as something the analyst decides
       // rather than something the draft assumed on their behalf.
@@ -236,9 +251,14 @@ export function createDefaultCampaignIntentDraft(
       channel: 'ALL_CHANNELS',
       activation_channels: [],
       store_cohort_hint: undefined,
-      timing_mode: 'FIND_BEST_WINDOW',
-      planned_start: undefined,
-      planned_end: undefined
+      /*
+       * The window is the scenario's own: the same 14 days the demand outlook covers and the
+       * committed promotion runs in. Leaving it open here was how the campaign timeline came to
+       * sit on a different calendar from the forecast it was supposed to be answering.
+       */
+      timing_mode: 'KNOWN_DATES',
+      planned_start: window.start_iso,
+      planned_end: window.end_iso
     },
     decision_context: {
       contextual_factor_notes: [],
@@ -246,10 +266,13 @@ export function createDefaultCampaignIntentDraft(
         'Does intervention create more value than doing nothing?',
         'Is a non-promotion lever (stock reallocation, assortment) preferable?'
       ],
-      assumptions: ['Synthetic demo baseline — not a production forecast commitment'],
+      assumptions: [
+        'Synthetic demo baseline — not a production forecast commitment',
+        `Context carried from ${CANONICAL_SCENARIO.identity.scenario_name}. The intervention itself is undecided.`
+      ],
       commercial_intent_ref: undefined,
       decision_state_id: undefined,
-      scenario_id: options?.scenario_id || 'SCN-PROMO-01',
+      scenario_id: options?.scenario_id || CANONICAL_SCENARIO_ID,
       scenario_family: 'promotion_surge'
     },
     canvas_progress: {

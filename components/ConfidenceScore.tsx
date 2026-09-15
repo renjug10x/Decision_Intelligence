@@ -1,4 +1,5 @@
 import { Info, BookOpen } from 'lucide-react';
+import { useCurrency } from '@/context/CurrencyContext';
 
 interface ConfidenceScoreProps {
   score: number; // 0 to 100
@@ -60,6 +61,8 @@ export default function ConfidenceScore({ score, compact = false, reasons = [] }
 }
 
 export function DecisionMemory({ anomalyId }: { anomalyId: string }) {
+  /* Pound amounts inside seeded outcome notes convert with everything else on the surface. */
+  const { localise } = useCurrency();
   const memoryMap: Record<string, { date: string; title: string; action: string; outcome: string }> = {
     A001: {
       date: 'April 2026',
@@ -162,7 +165,7 @@ export function DecisionMemory({ anomalyId }: { anomalyId: string }) {
       <div style={{ fontSize: '0.6875rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
         <strong>Previous Similar Incident ({mem.date}):</strong> {mem.title}<br />
         <strong>Action:</strong> {mem.action}<br />
-        <strong style={{ color: 'var(--success)' }}>Outcome:</strong> {mem.outcome}
+        <strong style={{ color: 'var(--success)' }}>Outcome:</strong> {localise(mem.outcome)}
       </div>
     </div>
   );

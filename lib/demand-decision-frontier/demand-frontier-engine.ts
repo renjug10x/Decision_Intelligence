@@ -47,34 +47,56 @@ import {
   ContextualisedDecisionOutlook,
   EnterpriseSignal
 } from '@/packages/contracts/src/index';
+import {
+  CANONICAL_SCENARIO,
+  canonicalRealisedRevenuePerUnitGbp,
+  canonicalWeeklyPopulationUnits
+} from '@/packages/contracts/src/canonical-scenario-model';
 
 // ── Declared modelled constants ──────────────────────────────────────────────
 // Each is a MODELLED_DEMO_ASSUMPTION and is published in the assumption inventory.
 
 /** Declared gross margin rate. The estate holds no cost data, so this is a modelled assumption. */
-export const DDF_GROSS_MARGIN_RATE_PCT = 30;
+export const DDF_GROSS_MARGIN_RATE_PCT = CANONICAL_SCENARIO.economics.gross_margin_rate_pct;
 
 /** Flex premium charged on volume secured outside the standard order cycle, as a share of unit revenue. */
-export const DDF_FLEX_PREMIUM_RATE_PCT = 12;
-
-/** Fallback unit revenue, used only when the projection cannot supply a derived value. */
-export const DDF_FALLBACK_REVENUE_PER_UNIT_GBP = 2.0;
+export const DDF_FLEX_PREMIUM_RATE_PCT = CANONICAL_SCENARIO.supply.flex_premium_rate_pct;
 
 /**
- * Unit economics. `revenue_per_unit_gbp` is derived from the projection itself
- * (projected revenue ÷ projected units over the same horizon) so that every pound on this
- * surface reconciles with the revenue KPI beside it. Only the margin RATE is assumed.
+ * Unit economics for the connected decision case.
+ *
+ * `revenue_per_unit_gbp` is the canonical scenario's REALISED price — list, less the committed
+ * promotion on the share of volume that transacts on it. It used to be re-derived here from the
+ * projection's own revenue ÷ units, which made this surface internally consistent and left it
+ * free to disagree with Promotion and Campaign Decision about what a unit is worth. One basis,
+ * resolved once, is the whole point: the pounds on three screens now reconcile because they are
+ * the same pounds.
+ *
+ * A projection-derived value is still accepted, and is still used when it is MATERIALLY
+ * different from the canonical basis — that difference is a finding about the scenario, not
+ * something to paper over — but it no longer silently establishes a second economic universe.
  */
+export const DDF_REVENUE_BASIS_TOLERANCE_PCT = 5;
+
 export function deriveUnitEconomics(revenuePerUnitGbp?: number | null): DemandUnitEconomics {
-  const derived = typeof revenuePerUnitGbp === 'number'
+  const canonical = canonicalRealisedRevenuePerUnitGbp();
+  const supplied = typeof revenuePerUnitGbp === 'number'
     && Number.isFinite(revenuePerUnitGbp)
-    && revenuePerUnitGbp > 0;
-  const revenue = Number((derived ? (revenuePerUnitGbp as number) : DDF_FALLBACK_REVENUE_PER_UNIT_GBP).toFixed(2));
+    && revenuePerUnitGbp > 0
+      ? Number((revenuePerUnitGbp as number).toFixed(2))
+      : null;
+
+  const divergencePct = supplied !== null && canonical > 0
+    ? Math.abs(supplied - canonical) / canonical * 100
+    : 0;
+  const useSupplied = supplied !== null && divergencePct > DDF_REVENUE_BASIS_TOLERANCE_PCT;
+
+  const revenue = useSupplied ? (supplied as number) : canonical;
   return {
     revenue_per_unit_gbp: revenue,
     gross_margin_per_unit_gbp: Number((revenue * (DDF_GROSS_MARGIN_RATE_PCT / 100)).toFixed(2)),
     margin_rate_pct: DDF_GROSS_MARGIN_RATE_PCT,
-    revenue_per_unit_basis: derived ? 'DERIVED_FROM_PROJECTION' : 'MODELLED_DEMO_ASSUMPTION',
+    revenue_per_unit_basis: useSupplied ? 'DERIVED_FROM_PROJECTION' : 'MODELLED_DEMO_ASSUMPTION',
     basis: 'MODELLED_DEMO_ASSUMPTION'
   };
 }
@@ -95,11 +117,14 @@ export const DDF_EVENT_DISPLAY_NAME: Record<string, string> = {
   christmas: 'Christmas spike'
 };
 
-/** WP10-C `SLA_FLEX_RULE_4` supplies 1,200 additional units per week. Mirrored, not redefined. */
-export const DDF_SLA_FLEX_UNITS_PER_WEEK = 1200;
-
-/** Modelled cost of deploying the supplier flex lever (notice fee + DC overtime). */
-export const DDF_INTERVENTION_COST_GBP = 2400;
+/**
+ * Capacity `SLA_FLEX_RULE_4` releases per week. Mirrored from the canonical scenario's declared
+ * flex RATE against its own weekly demand, never redefined as a count here: a count belonging to
+ * one population is exactly how this lever came to recover a different number of units on each
+ * surface that named it.
+ */
+export const DDF_SLA_FLEX_UNITS_PER_WEEK =
+  canonicalWeeklyPopulationUnits() * (CANONICAL_SCENARIO.supply.supplier_flex_rate_pct / 100);
 
 /**
  * Below this separation between the best and second-best alternative, no winner is named.
@@ -507,7 +532,7 @@ export function evaluateDecisionGap(
   const contributing_constraints: ContributingConstraint[] = [
     {
       constraint_id: 'CST-SUP-01',
-      name: 'FreshDirect UK Allocation Cap',
+      name: `${CANONICAL_SCENARIO.supply.supplier_name} Allocation Cap`,
       description: `Committed supplier allocation is capped at +${scenarioParams.supplier_capacity_cap}% above base contract (${Math.round(derivedImpacts.supplier_capacity_units).toLocaleString()} units per week).`,
       impact_units: attributed[0].units,
       impact_pp: round1(exposed_demand_pp * CONSTRAINT_ATTRIBUTION[0].share),
@@ -583,21 +608,51 @@ function formatScenarioInstant(iso: string): string {
   return `${WEEKDAY_NAMES[d.getUTCDay()]} ${hh}:${mm} UTC`;
 }
 
-/** First Friday 14:00 UTC strictly after the scenario clock — the modelled supplier cut-off. */
-function nextFridayCutOff(fromIso: string): string {
+/**
+ * The first supplier order cut-off strictly after the scenario clock. Weekday and hour come from
+ * the canonical scenario's calendar so the Decision Window, the promotion window and the supplier
+ * commitment point are all reading the same contract.
+ */
+function nextSupplierCutOff(fromIso: string): string {
+  const { supplier_cut_off_weekday, supplier_cut_off_hour_utc } = CANONICAL_SCENARIO.calendar;
   const from = new Date(fromIso);
   const candidate = new Date(Date.UTC(
-    from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate(), 14, 0, 0, 0
+    from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate(), supplier_cut_off_hour_utc, 0, 0, 0
   ));
-  while (candidate.getUTCDay() !== 5 || candidate.getTime() <= from.getTime()) {
+  while (candidate.getUTCDay() !== supplier_cut_off_weekday || candidate.getTime() <= from.getTime()) {
     candidate.setUTCDate(candidate.getUTCDate() + 1);
   }
   return candidate.toISOString();
 }
 
-const TIMEZONE_NOTE =
-  'The supplier cut-off is contractual and expressed in UTC. UK civil time in August is BST (UTC+1), ' +
-  'so 14:00 UTC is 15:00 local.';
+/**
+ * UK summer time runs from the last Sunday in March to the last Sunday in October. Derived from
+ * the scenario clock rather than named in prose: a note that said "in August" was wrong for ten
+ * months of the year and silently contradicted the date printed beside it.
+ */
+function isUkSummerTime(iso: string): boolean {
+  const d = Date.parse(iso);
+  if (!Number.isFinite(d)) return false;
+  const year = new Date(d).getUTCFullYear();
+  // BST begins 01:00 UTC on the last Sunday of March and ends 01:00 UTC on the last Sunday of October.
+  const lastSundayAt1amUtc = (monthIndex: number) => {
+    const lastDay = new Date(Date.UTC(year, monthIndex + 1, 0));
+    const date = lastDay.getUTCDate() - lastDay.getUTCDay();
+    return Date.UTC(year, monthIndex, date, 1, 0, 0, 0);
+  };
+  return d >= lastSundayAt1amUtc(2) && d < lastSundayAt1amUtc(9);
+}
+
+function timezoneNote(deadlineIso: string, cutOffHourUtc: number): string {
+  const summer = isUkSummerTime(deadlineIso);
+  const localHour = (cutOffHourUtc + (summer ? 1 : 0)) % 24;
+  const pad = (h: number) => `${String(h).padStart(2, '0')}:00`;
+  return summer
+    ? `The supplier cut-off is contractual and expressed in UTC. UK civil time is BST (UTC+1) on this date, `
+      + `so ${pad(cutOffHourUtc)} UTC is ${pad(localHour)} local.`
+    : `The supplier cut-off is contractual and expressed in UTC. UK civil time is GMT on this date, `
+      + `so ${pad(cutOffHourUtc)} UTC is the local time too.`;
+}
 
 /**
  * ADR-042 — a duration is publishable only where a declared constraint exists, and it is always
@@ -638,7 +693,7 @@ export function evaluateDecisionWindow(
   const isDeclared = !!(declaredDeadline && declaredDeadline.deadlineIso);
   const deadlineIso = isDeclared
     ? (declaredDeadline!.deadlineIso as string)
-    : nextFridayCutOff(scenarioNowIso as string);
+    : nextSupplierCutOff(scenarioNowIso as string);
   const deadlineMs = Date.parse(deadlineIso);
 
   if (!Number.isFinite(deadlineMs)) {
@@ -664,7 +719,8 @@ export function evaluateDecisionWindow(
     remaining_hours <= 0 ? 'RESTRICTED' : remaining_hours < 24 ? 'CLOSING_SOON' : 'OPEN';
 
   const declared_constraint_name =
-    declaredDeadline?.declaredConstraintName || 'FreshDirect UK Order Confirmation Cut-Off';
+    declaredDeadline?.declaredConstraintName
+    || `${CANONICAL_SCENARIO.supply.supplier_name} Order Confirmation Cut-Off`;
   const declared_by = declaredDeadline?.declaredBy || 'Commercial Supply Agreement (SLA Rule 4)';
   const deadline_display = declaredDeadline?.deadlineDisplay || formatScenarioInstant(deadlineIso);
 
@@ -677,7 +733,7 @@ export function evaluateDecisionWindow(
     remaining_hours,
     declared_constraint_name,
     declared_by,
-    timezone_note: TIMEZONE_NOTE,
+    timezone_note: timezoneNote(deadlineIso, CANONICAL_SCENARIO.calendar.supplier_cut_off_hour_utc),
     provenance_basis: isDeclared ? 'DECLARED_OPERATIONAL_CONSTRAINT' : 'MODELLED_DEMO_ASSUMPTION',
     explanation:
       window_state === 'RESTRICTED'
@@ -924,7 +980,7 @@ export function evaluateInterventionRecommendation(
 
   return {
     intervention_id: 'SLA_FLEX_RULE_4',
-    intervention_name: 'Serve FreshDirect volume flex notice (Rule 4)',
+    intervention_name: `Serve the ${CANONICAL_SCENARIO.supply.supplier_name} ${CANONICAL_SCENARIO.supply.flex_clause_reference.toLowerCase()}`,
     lever_type: 'SUPPLIER_CAPACITY_FLEX',
     description: `Serve the contractual volume flex notice to add ${flexUnits.toLocaleString()} units of executable capacity across the ${horizonDays}-day horizon.`,
     rationale: `Supplier allocation is the largest ranked contributor to the ${decisionGap.exposed_demand_pp}pp gap. The flex clause is the only lever that changes executable capacity inside the current lead time.`,
@@ -937,7 +993,7 @@ export function evaluateInterventionRecommendation(
     risk_state_after: residualPp <= 2 ? 'LOW' : residualPp <= 8 ? 'MEDIUM' : 'HIGH',
     intervention_cost_gbp: interventionCost,
     evidence_basis: [
-      'FreshDirect UK Supply Agreement, Clause 4.2 volume flex notice — modelled demo assumption, not a countersigned contract.',
+      `${CANONICAL_SCENARIO.supply.supplier_name} Supply Agreement, Clause 4.2 volume flex notice — modelled demo assumption, not a countersigned contract.`,
       `Supplier capacity of ${Math.round(derivedImpacts.supplier_capacity_units).toLocaleString()} units per week, read from the current scenario and unchanged by this briefing.`,
       `Flex volume of ${DDF_SLA_FLEX_UNITS_PER_WEEK.toLocaleString()} units per week, carried across as the same proportional uplift used elsewhere in the scenario.`,
       `Flex premium of ${DDF_FLEX_PREMIUM_RATE_PCT}% of unit revenue is a declared modelled assumption.`

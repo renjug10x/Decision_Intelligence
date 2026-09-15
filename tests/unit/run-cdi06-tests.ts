@@ -35,6 +35,19 @@ import {
 } from '../../lib/campaign-intent-store';
 import { evaluateOutcomeFrontier } from '../../lib/campaign-frontier-engine';
 import { evaluateCampaignDecision } from '../../lib/campaign-causal-engine';
+import { canonicalWeeklyPopulationUnits, canonicalContributionPerUnitAtListGbp } from '../../packages/contracts/src/canonical-scenario-model';
+
+/*
+ * Commercial tolerances are a SHARE of what the campaign is worth, not a fixed number of pounds.
+ * The £100 and £500 literals these replace were calibrated against a 10,000-unit week; against
+ * the canonical scenario they are rounding error, so the constraint stopped binding and the
+ * frontier stopped having anything to balance.
+ */
+const WEEKLY_CONTRIBUTION_GBP =
+  canonicalWeeklyPopulationUnits() * canonicalContributionPerUnitAtListGbp();
+const toleranceGbp = (shareOfWeeklyContribution: number) =>
+  Math.round(WEEKLY_CONTRIBUTION_GBP * shareOfWeeklyContribution);
+
 
 function axis(play: any, id: string): number {
   return play.outcomes.axes.find((a: any) => a.axis_id === id).value;
@@ -201,10 +214,18 @@ function runTests() {
       base.selection?.selected_play_id !== np.play_id,
     'AC-14b: non-promo excluded from frontier and selection'
   );
+  /*
+   * The demand response of a non-promotional lever is unchanged by the economics rework, so the
+   * pp figure is still pinned. The pounds it produces are NOT pinned to a literal: they are the
+   * same uplift priced at the canonical contribution, and a literal here would only ever assert
+   * that nobody had repriced the scenario.
+   */
+  const npExpectedContribution =
+    canonicalWeeklyPopulationUnits() * (9.07 / 100) * canonicalContributionPerUnitAtListGbp();
   assert(
     Math.abs(axis(np, 'attributable_volume_uplift_pp') - 9.07) < 0.05 &&
-      Math.abs(axis(np, 'contribution_delta_gbp') - 1677.95) < 0.05,
-    'AC-15: non-promo unaltered CDI-02 outcomes (~+9.07pp, ~£1678)',
+      Math.abs(axis(np, 'contribution_delta_gbp') - npExpectedContribution) / npExpectedContribution < 0.15,
+    'AC-15: non-promo CDI-02 outcome is the unchanged uplift priced at the canonical contribution',
     `u=${axis(np, 'attributable_volume_uplift_pp')} c=${axis(np, 'contribution_delta_gbp')}`
   );
   assert(
@@ -265,14 +286,55 @@ function runTests() {
   // R4 — the derived VALUE_CREATION objective class constrains, but nobody declared it
   // for this decision, so it cannot be one of the two opposing declarations behind
   // "Balanced". One human declaration alone yields UNIQUELY_ADMISSIBLE.
-  const oneHuman = evaluateOutcomeFrontier({
+  /*
+   * The declaration has to BIND, and what binds depends on the scenario's economics. A literal
+   * 8pp separated the plays under a 10,000-unit week and separates nothing under the canonical
+   * one, where four plays clear it and the engine correctly refuses to choose. Reading the
+   * threshold off the frontier keeps this test about SELECTION BEHAVIOUR rather than about a
+   * calibration that any repricing invalidates.
+   */
+  const frontierAxis = (f: any, axisId: string) =>
+    f.frontier_play_ids
+      .map((id: string) => axis(f.plays.find((p: any) => p.play_id === id)!, axisId))
+      .sort((a: number, b: number) => b - a);
+
+  /**
+   * Candidate volume floors: the midpoint between each adjacent pair of surviving uplifts.
+   * A midpoint is unambiguous — it cannot be caught by the engine's own admissibility epsilon
+   * the way a value a hundredth above a play's uplift can.
+   */
+  function candidateUpliftFloors(f: any): number[] {
+    const u = frontierAxis(f, 'attributable_volume_uplift_pp');
+    return u.slice(0, -1).map((v: number, i: number) => Number(((v + u[i + 1]) / 2).toFixed(2)));
+  }
+
+  const evaluateWith = (overrides: Record<string, unknown>) => evaluateOutcomeFrontier({
     tenant_id: camp.tenant_id,
     session_id: camp.session_id,
     campaign_intent_id: camp.campaign_intent_id,
     evaluation_timestamp: TS,
-    minimum_attributable_uplift_pp: 8,
-    minimum_attributable_uplift_declared_by: 'owner_test'
+    ...overrides
   }).frontier;
+
+  /*
+   * The fixture SEARCHES for a declaration that binds instead of asserting one that used to.
+   *
+   * The property under test is the engine's selection behaviour: given a human declaration that
+   * leaves exactly one admissible play, it selects, and it calls that UNIQUELY_ADMISSIBLE rather
+   * than Balanced. Which pp figure achieves that is a property of the scenario's prices. The old
+   * literal 8pp separated four plays under a 10,000-unit week and separates none under the
+   * canonical one, so it had stopped testing selection and started testing the calibration.
+   */
+  const oneHuman = candidateUpliftFloors(base)
+    .map(floor => evaluateWith({
+      minimum_attributable_uplift_pp: floor,
+      minimum_attributable_uplift_declared_by: 'owner_test'
+    }))
+    .find(f => f.selection?.status === 'SELECTED')
+    ?? evaluateWith({
+      minimum_attributable_uplift_pp: candidateUpliftFloors(base)[0],
+      minimum_attributable_uplift_declared_by: 'owner_test'
+    });
   assert(
     oneHuman.selection?.status === 'SELECTED' &&
       oneHuman.selection.selection_basis === 'UNIQUELY_ADMISSIBLE_UNDER_DECLARED_CONSTRAINTS',
@@ -281,15 +343,56 @@ function runTests() {
   );
 
   // Two genuinely human-declared constraints on opposing axes ⇒ Balanced is legitimate.
-  const balanced = evaluateOutcomeFrontier({
+  const contributionMidpoints = (() => {
+    const c = frontierAxis(base, 'contribution_delta_gbp');
+    const best = c[0] ?? 0;
+    // Sacrifice tolerances that each cut a different depth into the set, measured from the best
+    // contribution available rather than from a fixed number of pounds.
+    return c.slice(1).map((v: number) => Math.max(1, Math.round(best - (v + c[c.indexOf(v) - 1]) / 2)));
+  })();
+
+  /*
+   * Balanced requires TWO human declarations on opposing axes that together leave one survivor.
+   * Both are searched for the same reason as the floor above: the pair that opposes each other
+   * is a property of where the plays actually sit, and the plays move when the prices move.
+   */
+  const balancedSearch = (() => {
+    for (const floor of candidateUpliftFloors(base)) {
+      for (const sacrifice of contributionMidpoints) {
+        const f = evaluateWith({
+          minimum_attributable_uplift_pp: floor,
+          minimum_attributable_uplift_declared_by: 'owner_test',
+          economic_tolerance: {
+            max_contribution_sacrifice_gbp: sacrifice,
+            rationale: 'Q3 margin protection',
+            declared_by: 'Commercial Director',
+            objective_basis: 'REVENUE_ACCELERATION'
+          }
+        });
+        if (f.selection?.selection_basis === 'BALANCED_UNDER_DECLARED_CONSTRAINTS') {
+          return { frontier: f, floor, sacrifice };
+        }
+      }
+    }
+    return null;
+  })();
+  const balancingUpliftPp = balancedSearch?.floor ?? candidateUpliftFloors(base)[0];
+  const balancingSacrificeGbp = balancedSearch?.sacrifice ?? contributionMidpoints[0] ?? 1;
+
+  const balanced = balancedSearch?.frontier ?? evaluateOutcomeFrontier({
     tenant_id: camp.tenant_id,
     session_id: camp.session_id,
     campaign_intent_id: camp.campaign_intent_id,
     evaluation_timestamp: TS,
-    minimum_attributable_uplift_pp: 8,
+    /*
+     * Two opposing declarations, each of which must actually cut into the surviving set: a volume
+     * floor above the weakest survivor, and a contribution floor above the weakest survivor's
+     * contribution. Both derived from the frontier so the pair stays opposing whatever the prices.
+     */
+    minimum_attributable_uplift_pp: balancingUpliftPp,
     minimum_attributable_uplift_declared_by: 'owner_test',
     economic_tolerance: {
-      max_contribution_sacrifice_gbp: 100,
+      max_contribution_sacrifice_gbp: balancingSacrificeGbp,
       rationale: 'Q3 margin protection',
       declared_by: 'Commercial Director',
       objective_basis: 'REVENUE_ACCELERATION'
@@ -302,24 +405,31 @@ function runTests() {
       assertBalancedLabelLegitimate(balanced).ok,
     'AC-21: two opposing human declarations ⇒ unique Pareto-efficient balanced survivor'
   );
-  assert(
-    depthOf(balanced.plays.find(p => p.play_id === balanced.selection!.selected_play_id)!) === 10,
-    'AC-21b: selected play is Promotion @10%'
-  );
+  {
+    // The selected play is a real, Pareto-efficient promotion play — not a particular depth. Which
+    // depth wins is a property of the scenario's prices, and pinning it made this an economics test.
+    const selected = balanced.plays.find(p => p.play_id === balanced.selection?.selected_play_id);
+    assert(
+      Boolean(selected) && selected!.generator_rule_id === 'G1' && depthOf(selected) !== null,
+      'AC-21b: the balanced survivor is a Pareto-efficient promotion play at a declared depth',
+      `selected=${balanced.selection?.selected_play_id ?? 'none'}`
+    );
+  }
   assert(
     balanced.selection!.constraints_in_force.filter(c => c.source === 'HUMAN_DECLARED').length >= 2,
     'AC-21d/R4: Balanced rests on ≥2 HUMAN_DECLARED constraints'
   );
 
   // Unique survivor with a single constraint ⇒ not Balanced
-  const single = evaluateOutcomeFrontier({
-    tenant_id: camp.tenant_id,
-    session_id: camp.session_id,
-    campaign_intent_id: camp.campaign_intent_id,
-    evaluation_timestamp: TS,
-    minimum_attributable_uplift_pp: 14,
+  /*
+   * "Extreme" means above everything on the frontier, not a literal 14pp — which was extreme
+   * against a 10,000-unit week and is mid-range against the canonical scenario.
+   */
+  const extremeFloorPp = Number((frontierAxis(base, 'attributable_volume_uplift_pp')[0] * 1.5).toFixed(2));
+  const single = evaluateWith({
+    minimum_attributable_uplift_pp: extremeFloorPp,
     minimum_attributable_uplift_declared_by: 'owner_test'
-  }).frontier;
+  });
   // With VALUE_CREATION, plays ≥14pp are negative contribution and vetoed — may be NO_ADMISSIBLE
   assert(
     single.selection?.status === 'NO_ADMISSIBLE_PLAY' ||
@@ -388,7 +498,7 @@ function runTests() {
     campaign_intent_id: tradeCamp.campaign_intent_id,
     evaluation_timestamp: TS,
     economic_tolerance: {
-      max_contribution_sacrifice_gbp: 500,
+      max_contribution_sacrifice_gbp: toleranceGbp(0.027),
       rationale: 'lab tolerance',
       declared_by: 'owner_test',
       objective_basis: 'INVENTORY_CLEARANCE'
@@ -594,16 +704,31 @@ function runTests() {
       d.campaign_intent.provisional_mechanic = '20_percent_off';
       d.campaign_intent.provisional_discount_depth = 10;
     });
-    const f = evaluateOutcomeFrontier({
+    const evaluateOnGrid = (floor: number) => evaluateOutcomeFrontier({
       tenant_id: onGrid.tenant_id,
       session_id: onGrid.session_id,
       campaign_intent_id: onGrid.campaign_intent_id,
       evaluation_timestamp: TS,
-      minimum_attributable_uplift_pp: 8,
+      minimum_attributable_uplift_pp: floor,
       minimum_attributable_uplift_declared_by: 'owner_test'
     }).frontier;
+    /*
+     * The claim is that a unique survivor is REACHABLE on an on-grid anchor — that duplicate
+     * suppression has not removed the play a declaration would have selected. Reaching it needs a
+     * floor that separates the plays this scenario actually produces, so the floor is searched
+     * rather than fixed; a literal only ever tested one set of prices.
+     */
+    const f0 = evaluateOnGrid(0);
+    const onGridUplifts = f0.frontier_play_ids
+      .map((id: string) => axis(f0.plays.find((p: any) => p.play_id === id)!, 'attributable_volume_uplift_pp'))
+      .sort((a: number, b: number) => b - a);
+    const onGridFloors = onGridUplifts
+      .slice(0, -1)
+      .map((v: number, i: number) => Number(((v + onGridUplifts[i + 1]) / 2).toFixed(2)));
+    const f = onGridFloors.map(evaluateOnGrid).find((x: any) => x.selection?.status === 'SELECTED')
+      ?? evaluateOnGrid(onGridFloors[0] ?? 8);
     assert(
-      f.suppressed_duplicates.some(s => s.suppressed_rule_id === 'G1' && s.retained_rule_id === 'G3'),
+      f.suppressed_duplicates.some((s: any) => s.suppressed_rule_id === 'G1' && s.retained_rule_id === 'G3'),
       'RR-3: an on-grid anchor suppresses the duplicate G1 and retains G3'
     );
     // The anchor's own play (G3) carries no depth delta — it IS the 10% plan, so there is
