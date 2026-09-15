@@ -1114,6 +1114,58 @@ so its coverage figure is an estimate rather than a measurement of repeated tria
 
 ---
 
+## DEMO-HARD-01 — ONE DECISION CASE ACROSS THE CONNECTED JOURNEY
+
+**Recorded 2026-09-15. Status: `[COMPLETED]`.** Authorised as demonstration and product-coherence
+hardening on `feature/cognix-enterprise-demo-hardening`, after browser evaluation found that Demand,
+Promotion and Campaign Decision told a consistent story on incompatible arithmetic.
+
+**The defect this closed.** Three surfaces, each internally consistent, publishing values that could
+not all be true of the same decision: a £269.4K demand exposure beside a ±£3.3K promotion
+contribution beside a £18,500 campaign baseline beside a £595,200 ripple. A "national" scope reaching
+almost the same 50 shops as a "regional" one. A supplier flex notice served on a party that does not
+make the product. A Campaign Decision surface that opened blank and asked a presenter to retype the
+product, region and horizon the previous two screens had just established.
+
+**What was built.**
+
+| | |
+|---|---|
+| **Canonical decision case** | `packages/contracts/src/canonical-scenario-model.ts` — identity, estate, calendar, demand, supply, inventory and economics declared once; every quantity in the connected journey derived from it. ADR-073 |
+| **Economic unification** | Shared Decision State, the demand frontier, the campaign causal engine, the promotion elasticity curve, the decision frontier plays, Decision Ripple and Inventory all resolve their pounds through one basis |
+| **Supplier funding** | Introduced as declared economics; the term that makes promotion arithmetic work and was previously absent |
+| **One elasticity** | A point of discount depth means the same demand response in the planning curve and in the causal engine |
+| **Multi-currency** | GBP base, USD and EUR display; ECB rates through the platform's own cached endpoint, dated fallback, no credential. ADR-074 |
+| **Repeatability** | A *Restart scenario* control returns the demonstration to its opening position deterministically |
+| **Continuity** | A restrained scenario identity strip states the product, scope and horizon on every surface |
+| **Tests** | `tests/unit/run-canonical-scenario-tests.ts` — 74 cross-surface and currency assertions that fail if two surfaces stop agreeing on the same quantity |
+
+**Evidence.** [`COGNIX_PRESENTATION_SYNC_DELTA.md`](../reports/COGNIX_PRESENTATION_SYNC_DELTA.md)
+states, value by value, what the live application now shows against the pre-hardening demonstration
+baseline. **Every demand-side value is preserved exactly, including the post-intervention
+conclusion.** The promotion, ripple and inventory values moved and are listed there.
+
+**What remains open, and is not claimed as done.**
+
+- `DEMO-HARD-02` — **close the last demand-response seam.** The planning curve and the causal engine
+  now share prices, costs, funding, cannibalisation basis and elasticity, and agree in sign and broad
+  magnitude at every depth (+46.8% / +£8.1K against +50.5pp / +£11.4K at the committed depth). They
+  are still two models, and the residual gap is the causal engine's ambient drivers and its per-SKU
+  context factor. One of the two should become the other's consumer.
+- `DEMO-HARD-03` — **engines should emit amounts, not sentences.** The narrative surfaces compose
+  whole sentences with pounds already in them, and the currency layer localises that prose with a
+  deliberately narrow transform. The structural fix is for those engines to publish structured
+  amounts and let the surface compose.
+- `DEMO-HARD-04` — **the six non-canonical campaign archetypes** still carry seeded elasticity
+  economics at their original scale. They are alternative demonstrations rather than part of the
+  connected journey, but a presenter who switches archetype leaves the unified economics behind.
+
+**Unchanged by this work.** `ESF-4` remains the canonical Master Plan continuation after Release 1.0,
+parked and not superseded. Release 1.0's contents, limitations and acceptance gate are unaffected;
+this workstream hardens the demonstration of what Release 1.0 already contained.
+
+---
+
 # PHASE 11 — IP AND INNOVATION GOVERNANCE
 - **Objective:** Integrate IP classification metadata badges and provenance tracking directly into UI and exports.
 - **Scope:** IP badge indicators, exportable experiment blueprint sheets, legal disclaimers.

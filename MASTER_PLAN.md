@@ -49,6 +49,11 @@ RELEASE 1.0  Engineering baseline recorded 2026-08-23 at the close of FM-01.
              READY for owner acceptance testing. DevOps handoff follows owner
              acceptance, not this record.
 
+DEMO-HARD-01 One Decision Case Across the Connected Journey        [COMPLETED]
+             Canonical scenario · unified economics · multi-currency ·
+             scenario restart · cross-surface reconciliation tests
+             DEMO-HARD-02/03/04 remain open — see the authoritative plan
+
 CONTINUATION ESF-4 — Signal Quality, Confidence & Provenance remains the
              canonical Master Plan continuation after Release 1.0. Parked,
              not superseded, cancelled or deprioritised.
@@ -63,6 +68,8 @@ For complete work packages, user stories, test requirements, and exit gates, see
 **Capability Atlas governance:** [`docs/governance/COGNIX_CAPABILITY_ATLAS.md`](docs/governance/COGNIX_CAPABILITY_ATLAS.md) · [`docs/governance/CAPABILITY_KNOWLEDGE_MODEL.md`](docs/governance/CAPABILITY_KNOWLEDGE_MODEL.md) · [`docs/architecture/CAPABILITY_ATLAS_ARCHITECTURE.md`](docs/architecture/CAPABILITY_ATLAS_ARCHITECTURE.md) · ADR-045 … ADR-051.
 
 **Demand capability governance:** [`docs/governance/DEMAND_OBSERVABILITY_MODEL.md`](docs/governance/DEMAND_OBSERVABILITY_MODEL.md) · [`docs/reports/COGNIX_DEMAND_DECISION_FRONTIER_PLANNING_REPORT.md`](docs/reports/COGNIX_DEMAND_DECISION_FRONTIER_PLANNING_REPORT.md) · ADR-040 … ADR-043.
+
+**Connected demonstration governance:** [`docs/governance/COGNIX_CANONICAL_SCENARIO.md`](docs/governance/COGNIX_CANONICAL_SCENARIO.md) — the one decision case the connected journey derives from · [`docs/reports/COGNIX_PRESENTATION_SYNC_DELTA.md`](docs/reports/COGNIX_PRESENTATION_SYNC_DELTA.md) — what changed against the pre-hardening demonstration values · ADR-073 (one canonical decision case) · ADR-074 (one currency layer).
 
 **Forecast model governance:** [`docs/governance/COGNIX_FORECAST_MODEL_TRUTH_RECORD.md`](docs/governance/COGNIX_FORECAST_MODEL_TRUTH_RECORD.md) — the authoritative record of what does and does not execute, and the `D-FM-*` defect register · ADR-071 (one governed forecasting path) · ADR-072 (uncertainty published twice, never as a bare confidence percentage).
 
