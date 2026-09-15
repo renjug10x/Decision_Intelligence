@@ -164,3 +164,90 @@ automatically** — only a named person does that. Movement caused by a Shared D
 parameter change is scenario-driven rather than world-driven and is reported as such.
 
 Authoritative semantics: `docs/reports/COGNIX_CDI_07A_DECISION_CONTRACT_DESIGN_GATE.md` §5–§7.
+
+---
+
+## 8. Scenario Intelligence amendment (authorised 2026-09-15, `SCI` programme)
+
+**Status: authorised, not implemented.** Decisions: ADR-078 (scenario clock), ADR-081 (Refresh,
+materiality, decision relevance), ADR-082 (provenance vocabulary), ADR-077 (one scenario identity).
+Implemented by `SCI-01` and `SCI-05`; `SCI-05` **reactivates `ESF-4`** rather than opening a parallel
+signals programme.
+
+### 8.1 The signal clock — a defect this record must state
+
+Measured at baseline `f9c5679c`: two consecutive identical `GET /api/v1/signals` calls return
+byte-identical `baseline_value`, `observed_value`, `delta`, `delta_pct`, `confidence`, `quality`,
+`provenance` and `signal_id`, and differ **only** in `observed_at` and `effective_at`, which are
+stamped with **civil wall-clock time**. The scenario clock is `2026-06-03T00:00:00.000Z`; the signals
+were stamped `2026-09-15T20:28:3xZ`.
+
+Freshness is therefore not a usable dimension today — every signal is permanently zero seconds old —
+and it is the reason the Observability *Refresh* control appears inert. Registered as residual `R-19`.
+
+**Amendment.** `observed_at` and `effective_at` on `EnterpriseSignal` and
+`EnterpriseSignalObservation`, and every `SimulationPeriod` mapping, resolve through the **scenario
+clock**. Civil time is retained only where it describes the running platform rather than the modelled
+world — server receipts, telemetry ingestion, audit records and health readings. The test is: if the
+value describes the modelled world it is scenario time; if it describes the running system it is civil
+time; if it is both, both are carried and named.
+
+### 8.2 Scenario binding
+
+A signal query resolves its scenario from the active scenario identity. **No route resolves a scenario
+by default** (ADR-077 part 4). The `family_id=promotion_surge` / `scenario_id=SCN-PROMO-01` default is
+removed; it is what makes the Observability surface publish `SUPPLIER_CAPACITY_PRESSURE` against
+FreshDirect UK while the connected journey names Cheshire Cheese Co. Registered as residual `R-20`.
+
+`scenario_id` on `EnterpriseSignal` stops being optional context and becomes the binding to one
+canonical scenario identity.
+
+### 8.3 Two derived attributes are added, and no new score is
+
+| Attribute | Definition | Derivation |
+|---|---|---|
+| **materiality** | Did this observation move a quantity the platform publishes, and by how much | Derived by re-evaluation against the pre-advance state. **Never authored on a signal.** |
+| **decision relevance** | Did it change a recommendation, a readiness verdict or a decision window | Derived from the decision surfaces, not declared by the signal |
+
+These complete the chain the laboratory needs — **signal → evidence → material change → decision
+relevance** — as a computation rather than a caption. A signal that declares its own importance is
+marketing; a signal whose importance is computed from what it moved is intelligence.
+
+**No third confidence score is introduced.** `confidence` and `quality` (0–100, `ESF-1`) are unchanged,
+and ADR-072 stands: uncertainty is published twice — what the model implies and what its errors
+demanded — and never as a bare confidence percentage. Materiality is a measured movement, not a score,
+and must not be rendered as one.
+
+### 8.4 Refresh is a signal-fabric operation
+
+ADR-081. Refresh advances the scenario's as-at marker one `SimulationPeriod` along the scenario clock,
+re-evaluates dependent intelligence, and publishes a delta that states **whether the recommendation or
+decision changed**.
+
+The engine already exists: `POST /api/v1/signals/simulate` and `simulateEnterpriseSignalTimelines`,
+delivered by `ESF-2`, already accept a `SignalSimulationContext` and already return timelines across
+`T-90 … T+30` with per-observation provenance naming rule, drivers and intervention references. **No
+production surface calls it** — registered as residual `R-22`. `SCI-05` consumes it rather than
+building a second engine.
+
+Determinism is the acceptance condition: the same scenario advanced to the same period produces the
+same state on every run, in every timezone. `Restart scenario` returns the marker to the opening
+position. **No random movement, and nothing whose only purpose is to make the interface look alive.**
+
+### 8.5 Provenance vocabulary
+
+The structured `provenance{}` on `EnterpriseSignalObservation` — `rule_id`, `drivers`,
+`source_signal_refs`, `decision_state_version`, `intervention_refs`, `generator_version` — is
+unchanged and remains the authoritative per-observation record.
+
+It is **mapped onto**, not replaced by, the estate-wide vocabulary declared in ADR-082: `origin`
+(`observed · attested · stated · derived · modelled · drafted`), `method` (`measured · rule ·
+statistical · llm · manual`), `authority` (`authoritative · non_authoritative_draft`). `SignalSourceType`
+maps to `origin` and `method`; `synthetic_demo` remains server-derived and remains the only statement
+of whether an observation is attested, per `ESF-6`.
+
+### 8.6 What this amendment does not change
+
+The signal taxonomy. `SignalSourceType`. The `ESF-3` connector contract. The `ESF-6` admission
+predicate. No new signal type is added by the `SCI` programme, and no second origin of
+`synthetic_demo = false` is created.

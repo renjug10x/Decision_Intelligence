@@ -247,6 +247,123 @@ not surprised by it.
 The freshness check is proven against fixtures (`run-atl07-tests.ts` C13) and cannot be proven against
 the corpus until R-04 is populated. Recorded so the coverage claim stays honest.
 
+### R-19 — The signal fabric stamps civil wall-clock time where the scenario clock is authoritative · **OPEN — assigned `SCI-01`**
+
+Measured at `f9c5679c` against the running application. Two consecutive identical
+`GET /api/v1/signals` calls return byte-identical `baseline_value`, `observed_value`, `delta`,
+`delta_pct`, `confidence`, `quality`, `provenance` and `signal_id`, and differ **only** in
+`observed_at` and `effective_at`, which read `2026-09-15T20:28:37Z` and `…:38Z` — the wall clock.
+`canonicalScenarioNowIso()` is `2026-06-03T00:00:00.000Z`, and the canonical module states the rule
+in its own comment: the clock is anchored to the demand history, *"never to civil time"*.
+
+Two consequences, both live. Signal freshness is meaningless, because every signal is permanently
+zero seconds old. And the Observability *Refresh* control appears inert, because the only field that
+moves is the one field that should not move at all.
+
+**This is not `D-FM-2`.** That defect was the frozen `2026-06-04` window anchor on the forecast path
+and `FM-01` closed it; the forecast window now derives from the data's own coverage. This is the
+signal fabric, and it was never in scope of that migration. Recorded separately so neither is read as
+covering the other. Closed by ADR-078 under `SCI-01`.
+
+### R-20 — Observability signals contradict the canonical decision case · **OPEN — assigned `SCI-01`**
+
+The Observability & Governance signals panel issues `GET /api/v1/signals` with no scenario parameter.
+The route defaults to `family_id=promotion_surge`, `scenario_id=SCN-PROMO-01`, and the surface
+publishes `SUPPLIER_CAPACITY_PRESSURE` against entity **FreshDirect UK** — the supplier
+`DEMO-HARD-01` replaced with Cheshire Cheese Co (SUP002), and which
+`COGNIX_PRESENTATION_SYNC_DELTA.md` §3.3 records as a value any slide must change.
+
+The generator is **partly** migrated: it already names *Fresh Dairy* and *P004 Cheddar Mature 400g*
+correctly. This is a half-completed migration rather than an untouched legacy path, which is why it
+survived review — the surface looks canonical until the supplier is read. Highest client-visible
+risk in the estate at this baseline. Closed by ADR-077 under `SCI-01`, whose part 4 — no surface
+resolves a scenario by default — is what stops it returning through another route.
+
+### R-21 — `skuContextFactor` is a name hash with economic effect · **OPEN — assigned `SCI-01`**
+
+`lib/campaign-causal-engine.ts` applies `0.94 + (hashSeed(sku_scope‖region) % 13)/100`, a ±6% band on
+every causal number, derived from the **spelling** of a SKU list and a region name. It is
+deterministic and it is not explainable: *"because the hash of your region name was 1.03"* is not an
+answer a Decision Trace can give.
+
+Its own comment already records the argument against it — category was removed from the seed because
+*"renaming a category — even to the same thing spelled differently — moved every downstream number by
+up to 6% for no modelled reason"* — and that argument applies unchanged to the two dimensions still
+in the seed. It is also a hard blocker for authored scenarios, whose names are arbitrary strings: a
+scenario named *North West* and one named *Northwest* would differ economically by up to six per cent.
+
+It is a material part of the residual Promotion seam ADR-075 bounded rather than closed. Closed by
+ADR-079 under `SCI-01`, which retires it rather than parameterising it and re-derives the ADR-075
+assertion instead of relaxing it.
+
+### R-22 — `ESF-2`'s simulation engine is complete and consumed by no production surface · **OPEN — assigned `SCI-05`**
+
+`POST /api/v1/signals/simulate` and `simulateEnterpriseSignalTimelines` exist, are deterministic, are
+tested by `run-esf2-tests.ts`, and already take a `SignalSimulationContext` carrying scenario,
+decision-state version, promotion lift, supplier cap, horizon, cannibalisation and selected
+interventions, returning timelines across `T-90 … T+30` with per-observation provenance.
+
+No production surface calls it. The Observability Refresh re-issues a `GET` against a deterministic
+snapshot instead. The capability for a meaningful Refresh was built by `ESF-2` and never wired.
+Recorded because it changes the cost of ADR-081 from *build an engine* to *consume one*. Closed by
+`SCI-05`.
+
+### R-23 — The Master Plan understated the cross-surface assertion count · **CLOSED**
+
+`MASTER_PLAN.md` recorded the `DEMO-HARD-01` suite as *"74 cross-surface and currency assertions"*.
+Measured at `f9c5679c`: **243 passed, 0 failed**. `DEMO-HARD-02` and `DEMO-HARD-04` added assertions
+without updating the narrative. Nothing was wrong with the tests. Corrected in the Master Plan in the
+same commit as this entry.
+
+### R-24 — Programme 10 phase letters collide between the planned and completed lists · **OPEN — GOVERNED**
+
+`MASTER_PLAN.md` lists Phases 10A–10J twice with different meanings. In the planned list 10E is
+Shared Decision State and 10F is Pattern Matching ML; in the completed list 10C is Shared Decision
+State and 10D is Memory & Learning API Extraction. The letters do not correspond, so a citation of
+"Phase 10E" resolves differently depending on which list the reader found first.
+
+**Recorded rather than renumbered.** Renumbering would invalidate citations in nine reports and in
+`COGNIX_INNOVATION_BACKLOG.md`. A reader should treat the *completed* list as authoritative for what
+was built and the *planned* list as authoritative for what remains, and cite by capability name
+rather than by letter.
+
+### R-25 — `ATL-06B` assertion `A6b` is stale, and the estate carries two Google SDKs · **OPEN — GOVERNED**
+
+`run-atl06b-tests.ts` `A6b` asserts *"…and package.json gained no new provider dependency"*, checking
+that `@google/genai` appears in neither `dependencies` nor `devDependencies`. At `f9c5679c` it does:
+`@google/genai ^2.17.1`. **The runner fails 1 of 133 assertions on the pristine baseline.**
+
+**The assertion is stale; the code is not.** `ATL-06B` shipped its grounding adapter over REST with no
+SDK, and the assertion recorded that fact. Commit `d625235` (2026-08-18, *"feat(api): integrate
+@google/genai for enhanced Gemini API functionality"*, in ancestry) subsequently added the SDK for a
+different purpose: `lib/gemini.ts` calls it as the primary path with a REST fallback and model
+rotation, and `next.config.ts` declares it in `serverExternalPackages`. The assertion was never
+updated to distinguish *the grounding adapter adds no SDK* from *the estate adds no SDK*.
+
+**The estate therefore carries two Google SDKs**, both for the same provider:
+
+| Package | Used by | Purpose |
+|---|---|---|
+| `@google/genai` ^2.17.1 | `lib/gemini.ts` | Primary Gemini call path, with REST fallback |
+| `@google/generative-ai` ^0.24.1 | `lib/gemini.ts`, `lib/atlas/grounding/providers/*` | Legacy client and the grounding types |
+
+**This does not breach ADR-083 or the `SCI` GenAI position.** Both are Google; no third-party provider
+exists, and no `SCI` packet introduces one. What it does mean is that a governance record claiming
+*"no provider dependency"* is inaccurate, and that consolidating onto one SDK is real, unscheduled
+work.
+
+**Disposition.** The assertion is corrected — not deleted — by whichever packet next touches provider
+configuration, and the correction states what `ATL-06B` actually meant: *the grounding adapter imports
+no SDK*, which remains true and is separately asserted by `A6`. Recorded here rather than fixed in the
+governance-authoring commit, because changing a test is an application change and this task is
+governance-only. Until then, a `SCI` convergence gate passes on **no regression against a 43-of-44
+baseline**, not on a clean estate — see `COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md` §6 item 5.
+
+**How it went unnoticed.** A shell loop over the runners reports the exit status of its last command,
+so a single failing runner is masked unless each is checked individually. Both the earlier assessment
+pass and this one initially reported a clean estate for that reason. Recorded so the next reader
+checks per-runner rather than per-loop.
+
 ---
 
 ## 2. Storyboard gate — condition state

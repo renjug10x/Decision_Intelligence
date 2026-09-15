@@ -547,6 +547,30 @@ key is a capability gap, not a broken deployment.
 and nothing else.
 
 
+
+#### ADR-044 Amendment B — the authority semantics extend to scenario drafting (`SCI-07`, 2026-09-15)
+
+**Approved, not yet implemented.** `ADR-083` extends this ruling from the Decision Context input
+boundary to scenario authoring. The semantics are carried over unchanged and are restated here so
+the original ruling is not read as narrower than it now is.
+
+| | Decision Context drafting (`CDI-01`, implemented) | Scenario drafting (`SCI-07`, authorised) |
+|---|---|---|
+| What is drafted | contextual factors, open questions, assumptions | scenario structure, qualitative assumptions, semantic column mappings, explanation |
+| Stamp | `GENAI_DRAFT` / `NON_AUTHORITATIVE_DRAFT` | identical |
+| Quantitative content | rejected on the response | identical — a drafted item carrying a percentage, currency symbol, decimal quantity or thousands-separated figure is rejected |
+| Absent provider | `503` naming the variable; nothing generated | identical |
+| Provider failure | `502`; no canned fallback on any path | identical |
+| Credential | `process.env.GEMINI_API_KEY`, server-side only | identical; the legacy client-key path is **not** extended |
+| Entry to a governed record | only on explicit human selection | only on explicit human confirmation, after which every quantity is recomputed deterministically |
+
+**One condition is added, and it is the acceptance test for `SCI-07`:** a confirmed scenario must
+resolve, certify and run **identically with `GEMINI_API_KEY` unset**. Amendment A's debt statement is
+unchanged and load-bearing here — *"Nothing new may use it"* applies to `SCI-07` and `SCI-10` in
+full.
+
+---
+
 ### ADR-045: The Capability Atlas Is the Governed Capability Knowledge Layer, Built On the Existing Registries (ATL)
 - **Status:** Approved — governance registration 2026-08-20. **Not implemented** (`ATL-01` … `ATL-07` planned).
 - **Context:** Knowledge about what CogniX can do is distributed across `config/solutions.ts` (`SOL-*`), `config/experiments.ts` (`EXP-*`), `config/patterns.ts` (`PAT-*`), `config/domains.ts`, `config/personas.ts`, forty-plus `docs/reports/` work-package reports, the `MASTER_PLAN`, and the code itself. Each artefact serves one audience well. No artefact answers, for one capability, the full set: *what is it, why does it exist, how does it work, where is it implemented, how do I test it, how do I demonstrate it, what proves it works, what are its limits, where else does it apply, and what should I say to a client?* A seller, an architect and a developer currently reconstruct that answer by hand, differently each time, and an autonomous agent cannot reconstruct it at all.
@@ -631,6 +655,29 @@ the Atlas still adds only the knowledge they do not carry.
 - **Decision:** **Preserve architectural knowledge, not obsolete storyboard implementation.** The historical 14-slide implementation, its restoration commits, its `ArchitectureExplorer.tsx` and its `Help.tsx` are **not merged, cherry-picked or ported**. `ATL-01` instead inspects **both** versions read-only — the 12-slide current version on the CogniX line and the 14-slide historical version on `main` — and identifies architectural knowledge unique to either. Every retained unit is assigned a destination: a capability record field, capability architecture, platform architecture, domain architecture, an ADR, or other governance. The current storyboard is not deleted or disabled during `ATL-01`.
 - **The retirement gate (`SB-GATE`), all six required:** ① both versions audited slide by slide with a retain/discard decision per unit of knowledge; ② every retained unit verifiably present at its destination; ③ destinations reachable from the Atlas or from governance, not only from a file; ④ persona journeys, the enterprise blueprint, the recommendation lifecycle, the governance-and-trust narrative and the constrained-reasoning narrative each have a named successor surface; ⑤ presenter notes and demo timings preserved as Demo Path content; ⑥ retirement proposed in a work package that also names what replaces the navigation entry.
 - **Consequences:** Architecture transparency cannot be lost as a side effect of adding the Atlas. If the gate cannot be met, the storyboard remains and the Atlas coexists with it. The historical branch stays available as a read-only audit source and is never a merge source.
+
+---
+
+
+#### ADR-051 Amendment A — the successor surface is named, and the gate closes by construction (`SCI-09`, 2026-09-15)
+
+**Approved, not yet implemented.** This ruling created `SB-GATE` and required all six conditions
+before the Architectural Storyboard may be retired. `ATL-FINAL` re-assessed it at **3 of 6** and the
+capability record states plainly that the storyboard *must not be deleted until the gate passes*.
+That position is unchanged by this amendment and is not weakened by it.
+
+What this amendment adds is the missing instrument. The two substantive blockers are `SB-GATE-4`
+(slides 6 and 7 — supply chain and executive briefing — have no successor surface, because those
+capabilities are orphaned) and `SB-GATE-6` (retirement must be proposed in a work package that names
+the navigation successor). **`SCI-09` is authorised as that work package and is named the navigation
+successor.** It closes `SB-GATE-6` by construction and is scoped to resolve `SB-GATE-4` by carrying
+the two orphaned narratives or by recording, per `R-16`, that they have no home and why.
+
+**Three constraints carry forward unchanged.** The historical implementation is never merged.
+Unsupported demo constants do not migrate — every `outcomeMetric` figure remains excluded under
+Principle 12 and the `D-DDF-2` precedent. And retirement happens only when the gate reads 6 of 6 with
+evidence recorded in `COGNIX_ATLAS_RESIDUAL_REGISTER.md` `R-07`. Until then the storyboard is
+retained, labelled retired and simulated, exactly as it is today.
 
 ---
 
@@ -1092,6 +1139,34 @@ the Atlas still adds only the knowledge they do not carry.
 
 ---
 
+
+#### ADR-073 Amendment A — one canonical decision-case MODEL, instantiated per scenario (`SCI-01`, 2026-09-15)
+
+**Approved, not yet implemented.** The original ruling declared *one canonical decision case*, and at
+the time that was the whole requirement: the estate had one scenario and three surfaces that
+disagreed about its arithmetic. The Scenario Laboratory direction requires several scenarios, and
+the ruling has to say which part of it was about *singularity* and which part was about *coherence*.
+
+**It was always about coherence.** The rules in §2 of `COGNIX_CANONICAL_SCENARIO.md` — no surface
+restates a declared value as its own literal, no surface derives a second basis for a quantity the
+record already answers, supply is declared as ratios and never as counts, behaviour may be seeded but
+economics must be derived, money is modelled in GBP and converted once — are properties of a
+scenario, not properties of there being exactly one. Each survives per scenario unchanged, and the
+module's own note that the scenario *"rescales coherently from one number"* is why.
+
+**What changes:** `CanonicalScenario` is read as the model; `SCN-FRESH-DAIRY-CHEDDAR-001` is its first
+instance and remains the protected reference. Derivations become functions of a scenario instead of
+functions of a module constant. **What does not change:** every rule in §2, every invariant the
+reconciliation suite asserts, and every published value of the connected journey — `SCI-01`'s
+acceptance requires the protected journey's figures to be unchanged to the digit against
+`COGNIX_PRESENTATION_SYNC_DELTA.md` §1 and §2.
+
+**What replaces singularity as the guard:** `ADR-080`'s Scenario Certification Gate. Singularity was
+protecting the estate from a second disconnected economic universe; certification does that job for
+any number of scenarios, and does it by test rather than by scarcity.
+
+---
+
 ### ADR-074: Money Is Modelled in One Currency and Converted Once, at the Point of Display (`DEMO-HARD-01`)
 - **Status:** Approved and **implemented** (2026-09-15). Enforced by the currency section of `tests/unit/run-canonical-scenario-tests.ts`.
 - **Context:** The demonstration is shown to readers who think in dollars and euros. The failure mode a currency selector invites is a symbol swap — the same number with a different sign in front of it — and the failure mode a careful implementation invites is double conversion, where a converted amount is passed back through the layer and multiplied again. Both produce a screen that looks right and is wrong, which is worse than a screen that is obviously untranslated.
@@ -1121,3 +1196,91 @@ the Atlas still adds only the knowledge they do not carry.
 - **Decision, part 2 — a legacy store count is read as a SHARE of the estate it was written for.** A play naming fifty stores was not describing a smaller campaign; it was describing a different company. Counts at or below `LEGACY_DEMO_ESTATE_STORES` are re-expressed against the declared estate; anything larger was already written against it and is left alone.
 - **Decision, part 3 — "do not discount" is a recommendation, not a failure.** Under honest pricing five of the seven archetypes have no accretive depth, and the best point on their curve is zero. That is the correct answer for a premium inelastic line, a clearance scenario whose case is waste rather than contribution, and a portfolio play that buys volume by trading its own margin away. The platform has a declared posture for it. The recommendation flag is therefore set to the best point on the curve **even when that is the current plan**, because suppressing it left the surface with no recommendation at all, which reads as a broken panel rather than as the answer it is.
 - **Consequences:** No archetype needed removing from the client-facing selector, which was the alternative the work package authorised. One genuine defect surfaced: `ARCH-SEASONAL-WINDOW` offered two plays at the same depth and scope differing only in length, and once depth was priced honestly the shorter one dominated the longer on every axis, collapsing the frontier to a non-choice. It gained the play the archetype exists to argue for — take the holiday window, hold the price — which is also the best point on its curve.
+
+---
+
+### ADR-077: One Scenario Identity — Enterprise World Families and Campaign Archetypes Are Projections, Never Parallel Universes (`SCI-01`)
+- **Status:** Approved, **not yet implemented**. Authorised 2026-09-15 against baseline `f9c5679c`. Implementation is `SCI-01`; enforcement will be `tests/unit/run-canonical-scenario-tests.ts` generalised per scenario under `SCI-02`.
+- **Context:** `ADR-073` declared one canonical decision case and derived the connected journey from it. It did not say what the *other two* scenario concepts in the estate were. At `f9c5679c` there are three, and they disagree. `CANONICAL_SCENARIO` (`SCN-FRESH-DAIRY-CHEDDAR-001`) carries the hardened economics and is read at 227 call sites across 29 files. `ENTERPRISE_WORLD_SCENARIOS` carries six `ScenarioFamilyId` families served at `/api/v1/scenarios`, still priced on the retired estate — `SCN-PROMO-01` declares a 55,000-unit week and a £142,000 exposure against supplier **FreshDirect UK**, the party `DEMO-HARD-01` replaced with Cheshire Cheese Co because a flex notice must be served on whoever makes the product. `CampaignArchetype` carries seven situations which `DEMO-HARD-04` put on the canonical framework but which `COGNIX_PRESENTATION_SYNC_DELTA.md` records as appearing nowhere in the connected narrative. The consequence is visible today: the Observability & Governance signals panel sends no scenario, the route defaults to `family_id=promotion_surge`, and a governance surface publishes `SUPPLIER_CAPACITY_PRESSURE` against a supplier the journey retired. Three internally consistent scenario models is the same failure `ADR-073` closed for economics, one level up.
+- **Decision, part 1 — `CanonicalScenario` is the single scenario identity.** One `scenario_id` flows through Demand, Promotion, Campaign Decision, signals, Shared Decision State, journey telemetry, Decision Ripple, Inventory, Observability & Governance and Experiments. Nothing else may originate a scenario identity, and no surface may resolve one by defaulting.
+- **Decision, part 2 — the other two become projections.** `ScenarioFamilyId` is retained as **taxonomy on** the canonical record: it classifies what kind of decision situation a scenario is, and it no longer carries economics. `ArchetypeId` is retained as the **commercial projection of** a scenario: it supplies elasticity, cannibalisation, plays and narrative, and it no longer supplies a second population, price basis or estate. `ENTERPRISE_WORLD_SCENARIOS` stops being a second world; its temporal series become a scenario's declared evidence rather than an independent baseline.
+- **Decision, part 3 — the record becomes a model instantiated per scenario, and the arithmetic spine is unchanged.** The canonical module already states that the scenario *"rescales coherently from one number — `base_demand_units_per_week`"*, because supply is declared as ratios rather than counts. That property is what makes this a parameterisation rather than a redesign: the derivations become functions of a scenario rather than of a module constant, and every invariant `DEMO-HARD-01` asserted survives per scenario. See `ADR-073` Amendment A.
+- **Decision, part 4 — no surface resolves a scenario by default.** A missing scenario is an error, never `promotion_surge`. This is what stops the `SCN-PROMO-01` contradiction reappearing through a different route.
+- **Consequences:** The curated catalogue stops being new construction and becomes promotion of situations the estate already prices. The blast radius of retiring the world-seed economics is small — `components/AvailabilityIntelligence.tsx` and the synthetic signal generator are its only consumers. `SCI-01` owns this contract; every other packet consumes it.
+
+---
+
+### ADR-078: The Scenario Clock Is the Only Clock for Deterministic Evidence (`SCI-01`)
+- **Status:** Approved, **not yet implemented**. Authorised 2026-09-15. Implementation is `SCI-01`.
+- **Context:** `canonicalScenarioNowIso()` exists, is correct, and states the rule in its own comment: the clock is anchored to the demand history the journey is reading, *"never to civil time, so the demonstration never goes stale and never drifts between surfaces."* The signal fabric does not obey it. Measured at `f9c5679c` against the running application: two consecutive identical `GET /api/v1/signals` calls return byte-identical `baseline_value`, `observed_value`, `delta`, `delta_pct`, `confidence`, `quality` and `provenance`, and differ **only** in `observed_at` and `effective_at`, which are stamped with civil wall-clock time. The scenario clock is `2026-06-03T00:00:00.000Z`; the signals were stamped `2026-09-15T20:28:37Z`. Two consequences follow and both are live. Freshness is meaningless, because every signal is always zero seconds old. And the Observability *Refresh* control appears to do nothing, because the only field that moves is the one field that should not move at all. This is a different defect from `D-FM-2`, which `FM-01` closed on the forecast path; the forecast window now derives from the data's own coverage while the signal fabric still reads the wall clock.
+- **Decision, part 1 — every deterministic scenario observation is stamped on the scenario clock.** `observed_at` and `effective_at` on `EnterpriseSignal` and `EnterpriseSignalObservation`, every `SimulationPeriod` mapping, and every window the Observability surface presents as evidence age, resolve through the scenario clock.
+- **Decision, part 2 — civil time is retained only where it is the truth.** Server receipts, journey telemetry ingestion, audit records and operational health readings describe when the *platform* did something and keep wall-clock time. The distinction is the test: if the value describes the modelled world, it is scenario time; if it describes the running system, it is civil time. A record that is both carries both, named.
+- **Decision, part 3 — freshness is measured against the scenario clock, and is therefore demonstrable.** A signal observed at `T-5` is five scenario days old on every machine, in every timezone, on every run, in September and in March.
+- **Consequences:** Signal freshness becomes a usable dimension of Evidence & Signals rather than a permanently-zero field. It is a precondition for `ADR-081`: Refresh cannot publish a meaningful delta while the only thing that changes between two reads is a timestamp taken from the wall clock. `SCI-01` owns the clock contract.
+
+---
+
+### ADR-079: A Scenario's Differentiation Is Declared, Never Hashed (`SCI-01`)
+- **Status:** Approved, **not yet implemented**. Authorised 2026-09-15. Implementation is `SCI-01`, with the bound currently asserted by `run-canonical-scenario-tests.ts` §8 replaced rather than relaxed.
+- **Context:** `lib/campaign-causal-engine.ts` applies `skuContextFactor`, a ±6% band derived from `hashSeed(sku_scope.join('|') + '::' + region)`. It is deterministic, and its own comment records why category was already removed from the seed: *"renaming a category — even to the same thing spelled differently — moved every downstream number by up to 6% for no modelled reason, and on a demo whose economics sit near a contribution breakeven that jitter was enough to flip a verdict."* That argument applies unchanged to SKU and region, which remain in the seed. Three consequences. It is a material part of the residual Promotion seam `ADR-075` bounded rather than closed. It cannot be explained on a Decision Trace — *"because the hash of your region name was 1.03"* is not an answer a client will accept from a platform whose proposition is that every number is traceable. And it is a hard blocker for user-authored scenarios, whose SKU and region names are arbitrary strings: a scenario the user names *"North West"* and one they name *"Northwest"* would return economics differing by up to six per cent.
+- **Decision, part 1 — differentiation becomes a declared scenario property.** Where a scenario genuinely differs by SKU or region, the difference is declared on the scenario record with a stated reason, exactly as elasticity already is. Where it does not, there is no modifier.
+- **Decision, part 2 — `skuContextFactor` is retired, not parameterised.** Keeping the hash behind a flag preserves the defect for whoever turns the flag on.
+- **Decision, part 3 — the `ADR-075` bound is re-derived, not deleted.** §8 of the canonical suite currently asserts exact agreement at the scenario's own scope and a bounded difference elsewhere, where the bound is the hash band. After retirement the divergence between the planning curve and the causal engine is audience, placement and timing only — which is what `ADR-075` said it was. The assertion becomes exact agreement on the depth response at every scope, with the design components named. If it does not, the seam is larger than the hash and that is a finding worth having.
+- **Consequences:** The residual Promotion two-model seam narrows to its genuine cause. Decision Trace becomes answerable end to end. User-authored scenarios become arithmetically stable under renaming. `ADR-075` is amended in effect rather than in text: its bridge stands, its bounded-divergence clause loses the term that produced the bound.
+
+---
+
+### ADR-080: No Scenario Becomes Demo-Active Until It Is Certified, and Non-Applicability Is Declared Rather Than Fabricated (`SCI-02`)
+- **Status:** Approved, **not yet implemented**. Authorised 2026-09-15. Implementation is `SCI-02`. Specified in [`COGNIX_SCENARIO_CERTIFICATION.md`](../governance/COGNIX_SCENARIO_CERTIFICATION.md).
+- **Context:** `DEMO-HARD-01` existed because three surfaces told one story on incompatible arithmetic. Its defence is `tests/unit/run-canonical-scenario-tests.ts`, which at `f9c5679c` runs **243 assertions** against **one** scenario. The moment a second scenario exists, that defence has a hole exactly the shape of the original defect: a new scenario can create a new disconnected economic universe and every existing test stays green, because every existing test is about the old one. A curated catalogue without a generalised gate is the `DEMO-HARD-01` defect with more surface area.
+- **Decision, part 1 — certification is a gate, not a report.** A scenario carries a certification state. Only a certified scenario may be demo-active. The gate covers identity, economics, calendar and scenario clock, signals, Demand, Promotion, Campaign Decision, consequences, currency, deterministic reset, provenance and cross-surface reconciliation.
+- **Decision, part 2 — the reconciliation suite is generalised, not duplicated.** The assertions become a harness parameterised by scenario, run over the registered catalogue. A scenario that does not reconcile fails the suite; it does not merely fail to appear.
+- **Decision, part 3 — `N/A` is a declared verdict with a reason, and is never a pass.** A scenario that does not model fulfilment capacity declares fulfilment checks `NOT_APPLICABLE` with the reason recorded. What is forbidden is the third state the estate has seen before: a check that silently passes because the quantity it examines does not exist. `ATL-FINAL` set this precedent by declaring two repository checks **unmeasured** rather than reporting a zero the route could not earn; this applies the same rule to scenarios.
+- **Decision, part 4 — the canonical scenario is certified by the same gate as every other.** If the gate cannot certify `SCN-FRESH-DAIRY-CHEDDAR-001`, the gate is wrong. This is what stops certification becoming a formality applied only to newcomers.
+- **Consequences:** Adding a scenario becomes a bounded, testable act with a published verdict. The protected Demand → Promotion → Campaign Decision journey gains a regression guard that survives the arrival of scenarios two and three. `SCI-02` owns the certification contract; `SCI-03` is its first consumer and its first real test.
+
+---
+
+### ADR-081: Refresh Advances Scenario Evidence and Must Publish Whether the Decision Changed (`SCI-05`)
+- **Status:** Approved, **not yet implemented**. Authorised 2026-09-15. Implementation is `SCI-05`, reactivating `ESF-4`.
+- **Context:** The Observability & Governance *Refresh signals* control calls `loadSignals()`, which re-issues `GET /api/v1/signals`. The generator is deterministic, so every value returns identical and the control appears inert — correctly, because re-reading an unchanged snapshot is what it does. Meanwhile `POST /api/v1/signals/simulate` already exists, already takes a `SignalSimulationContext` carrying scenario, decision-state version, promotion lift, supplier cap, horizon, cannibalisation and selected interventions, and already returns `EnterpriseSignalTimeline[]` across `T-90 … Today … T+30` with per-observation provenance naming the rule, the drivers and the intervention references. The engine for a meaningful Refresh was built by `ESF-2` and the Observability surface does not call it.
+- **Decision, part 1 — Refresh is a scenario operation, not a fetch.** It advances the scenario's as-at marker one `SimulationPeriod` along the scenario clock, re-evaluates the intelligence that depends on the advanced evidence, and republishes.
+- **Decision, part 2 — Refresh must publish a delta, and the delta must reach the decision.** What is new, what aged, what moved materially, and — the part that makes it Decision Intelligence rather than a data view — **whether the recommendation or decision changed**. A Refresh that cannot say what it changed has not earned the control.
+- **Decision, part 3 — determinism is the acceptance condition.** The same scenario advanced to the same period produces the same state on every run. No random movement, no jitter, and nothing whose only purpose is to make the interface look alive. `Restart scenario` returns the marker to the opening position, and the existing reset assertions extend to cover it.
+- **Decision, part 4 — materiality and decision relevance are derived, never authored.** A signal does not declare its own importance. Materiality is whether it moved a published quantity and by how much; decision relevance is whether it changed a recommendation, a readiness verdict or a window. This is what makes *signal → evidence → material change → decision relevance* a computation rather than a caption.
+- **Decision, part 5 — no second confidence number.** `ADR-072` rules that uncertainty is published twice, as what the model implies and what its errors demanded, and never as a bare confidence percentage. Materiality does not become a score to sit beside the `confidence` and `quality` fields `ESF-1` already carries.
+- **Consequences:** The weakest surface in the demonstration becomes one of the strongest: an audience watches a recommendation change because evidence changed, which is the platform's whole proposition in one control. `ESF-4` is reactivated rather than duplicated. `SCI-05` owns the Refresh and materiality contracts; `SCI-06` consumes them.
+
+---
+
+### ADR-082: One Provenance Vocabulary, Mapped From the Five the Estate Already Has (`SCI-01`)
+- **Status:** Approved, **not yet implemented**. Authorised 2026-09-15. Implementation is `SCI-01`, extended in use by `SCI-05` and `SCI-07`.
+- **Context:** Provenance is already carried in at least five places and they overlap without contradicting: `EvidenceProvenance`, `DemandInputProvenanceClass`, `TelemetryProvenance`, the archetype decision-graph enum (`SEEDED_OBSERVATION | DERIVED | SIMULATED | SEEDED`), the structured `provenance{}` on signal observations, and attested-observation authority under `ESF-6`. Measured across `packages/contracts/src`, `lib` and `content`: `DERIVED` ×104, `SEEDED_OBSERVATION` ×19, `OBSERVED` ×10, `SIMULATED` ×8, `MODELLED` ×5. Once a scenario can also be authored by a user and drafted by GenAI, a reader has to be told which of eight origins a number has, and eight is not a thing a business user holds in their head.
+- **Decision, part 1 — one declared vocabulary, in three dimensions, that the existing enums map onto.** `origin` — `observed · attested · stated · derived · modelled · drafted`. `method` — `measured · rule · statistical · llm · manual`. `authority` — `authoritative · non_authoritative_draft`. Three fields, every one of them already implied by a standing decision: `authority` exists today through `ADR-044`, `method` is what the Models & Methods register publishes, and `origin` is the union of the five enums above.
+- **Decision, part 2 — mapping, not replacement.** The existing enums are retained and mapped. Rewriting 146 call sites to satisfy a vocabulary is a large change for no behavioural gain and would touch files three packets need frozen.
+- **Decision, part 3 — the vocabulary must reduce to one sentence a business user can read.** *"Demand is observed from your file; supplier capacity is modelled because you did not supply it; the margin exposure is derived by CogniX; the summary was drafted by AI and confirmed by you."* If a proposed addition cannot appear in that sentence, it does not belong in the vocabulary.
+- **Decision, part 4 — no fourth dimension.** Not a confidence score on top of `ADR-072`, not a provenance graph, not a lineage tree. `ADR-053` (contradiction is separated, never resolved), `ADR-054` (admission conditions), `ADR-055` (provenance read from the source, not the model) and `ADR-057` (reason only from admitted evidence) already carry the hard cases.
+- **Consequences:** Decision Trace and Evidence & Signals can present origin consistently without a per-surface glossary. `SCI-01` owns the vocabulary because it is declared on the scenario record.
+
+---
+
+### ADR-083: A Drafted Scenario Is Not a Scenario Until It Is Confirmed, and a Confirmed Scenario Reproduces Without GenAI (`SCI-07`)
+- **Status:** Approved, **not yet implemented**. Authorised 2026-09-15. Implementation is `SCI-07`. Extends `ADR-044`; see `ADR-044` Amendment B.
+- **Context:** *Create Your Own Scenario* asks Google GenAI to interpret a business-language description, propose scenario structure, map uploaded columns semantically and suggest qualitative assumptions. `ADR-044` already governs this exact shape of problem at the Decision Context boundary and its ruling is the one to extend, not to re-derive: a draft is stamped `source: GENAI_DRAFT`, `authority: NON_AUTHORITATIVE_DRAFT`; the prompt's rules are enforced **on the response**, so any item carrying a percentage, a currency symbol, a decimal quantity or a thousands-separated figure is rejected outright because that route has no data with which to support a measured claim; the provider refuses rather than fabricates, returning `503` naming the missing variable and `502` on provider or validation failure, with no canned fallback on any path.
+- **Decision, part 1 — the same authority semantics apply, with the same enforcement.** GenAI may propose that supplier flex is *limited*, that the category is chilled, that the horizon is a fortnight, that a column called `qty_wk` is probably weekly units. It may not propose that flex is 12%. Every quantitative field is set by the user or defaulted by a declared scenario model, and is recomputed deterministically by CogniX engines once confirmed.
+- **Decision, part 2 — the reproduction test is the acceptance condition, not a nice-to-have.** A scenario confirmed with GenAI assistance must resolve, certify and run identically with `GEMINI_API_KEY` unset. Because what the model produced was structure, and the structure was saved. A scenario that cannot be reproduced without the provider is not admissible to the catalogue.
+- **Decision, part 3 — the credential path is the governed one, unchanged.** Server-side `process.env.GEMINI_API_KEY` through the existing governed provider and model configuration (`ADR-067`). No new provider is introduced for this capability. The legacy client-supplied key path (`/api/ask`, `/api/briefing`, recorded as `R-15` and in `ADR-044` Amendment A) is not extended, not reused and not revived: *"Nothing new may use it"* stands.
+- **Decision, part 4 — injection surface.** User description text and uploaded content are fenced as application data, never as instruction, exactly as `ADR-044` fences the planner's existing entries. Raw cell values never reach the provider; column headers, inferred types and a small number of redacted samples do. Every proposed field mapping is validated against a closed allowlist of canonical scenario fields and anything outside it is rejected rather than coerced.
+- **Consequences:** *Create Your Own Scenario* inherits a boundary that is already implemented, already tested and already survived a security review, instead of inventing a second one. The demonstration path never depends on the provider being reachable, which is `ADR-044`'s consequence clause applied one level up.
+
+---
+
+### ADR-084: Parallel Lanes Consume Frozen Contracts — A Contract Has Exactly One Owning Packet (`SCI` programme)
+- **Status:** Approved, **not yet implemented**. Authorised 2026-09-15 as the execution discipline for the `SCI` programme. Recorded in [`COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md`](../governance/COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md).
+- **Context:** `SCI` will be implemented by two agents — Cursor and Antigravity — working concurrently. Concurrency on a codebase whose whole value is cross-surface agreement is a specific risk: two lanes that independently adjust the same contract produce two economic models again, which is the defect `ADR-073` and `ADR-080` exist to prevent, arriving through the process rather than through the code.
+- **Decision, part 1 — every convergence contract has exactly one owning packet.** The owner may change it; every other packet consumes it as frozen. The register of contracts and owners is in the work-packet record and is authoritative.
+- **Decision, part 2 — a contract is frozen at a declared convergence SHA, not at a moment in time.** A lane starts from a named base SHA. A contract change after freeze is a convergence event, not a commit.
+- **Decision, part 3 — two packets may run concurrently only if they can be independently committed and independently reverted.** The operational test: they must not modify the same core files, redefine the same contract, independently change navigation, independently modify `CanonicalScenario`, or independently alter the same tests. If two desired packets cannot meet that test, they are sequential. **Artificial parallelism is forbidden** — a wave with one packet in it is a correct outcome where the dependency graph says so.
+- **Decision, part 4 — a wave ends at a convergence gate and the gate is evidential.** Both branches committed, independent packet tests green, deliberate merge against the declared base, no unresolved contract drift, full relevant regression, Scenario Certification Gate green where applicable, the protected Demand → Promotion → Campaign Decision values reconciled against `COGNIX_PRESENTATION_SYNC_DELTA.md`, browser acceptance performed, and only then governance status updated and a new convergence SHA recorded. No wave starts before its predecessor's gate passes.
+- **Decision, part 5 — governance status follows evidence, never intent.** A packet is `[COMPLETED]` when its acceptance evidence exists and is cited. This repeats `ATL-FINAL`'s rule because parallel execution multiplies the temptation to mark a lane done so the other can proceed.
+- **Consequences:** Parallelism becomes deterministic rather than opportunistic. The cost is that Wave 0 is single-lane, which is the correct answer: the scenario contract cannot be frozen and consumed in the same wave that creates it.

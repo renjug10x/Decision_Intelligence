@@ -268,7 +268,7 @@ A canonical, source-independent mechanism for representing business, customer, o
 - **ESF-1 — Enterprise Signal Contract & Synthetic Signal Foundation [COMPLETED]:** Canonical `EnterpriseSignal` OpenAPI 3.1 & TypeScript contract schema, taxonomy, source classification, deterministic generator in `cognix-world`, same-origin BFF proxy (`/api/v1/signals/*`), developer diagnostic view, and Shared Decision State integration. *Dependencies: WP10-A, WP10-C.*
 - **ESF-2 — Dynamic Signal Simulation [COMPLETED]:** Deterministic simulation engine evolving enterprise signals dynamically over time based on active scenario, Commercial Intent, Shared Decision State, and selected interventions (`Intent Registered → Engagement Accelerates → Slot Pressure Emerges → Demand Acceleration Materialises`). *Dependencies: ESF-1.*
 - **ESF-3 — External Signal Connector Contract [COMPLETED]:** Provider-neutral connector abstraction enabling planning, commerce, weather, events, competitive intelligence, operational telemetry, and demographic feeds to publish into the canonical `EnterpriseSignal` contract via envelope normalisation. Vendor platforms remain reference adapters only. *Dependencies: ESF-1.*
-- **ESF-4 — Signal Quality, Confidence & Provenance:** Signal reliability metrics, freshness tracking, completeness scoring, and source classification (`synthetic_world`, `commerce_telemetry`, `planning_system`, `supplier_feed`). *Dependencies: ESF-6, ESF-2, ESF-3 — admission precedes grading (G4).*
+- **ESF-4 — Signal Quality, Confidence & Provenance [REACTIVATED 2026-09-15 → implemented by `SCI-05`]:** Signal reliability metrics, freshness tracking, completeness scoring, and source classification (`synthetic_world`, `commerce_telemetry`, `planning_system`, `supplier_feed`). *Dependencies: ESF-6, ESF-2, ESF-3 — admission precedes grading (G4).* **Its blocking dependency `ESF-6` completed, so the G4 rule is satisfied and the item is unparked.** It is carried by `SCI-05` — reactivated, not duplicated; no parallel signals programme is opened. `SCI-05` adds freshness on the scenario clock (ADR-078), the ADR-082 provenance vocabulary, and derived materiality and decision relevance. It adds **no third confidence score** — ADR-072 stands.
 - **ESF-5 — Learned Signal Behaviour:** ML phase scoring signal sequences, precursor patterns, and signal-to-outcome correlations against historical memory precedents. *Dependencies: WP10-D, ESF-4, Phase 10F.*
 - **ESF-6 / Y3a — Attested Observation Admission [DESIGN FROZEN 2026-08-16]:** Server-side attested source registry, deterministic server-issued receipts, and the admission predicate `source × context → authority`. The only origin of `synthetic_demo = false` in the estate. Supersedes `Y3`; specified in full in the CDI section below. *Dependencies: ESF-3, CDI-08.*
 
@@ -1092,7 +1092,7 @@ deliberately not a release-management framework.
 | **Engineering state** | **READY for owner acceptance testing** |
 | **What "ready" means** | Every authorised work package is `[COMPLETED]`, every recorded defect on the forecast path is closed with regression evidence, the full test estate is green, the production build is clean, governance enforces clean, and credential isolation holds |
 | **What it does not mean** | The owner has not tested it. Acceptance is the next gate and DevOps handoff follows acceptance, not this record |
-| **Canonical continuation after Release 1.0** | **`ESF-4` — Signal Quality, Confidence & Provenance.** Parked, **not** superseded, cancelled or deprioritised. `FM-01` does not unpark it |
+| **Canonical continuation after Release 1.0** | **`ESF-4` — Signal Quality, Confidence & Provenance.** Parked at `FM-01`, **not** superseded, cancelled or deprioritised; `FM-01` did not unpark it. **Unparked 2026-09-15** on the evidence that its blocking dependency `ESF-6` completed, and carried by `SCI-05`. See [`COGNIX_BACKLOG_RECONCILIATION_2026_09.md`](COGNIX_BACKLOG_RECONCILIATION_2026_09.md) §2.1 |
 | **Detailed evidence** | [`COGNIX_FM_01_GOVERNED_FORECAST_MIGRATION_REPORT.md`](../reports/COGNIX_FM_01_GOVERNED_FORECAST_MIGRATION_REPORT.md) |
 
 **What Release 1.0 contains, at capability level:** Phases 0–9, Programme 10 A–D, `IFI-01`,
@@ -1138,7 +1138,7 @@ product, region and horizon the previous two screens had just established.
 | **Multi-currency** | GBP base, USD and EUR display; ECB rates through the platform's own cached endpoint, dated fallback, no credential. ADR-074 |
 | **Repeatability** | A *Restart scenario* control returns the demonstration to its opening position deterministically |
 | **Continuity** | A restrained scenario identity strip states the product, scope and horizon on every surface |
-| **Tests** | `tests/unit/run-canonical-scenario-tests.ts` — 74 cross-surface and currency assertions that fail if two surfaces stop agreeing on the same quantity |
+| **Tests** | `tests/unit/run-canonical-scenario-tests.ts` — cross-surface and currency assertions that fail if two surfaces stop agreeing on the same quantity. **Recorded as 74 at `DEMO-HARD-01` closure; measured at `f9c5679c` as 243 passed / 0 failed** after `DEMO-HARD-02` and `-04` added to it. Corrected 2026-09-15 per residual `R-23` |
 
 **Evidence.** [`COGNIX_PRESENTATION_SYNC_DELTA.md`](../reports/COGNIX_PRESENTATION_SYNC_DELTA.md)
 states, value by value, what the live application now shows against the pre-hardening demonstration
@@ -1188,9 +1188,116 @@ conclusion.** The promotion, ripple and inventory values moved and are listed th
   image could not be pulled and no image was built. The commands are in the closure report and need
   running on a machine with unrestricted registry access.
 
-**Unchanged by this work.** `ESF-4` remains the canonical Master Plan continuation after Release 1.0,
-parked and not superseded. Release 1.0's contents, limitations and acceptance gate are unaffected;
+**Unchanged by this work.** `ESF-4` remained the canonical Master Plan continuation after Release 1.0,
+parked and not superseded, at the time this section was written. **It was unparked on 2026-09-15** by the
+`SCI` authorisation and is carried by `SCI-05`. Release 1.0's contents, limitations and acceptance gate are unaffected;
 this workstream hardens the demonstration of what Release 1.0 already contained.
+
+---
+
+## PROGRAMME `SCI` — SCENARIO INTELLIGENCE (THE SCENARIO LABORATORY)
+
+**Authorised 2026-09-15 against baseline `f9c5679c` on `feature/cognix-enterprise-demo-hardening`.
+Status: `[AUTHORISED — NOT STARTED]`.** No packet has begun; no convergence SHA is recorded.
+
+**Objective.** Evolve CogniX from a prepared demonstration into a scenario-driven Decision
+Intelligence laboratory — **Choose a Scenario** or **Create Your Own Scenario** — while protecting the
+hardened Demand → Promotion → Campaign Decision journey above everything else.
+
+**Governing principle, unchanged and now generalised:** *One scenario. One decision context. One
+economic model. Many decision perspectives.* ADR-073 Amendment A records that the word *one* always
+meant one per decision, never one in the estate.
+
+**Governance:**
+[`COGNIX_SCENARIO_INTELLIGENCE.md`](COGNIX_SCENARIO_INTELLIGENCE.md) — target architecture ·
+[`COGNIX_SCENARIO_CERTIFICATION.md`](COGNIX_SCENARIO_CERTIFICATION.md) — the gate ·
+[`COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md`](COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md) —
+packets, DAG, waves, contracts, branching ·
+[`COGNIX_BACKLOG_RECONCILIATION_2026_09.md`](COGNIX_BACKLOG_RECONCILIATION_2026_09.md) — what this
+programme retains, reactivates, merges, supersedes and defers ·
+[`COGNIX_SCENARIO_LABORATORY_PLANNING_REPORT.md`](../reports/COGNIX_SCENARIO_LABORATORY_PLANNING_REPORT.md)
+— the evidence base.
+
+**Decisions:** ADR-077 … ADR-084, with ADR-044 Amendment B, ADR-051 Amendment A and ADR-073
+Amendment A.
+
+### Why this programme is convergence rather than construction
+
+Three scenario concepts exist at `f9c5679c` and they disagree. `CanonicalScenario` carries the
+hardened economics at 227 call sites. `ENTERPRISE_WORLD_SCENARIOS` carries six families still priced
+on the retired estate, and is what the Observability signals panel shows — `SCN-PROMO-01` against
+**FreshDirect UK**, the supplier `DEMO-HARD-01` retired. `CampaignArchetype` carries seven situations
+that `DEMO-HARD-04` put on the canonical framework and that appear nowhere in the connected narrative.
+
+ADR-077 makes `CanonicalScenario` the single identity and demotes the other two to taxonomy and
+commercial projection. The curated catalogue therefore costs the **promotion of situations the estate
+already prices**, not the construction of new ones — and the canonical module's own property, that
+the scenario *"rescales coherently from one number"*, is why this is a parameterisation rather than a
+redesign.
+
+### Packets
+
+| ID | Title | Class | Tool | Wave |
+|---|---|---|---|---|
+| `SCI-01` | Scenario Contract, Clock, Registry & Provenance Foundation | FOUNDATION | Cursor | 0 |
+| `SCI-02` | Scenario Certification Gate & Reconciliation Generalisation | FOUNDATION | Cursor | 0 |
+| `SCI-03` | Curated Scenario Domain Packs | CURSOR | Cursor | 1 |
+| `SCI-04` | Scenario Selection Experience | ANTIGRAVITY | Antigravity | 1 |
+| `SCI-05` | Living Evidence — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 |
+| `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 |
+| `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 |
+| `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 |
+| `SCI-08` | Create Your Own Scenario Experience | POST-DEMO | Antigravity | 4 |
+| `SCI-10` | CSV Scenario Enrichment via Attested Admission | POST-DEMO | Cursor | 4 |
+
+### Parallel execution
+
+Implementation uses **Cursor and Antigravity concurrently**, under ADR-084. Wave 0 is deliberately
+single-lane: the scenario contract cannot be frozen and consumed in the wave that creates it, and
+artificial parallelism is forbidden. Each wave ends at an evidential convergence gate — both branches
+committed, independent tests green, no contract drift, full regression, Scenario Certification green,
+the protected journey reconciled against
+[`COGNIX_PRESENTATION_SYNC_DELTA.md`](../reports/COGNIX_PRESENTATION_SYNC_DELTA.md), browser
+acceptance, governance updated only after evidence, and a new convergence SHA recorded.
+
+### Scenario Certification Gate
+
+ADR-080. No scenario becomes demo-active until twelve dimensions return `PASS` or a reasoned
+`NOT_APPLICABLE`. The 243 cross-surface assertions are **generalised per scenario, never duplicated
+and never weakened**, and `SCN-FRESH-DAIRY-CHEDDAR-001` is certified by the same gate as every
+newcomer. This is what stops a second scenario creating a second disconnected economic universe — the
+`DEMO-HARD-01` defect with more surface area.
+
+### Google GenAI position
+
+Unchanged. Server-side `process.env.GEMINI_API_KEY` through the existing governed provider and model
+configuration (ADR-067). **No new AI provider.** GenAI interprets descriptions, drafts scenario
+structure, proposes semantic mappings and qualitative assumptions, and explains — and is never the
+source of demand, economics, margin, promotion calculations, Decision Gap, Decision Window,
+reconciliation or any published quantitative outcome. A confirmed scenario must reproduce identically
+with the provider unavailable (ADR-083). The legacy client-key path at `R-15` is **not** extended.
+
+### What this programme does not authorise
+
+XLSX. A scenario database. Live external connectors in the demonstration path. Any `DOT` capability.
+Online fulfilment economics — `CanonicalEconomics` models no fulfilment capacity, centre throughput,
+pick rate or delivery-slot term, so it remains **explicit roadmap work** and must not be demonstrated
+or sold as present. Deletion of the Architectural Storyboard before `SB-GATE` reads 6 of 6. Any change
+to the protected journey's published values.
+
+### Delivery to 23 September
+
+**MUST:** remove the canonical / Observability scenario contradiction; scenario clock; resolver and
+registry foundation; Scenario Certification Gate; meaningful Refresh; protected journey stability.
+**SHOULD:** second and third curated scenarios; scenario selector; stronger Observability UX; a
+minimal structured authoring foundation only if the earlier gates are green.
+**DEFER:** full AI-assisted authoring; CSV enrichment; XLSX; online fulfilment economics; broader
+persistence.
+
+The MUST items sit in Waves 0 and 2; Wave 1 carries only SHOULD items. **If Gate A is late, Wave 1 is
+the wave to drop** — run `SCI-05` directly on SHA-A and take Refresh and the contradiction fix to the
+demonstration without the second and third scenarios. That keeps every MUST item and loses only
+catalogue breadth.
 
 ---
 

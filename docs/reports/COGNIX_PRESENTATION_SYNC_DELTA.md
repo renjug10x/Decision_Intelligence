@@ -191,3 +191,51 @@ The Promotion surface publishes **+46.8%** (what the price cut buys) and **+50.5
 campaign, as configured, causes). Both are correct and they measure different things — the
 difference is the audience, placement and timing the curve deliberately holds fixed. **Quote one,
 not both**, and prefer +46.8% because it is the number the elasticity curve is drawn from.
+
+---
+
+## 7. Forward notice — programme `SCI` (authorised 2026-09-15, not started)
+
+This section changes **no value in §1–§6**. It records what a presenter should know is coming, and one
+defect a presenter should not be ambushed by.
+
+### 7.1 A live contradiction on Observability & Governance
+
+§3.3 of this record states that any slide naming **FreshDirect UK** must change, because the flex
+notice is now served on **Cheshire Cheese Co (SUP002)**, the party that makes the product.
+
+**The application has not fully followed.** The Observability & Governance signals panel requests no
+scenario, the route defaults to `family_id=promotion_surge` / `scenario_id=SCN-PROMO-01`, and the
+surface publishes `SUPPLIER_CAPACITY_PRESSURE` against FreshDirect UK — three surfaces away from a
+journey built on Cheshire Cheese Co.
+
+**Until `SCI-01` lands, do not open the Observability signals panel in a client demonstration**, or
+open it knowing the supplier shown there is the retired one and be ready to say so. Registered as
+residual `R-20`. Nothing on Demand, Promotion, Campaign Decision, Ripple or Inventory is affected.
+
+### 7.2 Signal freshness and Refresh
+
+Signals are stamped with civil wall-clock time rather than the scenario clock, so every signal reads as
+zero seconds old and the *Refresh signals* control produces no visible change. This is residual `R-19`
+and is why Refresh currently demonstrates poorly. `SCI-05` makes Refresh advance the scenario's
+evidence state and publish whether the decision changed.
+
+### 7.3 What will change for slides when `SCI` lands
+
+| Wave | Expected slide impact |
+|---|---|
+| `SCI-01` / `SCI-02` (Wave 0) | **None to any value in §1–§2.** Acceptance requires the protected journey unchanged to the digit. The Observability supplier corrects itself |
+| `SCI-03` / `SCI-04` (Wave 1) | **Additive.** Two further certified scenarios and a selector. The canonical scenario remains the opening position and the reference |
+| `SCI-05` / `SCI-06` (Wave 2) | **Additive, and a new demonstrable moment** — Refresh advances evidence and states whether the recommendation changed. Observability reorganises into four sections; no visual redesign |
+| `SCI-07` / `SCI-09` (Wave 3) | Architecture surface replaces the storyboard **only if `SB-GATE` reaches 6 of 6**. Until then the storyboard is retained and labelled |
+
+### 7.4 The one residual §4 records, and what happens to it
+
+§4 records two Promotion figures a presenter should not be asked to defend together — the planning
+curve's `+46.8%` / `+£8.1K` against the causal engine's `+50.5pp` / `+£22.7K`. The guidance stands:
+**quote one, and prefer `+46.8%`.**
+
+`SCI-01` retires `skuContextFactor`, the hash-derived ±6% band that is a material part of that
+divergence (ADR-079, residual `R-21`). After it, the remaining difference is audience, placement and
+timing only — which is what ADR-075 always said it was. **This record must be re-read and updated at
+the Wave 0 convergence gate**, per §8 of `COGNIX_CANONICAL_SCENARIO.md`.
