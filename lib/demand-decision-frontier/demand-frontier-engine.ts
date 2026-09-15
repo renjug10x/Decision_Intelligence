@@ -47,6 +47,7 @@ import {
   ContextualisedDecisionOutlook,
   EnterpriseSignal
 } from '@/packages/contracts/src/index';
+import { NarrativeStatement, moneyAmount, statementToBaseText } from '@/packages/contracts/src/currency-model';
 import {
   CANONICAL_SCENARIO,
   canonicalRealisedRevenuePerUnitGbp,
@@ -1061,6 +1062,19 @@ function buildAssumptionInventory(
       source: 'DDF-01 declared unit economics'
     },
     {
+      /*
+       * Supplier funding is the single largest determinant of whether a promotion pays, so it is
+       * published in the same inventory as the margin rate and the flex premium rather than living
+       * silently inside the promotion arithmetic. Stated as a modelled assumption because it is
+       * one: no supplier agreement in this estate has been read, and none is being described.
+       */
+      key: 'supplier_promotional_funding',
+      label: 'Supplier promotional funding',
+      value: `${CANONICAL_SCENARIO.economics.supplier_promotional_funding_pct}% of the price invested is funded by the supplier`,
+      provenance_class: 'MODELLED_DEMO_ASSUMPTION',
+      source: 'Canonical scenario economics — an illustrative trade agreement, not a supplier term on record'
+    },
+    {
       key: 'flex_volume',
       label: 'SLA flex volume',
       value: `${DDF_SLA_FLEX_UNITS_PER_WEEK.toLocaleString()} units/week, carried across as a proportional uplift`,
@@ -1222,6 +1236,18 @@ export function evaluateDemandDecisionFrontier(
     const gap_closed_pp = round1(Math.max(0, decisionGap.exposed_demand_pp - recomputedGap.exposed_demand_pp));
     const margin_recovered_gbp = Math.round(gap_closed_units * unitEconomics.gross_margin_per_unit_gbp);
 
+    const outcomeParts: NarrativeStatement = recomputedGap.exposed_demand_units === 0
+      ? [
+          { kind: 'text', text: `Modelled outcome: the gap closes. ${gap_closed_units.toLocaleString()} units become executable, recovering ` },
+          { kind: 'money', money: moneyAmount(margin_recovered_gbp, 'gross_margin_recovered') },
+          { kind: 'text', text: ' of gross margin. Nothing has been ordered.' }
+        ]
+      : [
+          { kind: 'text', text: `Modelled outcome: the gap narrows by ${gap_closed_pp}pp (${gap_closed_units.toLocaleString()} units, ` },
+          { kind: 'money', money: moneyAmount(margin_recovered_gbp, 'gross_margin_recovered') },
+          { kind: 'text', text: ` gross margin). ${recomputedGap.exposed_demand_units.toLocaleString()} units stay exposed. Nothing has been ordered.` }
+        ];
+
     simulated_intervention = {
       ...recommendedIntervention,
       active: true,
@@ -1234,10 +1260,14 @@ export function evaluateDemandDecisionFrontier(
       residual_gap_units: recomputedGap.exposed_demand_units,
       residual_gap_pp: recomputedGap.exposed_demand_pp,
       margin_recovered_gbp,
-      outcome_statement:
-        recomputedGap.exposed_demand_units === 0
-          ? `Modelled outcome: the gap closes. ${gap_closed_units.toLocaleString()} units become executable, recovering £${margin_recovered_gbp.toLocaleString()} of gross margin. Nothing has been ordered.`
-          : `Modelled outcome: the gap narrows by ${gap_closed_pp}pp (${gap_closed_units.toLocaleString()} units, £${margin_recovered_gbp.toLocaleString()} gross margin). ${recomputedGap.exposed_demand_units.toLocaleString()} units stay exposed. Nothing has been ordered.`
+      outcome_statement: statementToBaseText(outcomeParts),
+      /*
+       * The amount travels as a number with a meaning, not as characters in a sentence. This
+       * statement is the one a reader sees, and it was the last place on the demand journey where
+       * a pound sign survived a currency change: the surface had no way to convert an amount it
+       * could only find by parsing the prose back apart.
+       */
+      outcome_statement_parts: outcomeParts
     };
   }
 

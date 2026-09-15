@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { CampaignArchetype, WaterfallItem, ElasticityPoint } from '@/lib/campaign-archetypes';
 import { useCurrency } from '@/context/CurrencyContext';
+import { CANONICAL_SCENARIO } from '@/packages/contracts/src/canonical-scenario-model';
 
 interface DemandIntelligenceLensProps {
   archetype: CampaignArchetype;
@@ -413,7 +414,7 @@ export default function DemandIntelligenceLens({
             <span>
               {hoveredElasticityPoint
                 ? `${hoveredElasticityPoint.discount_pct}% Discount Analysis: ${hoveredElasticityPoint.notes || 'Simulated response'}`
-                : `Active Configuration: ${currentDiscount}% discount depth. Price elasticity factor ε = ${archetype.price_elasticity}.`}
+                : `Active configuration: ${currentDiscount}% discount depth · price elasticity ε = ${archetype.price_elasticity} · supplier funds ${CANONICAL_SCENARIO.economics.supplier_promotional_funding_pct}% of the price invested (modelled assumption)`}
             </span>
           </div>
 

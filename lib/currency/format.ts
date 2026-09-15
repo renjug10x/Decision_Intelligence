@@ -17,6 +17,7 @@
 import {
   CURRENCY_DEFINITIONS,
   FxRateSet,
+  NarrativeStatement,
   SupportedCurrency,
   convertFromBase
 } from '@/packages/contracts/src/currency-model';
@@ -113,4 +114,29 @@ export function localiseMoneyInText(
       maximumFractionDigits: decimalPlaces
     })}`;
   });
+}
+
+
+/**
+ * Render an engine-composed statement in the reader's currency.
+ *
+ * This is the target architecture that `localiseMoneyInText` stands in for: the amounts arrive
+ * structured, so nothing is parsed out of prose and nothing can be mis-parsed. The engine decided
+ * what the number means; this decides what it looks like.
+ */
+export function formatStatement(
+  statement: NarrativeStatement,
+  currency: SupportedCurrency,
+  rates: FxRateSet
+): string {
+  return statement
+    .map(seg =>
+      seg.kind === 'text'
+        ? seg.text
+        : formatBaseMoney(seg.money.amount, currency, rates, {
+            compact: seg.compact ?? false,
+            decimals: seg.decimals ?? 0
+          })
+    )
+    .join('');
 }

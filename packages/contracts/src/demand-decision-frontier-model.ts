@@ -9,6 +9,7 @@
 
 import { DecisionScenarioParameters, DecisionDerivedImpacts } from './decision-state-model';
 import { ContextualisedDecisionOutlook } from './intent-fusion-model';
+import { NarrativeStatement } from './currency-model';
 
 // ── P0-A: Forecast Stability Intelligence ───────────────────────────────────
 
@@ -319,6 +320,12 @@ export interface DemandDecisionFrontierEvaluation {
     residual_gap_pp: number;
     margin_recovered_gbp: number;
     outcome_statement: string;
+    /**
+     * The same statement with its money still structured, so a surface can render it in the
+     * reader's currency without parsing pounds back out of a sentence. `outcome_statement` remains
+     * the base-currency text form for logs, exports and recorded contracts.
+     */
+    outcome_statement_parts?: NarrativeStatement;
   };
   intent_fusion_outlook: ContextualisedDecisionOutlook;
   /** Full inventory of named inputs and their provenance class (AC-DDF-25). */

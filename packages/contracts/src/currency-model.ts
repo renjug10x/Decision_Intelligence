@@ -90,3 +90,59 @@ export const SEEDED_FALLBACK_RATES: FxRateSet = {
   provider: 'cognix-seeded-reference',
   degraded_reason: 'No live rate available — showing the last recorded reference rates.'
 };
+
+
+// ── Structured money in engine narrative ─────────────────────────────────────
+
+/**
+ * A monetary amount an engine computed, with what it MEANS, before anyone decides how to show it.
+ *
+ * The engine owns economic meaning; the surface owns currency presentation. Where an engine
+ * composes a whole sentence with a pound sign already in it, that separation is lost: the amount
+ * stops being a number with a meaning and becomes characters in a string, and the only way to show
+ * it in another currency is to parse the sentence back apart again. `meaning` is deliberately a
+ * semantic key rather than a label, so a surface can style, order or omit an amount rather than
+ * only reprint it.
+ */
+export interface MoneyAmount {
+  /** The value, in `base_currency`. Never pre-converted — conversion happens at display. */
+  amount: number;
+  base_currency: SupportedCurrency;
+  /** What this amount IS, e.g. 'gross_margin_recovered'. Not a display label. */
+  meaning: string;
+}
+
+export type NarrativeSegment =
+  | { kind: 'text'; text: string }
+  | { kind: 'money'; money: MoneyAmount; compact?: boolean; decimals?: number };
+
+/**
+ * A sentence an engine composed, with its money still structured.
+ *
+ * Rendered by the surface through the shared currency layer. An engine emits this ALONGSIDE its
+ * plain-text form rather than instead of it, so a consumer that only wants a string — a log, an
+ * export, a recorded contract — is unaffected.
+ */
+export type NarrativeStatement = readonly NarrativeSegment[];
+
+export function moneyAmount(amount: number, meaning: string): MoneyAmount {
+  return { amount, base_currency: CANONICAL_BASE_CURRENCY, meaning };
+}
+
+/** Flatten a statement to plain text in the base currency. The engine's own string form. */
+export function statementToBaseText(statement: NarrativeStatement): string {
+  return statement
+    .map(seg => {
+      if (seg.kind === 'text') return seg.text;
+      const symbol = CURRENCY_DEFINITIONS[seg.money.base_currency].symbol;
+      const abs = Math.abs(seg.money.amount);
+      const sign = seg.money.amount < 0 ? '\u2212' : '';
+      if (seg.compact && abs >= 1_000_000) return `${sign}${symbol}${(abs / 1_000_000).toFixed(2)}M`;
+      if (seg.compact && abs >= 1_000) return `${sign}${symbol}${(abs / 1_000).toFixed(1)}K`;
+      return `${sign}${symbol}${abs.toLocaleString('en-GB', {
+        minimumFractionDigits: seg.decimals ?? 0,
+        maximumFractionDigits: seg.decimals ?? 0
+      })}`;
+    })
+    .join('');
+}

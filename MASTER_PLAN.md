@@ -52,7 +52,11 @@ RELEASE 1.0  Engineering baseline recorded 2026-08-23 at the close of FM-01.
 DEMO-HARD-01 One Decision Case Across the Connected Journey        [COMPLETED]
              Canonical scenario · unified economics · multi-currency ·
              scenario restart · cross-surface reconciliation tests
-             DEMO-HARD-02/03/04 remain open — see the authoritative plan
+DEMO-HARD-02 Promotion model seam closed; demand bridge and
+             economic basis published                                [COMPLETED]
+DEMO-HARD-03 Structured money for derived engine amounts   [PARTIALLY COMPLETED]
+             Seeded narrative remains on the compatibility path
+DEMO-HARD-04 Every selectable archetype on one economic framework    [COMPLETED]
 
 CONTINUATION ESF-4 — Signal Quality, Confidence & Provenance remains the
              canonical Master Plan continuation after Release 1.0. Parked,

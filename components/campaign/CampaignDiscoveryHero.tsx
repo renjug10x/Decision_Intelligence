@@ -17,6 +17,7 @@ import {
 import { CampaignArchetype } from '@/lib/campaign-archetypes';
 import { label as executiveLabel } from '@/lib/campaign-decision-language';
 import { useCurrency } from '@/context/CurrencyContext';
+import { CANONICAL_SCENARIO } from '@/packages/contracts/src/canonical-scenario-model';
 
 interface CampaignDiscoveryHeroProps {
   archetype: CampaignArchetype;
@@ -39,6 +40,8 @@ interface CampaignDiscoveryHeroProps {
   exploreDestinationLabel?: string;
   onExploreDecision: () => void;
   onSelectLens?: (lensId: string) => void;
+  /** Continue into the decision that owns "whether to intervene at all". */
+  onOpenCampaignDecision?: () => void;
 }
 
 export default function CampaignDiscoveryHero({
@@ -56,9 +59,11 @@ export default function CampaignDiscoveryHero({
   onSwitchMode,
   exploreDestinationLabel,
   onExploreDecision,
-  onSelectLens
+  onSelectLens,
+  onOpenCampaignDecision
 }: CampaignDiscoveryHeroProps) {
-  const { money, localise } = useCurrency();
+  const { money, localise, statement } = useCurrency();
+  const bridge = liveEvaluation?.counterfactual?.demand_bridge;
   const d = archetype.discovery;
 
   /** The seeded verdict codes, stated as a decision rather than as a status word. */
@@ -263,7 +268,8 @@ export default function CampaignDiscoveryHero({
             maxWidth: 920
           }}
         >
-          {localise(d.core_narrative)}
+          {/* Structured when the amounts were derived; the prose path remains for seeded sentences. */}
+          {d.core_narrative_parts ? statement(d.core_narrative_parts) : localise(d.core_narrative)}
         </p>
       </div>
 
@@ -290,7 +296,7 @@ export default function CampaignDiscoveryHero({
           }}
         >
           <div style={{ fontSize: '0.75rem', fontWeight: 500, color: '#64748B', marginBottom: 4 }}>
-            Expected Demand Uplift
+            Demand the price cut buys
           </div>
           <div
             style={{
@@ -303,7 +309,7 @@ export default function CampaignDiscoveryHero({
             }}
           >
             {d.expected_demand_uplift_pct >= 0 ? '+' : ''}{d.expected_demand_uplift_pct.toFixed(1)}%
-            <span style={{ fontSize: '0.75rem', fontWeight: 400, color: '#94A3B8' }}>vs baseline</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 400, color: '#94A3B8' }}>depth alone</span>
           </div>
         </div>
 
@@ -318,7 +324,7 @@ export default function CampaignDiscoveryHero({
           }}
         >
           <div style={{ fontSize: '0.75rem', fontWeight: 500, color: '#64748B', marginBottom: 4 }}>
-            Net Contribution Delta
+            Contribution it returns
           </div>
           <div
             style={{
@@ -331,7 +337,9 @@ export default function CampaignDiscoveryHero({
             }}
           >
             {formatGbp(d.net_contribution_delta_gbp)}
-            <span style={{ fontSize: '0.75rem', fontWeight: 400, color: '#94A3B8' }}>commercial delta</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 400, color: '#94A3B8' }}>
+              over {CANONICAL_SCENARIO.calendar.promotion_duration_days} days
+            </span>
           </div>
         </div>
 
@@ -424,19 +432,37 @@ export default function CampaignDiscoveryHero({
           </span>
         ) : (
           <>
+            {/*
+              * The two cards above measure the PRICE CUT. This line measures THIS CAMPAIGN — the
+              * same cut plus the choices made about who, where and when. Both are correct and they
+              * are not the same quantity, so the bridge between them is stated rather than left for
+              * a client to reconcile or, worse, to read as one metric contradicting itself.
+              */}
             <span style={{ fontSize: '0.8rem', color: '#334155' }}>
-              Attributable uplift:{' '}
+              This campaign as configured:{' '}
               <strong>
-                {typeof liveEvaluation?.causal?.intervention_uplift_pp === 'number'
-                  ? `${liveEvaluation.causal.intervention_uplift_pp >= 0 ? '+' : ''}${liveEvaluation.causal.intervention_uplift_pp.toFixed(1)} pp`
+                {typeof bridge?.total_attributable_pp === 'number'
+                  ? `${bridge.total_attributable_pp >= 0 ? '+' : ''}${bridge.total_attributable_pp.toFixed(1)} pp`
                   : 'unavailable'}
               </strong>
+              {bridge && (
+                <span style={{ color: '#64748B' }}>
+                  {' '}— {bridge.price_depth_response_pp >= 0 ? '+' : ''}{bridge.price_depth_response_pp.toFixed(1)}pp from the price cut,
+                  {' '}{bridge.campaign_design_response_pp >= 0 ? '+' : ''}{bridge.campaign_design_response_pp.toFixed(1)}pp from{' '}
+                  {bridge.design_components.length > 0
+                    ? bridge.design_components.map((c: { label: string }) => c.label.toLowerCase()).join(', ')
+                    : 'how it is run'}
+                </span>
+              )}
             </span>
             <span style={{ fontSize: '0.8rem', color: '#334155' }}>
-              Contribution impact:{' '}
+              Contribution over{' '}
+              {liveEvaluation?.counterfactual?.economic_basis?.campaign_window_days
+                ?? CANONICAL_SCENARIO.calendar.promotion_duration_days}{' '}
+              days:{' '}
               <strong>
-                {typeof liveEvaluation?.counterfactual?.campaign_delta?.contribution_delta_gbp === 'number'
-                  ? money(liveEvaluation.counterfactual.campaign_delta.contribution_delta_gbp, { signed: true })
+                {typeof liveEvaluation?.counterfactual?.economic_basis?.contribution_delta_over_window_gbp === 'number'
+                  ? money(liveEvaluation.counterfactual.economic_basis.contribution_delta_over_window_gbp, { signed: true })
                   : 'unavailable'}
               </strong>
             </span>
@@ -516,6 +542,37 @@ export default function CampaignDiscoveryHero({
             Explore Decision Analytics
             <ArrowRight size={14} />
           </button>
+
+          {/*
+            * The handover to the other half of the commercial question.
+            *
+            * This surface answers how deep, how wide and how long. It cannot answer whether to
+            * intervene at all, what the campaign genuinely causes, or what happens if nothing is
+            * done — and nothing here said where those are answered, so the two surfaces read as
+            * alternatives rather than as consecutive steps in one decision.
+            */}
+          {onOpenCampaignDecision && (
+            <button
+              onClick={onOpenCampaignDecision}
+              title="Whether to intervene at all, what it genuinely causes, and what happens if you wait"
+              style={{
+                background: '#FFFFFF',
+                color: '#0F172A',
+                border: '1px solid #CBD5E1',
+                padding: '8px 16px',
+                borderRadius: 6,
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6
+              }}
+            >
+              Or ask whether to intervene at all
+              <ArrowRight size={14} />
+            </button>
+          )}
         </div>
       </div>
     </div>

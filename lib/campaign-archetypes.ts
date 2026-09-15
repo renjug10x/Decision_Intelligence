@@ -14,8 +14,10 @@
  */
 
 import { CampaignIntent, CampaignObjectiveType, InterventionPosture, PrimaryObjectiveMetric } from '../packages/contracts/src/campaign-intent-model';
+import { NarrativeStatement, moneyAmount, statementToBaseText } from '../packages/contracts/src/currency-model';
 import {
   CANONICAL_SCENARIO,
+  canonicalScenarioDateIso,
   canonicalStoreCount,
   canonicalContributionAtDepthGbp,
   canonicalImpliedUnitCostGbp,
@@ -133,6 +135,14 @@ export type ArchetypeId =
   | 'ARCH-COMPETITOR-DEFENCE'
   | 'ARCH-SEASONAL-WINDOW'
   | 'ARCH-CANNIBALISATION';
+
+/**
+ * Narrative whose money arrived structured. Present where an archetype's headline quotes an amount
+ * this module DERIVES; absent where the sentence is seeded prose with no computed figure in it.
+ */
+export interface DiscoveryNarrativeParts {
+  core_narrative_parts?: NarrativeStatement;
+}
 
 export interface WaterfallItem {
   id: string;
@@ -283,7 +293,7 @@ export interface CampaignArchetype {
   intervention_posture: InterventionPosture;
   
   // Executive Discovery Hero
-  discovery: {
+  discovery: DiscoveryNarrativeParts & {
     headline: string;
     core_narrative: string;
     key_finding: string;
@@ -307,6 +317,18 @@ export interface CampaignArchetype {
 
   // Decision frontier competing plays
   frontier_plays: FrontierPlay[];
+  /**
+   * What this archetype's own elasticity curve says, derived. Present on every selectable
+   * archetype; absent only on a raw seed that has not been through `withCanonicalEconomics`.
+   */
+  curve_summary?: {
+    current_discount_pct: number;
+    current_contribution_gbp: number;
+    recommended_discount_pct: number;
+    recommended_contribution_gbp: number;
+    /** False when no depth on this curve pays for itself — a legitimate story, but a stated one. */
+    has_accretive_depth: boolean;
+  };
 
   // Inverse analysis ("What would have to be true?")
   inverse_conditions: InverseCondition[];
@@ -368,13 +390,180 @@ export function deriveFrontierPlayContributionGbp(
   storesCount: number,
   durationDays: number,
   expectedUpliftPct: number,
-  cannibalisationRate = 0
+  cannibalisationRate = 0,
+  /**
+   * The archetype's own price, cost and rate. Omitted for the canonical case, which is the
+   * scenario itself. Every archetype supplies its own so that a premium bakery line and a
+   * chilled staple can differ in everything EXCEPT the economic framework they are priced in.
+   */
+  economics?: { list_price_gbp: number; unit_cost_gbp: number; base_weekly_units_per_store: number }
 ): number {
-  const baseWeeklyUnitsPerStore = canonicalWeeklyPopulationUnits() / canonicalStoreCount('National');
-  const baselineUnits = baseWeeklyUnitsPerStore * storesCount * (durationDays / 7);
-  const contribution = canonicalContributionAtDepthGbp(discountPct);
+  const perStore = economics?.base_weekly_units_per_store
+    ?? canonicalWeeklyPopulationUnits() / canonicalStoreCount('National');
+  const baselineUnits = perStore * storesCount * (durationDays / 7);
+  const at = (d: number) =>
+    canonicalContributionAtDepthGbp(d, economics?.list_price_gbp, economics?.unit_cost_gbp);
   const incremental = baselineUnits * (expectedUpliftPct / 100) * (1 - cannibalisationRate);
-  return Math.round((baselineUnits + incremental) * contribution - baselineUnits * canonicalContributionAtDepthGbp(0));
+  return Math.round((baselineUnits + incremental) * at(discountPct) - baselineUnits * at(0));
+}
+
+/**
+ * The 50-store estate every archetype but the canonical one was written against.
+ *
+ * Their frontier plays still name absolute store counts from it — 50 for "national", 8 for a
+ * regional burst. Against the declared 1,450-store estate those counts are not a smaller campaign,
+ * they are a different company, and a presenter switching archetype mid-demonstration would walk
+ * straight back into the economics this workstream removed. Legacy counts are read as SHARES of
+ * that estate and re-expressed against this one.
+ */
+export const LEGACY_DEMO_ESTATE_STORES = 50;
+
+function rescaleLegacyStoreCount(storesCount: number, region: string): number {
+  // A count at or below the legacy national estate is a legacy count. Anything larger was already
+  // written against the canonical estate and is left alone.
+  if (storesCount > LEGACY_DEMO_ESTATE_STORES) return storesCount;
+  const share = storesCount / LEGACY_DEMO_ESTATE_STORES;
+  return Math.max(1, Math.round(canonicalStoreCount(region) * share));
+}
+
+/**
+ * Put one archetype on the canonical economic framework without touching what makes it itself.
+ *
+ * DERIVED here: unit contribution at each depth, the contribution every depth and every play
+ * returns, and the store scope a play runs across. SEEDED and untouched: elasticity, demand
+ * response, cannibalisation rate, supplier constraint, seasonality, inventory condition,
+ * competitive response, supply exposure, waste impact and every word of narrative. Archetypes are
+ * supposed to behave differently; they are not supposed to be priced in different currencies of
+ * different companies.
+ */
+function withCanonicalEconomics(archetype: CampaignArchetype): CampaignArchetype {
+  const economics = {
+    list_price_gbp: archetype.rrp,
+    unit_cost_gbp: archetype.cost_price,
+    base_weekly_units_per_store: archetype.base_weekly_units_per_store
+  };
+  const baselineUnits = archetypeBaselineUnits(
+    archetype.base_weekly_units_per_store,
+    archetype.default_region,
+    archetype.default_duration_days
+  );
+
+  const curve = deriveElasticityEconomics(archetype.elasticity_curve, {
+    list_price_gbp: archetype.rrp,
+    unit_cost_gbp: archetype.cost_price,
+    baseline_units: baselineUnits,
+    // The seeded responses are already net of the portfolio effect each archetype declares.
+    cannibalisation_rate: 0
+  });
+
+  /*
+   * The depth CogniX recommends is the best depth ON THIS CURVE, recomputed rather than carried
+   * over from the seed. A recommendation flag pinned to a tier that was optimal under different
+   * prices is how a surface comes to recommend a play its own chart shows losing money — and on
+   * several archetypes the seeded flag had landed on the same tier as the current plan, so the
+   * surface was recommending the thing it was asking the reader to challenge.
+   */
+  const best = curve.reduce((a, b) => (b.net_contribution_delta_gbp > a.net_contribution_delta_gbp ? b : a), curve[0]);
+  const current = curve.find(p => p.is_current) ?? curve[0];
+  /*
+   * The best point is always flagged, even when it IS the current plan. Suppressing the flag in
+   * that case left the surface with no recommendation at all, which reads as a broken panel rather
+   * than as the answer it actually is: on this curve, the depth already chosen is the best one.
+   */
+  const reflagged = curve.map(p => ({
+    ...p,
+    is_cognix_recommended: p.discount_pct === best.discount_pct
+  }));
+  const recommended = reflagged.find(p => p.is_cognix_recommended) ?? current;
+
+  return {
+    ...archetype,
+    elasticity_curve: reflagged,
+    /*
+     * The headline reads off the curve beneath it. Every archetype carried its own seeded uplift
+     * and contribution in `discovery`, and after repricing each one disagreed with the tiers
+     * drawn directly below it — one archetype claimed +GBP4,850 above a curve whose best point
+     * lost GBP12,527.
+     */
+    discovery: {
+      ...archetype.discovery,
+      expected_demand_uplift_pct: current.expected_demand_uplift_pct,
+      net_contribution_delta_gbp: current.net_contribution_delta_gbp
+    },
+    /** What the curve says, for a surface that needs the pair without re-deriving it. */
+    curve_summary: {
+      current_discount_pct: current.discount_pct,
+      current_contribution_gbp: current.net_contribution_delta_gbp,
+      recommended_discount_pct: recommended.discount_pct,
+      recommended_contribution_gbp: recommended.net_contribution_delta_gbp,
+      has_accretive_depth: curve.some(p => p.net_contribution_delta_gbp > 0)
+    },
+    /*
+     * A funding condition names a sum of money, and that sum is only meaningful against the
+     * contribution gap it is supposed to close. Both archetypes carrying one had it seeded against
+     * the retired estate — one offered GBP3,400 to reach a breakeven the curve now clears by
+     * GBP8,070, which is an offer to fix something that is not broken. Derived: what the supplier
+     * would have to fund for the committed depth to be worth as much as the recommended one.
+     */
+    inverse_conditions: archetype.inverse_conditions.map(condition => {
+      if (condition.target_parameter !== 'SUPPLIER_FUNDING') return condition;
+      const required = Math.max(
+        0,
+        Math.round(recommended.net_contribution_delta_gbp - current.net_contribution_delta_gbp)
+      );
+      if (required === 0) {
+        return {
+          ...condition,
+          target_value: 0,
+          target_display: 'no funding needed',
+          condition_text: 'Supplier co-funding is not what decides this',
+          explanation:
+            `At ${current.discount_pct}% the committed depth is already the best point on this curve, `
+            + 'so trade funding would improve the return without changing the decision.'
+        };
+      }
+      return {
+        ...condition,
+        target_value: required,
+        target_display: `${formatGbpShort(required)} funding`,
+        condition_text: `Supplier co-funding >= ${formatGbpShort(required)}`,
+        explanation:
+          `${formatGbpShort(required)} of trade funding would make the committed ${current.discount_pct}% depth worth as much as `
+          + `reducing to ${recommended.discount_pct}%. Below that, the shallower cut is the better decision.`
+      };
+    }),
+    frontier_plays: archetype.frontier_plays.map(play => {
+      const stores = rescaleLegacyStoreCount(play.stores_count, archetype.default_region);
+      return {
+        ...play,
+        stores_count: stores,
+        net_contribution_delta_gbp: deriveFrontierPlayContributionGbp(
+          play.discount_pct,
+          stores,
+          play.duration_days,
+          play.expected_demand_uplift_pct,
+          0,
+          economics
+        )
+      };
+    })
+  };
+}
+
+/**
+ * Every selectable archetype, on one economic framework.
+ *
+ * Applied to the whole map rather than to each definition, so an archetype added later cannot
+ * quietly arrive outside the framework — there is no path to a selectable scenario that skips it.
+ */
+function canonicaliseArchetypes(
+  map: Record<ArchetypeId, CampaignArchetype>
+): Record<ArchetypeId, CampaignArchetype> {
+  const out = {} as Record<ArchetypeId, CampaignArchetype>;
+  for (const key of Object.keys(map) as ArchetypeId[]) {
+    out[key] = withCanonicalEconomics(map[key]);
+  }
+  return out;
 }
 
 /**
@@ -411,7 +600,25 @@ export const CANONICAL_CURRENT_POINT =
 export const CANONICAL_RECOMMENDED_POINT =
   CANONICAL_ELASTICITY_CURVE.find(p => p.is_cognix_recommended) ?? CANONICAL_ELASTICITY_CURVE[0];
 
-export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
+/**
+ * The canonical headline, with its three derived amounts still structured.
+ *
+ * These are the only pounds the Promotion headline asserts, and all three are computed from the
+ * curve drawn beneath it. Composing them into a string here would have meant the surface could
+ * only show them in another currency by parsing them back out of the sentence.
+ */
+const CANONICAL_HEADLINE_PARTS: NarrativeStatement = [
+  { kind: 'text', text: `A ${CANONICAL_CURRENT_POINT.discount_pct}% cut across the whole estate lifts demand ${CANONICAL_CURRENT_POINT.expected_demand_uplift_pct}% and adds ` },
+  { kind: 'money', money: moneyAmount(CANONICAL_CURRENT_POINT.net_contribution_delta_gbp, 'contribution_at_committed_depth'), compact: true },
+  { kind: 'text', text: ' of contribution. The same curve returns ' },
+  { kind: 'money', money: moneyAmount(CANONICAL_RECOMMENDED_POINT.net_contribution_delta_gbp, 'contribution_at_recommended_depth'), compact: true },
+  { kind: 'text', text: ` at ${CANONICAL_RECOMMENDED_POINT.discount_pct}% — ` },
+  { kind: 'money', money: moneyAmount(CANONICAL_RECOMMENDED_POINT.net_contribution_delta_gbp - CANONICAL_CURRENT_POINT.net_contribution_delta_gbp, 'contribution_left_on_the_table'), compact: true },
+  { kind: 'text', text: ' more, on demand the supply agreement can actually serve.' }
+];
+
+/** The seeded definitions. Behaviour and narrative live here; economics are derived below. */
+const SEEDED_ARCHETYPES: Record<ArchetypeId, CampaignArchetype> = {
   'ARCH-CHILLED-ELASTIC': {
     id: 'ARCH-CHILLED-ELASTIC',
     name: 'Highly Elastic Chilled Dairy',
@@ -445,14 +652,8 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
      */
     discovery: {
       headline: 'The committed depth buys volume the estate cannot serve, and leaves contribution behind',
-      core_narrative:
-        `A ${CANONICAL_CURRENT_POINT.discount_pct}% cut across the whole estate lifts demand `
-        + `${CANONICAL_CURRENT_POINT.expected_demand_uplift_pct}% and adds `
-        + `${formatGbpShort(CANONICAL_CURRENT_POINT.net_contribution_delta_gbp)} of contribution. `
-        + `The same curve returns ${formatGbpShort(CANONICAL_RECOMMENDED_POINT.net_contribution_delta_gbp)} at `
-        + `${CANONICAL_RECOMMENDED_POINT.discount_pct}% — `
-        + `${formatGbpShort(CANONICAL_RECOMMENDED_POINT.net_contribution_delta_gbp - CANONICAL_CURRENT_POINT.net_contribution_delta_gbp)} more, `
-        + `on demand the supply agreement can actually serve.`,
+      core_narrative: statementToBaseText(CANONICAL_HEADLINE_PARTS),
+      core_narrative_parts: CANONICAL_HEADLINE_PARTS,
       key_finding:
         `${CANONICAL_SCENARIO.estate.high_opportunity_incremental_share_pct}% of the incremental volume comes from `
         + `${CANONICAL_SCENARIO.estate.high_opportunity_store_count.toLocaleString('en-GB')} stores — around a quarter of the estate, `
@@ -859,8 +1060,8 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
 
     discovery: {
       headline: 'CogniX found low elasticity: price cut erodes margin with negligible volume gain',
-      core_narrative: 'White Sourdough demand is inelastic (ε=0.8). A 15% price cut yields only +12% volume, destroying £1,850 in category contribution.',
-      key_finding: 'Customers buy sourdough on quality, not price. A bundle offer (Sourdough + Artisanal Butter @ 10% pkg) creates +£2,200 margin.',
+      core_narrative: 'White Sourdough demand is inelastic (ε=0.8). A 15% price cut yields only +12% volume — far short of the volume needed to pay for the price given away.',
+      key_finding: 'Customers buy sourdough on quality, not price. A bundle offer (Sourdough + Artisanal Butter @ 10% pkg) protects margin where a straight price cut cannot.',
       decision_verdict: 'MARGIN RISK',
       confidence: 'HIGH',
       expected_demand_uplift_pct: 12.0,
@@ -1105,7 +1306,7 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
 
     discovery: {
       headline: 'CogniX detected localized produce waste surge in North West DC',
-      core_narrative: 'Depot stock of Broccoli is 140% above seasonal baseline with 4 days remaining shelf life. A 25% targeted clearance price cut clears 18,400 heads, avoiding £4,600 in landfill waste costs.',
+      core_narrative: 'Depot stock of Broccoli is 140% above seasonal baseline with 4 days remaining shelf life. A 25% targeted clearance price cut clears 18,400 heads. It does not pay for itself in contribution — the case for it is the waste it avoids.',
       key_finding: 'Running clearance in North West superstores drains inventory before spoilage while preserving national pricing integrity.',
       decision_verdict: 'ACCRETIVE GO',
       confidence: 'HIGH',
@@ -1475,7 +1676,7 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
 
     discovery: {
       headline: 'CogniX detected competitor price attack on ready meals (-8% share risk)',
-      core_narrative: 'Competitor launched £2.25 meal deal feature. Running an uncalibrated 20% cut erodes £2,900 in margin; a 2-for-£5 multi-buy defends volume (+32%) while maintaining accretive cash margin (+£3,100).',
+      core_narrative: 'Competitor launched a £2.25 meal deal feature. An uncalibrated 20% cut erodes margin faster than it defends volume; a 2-for-£5 multi-buy holds the unit floor price while defending volume (+32%).',
       key_finding: 'Multi-buy mechanic (2 for £5) protects unit floor price while neutralizing competitor basket theft.',
       decision_verdict: 'ACCRETIVE GO',
       confidence: 'HIGH',
@@ -1660,7 +1861,7 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
 
     discovery: {
       headline: 'CogniX discovered bank holiday weather window yield multiplier',
-      core_narrative: 'Aligning promotion with the 4-day bank holiday weekend unlocks +54% demand with £3,600 net profit, vs +28% if launched on standard mid-week dates.',
+      core_narrative: 'Aligning promotion with the 4-day bank holiday weekend unlocks +54% demand, against +28% on standard mid-week dates. The window does most of the work; the depth on top of it is what has to justify itself.',
       key_finding: 'Timing discovery identifies May Bank Holiday window as 2.3x more yield-dense than default calendar slot.',
       decision_verdict: 'ACCRETIVE GO',
       confidence: 'HIGH',
@@ -1713,6 +1914,20 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
 
     frontier_plays: [
       {
+        id: 'play_sw_window_only',
+        name: 'Take the Window, Hold the Price',
+        badge: 'Pareto Optimal',
+        discount_pct: 0,
+        stores_count: 50,
+        duration_days: 5,
+        expected_demand_uplift_pct: 18.2,
+        net_contribution_delta_gbp: 0,
+        supply_exposure: 'LOW',
+        waste_impact_pct: -1.2,
+        rationale: 'The bank holiday moves demand on its own. Running the window without a price cut takes that demand at full margin, and gives up the volume the discount would have added.',
+        is_recommended: true
+      },
+      {
         id: 'play_sw_bank_hol',
         name: 'Bank Holiday 5-Day Burst',
         badge: 'Recommended',
@@ -1723,8 +1938,7 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
         net_contribution_delta_gbp: 3620,
         supply_exposure: 'LOW',
         waste_impact_pct: -4.5,
-        rationale: 'Concentrated 5-day holiday blitz capturing £3.6K profit.',
-        is_recommended: true,
+        rationale: 'A concentrated five-day blitz across the holiday weekend, at the committed depth.',
         is_current: true
       },
       {
@@ -1841,7 +2055,7 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
 
     discovery: {
       headline: 'CogniX identified 34% category cannibalisation eroding net margin',
-      core_narrative: 'Discounting branded cola by 25% creates a +52% volume surge, but 34% of sales are cannibalised from high-margin own-brand cola (which carries 48% margin vs 22% on brand), reducing category profit by £2,100.',
+      core_narrative: 'Discounting branded cola by 25% creates a +52% volume surge, but 34% of it is cannibalised from own-brand cola carrying 48% margin against 22% on the brand — so the category buys volume by trading its own profit away.',
       key_finding: 'Restricting discount to 15% or implementing brand cross-merchandising (Cola + Snack Pack) protects private label margin while capturing brand growth.',
       decision_verdict: 'MARGIN RISK',
       confidence: 'HIGH',
@@ -2035,6 +2249,13 @@ export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> = {
 /**
  * Array of all 7 seeded demonstration campaign archetypes (uncalibrated demo world model)
  */
+/**
+ * What the surfaces select from: every seeded archetype, priced in the canonical framework.
+ * No selectable scenario reaches a client without passing through `canonicaliseArchetypes`.
+ */
+export const CAMPAIGN_ARCHETYPES_MAP: Record<ArchetypeId, CampaignArchetype> =
+  canonicaliseArchetypes(SEEDED_ARCHETYPES);
+
 export const CAMPAIGN_ARCHETYPES: CampaignArchetype[] = Object.values(CAMPAIGN_ARCHETYPES_MAP);
 
 /**
@@ -2117,8 +2338,18 @@ export function buildCampaignIntentFromArchetype(
   const sessionId = overrides?.session_id || CAMPAIGN_DEMO_SESSION_ID;
   const now = new Date().toISOString();
   const duration = overrides?.duration_days ?? archetype.default_duration_days;
-  const start = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
-  const end = new Date(Date.now() + (7 + duration) * 86400000).toISOString().slice(0, 10);
+  /*
+   * The campaign window is anchored to the SCENARIO clock and is INCLUSIVE of both endpoints.
+   *
+   * It used to be `Date.now() + 7` to `Date.now() + 7 + duration`, which was wrong twice. It
+   * drifted with real civil time while the forecast horizon beside it stayed anchored to the
+   * demonstration's own clock, so the promotion and the outlook it answers sat on different
+   * calendars and the gap widened by a day for every day that passed. And an exclusive span made
+   * a fourteen-day campaign run fifteen days, so the surface published a window one day longer
+   * than the horizon it was measured against.
+   */
+  const start = canonicalScenarioDateIso(1).slice(0, 10);
+  const end = canonicalScenarioDateIso(duration).slice(0, 10);
 
   const discount = overrides?.discount_depth_pct ?? overrides?.discount_pct ?? archetype.default_discount_pct;
   const sku = overrides?.sku_id || archetype.default_sku;

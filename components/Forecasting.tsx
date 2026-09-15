@@ -31,6 +31,7 @@ import {
 } from '@/packages/contracts/src/forecast-model-model';
 import type { DemandProjection } from '@/lib/demand-forecast';
 import { currencySymbol } from '@/lib/currency/format';
+import { CANONICAL_SCENARIO } from '@/packages/contracts/src/canonical-scenario-model';
 
 const TENANT_ID = 'tenant_uk_retail_01';
 
@@ -44,6 +45,8 @@ const fmt = {
 
 interface ForecastingProps {
   onNavigateToExperiment?: (experimentId: string) => void;
+  /** Continue into the commercial half of the same decision. */
+  onNavigateToSolution?: (solutionId: string) => void;
 }
 
 interface Recommendation {
@@ -82,14 +85,14 @@ const provenanceChip = (text: string, tone: 'neutral' | 'warn' = 'neutral') => (
 /** The governed default the surface starts on, replaced by the registry's own default once loaded. */
 const INITIAL_MODEL_ID = 'HOLT_WINTERS_ADDITIVE';
 
-export default function Forecasting({ onNavigateToExperiment }: ForecastingProps = {}) {
+export default function Forecasting({ onNavigateToExperiment, onNavigateToSolution }: ForecastingProps = {}) {
   const { role, apiKey, selectedStore, setSelectedStore } = useApp();
   const { decisionState, executeCommand } = useDecisionState();
   /*
    * Every money value on this surface converts here and only here. `money` takes the modelled GBP
    * amount; `localise` converts pounds inside sentences the engine composed for itself.
    */
-  const { money, localise, currency, convert } = useCurrency();
+  const { money, localise, statement, currency, convert } = useCurrency();
   const currencySign = currencySymbol(currency);
 
   // ── Governance Scoping ─────────────────────────────────────────────────────
@@ -798,7 +801,16 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
                   {simActive && provenanceChip('Simulation only — nothing ordered', 'warn')}
                 </div>
                 <div style={{ fontWeight: 700, fontSize: '0.875rem', color: C.ink }}>
-                  {simActive ? sim.outcome_statement : intervention.intervention_name}
+                  {/*
+                    * Structured first: the engine hands over amounts with meanings, and the
+                    * currency layer decides how they look. `outcome_statement` is the base-currency
+                    * fallback for a recorded evaluation that predates the structured form.
+                    */}
+                  {simActive
+                    ? (sim.outcome_statement_parts
+                        ? statement(sim.outcome_statement_parts)
+                        : localise(sim.outcome_statement))
+                    : intervention.intervention_name}
                 </div>
                 {!simActive && (
                   <div style={{ fontSize: '0.75rem', color: C.muted, marginTop: 3, lineHeight: 1.45 }}>
@@ -824,6 +836,39 @@ export default function Forecasting({ onNavigateToExperiment }: ForecastingProps
                   {simActive ? <><RotateCcw size={14} /> Reset simulation</> : <><Zap size={14} /> Simulate intervention</>}
                 </button>
               )}
+            </div>
+          )}
+
+          {/*
+            * The handover into the commercial half of the same decision.
+            *
+            * This surface establishes that demand has moved and that a committed promotion is the
+            * largest single reason why. The next question — whether that promotion is still the
+            * right one — is answered on another screen, and until now nothing on this one said so.
+            * One line, stating the reason for moving rather than instructing the reader to move.
+            */}
+          {onNavigateToSolution && gap && (
+            <div style={{
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              gap: 16, flexWrap: 'wrap', marginBottom: 16,
+              padding: '10px 14px', borderRadius: 8,
+              background: C.sunken, border: `1px solid ${C.line}`
+            }}>
+              <span style={{ fontSize: '0.8125rem', color: C.body, lineHeight: 1.5 }}>
+                A committed {CANONICAL_SCENARIO.economics.promotion_depth_pct}% promotion is the
+                largest single driver of this movement — and it was planned against the outlook this
+                surface has just revised.
+              </span>
+              <button
+                onClick={() => onNavigateToSolution('SOL-PROMO-01')}
+                style={{
+                  padding: '8px 14px', borderRadius: 6, background: C.surface, color: C.ink,
+                  border: `1px solid ${C.line}`, fontWeight: 600, fontSize: '0.8125rem',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap'
+                }}
+              >
+                Challenge the committed promotion <ChevronRight size={14} />
+              </button>
             </div>
           )}
 

@@ -151,7 +151,7 @@ export default function App() {
         return <PromotionPlanner onNavigateToExperiment={handleNavigateToExperiment} />;
       case 'solution-demand':
       case 'forecasting':
-        return <Forecasting onNavigateToExperiment={handleNavigateToExperiment} />;
+        return <Forecasting onNavigateToExperiment={handleNavigateToExperiment} onNavigateToSolution={handleNavigateToSolution} />;
       case 'solution-inventory':
       case 'availability':
         return <AvailabilityIntelligence onNavigateToExperiment={handleNavigateToExperiment} />;

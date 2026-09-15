@@ -35,6 +35,7 @@ import { getCampaignIntentById } from './campaign-intent-store';
 import { getDecisionState } from './decision-state-store';
 import { simulateEnterpriseSignalTimelines } from '../services/world/src/dynamic-signal-simulator';
 import { SignalSimulationContext } from '../packages/contracts/src/enterprise-signal-model';
+import { CampaignDemandBridge } from '../packages/contracts/src/campaign-counterfactual-model';
 import {
   CANONICAL_SCENARIO,
   canonicalWeeklyPopulationUnits,
@@ -51,6 +52,9 @@ const SCHEMA_VERSION = '1.0';
  * evaluated in one economic universe and executed in another is not a decision; it is a coincidence.
  */
 const BASE_WEEKLY_UNITS = canonicalWeeklyPopulationUnits();
+
+/** Days the `BASE_WEEKLY_UNITS` rate covers. Named so the counterfactual can publish its basis. */
+const RATE_PERIOD_DAYS = 7;
 const UNIT_CONTRIBUTION_GBP = canonicalContributionPerUnitAtListGbp();
 const WASTE_BASELINE_UNITS = CANONICAL_SCENARIO.economics.waste_units_per_week;
 
@@ -160,6 +164,8 @@ function hashSeed(input: string): number {
  * breakeven that jitter was enough to flip a verdict. Category now acts through its
  * elasticity, which is a stated property with a reason attached; a hash of its name is not.
  */
+export const SKU_CONTEXT_BAND_PCT = 6;
+
 function skuContextFactor(campaign: CampaignIntent): number {
   const skuKey = campaign.campaign_intent.sku_scope.join('|') || 'none';
   const regionKey = campaign.audience_market.region || 'unknown';
@@ -676,6 +682,56 @@ export function evaluateCausalDemandContribution(
   return causal;
 }
 
+/** Days the campaign actually runs, from its declared window; the scenario's own length otherwise. */
+export function campaignWindowDays(campaign: CampaignIntent): number {
+  const start = campaign.audience_market.planned_start;
+  const end = campaign.audience_market.planned_end;
+  if (start && end) {
+    // Inclusive of both endpoints: a window running 04 June to 17 June is fourteen days of
+    // trading, not thirteen. Counting it exclusively put the campaign one day short of the
+    // forecast horizon it is supposed to be answering.
+    const days = (Date.parse(end) - Date.parse(start)) / 86_400_000 + 1;
+    if (Number.isFinite(days) && days > 0) return Math.round(days);
+  }
+  return CANONICAL_SCENARIO.calendar.promotion_duration_days;
+}
+
+/** How the surface's two demand numbers relate. See `CampaignDemandBridge`. */
+function buildDemandBridge(causalResult: CausalDemandContribution): CampaignDemandBridge {
+  const pp = (id: string) =>
+    causalResult.drivers.find(d => d.driver_id === id)?.contribution_pp ?? 0;
+
+  // The elasticity curve plots the mechanic's response net of the cannibalisation it causes.
+  // Portfolio drag is already negative, so it adds.
+  const priceDepth = Number((pp('mechanic_response') + pp('portfolio_effects')).toFixed(2));
+  const design = Number((causalResult.intervention_uplift_pp - priceDepth).toFixed(2));
+
+  const DESIGN_LABELS: Record<string, string> = {
+    audience_response: 'Who we target',
+    channel_response: 'Which channels we activate',
+    place_response: 'Where we run it',
+    temporal_response: 'When we run it',
+    non_promotion_response: 'Non-promotional levers',
+    interaction_residual: 'Interaction between levers'
+  };
+
+  return {
+    price_depth_response_pp: priceDepth,
+    campaign_design_response_pp: design,
+    total_attributable_pp: causalResult.intervention_uplift_pp,
+    design_components: causalResult.drivers
+      .filter(d => d.driver_class === 'intervention'
+        && d.driver_id !== 'mechanic_response'
+        && d.driver_id !== 'portfolio_effects'
+        && d.contribution_pp !== 0)
+      .map(d => ({
+        driver_id: d.driver_id,
+        label: DESIGN_LABELS[d.driver_id] ?? d.label,
+        contribution_pp: d.contribution_pp
+      }))
+  };
+}
+
 export function evaluateCounterfactualBaseline(
   campaign: CampaignIntent,
   causal?: CausalDemandContribution,
@@ -709,6 +765,9 @@ export function evaluateCounterfactualBaseline(
     applyInterventionClearance
   );
 
+  const delta = campaignDelta(without, predicted, causalResult.intervention_uplift_pp);
+  const windowDays = campaignWindowDays(campaign);
+
   const baseline: CounterfactualBaseline = {
     counterfactual_id: `cf_${campaign.campaign_intent_id}`,
     campaign_intent_id: campaign.campaign_intent_id,
@@ -721,8 +780,24 @@ export function evaluateCounterfactualBaseline(
     current_baseline: current,
     expected_without_intervention: without,
     predicted_with_intervention: predicted,
-    campaign_delta: campaignDelta(without, predicted, causalResult.intervention_uplift_pp),
-    horizon_days: 14,
+    campaign_delta: delta,
+    demand_bridge: buildDemandBridge(causalResult),
+    /*
+     * The trajectories above are a weekly RATE — `CDI-05` plots them period by period and its own
+     * disclosure forbids summing them. `horizon_days` said 14 beside them, so a weekly rate and a
+     * campaign total sat on the same screen indistinguishable from one another. Both are published
+     * now, each named, and neither is silently converted into the other.
+     */
+    economic_basis: {
+      rate_period_days: RATE_PERIOD_DAYS,
+      campaign_window_days: windowDays,
+      contribution_delta_over_window_gbp:
+        Number((delta.contribution_delta_gbp * (windowDays / RATE_PERIOD_DAYS)).toFixed(2)),
+      volume_delta_over_window_units:
+        Math.round(delta.volume_delta_units * (windowDays / RATE_PERIOD_DAYS)),
+      base_currency: 'GBP'
+    },
+    horizon_days: windowDays,
     calculation_mode: 'deterministic_demo_counterfactual',
     synthetic_demo: campaign.synthetic_demo,
     schema_version: SCHEMA_VERSION,

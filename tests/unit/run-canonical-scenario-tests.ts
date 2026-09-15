@@ -25,6 +25,7 @@ import {
   canonicalContributionPerUnitAtListGbp,
   canonicalContributionAtDepthGbp,
   canonicalContributionErosionPerDepthPoint,
+  canonicalRetailerFundedShare,
   canonicalRevenueExposureGbp,
   canonicalMarginExposureGbp,
   canonicalWeeklyPopulationUnits,
@@ -36,7 +37,10 @@ import {
   CANONICAL_BASE_CURRENCY,
   SUPPORTED_CURRENCIES,
   convertFromBase,
-  FxRateSet
+  FxRateSet,
+  NarrativeStatement,
+  moneyAmount,
+  statementToBaseText
 } from '../../packages/contracts/src/index';
 
 import {
@@ -52,11 +56,16 @@ import {
   CANONICAL_ELASTICITY_CURVE,
   CANONICAL_CURRENT_POINT,
   CANONICAL_RECOMMENDED_POINT,
-  REGION_STORE_COUNTS
+  REGION_STORE_COUNTS,
+  LEGACY_DEMO_ESTATE_STORES,
+  archetypeBaselineUnits
 } from '../../lib/campaign-archetypes';
 
 import { CDI02_BASE_WEEKLY_UNITS } from '../../packages/contracts/src/campaign-timeline-model';
-import { formatBaseMoney, localiseMoneyInText, convertBaseAmount } from '../../lib/currency/format';
+import { formatBaseMoney, localiseMoneyInText, convertBaseAmount, formatStatement } from '../../lib/currency/format';
+import { clearCampaignIntents, registerCampaignIntent } from '../../lib/campaign-intent-store';
+import { createDefaultCampaignIntentDraft } from '../../packages/contracts/src/campaign-intent-model';
+import { evaluateCampaignDecision, SKU_CONTEXT_BAND_PCT } from '../../lib/campaign-causal-engine';
 import productsData from '../../data/products.json';
 import suppliersData from '../../data/suppliers.json';
 
@@ -405,6 +414,398 @@ console.log('\n=== 7. SCENARIO RESET ===========================================
   assert(JSON.stringify(restored) === JSON.stringify(a), 'Returning the parameters restores the opening position exactly');
 
   assertClose(canonicalBaseDemandUnits(), canonicalBaseDemandUnits(), 0, 'Scenario derivations carry no hidden state');
+}
+
+console.log('\n=== 8. PROMOTION MODEL RECONCILIATION ==============================\n');
+
+{
+  /*
+   * The Promotion surface publishes TWO demand numbers for one campaign, and they are not the
+   * same quantity. The elasticity curve plots what price depth alone buys; the causal engine
+   * reports what this campaign as configured causes. These assertions pin the RELATIONSHIP
+   * between them, which is the thing that must never quietly break — not equality, which would
+   * be wrong, and not independence, which is what made them look contradictory.
+   */
+  const evaluateAt = (session: string, region: string) => {
+    clearCampaignIntents();
+    const draft = createDefaultCampaignIntentDraft('tenant_uk_retail_01', session);
+    draft.campaign_intent.intervention_posture = 'CONSIDER_PROMOTION';
+    draft.campaign_intent.provisional_mechanic = '20_percent_off';
+    draft.campaign_intent.provisional_discount_depth = CANONICAL_SCENARIO.economics.promotion_depth_pct;
+    draft.audience_market.region = region;
+    const campaign = registerCampaignIntent(draft);
+    return evaluateCampaignDecision({
+      tenant_id: campaign.tenant_id,
+      session_id: campaign.session_id,
+      campaign_intent_id: campaign.campaign_intent_id,
+      include_signals: false
+    });
+  };
+
+  // The curve is drawn for the scenario's own scope, so that is where the two must meet exactly.
+  const evaluation = evaluateAt('sess_reconcile_national', CANONICAL_SCENARIO.identity.market_scope_label);
+
+  const bridge = evaluation.counterfactual.demand_bridge;
+  const basis = evaluation.counterfactual.economic_basis;
+
+  assert(!!bridge, 'The counterfactual publishes a demand bridge');
+  assert(!!basis, 'The counterfactual publishes the period its money is expressed on');
+
+  // THE reconciliation: the engine's price-depth response IS the quantity the curve plots.
+  assertClose(
+    bridge!.price_depth_response_pp,
+    CANONICAL_CURRENT_POINT.expected_demand_uplift_pct,
+    0.5,
+    'At the scenario\'s own scope, the engine\'s price-depth response IS the curve\'s depth response'
+  );
+
+  /*
+   * At a different scope the two legitimately differ, and by a bounded amount: the engine applies
+   * a declared +/-6% SKU-and-region differentiation band that a national curve does not model.
+   * Asserting the BAND is what stops that divergence growing into a second economic model without
+   * anyone noticing.
+   */
+  const regional = evaluateAt('sess_reconcile_regional', CANONICAL_SCENARIO.identity.focus_region);
+  const regionalDepth = regional.counterfactual.demand_bridge!.price_depth_response_pp;
+  const nationalDepth = bridge!.price_depth_response_pp;
+  const divergencePct = Math.abs(regionalDepth - nationalDepth) / nationalDepth * 100;
+  assert(
+    divergencePct <= SKU_CONTEXT_BAND_PCT * 2,
+    'A different scope moves the price-depth response only within the declared context band',
+    `${regionalDepth} vs ${nationalDepth} — ${divergencePct.toFixed(2)}% against a +/-${SKU_CONTEXT_BAND_PCT}% band`
+  );
+  assert(
+    regional.counterfactual.demand_bridge!.price_depth_response_pp
+      + regional.counterfactual.demand_bridge!.campaign_design_response_pp
+      === regional.counterfactual.demand_bridge!.total_attributable_pp
+      || Math.abs(
+        regional.counterfactual.demand_bridge!.price_depth_response_pp
+        + regional.counterfactual.demand_bridge!.campaign_design_response_pp
+        - regional.counterfactual.demand_bridge!.total_attributable_pp) < 0.01,
+    'The bridge still reconciles at a regional scope'
+  );
+
+  // The bridge must actually bridge — a decomposition that does not sum explains nothing.
+  assertClose(
+    bridge!.price_depth_response_pp + bridge!.campaign_design_response_pp,
+    bridge!.total_attributable_pp,
+    0.01,
+    'Price depth plus campaign design equals what the campaign causes'
+  );
+  assertClose(
+    bridge!.total_attributable_pp,
+    evaluation.causal.intervention_uplift_pp,
+    0.01,
+    'The bridge total is the engine\'s own attributable uplift, not a second figure'
+  );
+
+  // Design effects are what the curve deliberately holds fixed, so they must be non-zero and
+  // named — otherwise the surface is claiming a difference it cannot show.
+  assert(bridge!.campaign_design_response_pp !== 0,
+    'The campaign design contributes demand the depth curve does not model',
+    String(bridge!.campaign_design_response_pp));
+  assert(bridge!.design_components.length > 0 && bridge!.design_components.every(c => !!c.label),
+    'Every design component the bridge counts is named');
+  assert(bridge!.design_components.every(c => c.driver_id !== 'mechanic_response' && c.driver_id !== 'portfolio_effects'),
+    'The price mechanic is never double-counted as a design component');
+
+  // Period: the rate and the campaign total are different numbers and must both be published.
+  assert(basis!.rate_period_days === 7, 'The trajectory rate period is declared as a week');
+  assert(basis!.campaign_window_days === CANONICAL_SCENARIO.calendar.forecast_horizon_days,
+    'The campaign window is the same length as the forecast horizon it answers',
+    `${basis!.campaign_window_days} vs ${CANONICAL_SCENARIO.calendar.forecast_horizon_days}`);
+  assertClose(
+    basis!.contribution_delta_over_window_gbp,
+    evaluation.counterfactual.campaign_delta.contribution_delta_gbp * (basis!.campaign_window_days / basis!.rate_period_days),
+    0.01,
+    'The campaign-window contribution is the weekly rate over the campaign window'
+  );
+  assert(basis!.contribution_delta_over_window_gbp !== evaluation.counterfactual.campaign_delta.contribution_delta_gbp,
+    'A weekly rate and a campaign total are published as different numbers');
+  assert(basis!.base_currency === CANONICAL_BASE_CURRENCY,
+    'The counterfactual declares the currency its money is modelled in');
+
+  // The whole-campaign response must exceed the depth-only response, or the design is free.
+  assert(bridge!.total_attributable_pp > bridge!.price_depth_response_pp,
+    'A configured campaign moves more demand than its price cut alone');
+}
+
+console.log('\n=== 9. EVERY SELECTABLE ARCHETYPE ==================================\n');
+
+{
+  /*
+   * A presenter can switch archetype mid-demonstration. Before this, six of the seven carried
+   * elasticity economics from a 50-store, 10,000-unit estate, so one click left the unified
+   * economics behind and landed in the world this workstream exists to remove. These assertions
+   * hold for EVERY selectable archetype, not just the canonical one.
+   */
+  const archetypes = Object.entries(CAMPAIGN_ARCHETYPES_MAP);
+  assert(archetypes.length >= 7, 'The archetype set is populated', String(archetypes.length));
+
+  for (const [id, archetype] of archetypes) {
+    const summary = archetype.curve_summary;
+    assert(!!summary, `${id}: publishes a derived curve summary`);
+
+    /*
+     * Scope: a targeted play may legitimately be small, so the test is not that every count is
+     * large. It is that the archetype's WIDEST play outgrew the retired estate — an archetype
+     * whose broadest reach is still 50 stores never left it — and that no play claims more stores
+     * than its own scope contains.
+     */
+    const widest = Math.max(...archetype.frontier_plays.map(p => p.stores_count));
+    const scopeStores = canonicalStoreCount(archetype.default_region);
+    assert(
+      widest > LEGACY_DEMO_ESTATE_STORES,
+      `${id}: the widest frontier play outgrew the retired ${LEGACY_DEMO_ESTATE_STORES}-store estate`,
+      archetype.frontier_plays.map(p => p.stores_count).join(', ')
+    );
+    assert(
+      archetype.frontier_plays.every(p => p.stores_count <= Math.max(scopeStores, canonicalStoreCount('National'))),
+      `${id}: no frontier play reaches more stores than the estate has`
+    );
+
+    // Economics: unit contribution must be this archetype's own price less its own cost, priced
+    // through the shared funding rule — not a number carried over from a different calibration.
+    for (const point of archetype.elasticity_curve) {
+      assertClose(
+        point.unit_contribution_gbp,
+        canonicalContributionAtDepthGbp(point.discount_pct, archetype.rrp, archetype.cost_price),
+        1,
+        `${id}: unit contribution at ${point.discount_pct}% is derived from its own price and cost`
+      );
+    }
+    assert(
+      archetype.elasticity_curve.every(p => p.unit_contribution_gbp <= archetype.rrp - archetype.cost_price + 1e-6),
+      `${id}: no depth earns more contribution than selling at full price`
+    );
+
+    // Scale: the pounds on this archetype must belong to the same estate as its own volumes.
+    const baselineUnits = archetypeBaselineUnits(
+      archetype.base_weekly_units_per_store, archetype.default_region, archetype.default_duration_days
+    );
+    const baselineContribution = baselineUnits * (archetype.rrp - archetype.cost_price);
+    const largest = Math.max(...archetype.elasticity_curve.map(p => Math.abs(p.net_contribution_delta_gbp)), 1);
+    assert(
+      largest < baselineContribution,
+      `${id}: no depth moves more contribution than the archetype earns in total`,
+      `${largest.toFixed(0)} against a ${baselineContribution.toFixed(0)} base`
+    );
+
+    // Coherence: exactly one current tier, exactly one recommendation, and the recommendation is
+    // never worse than the plan it is recommending against.
+    assert(
+      archetype.elasticity_curve.filter(p => p.is_current).length === 1,
+      `${id}: exactly one tier is marked as the current plan`
+    );
+    assert(
+      archetype.elasticity_curve.filter(p => p.is_cognix_recommended).length === 1,
+      `${id}: exactly one tier is recommended`
+    );
+    assert(
+      summary!.recommended_contribution_gbp >= summary!.current_contribution_gbp,
+      `${id}: the recommended depth is never worse than the committed depth`,
+      `${summary!.recommended_contribution_gbp} vs ${summary!.current_contribution_gbp}`
+    );
+
+    // The headline must read off the curve drawn beneath it.
+    assertClose(
+      archetype.discovery.net_contribution_delta_gbp,
+      summary!.current_contribution_gbp,
+      0.01,
+      `${id}: the discovery headline is the curve's own current tier`
+    );
+
+    // Narrative must not assert a contribution the curve recomputes.
+    const prose = [
+      archetype.discovery.core_narrative,
+      archetype.discovery.key_finding,
+      archetype.discovery.primary_tension_description
+    ].join(' ');
+    const stale = (prose.match(/£[\d.,]+[KM]?/g) ?? []).filter(amount => {
+      // A price point (a competitor's meal deal, a multibuy) is a price, not a contribution claim.
+      const value = Number(amount.replace(/[£,KM]/g, ''));
+      return !/[KM]$/.test(amount) && value > 100;
+    });
+    assert(
+      id === 'ARCH-CHILLED-ELASTIC' || stale.length === 0,
+      `${id}: no narrative asserts a contribution figure the curve derives`,
+      stale.join(', ')
+    );
+  }
+}
+
+console.log('\n=== 10. STRUCTURED MONEY ==========================================\n');
+
+{
+  /*
+   * The engine owns what an amount MEANS; the surface owns what it looks like. Where a statement
+   * carries structured parts, nothing has to be parsed back out of prose — which is what the
+   * regex compatibility path does and why it is a stand-in rather than the architecture.
+   */
+  const parts: NarrativeStatement = [
+    { kind: 'text', text: 'Recovering ' },
+    { kind: 'money', money: moneyAmount(52079, 'gross_margin_recovered') },
+    { kind: 'text', text: ' of gross margin.' }
+  ];
+
+  assert(statementToBaseText(parts) === 'Recovering £52,079 of gross margin.',
+    'A statement flattens to the engine\'s own base-currency text', statementToBaseText(parts));
+  assert(formatStatement(parts, 'GBP', SEEDED_FALLBACK_RATES) === statementToBaseText(parts),
+    'Rendering a statement in the base currency matches the engine\'s text exactly');
+
+  const usd = formatStatement(parts, 'USD', SEEDED_FALLBACK_RATES);
+  assert(!usd.includes('£') && usd.includes('$'),
+    'A statement rendered in USD carries no pound sign', usd);
+  assert(usd.includes(Math.round(52079 * SEEDED_FALLBACK_RATES.rates.USD).toLocaleString('en-US')),
+    'The rendered amount is the base amount converted once', usd);
+  assert(usd.startsWith('Recovering ') && usd.endsWith(' of gross margin.'),
+    'Text segments are untouched by currency', usd);
+
+  // The meaning travels with the amount — that is what makes it structured rather than formatted.
+  const money = parts.find(p => p.kind === 'money');
+  assert(money?.kind === 'money' && money.money.meaning === 'gross_margin_recovered',
+    'An amount carries what it means, not just what it is');
+  assert(money?.kind === 'money' && money.money.base_currency === CANONICAL_BASE_CURRENCY,
+    'An amount declares the currency it is modelled in');
+
+  // The demand journey's simulated outcome must travel structured, because it is the statement
+  // that was still leaking a pound sign into USD before this.
+  const archetypeParts = CAMPAIGN_ARCHETYPES_MAP['ARCH-CHILLED-ELASTIC'].discovery.core_narrative_parts;
+  assert(!!archetypeParts, 'The Promotion headline carries its derived amounts structured');
+  assert(
+    !!archetypeParts && statementToBaseText(archetypeParts) === CAMPAIGN_ARCHETYPES_MAP['ARCH-CHILLED-ELASTIC'].discovery.core_narrative,
+    'The structured headline and its text form are the same sentence'
+  );
+  assert(
+    !!archetypeParts && !formatStatement(archetypeParts, 'EUR', SEEDED_FALLBACK_RATES).includes('£'),
+    'The Promotion headline carries no pound sign into EUR'
+  );
+}
+
+console.log('\n=== 11. SUPPLIER FUNDING TRANSPARENCY =============================\n');
+
+{
+  /*
+   * The funding rate is illustrative and must read as one. It is also the term that decides
+   * whether a promotion pays, so it has to be findable and it has to actually drive the numbers —
+   * an assumption nobody can see and nothing responds to is decoration.
+   */
+  const fundingPct = CANONICAL_SCENARIO.economics.supplier_promotional_funding_pct;
+  assert(fundingPct > 0 && fundingPct < 100,
+    'Supplier funding is a share of the price investment, not all or nothing', String(fundingPct));
+  assert(CANONICAL_SCENARIO.provenance.basis === 'MODELLED_DEMONSTRATION_ASSUMPTION',
+    'The scenario the funding term belongs to declares itself modelled');
+  assert(/no figure is taken from|any named retailer/i.test(CANONICAL_SCENARIO.provenance.statement),
+    'The scenario states that no figure describes a named retailer');
+
+  // It must drive the arithmetic, monotonically and in the right direction.
+  const depth = CANONICAL_SCENARIO.economics.promotion_depth_pct;
+  const atList = canonicalContributionPerUnitAtListGbp();
+  const contributionAt = canonicalContributionAtDepthGbp(depth);
+  assert(contributionAt < atList,
+    'A promoted unit earns less contribution than one sold at list');
+
+  const retailerShare = canonicalRetailerFundedShare();
+  assertClose(
+    retailerShare,
+    1 - fundingPct / 100,
+    0.0001,
+    'The retailer carries exactly what the supplier does not fund'
+  );
+  // Reconstructing the contribution from the funding rate is the check that the rate is really
+  // what moves it, rather than sitting beside a number computed some other way.
+  assertClose(
+    contributionAt,
+    atList - CANONICAL_SCENARIO.economics.list_price_gbp * (depth / 100) * retailerShare,
+    0.01,
+    'Contribution at depth is list contribution less the share of price the retailer funds'
+  );
+
+  // More funding must mean more contribution, always, at any depth.
+  const shallower = canonicalContributionAtDepthGbp(depth / 2);
+  assert(shallower > contributionAt,
+    'A shallower cut earns more contribution at the same funding rate');
+  assert(canonicalContributionErosionPerDepthPoint() > 0
+    && canonicalContributionErosionPerDepthPoint() < 1,
+    'The erosion rate the funding term produces is a sane share of contribution',
+    String(canonicalContributionErosionPerDepthPoint()));
+
+  // Funding conditions must be worth what they claim to be worth.
+  for (const [id, archetype] of Object.entries(CAMPAIGN_ARCHETYPES_MAP)) {
+    const funding = archetype.inverse_conditions.filter(c => c.target_parameter === 'SUPPLIER_FUNDING');
+    for (const condition of funding) {
+      const gap = archetype.curve_summary!.recommended_contribution_gbp
+        - archetype.curve_summary!.current_contribution_gbp;
+      assertClose(condition.target_value, Math.max(0, Math.round(gap)), 0.01,
+        `${id}: the funding a condition asks for is the contribution gap it closes`);
+      assert(!/£[\d,]{4,}/.test(condition.explanation) || condition.target_value > 0,
+        `${id}: a funding condition never quotes a sum it does not need`);
+    }
+  }
+}
+
+console.log('\n=== 12. RESET AND FX DEGRADATION ==================================\n');
+
+{
+  /*
+   * A demonstration is run many times a day, and the second run has to open exactly where the
+   * first one did. Reset is therefore a correctness property, not a convenience: state that
+   * survives it is state the next audience sees without being told.
+   */
+  const params: DecisionScenarioParameters = { ...SCENARIO_PARAMS };
+  const opening = calculateDerivedImpacts(params, []);
+
+  // A presenter moves the scenario and selects an intervention.
+  const moved = calculateDerivedImpacts(
+    { ...params, promotion_lift: 35, supplier_capacity_cap: 0, cannibalisation_factor: 15 },
+    ['SLA_FLEX_RULE_4', 'BUFFER_OPTIMISATION_R002']
+  );
+  assert(JSON.stringify(moved) !== JSON.stringify(opening), 'Reset fixture: the scenario genuinely moved');
+
+  // Returning the declared parameters returns the whole derived position, field by field.
+  const restored = calculateDerivedImpacts(params, []);
+  for (const key of Object.keys(opening) as (keyof typeof opening)[]) {
+    assert(restored[key] === opening[key], `Reset restores ${String(key)} exactly`,
+      `${restored[key]} vs ${opening[key]}`);
+  }
+
+  // The opening position must be the canonical scenario's, not merely self-consistent.
+  assertClose(
+    opening.weekly_demand_units,
+    canonicalWeeklyPopulationUnits() * (1 + CANONICAL_SCENARIO.economics.promotion_depth_pct / 100),
+    0.01, 'The position reset returns to is the canonical scenario\'s own'
+  );
+  assert(opening.commitment_gap_units > 0,
+    'The opening position still has the gap the demonstration is about');
+
+  // Currency is part of the opening position: a reader who left it in EUR must not hand the next
+  // audience a euro-denominated demonstration.
+  assert(CANONICAL_BASE_CURRENCY === 'GBP' && CANONICAL_SCENARIO.economics.base_currency === 'GBP',
+    'The currency reset returns to is GBP');
+}
+
+{
+  /*
+   * FX degradation. A rate host that is unreachable — a policy block, an outage, a demonstration
+   * on a train — must cost provenance and nothing else. These assert the SHAPE of that promise
+   * against the seeded set, which is what the service falls back to.
+   */
+  const fallback = SEEDED_FALLBACK_RATES;
+  assert(fallback.source === 'SEEDED_FALLBACK', 'The fallback declares itself a fallback');
+  assert(!!fallback.degraded_reason, 'The fallback says why it is in use');
+  assert(SUPPORTED_CURRENCIES.every(c => Number.isFinite(fallback.rates[c]) && fallback.rates[c] > 0),
+    'Every supported currency is usable on the fallback');
+  assert(/^\d{4}-\d{2}-\d{2}$/.test(fallback.rate_date),
+    'The fallback is dated, so a reader can see how old it is', fallback.rate_date);
+
+  // The demonstration must render identically on the fallback — same conversion, same rounding.
+  const exposure = canonicalMarginExposureGbp();
+  assert(formatBaseMoney(exposure, 'GBP', fallback) === formatBaseMoney(exposure, 'GBP', fallback),
+    'Formatting is deterministic on the fallback');
+  assert(formatBaseMoney(exposure, 'USD', fallback).startsWith('$'),
+    'A degraded rate set still converts rather than refusing');
+  assert(convertFromBase(exposure, 'GBP', fallback) === exposure,
+    'A degraded rate set still leaves the base currency untouched');
 }
 
 console.log(`\n=================================================================`);

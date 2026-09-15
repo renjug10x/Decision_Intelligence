@@ -16,6 +16,11 @@ post-intervention conclusion. The values that moved are on the Promotion, Campai
 Decision Ripple and Inventory surfaces, which previously ran on an economic scale the demand
 journey had never shared. Those are listed in §2 and §3 and **do** need slide changes.
 
+**Second pass, 2026-09-15 (closure).** The Promotion model seam, archetype continuity, structured
+money, supplier-funding transparency and journey continuity were closed. **No slide value changed
+in that pass** — §1, §2 and §3 stand exactly as recorded. What changed is what the Promotion surface
+now *says about* its numbers; §6 records the additions a presenter should be ready for.
+
 ---
 
 ## 1. Opening scenario — NO CHANGE REQUIRED
@@ -154,3 +159,35 @@ docker compose -f docker-compose.yml -f docker-compose.local.yml up -d --build
 
 The reconciliation is also asserted in `tests/unit/run-canonical-scenario-tests.ts`, which fails if
 any two surfaces of the connected journey stop agreeing on the same quantity.
+
+---
+
+## 6. Second pass — additions, not changes (2026-09-15)
+
+Nothing in §1–§3 moved. These are new statements on surfaces the presentation already covers.
+
+| Surface | What is new | Why it matters to a slide |
+|---|---|---|
+| Promotion cards | *"Demand the price cut buys"* / *"Contribution it returns · over 14 days"* | The two headline cards now name what they measure and over what period. The values are unchanged: **+46.8%** and **+£8.1K**. |
+| Promotion live line | *"This campaign as configured: +50.5 pp — +46.8pp from the price cut, +3.7pp from who we target, where we run it, when we run it"* | This replaces the bare *"Attributable uplift: +50.5 pp"*. A slide quoting both the curve and the live assessment can now show how they relate rather than leaving them looking contradictory. |
+| Promotion live line | *"Contribution over 14 days: +£22.7K"* | **Replaces** *"Contribution impact: +£11.4K"*. The old figure was a WEEKLY rate sitting beside a 14-day curve value with nothing saying so. Same campaign, same economics, correctly stated over the campaign window. **If a slide quotes £11.4K it must change to £22.7K.** |
+| Promotion assumption strip | *"…· supplier funds 35% of the price invested (modelled assumption)"* | The funding term is now discoverable on the surface and in the demand assumption inventory. Any slide mentioning promotion economics should be able to answer "who pays for the discount?" the same way. |
+| Demand | New handover: *"A committed 20% promotion is the largest single driver of this movement — Challenge the committed promotion →"* | Gives the Demand→Promotion slide transition an on-screen equivalent. |
+| Promotion | New handover: *"Or ask whether to intervene at all →"* | Gives the Promotion→Campaign Decision slide transition an on-screen equivalent. |
+| Campaign window | Anchored to the scenario clock and inclusive of both endpoints | The promotion window read **15 days** against a 14-day forecast horizon, and drifted with real civil time. It is now 14 days, matching the horizon. No slide quoted 15. |
+
+### Archetypes other than the canonical one
+
+The six alternative archetypes were still priced against the retired 50-store, £1.85-contribution
+estate. They are now on the same economic framework, keeping their own elasticity, cannibalisation,
+supplier constraint, seasonality and inventory behaviour. **None of them appears in the connected
+demonstration narrative**, so no slide value is affected — but a presenter who switches archetype
+live will now see enterprise-scale economics rather than the old ones, and five of the seven now
+answer *"do not discount"*, which is a legitimate and defensible CogniX recommendation.
+
+### One figure a presenter should not put on a slide
+
+The Promotion surface publishes **+46.8%** (what the price cut buys) and **+50.5pp** (what this
+campaign, as configured, causes). Both are correct and they measure different things — the
+difference is the audience, placement and timing the curve deliberately holds fixed. **Quote one,
+not both**, and prefer +46.8% because it is the number the elasticity curve is drawn from.

@@ -14,9 +14,10 @@ import {
   FxRateSet,
   SEEDED_FALLBACK_RATES,
   CANONICAL_BASE_CURRENCY,
+  NarrativeStatement,
   isSupportedCurrency
 } from '@/packages/contracts/src/currency-model';
-import { formatBaseMoney, localiseMoneyInText, convertBaseAmount, MoneyFormatOptions } from '@/lib/currency/format';
+import { formatBaseMoney, localiseMoneyInText, convertBaseAmount, formatStatement, MoneyFormatOptions } from '@/lib/currency/format';
 
 const STORAGE_KEY = 'cognix.display_currency';
 
@@ -29,8 +30,10 @@ interface CurrencyContextValue {
   money: (amountInBase: number, options?: MoneyFormatOptions) => string;
   /** Convert an amount held in the base currency, without formatting. */
   convert: (amountInBase: number) => number;
-  /** Convert pound amounts inside an engine-composed sentence. */
+  /** Convert pound amounts inside an engine-composed sentence. Compatibility path — prefer `statement`. */
   localise: (text: string) => string;
+  /** Render an engine statement whose money arrived structured. The target path. */
+  statement: (statement: NarrativeStatement) => string;
 }
 
 const CurrencyContext = createContext<CurrencyContextValue | null>(null);
@@ -76,7 +79,8 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     isBaseCurrency: currency === rates.base,
     money: (amountInBase, options) => formatBaseMoney(amountInBase, currency, rates, options),
     convert: amountInBase => convertBaseAmount(amountInBase, currency, rates),
-    localise: text => localiseMoneyInText(text, currency, rates)
+    localise: text => localiseMoneyInText(text, currency, rates),
+    statement: parts => formatStatement(parts, currency, rates)
   }), [currency, rates, setCurrency]);
 
   return <CurrencyContext.Provider value={value}>{children}</CurrencyContext.Provider>;
@@ -96,6 +100,7 @@ export function useCurrency(): CurrencyContextValue {
     isBaseCurrency: true,
     money: (amountInBase, options) => formatBaseMoney(amountInBase, CANONICAL_BASE_CURRENCY, SEEDED_FALLBACK_RATES, options),
     convert: amountInBase => amountInBase,
-    localise: text => text
+    localise: text => text,
+    statement: parts => formatStatement(parts, CANONICAL_BASE_CURRENCY, SEEDED_FALLBACK_RATES)
   };
 }

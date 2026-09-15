@@ -1114,7 +1114,7 @@ so its coverage figure is an estimate rather than a measurement of repeated tria
 
 ---
 
-## DEMO-HARD-01 — ONE DECISION CASE ACROSS THE CONNECTED JOURNEY
+## DEMO-HARD-01 / DEMO-HARD-02 — ONE DECISION CASE ACROSS THE CONNECTED JOURNEY
 
 **Recorded 2026-09-15. Status: `[COMPLETED]`.** Authorised as demonstration and product-coherence
 hardening on `feature/cognix-enterprise-demo-hardening`, after browser evaluation found that Demand,
@@ -1145,20 +1145,48 @@ states, value by value, what the live application now shows against the pre-hard
 baseline. **Every demand-side value is preserved exactly, including the post-intervention
 conclusion.** The promotion, ripple and inventory values moved and are listed there.
 
-**What remains open, and is not claimed as done.**
+**What `DEMO-HARD-01` left open, and what `DEMO-HARD-02` did with it.**
 
-- `DEMO-HARD-02` — **close the last demand-response seam.** The planning curve and the causal engine
-  now share prices, costs, funding, cannibalisation basis and elasticity, and agree in sign and broad
-  magnitude at every depth (+46.8% / +£8.1K against +50.5pp / +£11.4K at the committed depth). They
-  are still two models, and the residual gap is the causal engine's ambient drivers and its per-SKU
-  context factor. One of the two should become the other's consumer.
-- `DEMO-HARD-03` — **engines should emit amounts, not sentences.** The narrative surfaces compose
-  whole sentences with pounds already in them, and the currency layer localises that prose with a
-  deliberately narrow transform. The structural fix is for those engines to publish structured
-  amounts and let the surface compose.
-- `DEMO-HARD-04` — **the six non-canonical campaign archetypes** still carry seeded elasticity
-  economics at their original scale. They are alternative demonstrations rather than part of the
-  connected journey, but a presenter who switches archetype leaves the unified economics behind.
+- `DEMO-HARD-02` — **close the last demand-response seam.** `[COMPLETED]` 2026-09-15. The two
+  numbers were never a disagreement: the elasticity curve plots what price DEPTH buys, and the
+  causal engine reports what THIS CAMPAIGN, as configured, causes. Decomposing the engine's drivers
+  showed its mechanic response net of cannibalisation is **46.81pp** against the curve's **46.8%** —
+  the same quantity, computed twice, agreeing to a rounding unit. The remaining 4.4pp is audience,
+  placement and timing, which a depth curve must hold fixed or it is not a curve. A
+  `CampaignDemandBridge` now publishes that decomposition and the surface states it, and a
+  `CampaignEconomicBasis` publishes the period: `CDI-02` trajectories are a weekly RATE and the
+  counterfactual carried `horizon_days: 14` beside them, so a weekly figure and a campaign total sat
+  on one screen indistinguishable. Both are now named. Also fixed: the campaign window was built
+  from `Date.now()` and counted exclusively, so it ran fifteen days and drifted a day further from
+  the forecast horizon every day that passed.
+- `DEMO-HARD-03` — **engines should emit amounts, not sentences.** `[PARTIALLY COMPLETED]`
+  2026-09-15. `NarrativeStatement` carries an engine's money as `{ amount, base_currency, meaning }`
+  and the surface renders it through the currency layer, so nothing is parsed out of prose. Applied
+  to the two statements that carry DERIVED amounts: the demand journey's simulated outcome — which
+  was the last confirmed stale pound sign in USD and EUR — and the Promotion headline. **Still on
+  the regex compatibility path**, and documented as such: seeded narrative that quotes a figure
+  nobody computes (execution-briefing outcomes in `AvailabilityIntelligence` and
+  `DecisionRippleIntelligence`, decision-memory outcomes in `ConfidenceScore`, archetype rationale
+  and inverse-condition explanations, the Decision Window explanation). Converting those means
+  changing a recorded seed rather than an engine output, which is a larger change for a smaller
+  return.
+- `DEMO-HARD-04` — **the six non-canonical campaign archetypes.** `[COMPLETED]` 2026-09-15. Every
+  selectable archetype is now priced through `canonicaliseArchetypes`, which derives unit
+  contribution, every tier's contribution, every play's contribution and every play's store scope
+  from that archetype's OWN price, cost and volume through the shared funding rule. Behaviour stays
+  its own: elasticity, cannibalisation, supplier constraint, seasonality, inventory condition and
+  competitive response are untouched. Applied to the whole map rather than to each definition, so an
+  archetype added later cannot arrive outside the framework. Five of the seven now answer *"do not
+  discount"* under honest pricing, which is a legitimate recommendation and one the platform has a
+  posture for. None needed removing from the selector.
+
+**What `DEMO-HARD-02` leaves open.**
+
+- The regex compatibility path above, on seeded narrative only.
+- Docker acceptance of the supported local stack has still not been performed by an automated pass.
+  A daemon was available in the closure environment; the Docker Hub blob CDN was not, so the base
+  image could not be pulled and no image was built. The commands are in the closure report and need
+  running on a machine with unrestricted registry access.
 
 **Unchanged by this work.** `ESF-4` remains the canonical Master Plan continuation after Release 1.0,
 parked and not superseded. Release 1.0's contents, limitations and acceptance gate are unaffected;

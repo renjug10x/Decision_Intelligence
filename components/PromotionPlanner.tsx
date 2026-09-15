@@ -845,6 +845,9 @@ export default function PromotionPlanner({
           setActiveMode(mode);
         }}
         exploreDestinationLabel={exploreTarget.destination_label}
+        onOpenCampaignDecision={
+          onNavigateToExperiment ? () => onNavigateToExperiment('EXP-CDI-01') : undefined
+        }
         onExploreDecision={() => {
           // Pre-flight this selects the lens holding the relevant evidence and scrolls to it;
           // in flight there are no lenses, so it scrolls to the deepest in-flight analysis the

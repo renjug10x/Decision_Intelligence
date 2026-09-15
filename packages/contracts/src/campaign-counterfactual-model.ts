@@ -42,6 +42,55 @@ export interface CampaignDeltaSummary {
   intervention_indistinguishable_from_do_nothing: boolean;
 }
 
+/**
+ * Why the Promotion surface shows two demand numbers for the same campaign, and how they relate.
+ *
+ * The elasticity curve answers *"what does price depth alone buy?"* — a curve over depth has to
+ * hold audience, placement and timing fixed, or it is not a curve. The causal engine answers
+ * *"what does THIS campaign, as configured, cause?"* — the same price cut plus the choices made
+ * about who, where and when. Those are two different questions and two correct answers, and a
+ * reader shown both without being told which is which will read them as one metric contradicting
+ * itself. This bridge is the arithmetic that makes them one story:
+ *
+ *   price_depth_response_pp + campaign_design_response_pp = total_attributable_pp
+ *
+ * `price_depth_response_pp` is the mechanic's own response net of portfolio cannibalisation, and
+ * is the quantity the elasticity curve plots. The remainder is everything the campaign's design
+ * adds on top of the price.
+ */
+export interface CampaignDemandBridge {
+  /** Response to discount depth alone, net of portfolio cannibalisation. What the curve plots. */
+  price_depth_response_pp: number;
+  /** What the campaign's design adds beyond the price: who, where, when, through which channel. */
+  campaign_design_response_pp: number;
+  /** The two together — what this campaign as configured causes. Excludes ambient movement. */
+  total_attributable_pp: number;
+  /** The design components, so the difference can be inspected rather than taken on trust. */
+  design_components: { driver_id: CausalDriverId; label: string; contribution_pp: number }[];
+}
+
+/**
+ * The period a counterfactual's money and volume are expressed on.
+ *
+ * `CDI-02` trajectories are a PER-PERIOD WEEKLY RATE — deliberately so, because the timeline
+ * lenses plot them period by period and a rate must never be summed across periods. Nothing said
+ * so on the counterfactual, which carried `horizon_days: 14` beside weekly volumes, so a campaign
+ * total and a weekly rate sat on the same screen looking like the same quantity. Both are
+ * published here, each named.
+ */
+export interface CampaignEconomicBasis {
+  /** Days the published trajectory rate covers. */
+  rate_period_days: number;
+  /** The campaign's own declared duration, from its planned window. */
+  campaign_window_days: number;
+  /** Contribution delta across the whole campaign window, not per rate period. */
+  contribution_delta_over_window_gbp: number;
+  /** Volume delta across the whole campaign window, not per rate period. */
+  volume_delta_over_window_units: number;
+  /** Currency every monetary field on this record is expressed in. Display converts; this does not. */
+  base_currency: 'GBP';
+}
+
 export interface CounterfactualBaseline {
   counterfactual_id: string;
   campaign_intent_id: string;
@@ -55,6 +104,13 @@ export interface CounterfactualBaseline {
   expected_without_intervention: DemandTrajectoryPoint;
   predicted_with_intervention: DemandTrajectoryPoint;
   campaign_delta: CampaignDeltaSummary;
+  /**
+   * How the curve's depth-only quantity and this campaign's whole-design quantity relate.
+   * Optional on the type so existing recorded baselines stay valid; always populated by the engine.
+   */
+  demand_bridge?: CampaignDemandBridge;
+  /** What period the money and volume above are expressed on, and the campaign-window totals. */
+  economic_basis?: CampaignEconomicBasis;
   horizon_days: number;
   calculation_mode: 'deterministic_demo_counterfactual';
   synthetic_demo: boolean;
