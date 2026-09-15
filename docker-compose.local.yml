@@ -9,7 +9,7 @@
 #
 # Never deploy an image built through this override.
 services:
-  nextjs-app:
+  cognix-web:
     build:
       args:
         NEXT_PUBLIC_COGNIX_DEMO_MODE: "true"
