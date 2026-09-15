@@ -528,6 +528,27 @@ console.log('\n=== 8. PROMOTION MODEL RECONCILIATION ===========================
   // The whole-campaign response must exceed the depth-only response, or the design is free.
   assert(bridge!.total_attributable_pp > bridge!.price_depth_response_pp,
     'A configured campaign moves more demand than its price cut alone');
+
+  /*
+   * The waterfall decomposes the same campaign window the curve prices, so its intervention lines
+   * must add up to what the curve says the price cut buys. It published +48.0pp beside a card
+   * reading +46.8% for the same quantity — three numbers for one thing on one screen.
+   */
+  const waterfall = CAMPAIGN_ARCHETYPES_MAP['ARCH-CHILLED-ELASTIC'].waterfall;
+  const interventionLines = waterfall.filter(w => w.driver_class === 'intervention' && w.id !== 'wf_net');
+  const ambientLines = waterfall.filter(w => w.driver_class === 'ambient' && w.id !== 'wf_base');
+  const net = waterfall.find(w => w.id === 'wf_net');
+  const sum = (items: typeof waterfall) => Number(items.reduce((t, w) => t + w.contribution_pp, 0).toFixed(1));
+
+  assert(!!net, 'The waterfall publishes a net line');
+  assertClose(sum(interventionLines), CANONICAL_CURRENT_POINT.expected_demand_uplift_pct, 0.5,
+    'The waterfall\'s intervention lines add up to the depth response the curve plots');
+  assertClose(net!.contribution_pp, sum(ambientLines) + sum(interventionLines), 0.5,
+    'The waterfall\'s net is its own ambient plus intervention lines');
+  assert(net!.rationale.includes(CANONICAL_CURRENT_POINT.expected_demand_uplift_pct.toFixed(1)),
+    'The waterfall names the intervention-attributable share the curve plots', net!.rationale);
+  assert(waterfall.some(w => w.label.includes(`${CANONICAL_CURRENT_POINT.discount_pct}% Cut`)),
+    'The waterfall names the depth it is decomposing');
 }
 
 console.log('\n=== 9. EVERY SELECTABLE ARCHETYPE ==================================\n');

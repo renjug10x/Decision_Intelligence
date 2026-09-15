@@ -617,6 +617,38 @@ const CANONICAL_HEADLINE_PARTS: NarrativeStatement = [
   { kind: 'text', text: ' more, on demand the supply agreement can actually serve.' }
 ];
 
+/**
+ * The canonical waterfall, with its intervention lines tied to the curve.
+ *
+ * It published a price-elasticity line of +36.4pp and a net of +48.0pp beside a card reading
+ * +46.8% for the same campaign window — three numbers for one quantity, on one screen. The seeded
+ * SHAPE is kept (which drivers there are, and the media, competitor and cannibalisation lines the
+ * archetype declares); the price line and the net are derived so the decomposition adds up to what
+ * the curve beside it says the price cut buys.
+ */
+function buildCanonicalWaterfall(): WaterfallItem[] {
+  const depthResponse = CANONICAL_CURRENT_POINT.expected_demand_uplift_pct;
+  const mediaPp = 7.2;
+  const cannibalisationPp = -2.2;
+  const driftPp = 1.8;
+  const competitorPp = 4.8;
+  // Whatever the price cut itself must contribute for the intervention lines to reach the curve.
+  const elasticityPp = Number((depthResponse - mediaPp - cannibalisationPp).toFixed(1));
+  const ambientPp = Number((driftPp + competitorPp).toFixed(1));
+  const netPp = Number((ambientPp + depthResponse).toFixed(1));
+  const pp = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)} pp`;
+
+  return [
+    { id: 'wf_base', label: 'Baseline Run-Rate', driver_class: 'ambient', contribution_pp: 100.0, value_display: '100.0 pp', rationale: 'Historical sales run-rate across the national estate.', provenance: 'SEEDED_OBSERVATION' },
+    { id: 'wf_drift', label: 'Seasonal Category Drift', driver_class: 'ambient', contribution_pp: driftPp, value_display: pp(driftPp), rationale: 'Mild upward ambient trend in dairy demand.', provenance: 'DERIVED' },
+    { id: 'wf_elas', label: `Price Elasticity (${CANONICAL_CURRENT_POINT.discount_pct}% Cut)`, driver_class: 'intervention', contribution_pp: elasticityPp, value_display: pp(elasticityPp), rationale: 'Volume response to the headline price reduction itself.', provenance: 'DERIVED' },
+    { id: 'wf_media', label: 'Feature Space & Signage', driver_class: 'intervention', contribution_pp: mediaPp, value_display: pp(mediaPp), rationale: 'Gondola end placement and mobile app boost.', provenance: 'SIMULATED' },
+    { id: 'wf_comp', label: 'Competitor Price Indexing', driver_class: 'ambient', contribution_pp: competitorPp, value_display: pp(competitorPp), rationale: 'Temporary price gap against rival retailer.', provenance: 'SEEDED_OBSERVATION' },
+    { id: 'wf_cann', label: 'Cannibalisation (Mild Cheddar)', driver_class: 'intervention', contribution_pp: cannibalisationPp, value_display: pp(cannibalisationPp), rationale: 'Slight substitution away from standard cheddar.', provenance: 'DERIVED' },
+    { id: 'wf_net', label: 'Net Campaign-Window Demand', driver_class: 'intervention', contribution_pp: netPp, value_display: pp(netPp), rationale: `Total expected demand change across the window, ambient movement included. The intervention-attributable share is ${pp(depthResponse)} — the figure the elasticity curve plots, and the one CDI-02 credits to the campaign.`, provenance: 'DERIVED' }
+  ];
+}
+
 /** The seeded definitions. Behaviour and narrative live here; economics are derived below. */
 const SEEDED_ARCHETYPES: Record<ArchetypeId, CampaignArchetype> = {
   'ARCH-CHILLED-ELASTIC': {
@@ -670,15 +702,7 @@ const SEEDED_ARCHETYPES: Record<ArchetypeId, CampaignArchetype> = {
       dominant_conflict: ['Demand Growth', 'Margin Protection']
     },
 
-    waterfall: [
-      { id: 'wf_base', label: 'Baseline Run-Rate', driver_class: 'ambient', contribution_pp: 100.0, value_display: '100.0 pp', rationale: 'Historical sales run-rate across the national estate.', provenance: 'SEEDED_OBSERVATION' },
-      { id: 'wf_drift', label: 'Seasonal Category Drift', driver_class: 'ambient', contribution_pp: 1.8, value_display: '+1.8 pp', rationale: 'Mild upward ambient trend in dairy demand.', provenance: 'DERIVED' },
-      { id: 'wf_elas', label: 'Price Elasticity (20% Cut)', driver_class: 'intervention', contribution_pp: 36.4, value_display: '+36.4 pp', rationale: 'Strong volume response to headline price reduction.', provenance: 'DERIVED' },
-      { id: 'wf_media', label: 'Feature Space & Signage', driver_class: 'intervention', contribution_pp: 7.2, value_display: '+7.2 pp', rationale: 'Gondola end placement and mobile app boost.', provenance: 'SIMULATED' },
-      { id: 'wf_comp', label: 'Competitor Price Indexing', driver_class: 'ambient', contribution_pp: 4.8, value_display: '+4.8 pp', rationale: 'Temporary price gap against rival retailer.', provenance: 'SEEDED_OBSERVATION' },
-      { id: 'wf_cann', label: 'Cannibalisation (Mild Cheddar)', driver_class: 'intervention', contribution_pp: -2.2, value_display: '-2.2 pp', rationale: 'Slight substitution away from standard cheddar.', provenance: 'DERIVED' },
-      { id: 'wf_net', label: 'Net Campaign-Window Demand', driver_class: 'intervention', contribution_pp: 48.0, value_display: '+48.0 pp', rationale: 'Total expected demand change across the window including ambient drivers; intervention-attributable share is +41.4 pp (CDI-02 basis excludes ambient movement).', provenance: 'DERIVED' }
-    ],
+    waterfall: buildCanonicalWaterfall(),
 
     elasticity_curve: CANONICAL_ELASTICITY_CURVE,
 
