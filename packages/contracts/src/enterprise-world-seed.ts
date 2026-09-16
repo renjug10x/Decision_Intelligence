@@ -1,9 +1,31 @@
 /**
- * CogniX Enterprise World Seed & Deterministic Scenario Generator
- * Single canonical scenario generation engine shared between cognix-world service and local fallback adapter.
+ * CogniX Enterprise World Seed — family taxonomy and declared temporal evidence
+ * ───────────────────────────────────────────────────────────────────────────────
+ * ITS ECONOMICS ARE RETIRED (ADR-077 part 2).
+ *
+ * These six families used to be a second world. `SCN-PROMO-01` declared a 55,000-unit week
+ * and a £142,000 exposure against supplier FreshDirect UK, none of which the connected
+ * journey had heard of since `DEMO-HARD-01` put that journey on `SCN-FRESH-DAIRY-CHEDDAR-001`
+ * at a 350,000-unit week against Cheshire Cheese Co. Two internally consistent economic
+ * models for one estate is the defect ADR-073 closed for surfaces, one level up.
+ *
+ * What survives, and what does not:
+ *
+ *   SURVIVES     `familyId` as TAXONOMY — what KIND of decision situation this is. It is
+ *                declared on the canonical scenario record as `taxonomy.family_id`.
+ *   SURVIVES     `temporalData` as a scenario's DECLARED EVIDENCE — a shape over
+ *                `T-90 … T+30`, read through `scenarioTemporalEvidence()`.
+ *   RETIRED      `baselineMetrics` as an economic authority. Nothing in the connected
+ *                journey may read a demand, capacity or exposure figure from here. The
+ *                scenario record answers those, once.
+ *
+ * The fields remain on the type because `/api/v1/scenarios` served them historically and
+ * removing them would be a contract break for no gain. What changed is that no consumer
+ * resolves economics through them: the signal generator now derives every value from the
+ * scenario record, and the scenarios route publishes the registry catalogue.
  */
 
-import { EnterpriseWorldScenario, ScenarioFamilyId } from './enterprise-world-model';
+import { EnterpriseWorldScenario, ScenarioFamilyId, TemporalDataPoint } from './enterprise-world-model';
 
 export const CANONICAL_SCENARIO_VERSION = '1.0.0';
 export const CANONICAL_GENERATOR_VERSION = 'gen_v1.0.0';
@@ -209,4 +231,16 @@ export function generateCanonicalScenario(familyId?: ScenarioFamilyId, tenantId:
     return matched ? [matched] : [ENTERPRISE_WORLD_SCENARIOS[0]];
   }
   return ENTERPRISE_WORLD_SCENARIOS.filter(s => s.tenantId === tenantId);
+}
+
+/**
+ * A scenario's declared temporal evidence: the shape of its family over `T-90 … T+30`.
+ *
+ * Evidence, not a baseline. It carries the SHAPE of how a situation of this kind develops;
+ * it carries no economics, and the `baselineMetrics` beside it in the seed are deliberately
+ * not returned. A consumer that needs a demand, capacity or exposure figure reads the
+ * scenario's own record (ADR-077 part 2).
+ */
+export function scenarioTemporalEvidence(familyId: ScenarioFamilyId): TemporalDataPoint[] {
+  return ENTERPRISE_WORLD_SCENARIOS.find(s => s.familyId === familyId)?.temporalData ?? [];
 }

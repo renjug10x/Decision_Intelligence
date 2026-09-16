@@ -118,6 +118,14 @@ export interface DecisionContextArea {
   decision_state_id?: string;
   scenario_id?: string;
   scenario_family?: string;
+  /**
+   * The commercial projection this decision is being read through (ADR-077 part 2).
+   *
+   * An archetype supplies elasticity, cannibalisation, plays and narrative. It does NOT
+   * supply a scenario identity: recording it here is what let `SCN-${archetype.id}` stop
+   * being minted as a third source of scenario identity beside the canonical record.
+   */
+  archetype_id?: string;
 }
 
 /** Whether a decision-context entry entered the record as an accepted assistant draft. */
@@ -273,7 +281,8 @@ export function createDefaultCampaignIntentDraft(
       commercial_intent_ref: undefined,
       decision_state_id: undefined,
       scenario_id: options?.scenario_id || CANONICAL_SCENARIO_ID,
-      scenario_family: 'promotion_surge'
+      // The family is the scenario's own taxonomy, never a literal beside its identity.
+      scenario_family: CANONICAL_SCENARIO.taxonomy.family_id
     },
     canvas_progress: {
       active_area: 'CAMPAIGN_INTENT',

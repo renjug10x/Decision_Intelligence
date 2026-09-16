@@ -33,6 +33,7 @@ import {
 } from '../packages/contracts/src/campaign-decision-taxonomy-model';
 import { getCampaignIntentById } from './campaign-intent-store';
 import { getDecisionState } from './decision-state-store';
+import { getActiveScenario } from '../packages/contracts/src/scenario-registry';
 import { simulateEnterpriseSignalTimelines } from '../services/world/src/dynamic-signal-simulator';
 import { SignalSimulationContext } from '../packages/contracts/src/enterprise-signal-model';
 import { CampaignDemandBridge } from '../packages/contracts/src/campaign-counterfactual-model';
@@ -40,7 +41,9 @@ import {
   CANONICAL_SCENARIO,
   canonicalWeeklyPopulationUnits,
   canonicalContributionPerUnitAtListGbp,
-  canonicalContributionErosionPerDepthPoint
+  canonicalContributionErosionPerDepthPoint,
+  canonicalScopeResponseMultiplier,
+  canonicalDepthResponseAnomalyPp
 } from '../packages/contracts/src/canonical-scenario-model';
 
 const ENGINE_VERSION = 'cdi02_causal_engine_v1.1.0';
@@ -147,43 +150,34 @@ export function resolveStatedMechanic(campaign: CampaignIntent): ResolvedMechani
   };
 }
 
-function hashSeed(input: string): number {
-  let h = 0;
-  for (let i = 0; i < input.length; i++) {
-    h = (h * 31 + input.charCodeAt(i)) >>> 0;
-  }
-  return h;
-}
-
 /**
- * Deterministic ±6% differentiation band for the SKU and region in scope.
+ * The scenario's DECLARED differentiation for the scope in play (ADR-079).
  *
- * Category is deliberately not part of the seed. It used to be, which meant renaming a
- * category — even to the same thing spelled differently — moved every downstream number by
- * up to 6% for no modelled reason, and on a demo whose economics sit near a contribution
- * breakeven that jitter was enough to flip a verdict. Category now acts through its
- * elasticity, which is a stated property with a reason attached; a hash of its name is not.
+ * What this replaced. This engine used to apply `skuContextFactor`: a ±6% band derived
+ * from `hashSeed(sku_scope.join('|') + '::' + region)`. It was deterministic, and it was
+ * not explainable — "because the hash of your region name was 1.03" is not an answer a
+ * Decision Trace can give. It was also a hard blocker for authored scenarios, whose SKU
+ * and region names are arbitrary strings: "North West" and "Northwest" would have returned
+ * economics differing by up to six per cent.
+ *
+ * It is retired rather than parameterised, because keeping the hash behind a flag preserves
+ * the defect for whoever turns the flag on. Where a scenario genuinely differs by scope, it
+ * declares the difference with a stated reason; where it does not — which is the canonical
+ * scenario's position — there is no modifier and this returns 1.
  */
-export const SKU_CONTEXT_BAND_PCT = 6;
-
-function skuContextFactor(campaign: CampaignIntent): number {
-  const skuKey = campaign.campaign_intent.sku_scope.join('|') || 'none';
-  const regionKey = campaign.audience_market.region || 'unknown';
-  const seed = hashSeed(`${skuKey}::${regionKey}`);
-  return 0.94 + ((seed % 13) / 100);
+function declaredScopeMultiplier(campaign: CampaignIntent): number {
+  return canonicalScopeResponseMultiplier(campaign.audience_market.region || '');
 }
 
 function intrinsicDriftPp(campaign: CampaignIntent): number {
   // Mild forward drift without intervention (seasonality / run-rate)
-  const factor = skuContextFactor(campaign);
-  return Number((1.5 * factor).toFixed(2));
+  return Number((1.5 * declaredScopeMultiplier(campaign)).toFixed(2));
 }
 
 function nonPromotionResponsePp(campaign: CampaignIntent): number {
   if (campaign.campaign_intent.intervention_posture !== 'CONSIDER_NON_PROMOTION') return 0;
   // Stock reallocation / assortment-style lever — independent of promo placeholders
-  const factor = skuContextFactor(campaign);
-  return Number((4.2 * factor).toFixed(2));
+  return Number((4.2 * declaredScopeMultiplier(campaign)).toFixed(2));
 }
 
 /**
@@ -206,7 +200,7 @@ const BASE_PP_PER_DISCOUNT_POINT = CALIBRATION_CATEGORY_ELASTICITY;
 
 function mechanicResponsePp(depth: number, campaign: CampaignIntent): number {
   if (depth <= 0) return 0;
-  const factor = skuContextFactor(campaign);
+  const factor = declaredScopeMultiplier(campaign);
   // A confined offer reaches only the targeted share, so it moves only that share's volume.
   // Scaling the cost by confinement while leaving the volume response estate-wide would make
   // contribution rise without limit as depth increases — the discount would buy whole-estate
@@ -221,6 +215,30 @@ function mechanicResponsePp(depth: number, campaign: CampaignIntent): number {
     BASE_PP_PER_DISCOUNT_POINT *
     (typeof elasticity === 'number' ? elasticity / CALIBRATION_CATEGORY_ELASTICITY : 1);
   return Number((depth * perPoint * factor * reachedShare).toFixed(2));
+}
+
+/**
+ * The DECLARED threshold effect at this depth, if the scenario declares one.
+ *
+ * A threshold price point wins feature space and signage that a cut one point shallower
+ * does not, and the volume follows the display as much as the price. It is a property of
+ * the PRICE POINT rather than of how the campaign is designed, which is why it belongs in
+ * the price-depth response the elasticity curve plots and not in the design components.
+ *
+ * It scales with the category's elasticity and with the share the offer actually reaches,
+ * on the same terms as the mechanic response, so a less elastic category does not inherit
+ * a dairy threshold effect at full strength.
+ */
+function thresholdPricePointPp(depth: number, campaign: CampaignIntent): number {
+  const declared = canonicalDepthResponseAnomalyPp(depth);
+  if (declared === 0) return 0;
+  const elasticity = resolveCategory(campaign.campaign_intent.category)?.promotional_elasticity;
+  const elasticityRatio =
+    typeof elasticity === 'number' ? elasticity / CALIBRATION_CATEGORY_ELASTICITY : 1;
+  return Number(
+    (declared * elasticityRatio * declaredScopeMultiplier(campaign) * subsidisedVolumeShare(campaign))
+      .toFixed(2)
+  );
 }
 
 /**
@@ -323,8 +341,18 @@ function extractSignalUpliftPp(
     decision_state_id: decisionState.decision_state_id,
     decision_state_version: decisionState.state_version,
     tenant_id: campaign.tenant_id,
-    scenario_id: campaign.decision_context.scenario_id || decisionState.scenario_id || 'SCN-PROMO-01',
-    scenario_family: campaign.decision_context.scenario_family || decisionState.scenario_family || 'promotion_surge',
+    /*
+     * The campaign's own scenario, then the decision state's, then the scenario the estate
+     * is running — resolved from the registry, never a literal (ADR-077 part 4).
+     */
+    scenario_id:
+      campaign.decision_context.scenario_id
+      || decisionState.scenario_id
+      || getActiveScenario().identity.scenario_id,
+    scenario_family:
+      campaign.decision_context.scenario_family
+      || decisionState.scenario_family
+      || getActiveScenario().taxonomy.family_id,
     // Critical: never feed placeholder discount depth into ESF-2 as promotion_lift
     promotion_lift: statedPromoDepth,
     supplier_capacity_cap: decisionState.scenario_parameters.supplier_capacity_cap,
@@ -605,6 +633,25 @@ export function evaluateCausalDemandContribution(
       evidence_refs: ['CDI02_PORTFOLIO_DRAG_V1']
     },
     {
+      driver_id: 'threshold_price_point',
+      driver_class: 'intervention',
+      label: 'Threshold price point',
+      /*
+       * Declared on the scenario record with its reason, rather than folded into a curve
+       * literal where no Decision Trace could reach it (ADR-079 part 1).
+       */
+      contribution_pp:
+        campaign.campaign_intent.intervention_posture === 'CONSIDER_PROMOTION' && mechanic.mechanic_attributed
+          ? thresholdPricePointPp(mechanic.discount_depth, campaign)
+          : 0,
+      attributed:
+        campaign.campaign_intent.intervention_posture === 'CONSIDER_PROMOTION' && mechanic.mechanic_attributed,
+      rationale:
+        'Declared threshold effect at this depth: the price point wins feature space and signage a '
+        + 'shallower cut does not. A seeded behavioural property of the category, declared on the scenario record.',
+      evidence_refs: ['ADR079_DECLARED_DEPTH_RESPONSE_ANOMALY']
+    },
+    {
       driver_id: 'interaction_residual',
       driver_class: 'intervention',
       label: 'Interaction residual',
@@ -670,7 +717,14 @@ export function evaluateCausalDemandContribution(
       engine: ENGINE_VERSION,
       package: 'CDI-02',
       ...mechanic.provenance_notes,
-      sku_context_factor: String(skuContextFactor(campaign))
+      /*
+       * Was `sku_context_factor` — the value of a hash of the SKU list and the region name.
+       * A Decision Trace could publish it and still not explain it. What replaces it is the
+       * scenario's own declared differentiation for this scope, which either states a reason
+       * or states that there is none.
+       */
+      scope_response_multiplier: String(declaredScopeMultiplier(campaign)),
+      scope_differentiation: CANONICAL_SCENARIO.differentiation.statement
     },
     timestamp: new Date().toISOString()
   };
@@ -701,9 +755,15 @@ function buildDemandBridge(causalResult: CausalDemandContribution): CampaignDema
   const pp = (id: string) =>
     causalResult.drivers.find(d => d.driver_id === id)?.contribution_pp ?? 0;
 
-  // The elasticity curve plots the mechanic's response net of the cannibalisation it causes.
-  // Portfolio drag is already negative, so it adds.
-  const priceDepth = Number((pp('mechanic_response') + pp('portfolio_effects')).toFixed(2));
+  /*
+   * The elasticity curve plots the mechanic's response net of the cannibalisation it causes,
+   * plus whatever threshold effect the scenario declares at that depth. Portfolio drag is
+   * already negative, so it adds. These three terms are what the PRICE POINT buys; everything
+   * else the campaign does is design, and the split is what makes the two surfaces comparable.
+   */
+  const priceDepth = Number(
+    (pp('mechanic_response') + pp('portfolio_effects') + pp('threshold_price_point')).toFixed(2)
+  );
   const design = Number((causalResult.intervention_uplift_pp - priceDepth).toFixed(2));
 
   const DESIGN_LABELS: Record<string, string> = {
@@ -723,6 +783,7 @@ function buildDemandBridge(causalResult: CausalDemandContribution): CampaignDema
       .filter(d => d.driver_class === 'intervention'
         && d.driver_id !== 'mechanic_response'
         && d.driver_id !== 'portfolio_effects'
+        && d.driver_id !== 'threshold_price_point'
         && d.contribution_pp !== 0)
       .map(d => ({
         driver_id: d.driver_id,

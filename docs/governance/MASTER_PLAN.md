@@ -1138,7 +1138,7 @@ product, region and horizon the previous two screens had just established.
 | **Multi-currency** | GBP base, USD and EUR display; ECB rates through the platform's own cached endpoint, dated fallback, no credential. ADR-074 |
 | **Repeatability** | A *Restart scenario* control returns the demonstration to its opening position deterministically |
 | **Continuity** | A restrained scenario identity strip states the product, scope and horizon on every surface |
-| **Tests** | `tests/unit/run-canonical-scenario-tests.ts` — cross-surface and currency assertions that fail if two surfaces stop agreeing on the same quantity. **Recorded as 74 at `DEMO-HARD-01` closure; measured at `f9c5679c` as 243 passed / 0 failed** after `DEMO-HARD-02` and `-04` added to it. Corrected 2026-09-15 per residual `R-23` |
+| **Tests** | `tests/unit/run-canonical-scenario-tests.ts` — cross-surface and currency assertions that fail if two surfaces stop agreeing on the same quantity. **Recorded as 74 at `DEMO-HARD-01` closure; measured at `f9c5679c` as 243 passed / 0 failed** after `DEMO-HARD-02` and `-04` added to it. Corrected 2026-09-15 per residual `R-23`. **`SCI-01` took it to 260 passed / 0 failed**, adding the scenario-identity, clock and provenance assertions and the three source guards; the ADR-075 bounded-divergence assertion was replaced by exact agreement rather than relaxed |
 
 **Evidence.** [`COGNIX_PRESENTATION_SYNC_DELTA.md`](../reports/COGNIX_PRESENTATION_SYNC_DELTA.md)
 states, value by value, what the live application now shows against the pre-hardening demonstration
@@ -1198,7 +1198,18 @@ this workstream hardens the demonstration of what Release 1.0 already contained.
 ## PROGRAMME `SCI` — SCENARIO INTELLIGENCE (THE SCENARIO LABORATORY)
 
 **Authorised 2026-09-15 against baseline `f9c5679c` on `feature/cognix-enterprise-demo-hardening`.
-Status: `[AUTHORISED — NOT STARTED]`.** No packet has begun; no convergence SHA is recorded.
+Status: `[IN PROGRESS]` — `SCI-01` **[COMPLETED 2026-09-16]**, cut from the authorisation commit
+`b5bf1bd9`. `SCI-02` is next and has not started. No convergence SHA is recorded: Gate A requires
+`SCI-02` as well.**
+
+**`SCI-01` outcome.** The four Wave-0 contracts exist — Scenario Contract, Scenario Clock, Scenario
+Registry & Activation, Provenance Vocabulary — and the three live defects the programme was authorised
+to close are closed with measured evidence: `R-19` (civil time in scenario evidence), `R-20` (the
+Observability signals panel publishing `SCN-PROMO-01` against FreshDirect UK) and `R-21`
+(`skuContextFactor`). The protected journey's §1 and §2 values are unchanged to the digit; the
+Promotion elasticity tiers moved, and why is recorded at `R-21` and in
+[`COGNIX_PRESENTATION_SYNC_DELTA.md`](../reports/COGNIX_PRESENTATION_SYNC_DELTA.md) §3.1. Evidence:
+[`COGNIX_SCI_01_SCENARIO_FOUNDATION_REPORT.md`](../reports/COGNIX_SCI_01_SCENARIO_FOUNDATION_REPORT.md).
 
 **Objective.** Evolve CogniX from a prepared demonstration into a scenario-driven Decision
 Intelligence laboratory — **Choose a Scenario** or **Create Your Own Scenario** — while protecting the

@@ -10,6 +10,7 @@ import ExecutionBriefing from '@/components/ExecutionBriefing';
 import storesData from '@/data/stores.json';
 import { useDecisionState } from '@/context/DecisionStateContext';
 import { useCurrency } from '@/context/CurrencyContext';
+import { fetchActiveScenarioId } from '@/lib/world-client';
 import { fetchCurrentScenarioSignals } from '@/lib/enterprise-signal-client';
 import { getOrCreateSessionId } from '@/lib/journey-client';
 import { evaluateDemandDecisionFrontier } from '@/lib/demand-decision-frontier/demand-frontier-engine';
@@ -328,11 +329,21 @@ export default function Forecasting({ onNavigateToExperiment, onNavigateToSoluti
   }, [projectionBody, metric]);
 
   // ── Observed Enterprise Signals (real references, no fabrication) ───────────
+  /*
+   * The scenario is the one this decision is already running on, or the registry's declared
+   * active scenario. It used to fall back to the literal `'SCN-PROMO-01'`, which is the
+   * defaulting ADR-077 part 4 forbids — a surface reading one scenario's demand beside
+   * another scenario's signals.
+   */
   useEffect(() => {
     let cancelled = false;
-    fetchCurrentScenarioSignals(decisionState?.scenario_id || 'SCN-PROMO-01', TENANT_ID)
-      .then(s => { if (!cancelled) setSignals(s || []); })
-      .catch(() => { if (!cancelled) setSignals([]); });
+    const load = async () => {
+      const scenarioId = decisionState?.scenario_id ?? await fetchActiveScenarioId(TENANT_ID);
+      if (!scenarioId) { if (!cancelled) setSignals([]); return; }
+      const s = await fetchCurrentScenarioSignals(scenarioId, TENANT_ID);
+      if (!cancelled) setSignals(s || []);
+    };
+    load().catch(() => { if (!cancelled) setSignals([]); });
     return () => { cancelled = true; };
   }, [decisionState?.scenario_id]);
 

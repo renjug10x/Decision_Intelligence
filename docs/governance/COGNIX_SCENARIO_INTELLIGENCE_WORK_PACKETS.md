@@ -1,6 +1,6 @@
 # CogniX Scenario Intelligence — Work Packets (`SCI`)
 
-**Status:** Authorised for implementation. **No packet started.**
+**Status:** Authorised for implementation. **`SCI-01` COMPLETE (2026-09-16). `SCI-02` is next and has not started.**
 **Authorised:** 2026-09-15 against baseline `f9c5679c` on `feature/cognix-enterprise-demo-hardening`.
 **Governs:** programme `SCI` — the Scenario Laboratory.
 **Execution model:** two agents, **Cursor** and **Antigravity**, concurrently where the dependency
@@ -36,18 +36,18 @@ and the lanes never touch.
 
 ## 1. Packet inventory
 
-| ID | Title | Class | Tool | Wave |
-|---|---|---|---|---|
-| `SCI-01` | Scenario Contract, Clock, Registry & Provenance Foundation | **FOUNDATION** | Cursor | 0 |
-| `SCI-02` | Scenario Certification Gate & Reconciliation Generalisation | **FOUNDATION** | Cursor | 0 |
-| `SCI-03` | Curated Scenario Domain Packs | CURSOR | Cursor | 1 |
-| `SCI-04` | Scenario Selection Experience | ANTIGRAVITY | Antigravity | 1 |
-| `SCI-05` | Living Evidence Engine — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 |
-| `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 |
-| `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 |
-| `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 |
-| `SCI-08` | Create Your Own Scenario Experience | **POST-DEMO** | Antigravity | 4 |
-| `SCI-10` | CSV Scenario Enrichment via Attested Admission | **POST-DEMO** | Cursor | 4 |
+| ID | Title | Class | Tool | Wave | Status |
+|---|---|---|---|---|---|
+| `SCI-01` | Scenario Contract, Clock, Registry & Provenance Foundation | **FOUNDATION** | Cursor | 0 | **[COMPLETED 2026-09-16]** |
+| `SCI-02` | Scenario Certification Gate & Reconciliation Generalisation | **FOUNDATION** | Cursor | 0 | Not started |
+| `SCI-03` | Curated Scenario Domain Packs | CURSOR | Cursor | 1 | Not started |
+| `SCI-04` | Scenario Selection Experience | ANTIGRAVITY | Antigravity | 1 | Not started |
+| `SCI-05` | Living Evidence Engine — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 | Not started |
+| `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 | Not started |
+| `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | Not started |
+| `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | Not started |
+| `SCI-08` | Create Your Own Scenario Experience | **POST-DEMO** | Antigravity | 4 | Not started |
+| `SCI-10` | CSV Scenario Enrichment via Attested Admission | **POST-DEMO** | Cursor | 4 | Not started |
 
 `SCI-08` is numbered before `SCI-09` and scheduled after it: the numbers follow the conceptual areas,
 the waves follow the dependency graph, and renumbering to make them agree would make the packet IDs
@@ -184,7 +184,13 @@ Naming follows it.
 
 | Wave | Base | Cursor branch | Antigravity branch | Convergence branch |
 |---|---|---|---|---|
-| 0 | `f9c5679c` | `feature/cognix-sci-01-scenario-contract` → `feature/cognix-sci-02-certification-gate` | — | `feature/cognix-sci-wave0-convergence` → **SHA-A** |
+| 0 | `b5bf1bd9` | `feature/cognix-sci-01-scenario-contract` → `feature/cognix-sci-02-certification-gate` | — | `feature/cognix-sci-wave0-convergence` → **SHA-A** |
+
+**Wave 0 base, corrected against measurement.** This record names `f9c5679c` as the base because that
+was the head when the programme was authorised. The authorisation commit itself — the one that added
+this record — is `b5bf1bd9`, and it is the commit `SCI-01` was cut from. Stated here rather than
+silently, because a packet branch cut from a different SHA than the register names is exactly the
+drift ADR-084 part 2 exists to prevent.
 | 1 | SHA-A | `feature/cognix-sci-03-scenario-packs` | `feature/cognix-sci-04-scenario-selection` | `feature/cognix-sci-wave1-convergence` → **SHA-B** |
 | 2 | SHA-B | `feature/cognix-sci-05-living-evidence` | `feature/cognix-sci-06-observability-experience` | `feature/cognix-sci-wave2-convergence` → **SHA-C** |
 | 3 | SHA-C | `feature/cognix-sci-07-scenario-authoring` | `feature/cognix-sci-09-architecture-surface` | `feature/cognix-sci-wave3-convergence` → **SHA-D** |
@@ -290,6 +296,31 @@ resolution. No civil time in deterministic evidence. `skuContextFactor` absent f
 
 **Handoff artefact.** The four frozen contracts, published as the Wave 0 convergence record, plus a
 declaration of the Wave-2 contracts to be frozen at Gate A.
+
+---
+
+### `SCI-01` outcome — **[COMPLETED 2026-09-16]**
+
+Evidence: [`COGNIX_SCI_01_SCENARIO_FOUNDATION_REPORT.md`](../reports/COGNIX_SCI_01_SCENARIO_FOUNDATION_REPORT.md).
+
+| Definition-of-done clause | Result |
+|---|---|
+| All runners green | **42 runners measured at the baseline, not 44** — the count in this record had drifted. 41 fully green; `run-atl06b-tests` fails only assertion `A6b`, which is `R-25` and is byte-identical to the baseline failure (132 passed, 1 failed). No new failure |
+| Protected values reconciled | `COGNIX_PRESENTATION_SYNC_DELTA.md` §1 and §2 unchanged to the digit, re-measured in the browser. §3.1 Promotion tiers moved; the cause is ADR-079 and it is recorded there |
+| No default scenario resolution | Guard 1 in `run-canonical-scenario-tests.ts` §11. `GET /api/v1/signals` without `scenario_id` returns `HTTP 400` |
+| No civil time in deterministic evidence | Guard 2 in §11, plus byte-identical consecutive reads including timestamps |
+| `skuContextFactor` absent from source | Guard 3 in §11, with one declared exclusion carrying `R-26`'s reasoning |
+
+**Assertion count did not fall:** the canonical suite runs **260** assertions, up from 243.
+
+**One correction the packet did not anticipate.** Retiring the hash showed that the seeded elasticity
+curve had been calibrated against the hashed engine. The curve is now derived from the record's
+declared terms, which moves the Promotion surface's published figures. ADR-079 part 3 anticipated the
+possibility — *"if it does not, the seam is larger than the hash and that is a finding worth having"* —
+and this is that finding, with the arithmetic recorded at `R-21`.
+
+**Two governance drifts corrected against measurement rather than restated:** this record said 44
+runners where there are 42, and the Master Plan's assertion count is corrected in the same commit.
 
 ---
 
@@ -797,11 +828,11 @@ Full table: [`COGNIX_BACKLOG_RECONCILIATION_2026_09.md`](COGNIX_BACKLOG_RECONCIL
 
 ## 9. Convergence SHA register
 
-Recorded only against evidence. Empty because no packet has started.
+Recorded only against evidence.
 
 | Gate | Wave | Required before | Convergence SHA |
 |---|---|---|---|
-| Gate A | 0 | Wave 1 | *not yet recorded* |
+| Gate A | 0 | Wave 1 | *not yet recorded — `SCI-02` must complete first* |
 | Gate B | 1 | Wave 2 | *not yet recorded* |
 | Gate C | 2 | Wave 3 | *not yet recorded* |
 | Gate D | 3 | Wave 4 | *not yet recorded* |

@@ -14,7 +14,9 @@ import {
   ExternalSignalIngestRequest,
   generateCanonicalScenario,
   validateCommercialIntent,
-  SignalSimulationRequest
+  SignalSimulationRequest,
+  CANONICAL_SCENARIO_ID,
+  CANONICAL_SCENARIO
 } from '../../packages/contracts/src/index';
 import { generateSyntheticSignalSnapshot } from '../../services/world/src/enterprise-signal-generator';
 import { simulateEnterpriseSignalTimelines } from '../../services/world/src/dynamic-signal-simulator';
@@ -69,7 +71,7 @@ function runTests() {
     category: 'PLANNING',
     tenant_id: 'tenant_uk_retail_01',
     session_id: 'sess_esf3_01',
-    scenario_id: 'SCN-PROMO-01',
+    scenario_id: CANONICAL_SCENARIO_ID,
     signal_type: 'FORECAST_DIVERGENCE',
     entity_type: 'REGION',
     entity_id: 'North West',
@@ -245,7 +247,7 @@ function runTests() {
   assert(sigCheck.valid, 'Test 15: Ingested signal satisfies EnterpriseSignal contract', sigCheck.errors.join(', '));
 
   // TEST 16: ESF-1 snapshot regression
-  const snapshot = generateSyntheticSignalSnapshot('promotion_surge', 'tenant_uk_retail_01', 'SCN-PROMO-01');
+  const snapshot = generateSyntheticSignalSnapshot(CANONICAL_SCENARIO, 'tenant_uk_retail_01');
   assert(
     snapshot.length === 5 && snapshot.every(s => s.source_type === 'SYNTHETIC_WORLD' && s.synthetic_demo === true),
     'Test 16: ESF-1 synthetic snapshot regression clean'
@@ -258,7 +260,7 @@ function runTests() {
       decision_state_id: 'ds_esf3_reg',
       decision_state_version: 1,
       tenant_id: 'tenant_uk_retail_01',
-      scenario_id: 'SCN-PROMO-01',
+      scenario_id: CANONICAL_SCENARIO_ID,
       scenario_family: 'promotion_surge',
       promotion_lift: 20,
       supplier_capacity_cap: 10,

@@ -11,10 +11,12 @@ import {
   validateEnterpriseSignal,
   generateCanonicalScenario,
   validateJourneyEvent,
-  calculateDerivedImpacts
+  calculateDerivedImpacts,
+  CANONICAL_SCENARIO_ID
 } from '../../packages/contracts/src/index';
 import { simulateEnterpriseSignalTimelines } from '../../services/world/src/dynamic-signal-simulator';
 import { canonicalWeeklyPopulationUnits } from '../../packages/contracts/src/canonical-scenario-model';
+import { registerSecondScenario } from '../fixtures/scenario/second-scenario';
 
 function runTests() {
   console.log('====================================================');
@@ -39,7 +41,7 @@ function runTests() {
     decision_state_id: 'ds_test_001',
     decision_state_version: 1,
     tenant_id: 'tenant_uk_retail_01',
-    scenario_id: 'SCN-PROMO-01',
+    scenario_id: CANONICAL_SCENARIO_ID,
     scenario_family: 'promotion_surge',
     promotion_lift: 20,
     supplier_capacity_cap: 10,
@@ -75,8 +77,18 @@ function runTests() {
   );
 
   // TEST 4: Scenario Differentiation (promotion_surge vs supplier_breach)
+  /*
+   * A REGISTERED second scenario, not a loose identifier. The simulator resolves the
+   * scenario it is asked for and refuses one it cannot find (ADR-077 part 4), so this test
+   * now proves differentiation between two scenarios that both actually exist.
+   */
+  const secondScenario = registerSecondScenario();
   const breachReq: SignalSimulationRequest = {
-    context: { ...baseContext, scenario_id: 'SCN-BREACH-02', scenario_family: 'supplier_breach' }
+    context: {
+      ...baseContext,
+      scenario_id: secondScenario.identity.scenario_id,
+      scenario_family: secondScenario.taxonomy.family_id
+    }
   };
   const breachRes = simulateEnterpriseSignalTimelines(breachReq);
   assert(

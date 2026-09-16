@@ -7,7 +7,6 @@ import {
 import { useApp } from '@/lib/context';
 import ExecutionBriefing from '@/components/ExecutionBriefing';
 import ConfidenceScore, { DecisionMemory } from '@/components/ConfidenceScore';
-import { fetchWorldScenario } from '@/lib/world-client';
 
 /**
  * The scenario SKU is the largest single availability exposure on this surface, and it sits in a
@@ -110,22 +109,15 @@ export default function AvailabilityIntelligence({ onNavigateToExperiment }: Ava
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [expandedEvent, setExpandedEvent] = useState<string | null>('AV001');
 
-  // ── Enterprise World Scenario Binding ──────────────────────────────────────
-  const [worldScenario, setWorldScenario] = useState<any>(null);
-  const [worldError, setWorldError] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchWorldScenario('supplier_breach')
-      .then((scenarios) => {
-        if (scenarios && scenarios.length > 0) {
-          setWorldScenario(scenarios[0]);
-        }
-      })
-      .catch((err) => {
-        console.warn('[AvailabilityIntelligence] Could not fetch Enterprise World scenario:', err.message);
-        setWorldError(err.message);
-      });
-  }, []);
+  /*
+   * The Enterprise World scenario binding that used to sit here fetched the
+   * `supplier_breach` family and held it in state that nothing rendered. Its economics —
+   * a 41,000-unit week against supplier FreshDirect UK — were the retired pre-hardening
+   * ones ADR-077 part 2 stops being an authority. The surface's own exposure figure has
+   * been derived from the canonical scenario's 7-day revenue exposure since DEMO-HARD-01,
+   * so removing the dead binding removes a consumer of the retired economics and changes
+   * nothing a reader sees.
+   */
   const [showBriefing, setShowBriefing] = useState(false);
 
   const totalLostRevenue = decisionState?.derived_impacts.financial_exposure_gbp || STOCKOUT_EVENTS.reduce((a, e) => a + e.lostRevenue, 0);

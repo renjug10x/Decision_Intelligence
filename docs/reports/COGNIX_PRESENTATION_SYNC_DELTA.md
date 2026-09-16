@@ -21,6 +21,16 @@ money, supplier-funding transparency and journey continuity were closed. **No sl
 in that pass** — §1, §2 and §3 stand exactly as recorded. What changed is what the Promotion surface
 now *says about* its numbers; §6 records the additions a presenter should be ready for.
 
+**Third pass, 2026-09-16 (`SCI-01`).** **§1 and §2 are unchanged to the digit** and were re-measured
+against the running application to confirm it. The Promotion elasticity tiers in §3.1 DID move, and
+§3.1 now carries both the figure and why it moved. The cause is ADR-079: the causal engine applied
+`skuContextFactor`, a +/-6% band derived from a hash of the SKU list and the region name, and the
+seeded elasticity curve had been calibrated against the engine WITH that band applied at the one
+scope whose name hashed to 1.06. Retiring the hash made the curve derive from the record's declared
+2.4pp per point of depth and 8% cannibalisation rate for the first time. **A presenter should know
+that the committed 20% plan now reads as value-destroying rather than mildly accretive, and that the
+14% recommendation is unchanged and its advantage is larger.**
+
 ---
 
 ## 1. Opening scenario — NO CHANGE REQUIRED
@@ -80,21 +90,30 @@ from the scenario's list price, implied unit cost and supplier funding agreement
 
 | Slide value (pre-hardening) | Live application | Why |
 |---|---|---|
-| Expected demand uplift **+48.0%** | **+46.8%** | The demand response is now the same figure the causal engine attributes, net of cannibalisation. The two surfaces read a point of depth as 2.4pp and 0.55pp respectively before this. |
-| Net contribution at 20% **−£3.3K** | **+£8.1K** | Priced from the real contribution at depth, across the real estate, with supplier funding declared. |
-| CogniX sweet spot **14%** | **14%** | *Unchanged* — the recommended depth is the same. |
-| Sweet spot value **+£4.1K** | **+£43.5K** | Same cause. |
-| Elasticity tiers **+£1.8K / +£3.4K / +£4.1K / −£3.3K / −£7.9K / −£12.6K** (5/10/14/20/25/30%) | **+£21.9K / +£30.6K / +£43.5K / +£8.1K / −£23.0K / −£67.4K** | Same cause. The shape is preserved: accretive shallow, peak at 14%, destructive deep. |
-| Live assessment contribution **−£150K** then **−£79.8K** | **+£11.4K** | The causal engine now shares the planning curve's prices, so the two figures on the same screen agree in sign and magnitude instead of differing by two orders. |
+| Expected demand uplift **+48.0%** | **+44.16%** | Derived from the record: 20 points of depth at the declared 2.4pp per point, net of the declared 8% cannibalisation rate. Read **+46.8%** between `DEMO-HARD-02` and `SCI-01`; the 6% difference was `skuContextFactor`, a hash of the SKU list and the region name, and ADR-079 retired it. |
+| Net contribution at 20% **−£3.3K** | **−£5.2K** | Priced from the real contribution at depth, across the real estate, with supplier funding declared, on the corrected volume. Read **+£8.1K** while the hash was inflating the volume by 6%. |
+| CogniX sweet spot **14%** | **14%** | *Unchanged through both passes* — the recommended depth is the same, and it is now the recommendation by a wider margin. |
+| Sweet spot value **+£4.1K** | **+£33.0K** | Same cause. Read **+£43.5K** under the hash. |
+| Elasticity tiers **+£1.8K / +£3.4K / +£4.1K / −£3.3K / −£7.9K / −£12.6K** (5/10/14/20/25/30%) | **+£17.5K / +£22.5K / +£33.0K / −£5.2K / −£37.7K / −£82.7K** | Same cause. The shape is preserved: accretive shallow, peak at 14%, destructive deep. |
+| Demand uplift tiers (5/10/14/20/25/30%) | **+11.04% / +22.08% / +33.65% / +44.16% / +55.2% / +66.24%** | Every tier is now `depth x 2.4pp x (1 − 8%)`, plus the declared +2.74pp threshold effect at 14% which carries its reason on the scenario record. |
+| Live assessment contribution **−£150K** then **−£79.8K** | **+£9.6K** | The causal engine shares the planning curve's prices, so the two figures on the same screen agree in sign and magnitude instead of differing by two orders. The screen now also shows the price-cut and campaign-design components adding to the total: **+47.9pp = +44.2pp from the price cut + 3.7pp from who / where / when**. |
 | *"71% of incremental volume across **18 high-yield stores**"* | *"71% … from **365 stores** — around a quarter of the estate"* | The 18 belonged to a 50-store estate. |
 | **"National (50 Stores)"** in the scope selector | **"National — whole estate"** / **"North West — regional cluster"** | Scope semantics rather than an asserted estate size. |
 
-**The narrative changes with it, and improves.** The pre-hardening story was *"20% destroys
-£3,300"*. The story now is *"20% adds £8.1K, and 14% adds £43.5K — so the committed plan leaves
-£35.4K on the table AND creates 130,129 units of demand the estate cannot serve."* The commercial
-argument is weaker on its own and the combined argument is far stronger, because the supply
-consequence is now the dominant reason to challenge the plan. Slides built on *"the promotion
-destroys value"* should be rebuilt on *"the promotion leaves value behind and strands demand"*.
+**The narrative, as it stands after `SCI-01`.** The story is now *"the committed 20% cut destroys
+£5.2K of contribution, 14% adds £33.0K — a £38.2K swing — AND the committed depth creates 130,129
+units of demand the estate cannot serve."* Both halves of the commercial argument are available: the
+plan is value-destroying on its own terms, and it strands demand. Slides may use either or both.
+
+A presenter should be ready for one question, because it is the obvious one: *why did this number
+change?* The answer is short and is a strength rather than an apology — **the platform found that its
+own promotion economics were being modified by a hash of a product code and a region name, and
+retired it.** Every figure on the Promotion surface now traces to a value declared on the scenario
+record. That is the proposition the product is selling, demonstrated on itself.
+
+**One value a presenter should not be surprised by.** Between `DEMO-HARD-02` and `SCI-01` this
+surface read *"20% adds £8.1K"*. Any slide built in that window carries the hash-inflated figure and
+must be updated to −£5.2K.
 
 ### 3.2 Decision Ripple
 

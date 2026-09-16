@@ -11,7 +11,8 @@ import {
   validateJourneyEvent,
   generateCanonicalScenario,
   calculateDerivedImpacts,
-  validateEnterpriseSignal
+  validateEnterpriseSignal,
+  CANONICAL_SCENARIO_ID
 } from '../../packages/contracts/src/index';
 import {
   registerCommercialIntent,
@@ -122,7 +123,7 @@ function runTests() {
   );
 
   // TEST 8: ESF-2 Simulation Evidence Integration
-  const simRes = simulateEnterpriseSignalTimelines({ context: { session_id: 'sess_001', decision_state_id: 'ds_01', decision_state_version: 1, tenant_id: 'tenant_uk_retail_01', scenario_id: 'SCN-PROMO-01', promotion_lift: 20, supplier_capacity_cap: 10, forecast_horizon_days: 14, promotion_method: '20_percent_off', campaign_scope: 'national', cannibalisation_factor: 0, event_boost: 'none', selected_interventions: [] } });
+  const simRes = simulateEnterpriseSignalTimelines({ context: { session_id: 'sess_001', decision_state_id: 'ds_01', decision_state_version: 1, tenant_id: 'tenant_uk_retail_01', scenario_id: CANONICAL_SCENARIO_ID, promotion_lift: 20, supplier_capacity_cap: 10, forecast_horizon_days: 14, promotion_method: '20_percent_off', campaign_scope: 'national', cannibalisation_factor: 0, event_boost: 'none', selected_interventions: [] } });
   assert(simRes.timelines.length === 4 && outlook1.observed_signals.signal_refs.length === 3, 'Test 8: ESF-2 simulation evidence integrated into Intent Fusion outlook');
 
   // TEST 9: Journey Telemetry Event (COMMERCIAL_INTENT_REGISTERED)

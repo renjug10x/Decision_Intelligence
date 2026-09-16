@@ -1,9 +1,14 @@
 import * as http from 'http';
 import {
-  generateCanonicalScenario,
-  ScenarioFamilyId,
+  scenarioTemporalEvidence,
   SignalSimulationRequest,
-  ExternalSignalIngestRequest
+  ExternalSignalIngestRequest,
+  requireScenarioId,
+  listRegisteredScenarios,
+  scenarioCatalogue,
+  getActiveScenarioId,
+  scenarioNowIso,
+  platformReceiptNowIso
 } from '../../../packages/contracts/src/index';
 import { generateSyntheticSignalSnapshot } from './enterprise-signal-generator';
 import { simulateEnterpriseSignalTimelines } from './dynamic-signal-simulator';
@@ -57,12 +62,19 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── ROUTE 2: /api/v1/scenarios ─────────────────────────────────────────────
+  // ── ROUTE 2: /api/v1/scenarios — the scenario registry ─────────────────────
   if (pathname === '/api/v1/scenarios') {
-    const familyId = searchParams.get('family_id') as ScenarioFamilyId | undefined;
-    const scenarios = generateCanonicalScenario(familyId || undefined, tenantId);
+    /*
+     * The REGISTERED catalogue, not the six world families. The families survive as
+     * taxonomy and as each scenario's declared temporal evidence; their pre-hardening
+     * economics are retired and are not served from here (ADR-077 part 2).
+     */
+    const catalogue = scenarioCatalogue().map(entry => ({
+      ...entry,
+      temporal_evidence: scenarioTemporalEvidence(entry.taxonomy.family_id)
+    }));
 
-    console.log(`[cognix-world] HTTP GET /api/v1/scenarios | tenant: ${tenantId} | family: ${familyId || 'all'} | count: ${scenarios.length} | corr: ${correlationId}`);
+    console.log(`[cognix-world] HTTP GET /api/v1/scenarios | tenant: ${tenantId} | active: ${getActiveScenarioId()} | count: ${catalogue.length} | corr: ${correlationId}`);
 
     res.writeHead(200);
     res.end(JSON.stringify({
@@ -70,8 +82,10 @@ const server = http.createServer((req, res) => {
       service: 'cognix-world',
       tenant_id: tenantId,
       correlation_id: correlationId,
-      timestamp: new Date().toISOString(),
-      data: scenarios
+      active_scenario_id: getActiveScenarioId(),
+      count: catalogue.length,
+      timestamp: platformReceiptNowIso(),
+      data: catalogue
     }));
     return;
   }
@@ -246,14 +260,34 @@ const server = http.createServer((req, res) => {
 
   // ── ROUTE 5: /api/v1/signals or /api/v1/signals/current ────────────────────
   if (pathname === '/api/v1/signals' || pathname === '/api/v1/signals/current') {
-    const scenarioFamily = searchParams.get('family_id') || searchParams.get('scenario_family') || 'promotion_surge';
-    const scenarioId = searchParams.get('scenario_id') || 'SCN-PROMO-01';
+    /*
+     * ADR-077 part 4 holds on the domain service exactly as it holds on the BFF proxy.
+     * Correcting only the Next.js route would have left the same defaulting behind the
+     * proxy, which is where the FreshDirect UK signal was actually generated.
+     */
+    let scenario;
+    try {
+      scenario = requireScenarioId(searchParams.get('scenario_id'), `GET ${pathname}`);
+    } catch (error: any) {
+      res.writeHead(400);
+      res.end(JSON.stringify({
+        status: 'error',
+        service: 'cognix-world',
+        error: 'ScenarioNotResolved',
+        message: error.message,
+        required_parameter: 'scenario_id',
+        correlation_id: correlationId,
+        timestamp: platformReceiptNowIso()
+      }));
+      return;
+    }
+
     const signalType = searchParams.get('signal_type');
     const category = searchParams.get('category');
     const entityType = searchParams.get('entity_type');
     const entityId = searchParams.get('entity_id');
 
-    let signals = generateSyntheticSignalSnapshot(scenarioFamily, tenantId, scenarioId);
+    let signals = generateSyntheticSignalSnapshot(scenario, tenantId);
 
     // Apply filtering
     if (signalType) signals = signals.filter(s => s.signal_type === signalType);
@@ -261,7 +295,7 @@ const server = http.createServer((req, res) => {
     if (entityType) signals = signals.filter(s => s.entity_type === entityType);
     if (entityId) signals = signals.filter(s => s.entity_id === entityId);
 
-    console.log(`[cognix-world] HTTP GET ${pathname} | tenant: ${tenantId} | family: ${scenarioFamily} | count: ${signals.length}`);
+    console.log(`[cognix-world] HTTP GET ${pathname} | tenant: ${tenantId} | scenario: ${scenario.identity.scenario_id} | count: ${signals.length}`);
 
     res.writeHead(200);
     res.end(JSON.stringify({
@@ -269,10 +303,12 @@ const server = http.createServer((req, res) => {
       service: 'cognix-world',
       domain: 'enterprise-signals',
       tenant_id: tenantId,
-      scenario_id: scenarioId,
+      scenario_id: scenario.identity.scenario_id,
+      scenario_family: scenario.taxonomy.family_id,
+      scenario_clock: scenarioNowIso(scenario),
       count: signals.length,
       correlation_id: correlationId,
-      timestamp: new Date().toISOString(),
+      timestamp: platformReceiptNowIso(),
       data: signals
     }));
     return;
@@ -282,10 +318,10 @@ const server = http.createServer((req, res) => {
   if (pathname.startsWith('/api/v1/signals/')) {
     const id = pathname.split('/')[4];
     if (id) {
-      const allSignals = [
-        ...generateSyntheticSignalSnapshot('promotion_surge', tenantId, 'SCN-PROMO-01'),
-        ...generateSyntheticSignalSnapshot('supplier_breach', tenantId, 'SCN-BREACH-02')
-      ];
+      // Looked up across the registered catalogue, not across two hard-coded worlds.
+      const allSignals = listRegisteredScenarios().flatMap(scenario =>
+        generateSyntheticSignalSnapshot(scenario, tenantId)
+      );
       const match = allSignals.find(s => s.signal_id === id);
       if (match) {
         res.writeHead(200);

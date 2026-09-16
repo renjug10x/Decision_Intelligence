@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateSyntheticSignalSnapshot } from '@/services/world/src/enterprise-signal-generator';
+import { listRegisteredScenarios } from '@/packages/contracts/src/scenario-registry';
+import { platformReceiptNowIso } from '@/packages/contracts/src/scenario-clock';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -21,16 +23,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         status: 'error',
         error: 'ServiceUnavailable',
         message: `Mandatory cognix-world signal lookup failed: ${e.message}`,
-        timestamp: new Date().toISOString()
+        timestamp: platformReceiptNowIso()
       }, { status: 503 });
     }
   }
 
-  // Demo Fallback Mode
-  const allSignals = [
-    ...generateSyntheticSignalSnapshot('promotion_surge', 'tenant_uk_retail_01', 'SCN-PROMO-01'),
-    ...generateSyntheticSignalSnapshot('supplier_breach', 'tenant_uk_retail_01', 'SCN-BREACH-02')
-  ];
+  /*
+   * Demo Fallback Mode. A signal is looked up across the REGISTERED catalogue rather than
+   * across two hard-coded worlds, one of which (`SCN-PROMO-01`) had already been retired
+   * from the connected journey while still being served from here.
+   */
+  const allSignals = listRegisteredScenarios().flatMap(scenario =>
+    generateSyntheticSignalSnapshot(scenario, 'tenant_uk_retail_01')
+  );
   const match = allSignals.find(s => s.signal_id === id);
   if (match) {
     return NextResponse.json({

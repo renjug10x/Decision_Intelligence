@@ -188,10 +188,15 @@ function runTests() {
   );
   const waste0 = zero.outcomes.annotations.find(a => a.dimension_id === 'waste_delta_units')!.value;
   assert(waste0 === 0, 'AC-11c: Scenario 0 waste_delta_units === 0 (D2 regression)');
-  // Re-pinned when category became a modelled dimension: the SKU/context seed no longer
-  // hashes the category name, so ambient drift for this anchor is 1.46 rather than 1.42.
-  // The value is still pinned exactly — only the number the model produces has changed.
-  assert(base.ambient_frame!.ambient_uplift_pp === 1.46, 'AC-11d: ARF-A ambient is exactly 1.46');
+  /*
+   * Re-pinned at ADR-079. Ambient drift is the declared 1.5pp, undifferentiated, because the
+   * scenario declares no scope multiplier. It was 1.46 — 1.5 scaled by `skuContextFactor`,
+   * the hash of the SKU list and the region name — and before that 1.42 when the category
+   * name was in the same seed. Each re-pin moved the number for no modelled reason, which
+   * is exactly the argument that retired the hash. The value is still pinned exactly; it is
+   * now pinned to something the record declares.
+   */
+  assert(base.ambient_frame!.ambient_uplift_pp === 1.5, 'AC-11d: ARF-A ambient is exactly the declared 1.5pp drift, undifferentiated');
   assert(assertDominatedScenarioZeroStillShown(base), 'AC-10: dominated Scenario 0 still shown');
   assert(
     !base.frontier_play_ids.includes(zero.play_id) &&
@@ -215,15 +220,22 @@ function runTests() {
     'AC-14b: non-promo excluded from frontier and selection'
   );
   /*
-   * The demand response of a non-promotional lever is unchanged by the economics rework, so the
-   * pp figure is still pinned. The pounds it produces are NOT pinned to a literal: they are the
-   * same uplift priced at the canonical contribution, and a literal here would only ever assert
-   * that nobody had repriced the scenario.
+   * The demand response of a non-promotional lever is still pinned as a pp figure. The pounds
+   * it produces are NOT pinned to a literal: they are the same uplift priced at the canonical
+   * contribution, and a literal here would only ever assert that nobody had repriced the
+   * scenario.
+   *
+   * Re-pinned at ADR-079 from 9.07 to 9.20: the stock-reallocation lever's declared 4.2pp and
+   * the ambient drift's declared 1.5pp were each being scaled by `skuContextFactor`, the hash
+   * of the SKU list and the region name, which held them at 4.07 and 1.46. With the hash
+   * retired and the scenario declaring no scope differentiation, both stand at their declared
+   * values and the sum rises by exactly the 0.13pp the hash was removing.
    */
+  const NON_PROMOTION_UPLIFT_PP = 9.2;
   const npExpectedContribution =
-    canonicalWeeklyPopulationUnits() * (9.07 / 100) * canonicalContributionPerUnitAtListGbp();
+    canonicalWeeklyPopulationUnits() * (NON_PROMOTION_UPLIFT_PP / 100) * canonicalContributionPerUnitAtListGbp();
   assert(
-    Math.abs(axis(np, 'attributable_volume_uplift_pp') - 9.07) < 0.05 &&
+    Math.abs(axis(np, 'attributable_volume_uplift_pp') - NON_PROMOTION_UPLIFT_PP) < 0.05 &&
       Math.abs(axis(np, 'contribution_delta_gbp') - npExpectedContribution) / npExpectedContribution < 0.15,
     'AC-15: non-promo CDI-02 outcome is the unchanged uplift priced at the canonical contribution',
     `u=${axis(np, 'attributable_volume_uplift_pp')} c=${axis(np, 'contribution_delta_gbp')}`

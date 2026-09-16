@@ -129,6 +129,12 @@ export type CausalDriverId =
   | 'temporal_response'
   | 'external_signal_response'
   | 'portfolio_effects'
+  /**
+   * The scenario's DECLARED threshold effect at the depth in play (ADR-079). A property of
+   * the price point rather than of campaign design, so it belongs to the price-depth response
+   * the elasticity curve plots and never to the design components beside it.
+   */
+  | 'threshold_price_point'
   | 'interaction_residual';
 
 /**

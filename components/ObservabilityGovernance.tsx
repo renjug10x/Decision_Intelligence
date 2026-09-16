@@ -37,6 +37,9 @@ import AtlasHealth from '@/components/AtlasHealth';
 import { useApp } from '@/lib/context';
 import { useDecisionState } from '@/context/DecisionStateContext';
 import { fetchLandscape, type AtlasLandscape } from '@/lib/atlas-client';
+import { fetchActiveScenarioId } from '@/lib/world-client';
+
+const TENANT_ID = 'tenant_uk_retail_01';
 
 type SectionId = 'governed' | 'evidence' | 'architecture' | 'estate' | 'health' | 'signals' | 'observable';
 
@@ -114,6 +117,7 @@ export default function ObservabilityGovernance() {
   const [grounding, setGrounding] = useState<any>(null);
   const [events, setEvents] = useState<any[]>([]);
   const [signals, setSignals] = useState<any[]>([]);
+  const [signalScenario, setSignalScenario] = useState<{ scenario_id: string; scenario_clock: string | null } | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -131,14 +135,36 @@ export default function ObservabilityGovernance() {
     } catch { setEvents([]); } finally { setBusy(null); }
   }, []);
 
+  /*
+   * THE surface R-20 was about. This panel used to issue `GET /api/v1/signals` with no
+   * scenario at all, the route defaulted to `SCN-PROMO-01`, and a governance screen
+   * published a supplier capacity signal against FreshDirect UK — a party the connected
+   * journey had already replaced with Cheshire Cheese Co.
+   *
+   * It now names the scenario it is asking about. The identity comes from the decision
+   * state the rest of the journey is already running on, and falls back to the registry's
+   * declared active scenario rather than to a literal (ADR-077 part 4).
+   */
   const loadSignals = useCallback(async () => {
     setBusy('signals');
     try {
-      const res = await fetch('/api/v1/signals?tenant_id=tenant_uk_retail_01');
+      const scenarioId = decisionState?.scenario_id ?? await fetchActiveScenarioId(TENANT_ID);
+      if (!scenarioId) {
+        setSignals([]);
+        setSignalScenario(null);
+        return;
+      }
+      const params = new URLSearchParams({ tenant_id: TENANT_ID, scenario_id: scenarioId });
+      const res = await fetch(`/api/v1/signals?${params.toString()}`);
       const json = await res.json();
       setSignals(Array.isArray(json.data) ? json.data : []);
-    } catch { setSignals([]); } finally { setBusy(null); }
-  }, []);
+      setSignalScenario(
+        json.scenario_id
+          ? { scenario_id: json.scenario_id, scenario_clock: json.scenario_clock ?? null }
+          : null
+      );
+    } catch { setSignals([]); setSignalScenario(null); } finally { setBusy(null); }
+  }, [decisionState?.scenario_id]);
 
   useEffect(() => {
     if (section === 'observable' && events.length === 0) void loadEvents();
@@ -423,6 +449,18 @@ export default function ObservabilityGovernance() {
             Canonical Enterprise Signal snapshots, produced deterministically by Enterprise World. Each
             carries its own provenance and states whether it is synthetic.
           </p>
+          {signalScenario && (
+            <p className="og-lead">
+              Scenario <strong>{signalScenario.scenario_id}</strong>
+              {signalScenario.scenario_clock && (
+                <>
+                  {' · as at '}
+                  <strong>{signalScenario.scenario_clock.slice(0, 10)}</strong>
+                  {' (scenario time, not the wall clock)'}
+                </>
+              )}
+            </p>
+          )}
           <button type="button" className="og-refresh" onClick={loadSignals} disabled={busy === 'signals'}>
             {busy === 'signals' ? <Loader2 size={13} className="atlas-spin" /> : <RefreshCw size={13} />}
             Refresh signals
@@ -444,8 +482,10 @@ export default function ObservabilityGovernance() {
                   </div>
                   <div className="og-signal-prov">
                     Confidence {sig.confidence} · quality {sig.quality}
-                    {sig.synthetic_demo ? ' · synthetic' : ''}
+                    {sig.synthetic_demo ? ' · modelled' : ''}
                     {sig.provenance?.rule ? ` · rule ${sig.provenance.rule}` : ''}
+                    {/* Freshness is now a real reading, because the stamp is scenario time. */}
+                    {sig.provenance?.observed_period ? ` · observed ${sig.provenance.observed_period}` : ''}
                   </div>
                 </li>
               ))}

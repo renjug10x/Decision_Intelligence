@@ -40,7 +40,40 @@
  * Because the supplier capacity index and the supplier flex allowance are declared as
  * RATIOS of the demand base rather than as counts drawn from a separate population, the
  * whole scenario rescales coherently from one number — `base_demand_units_per_week`.
+ *
+ * One record, many instances (ADR-073 Amendment A, ADR-077)
+ * ---------------------------------------------------------
+ * `CanonicalScenario` is the MODEL. `SCN-FRESH-DAIRY-CHEDDAR-001` is its first instance
+ * and remains the protected reference every other scenario is certified against. The
+ * original ruling declared "one canonical decision case", and that ruling was always
+ * about COHERENCE rather than about SINGULARITY: every rule above is a property of a
+ * scenario, not a property of there being exactly one of them.
+ *
+ * So the derivations below come in two layers, and the distinction is load-bearing:
+ *
+ *   `scenario*(scenario, …)`  — the model. Pure functions OF A SCENARIO. This is what a
+ *                               second scenario, the certification harness (`SCI-02`) and
+ *                               every later packet resolve through.
+ *   `canonical*(…)`           — the protected reference, BOUND BY NAME to
+ *                               `CANONICAL_SCENARIO` at exactly one place per quantity.
+ *
+ * The bound layer is not a default resolution. ADR-077 part 4 forbids a SURFACE resolving
+ * a scenario by defaulting — `scenario_id` absent must be an error, never a fallback. A
+ * derivation that names the reference scenario it is derived for is the opposite of that:
+ * it is explicit, it is in one file, and it is why the 227 call sites reading the
+ * protected journey did not have to be rewritten to parameterise the model.
  */
+
+import { ScenarioFamilyId } from './enterprise-world-model';
+import {
+  ProvenanceDescriptor,
+  MODELLED_SCENARIO_PROVENANCE
+} from './provenance-vocabulary';
+import {
+  scenarioNowIso as clockNowIso,
+  scenarioDateIso as clockDateIso,
+  scenarioFreshnessDays as clockFreshnessDays
+} from './scenario-clock';
 
 // ── Identity ──────────────────────────────────────────────────────────────────
 
@@ -241,20 +274,105 @@ export interface CanonicalEconomics {
   substitution_recovery_pct: number;
 }
 
+// ── Taxonomy ──────────────────────────────────────────────────────────────────
+
+/**
+ * What KIND of decision situation this scenario is, and which commercial projection
+ * presents it (ADR-077 part 2).
+ *
+ * Both dimensions used to be parallel universes. `ENTERPRISE_WORLD_SCENARIOS` carried six
+ * `ScenarioFamilyId` families with their own economics — a 55,000-unit week and a £142,000
+ * exposure against a supplier the connected journey had retired. `CampaignArchetype`
+ * carried seven priced situations. Three internally consistent scenario models is the same
+ * failure ADR-073 closed for economics, one level up.
+ *
+ * They are now PROJECTIONS OF this record, never sources beside it:
+ *
+ *   `family_id`    classifies the situation. It carries no economics and no estate.
+ *   `archetype_id` supplies elasticity, cannibalisation, plays and narrative. It supplies
+ *                  no second population, no second price basis and no second estate.
+ */
+export interface CanonicalScenarioTaxonomy {
+  /** The enterprise world family this situation belongs to. Taxonomy only. */
+  family_id: ScenarioFamilyId;
+  /** The `ARCH-*` commercial projection that presents this scenario. */
+  archetype_id: string;
+  /**
+   * Why this scenario sits in this family, so the classification can be read rather than
+   * inferred from the family's name.
+   */
+  family_rationale: string;
+}
+
+// ── Declared differentiation ──────────────────────────────────────────────────
+
+/**
+ * A declared non-linearity on the depth-response curve.
+ *
+ * ADR-073 rule 4 — behaviour may be seeded, economics must be derived — is what admits
+ * this: how demand responds to a price cut is a property of the category, and a threshold
+ * price point genuinely does buy display that a cut one point shallower does not. What is
+ * NOT admissible is an unexplained modifier, which is the distinction ADR-079 draws.
+ */
+export interface ScenarioDepthResponseAnomaly {
+  depth_pct: number;
+  /** Percentage points ABOVE the linear depth response at this depth. */
+  uplift_bonus_pp: number;
+  reason: string;
+}
+
+/**
+ * How a scenario differs from the linear response its declared economics imply (ADR-079).
+ *
+ * What this replaces. `lib/campaign-causal-engine.ts` applied `skuContextFactor`: a ±6%
+ * band derived from `hashSeed(sku_scope.join('|') + '::' + region)`. It was deterministic
+ * and it was not explainable — "because the hash of your region name was 1.03" is not an
+ * answer a Decision Trace can give. Its own comment already recorded the argument against
+ * it, because category had been removed from the same seed once renaming a category moved
+ * every downstream number by up to 6% for no modelled reason. That argument applied
+ * unchanged to the two dimensions still in the seed.
+ *
+ * It was also a hard blocker for authored scenarios, whose SKU and region names are
+ * arbitrary strings: a scenario named "North West" and one named "Northwest" would have
+ * returned economics differing by up to six per cent.
+ *
+ * The replacement is not a parameterised hash — keeping it behind a flag preserves the
+ * defect for whoever turns the flag on. Differentiation is DECLARED, per scope, with a
+ * stated reason, exactly as elasticity already is. Where a scenario does not genuinely
+ * differ, there is no modifier and the multiplier is 1.
+ */
+export interface ScenarioDeclaredDifferentiation {
+  /**
+   * Multiplier applied to the demand response at a named scope. A scope absent from this
+   * record carries no modifier. Every entry MUST have a matching reason.
+   */
+  scope_response_multipliers: Readonly<Record<string, number>>;
+  /** Why each declared multiplier exists. A multiplier without a reason is not admissible. */
+  scope_response_reasons: Readonly<Record<string, string>>;
+  /** Declared threshold effects on the depth-response curve. */
+  depth_response_anomalies: readonly ScenarioDepthResponseAnomaly[];
+  /** What a reader should understand about this scenario's differentiation, in one line. */
+  statement: string;
+}
+
 // ── The record ────────────────────────────────────────────────────────────────
 
 export interface CanonicalScenario {
   identity: CanonicalScenarioIdentity;
+  taxonomy: CanonicalScenarioTaxonomy;
   estate: CanonicalEstate;
   calendar: CanonicalCalendar;
   demand: CanonicalDemand;
   supply: CanonicalSupply;
   inventory: CanonicalInventory;
   economics: CanonicalEconomics;
+  differentiation: ScenarioDeclaredDifferentiation;
   provenance: {
     basis: 'MODELLED_DEMONSTRATION_ASSUMPTION';
     synthetic_demo: true;
     statement: string;
+    /** The ADR-082 vocabulary, declared on the record every derived quantity resolves from. */
+    descriptor: ProvenanceDescriptor;
   };
 }
 
@@ -272,6 +390,15 @@ export const CANONICAL_SCENARIO: CanonicalScenario = {
     market_scope_label: 'National',
     focus_region: 'North West',
     channels: ['In store', 'Online']
+  },
+
+  taxonomy: {
+    family_id: 'promotion_surge',
+    archetype_id: 'ARCH-CHILLED-ELASTIC',
+    family_rationale:
+      'A committed promotion drives demand above the allocation the plan was built on. The binding '
+      + 'constraint is supply headroom rather than margin, which is what the promotion_surge family '
+      + 'classifies. The family supplies the classification only — the economics are this record\'s.'
   },
 
   estate: {
@@ -364,183 +491,383 @@ export const CANONICAL_SCENARIO: CanonicalScenario = {
     substitution_recovery_pct: 35
   },
 
+  differentiation: {
+    /*
+     * NONE. This scenario runs one SKU on one estate, and nothing about the North West
+     * makes a point of discount depth buy more or less volume there than nationally than
+     * the estate's own size already accounts for. Declaring no modifier is the honest
+     * answer, and it is why the depth response is now identical at every scope.
+     */
+    scope_response_multipliers: {},
+    scope_response_reasons: {},
+    depth_response_anomalies: [
+      {
+        depth_pct: 14,
+        /*
+         * The bump the seeded elasticity curve has always carried at this tier, now
+         * declared where it can be read instead of being baked into curve literals.
+         */
+        uplift_bonus_pp: 2.74,
+        reason:
+          'A threshold price point wins feature space and signage that a 12% cut does not, and the '
+          + 'volume follows the display as much as the price. A seeded behavioural property of the '
+          + 'category that no price sheet can derive.'
+      }
+    ],
+    statement:
+      'This scenario declares no SKU or region differentiation. Its only declared non-linearity is '
+      + 'the threshold price point at 14% depth, which is a behavioural property of the category.'
+  },
+
   provenance: {
     basis: 'MODELLED_DEMONSTRATION_ASSUMPTION',
     synthetic_demo: true,
     statement:
       'An illustrative scenario for a major UK omnichannel grocer. Every value is modelled for ' +
-      'demonstration. No figure is taken from, or represents, the operating data of any named retailer.'
+      'demonstration. No figure is taken from, or represents, the operating data of any named retailer.',
+    descriptor: MODELLED_SCENARIO_PROVENANCE
   }
 };
 
-// ── Derivations ───────────────────────────────────────────────────────────────
-// Nothing below is declared. Every function here is the ONLY way a surface should
-// obtain the quantity it returns.
+// ── Derivations, layer A: the MODEL ───────────────────────────────────────────
+// Nothing below is declared. Every function here is the ONLY way a surface should obtain
+// the quantity it returns, and every one of them is a pure function OF A SCENARIO.
 
 const round2 = (v: number) => Number(v.toFixed(2));
 
-/** Horizon days, defaulting to the canonical horizon. */
-function horizon(horizonDays?: number): number {
-  return Math.max(1, horizonDays ?? CANONICAL_SCENARIO.calendar.forecast_horizon_days);
+/** Horizon days, defaulting to the scenario's own declared horizon. */
+function horizonOf(scenario: CanonicalScenario, horizonDays?: number): number {
+  return Math.max(1, horizonDays ?? scenario.calendar.forecast_horizon_days);
 }
 
 /** Un-promoted demand across the horizon. The denominator for every percentage on the journey. */
-export function canonicalBaseDemandUnits(horizonDays?: number): number {
-  return CANONICAL_SCENARIO.demand.base_demand_units_per_week * (horizon(horizonDays) / 7);
+export function scenarioBaseDemandUnits(scenario: CanonicalScenario, horizonDays?: number): number {
+  return scenario.demand.base_demand_units_per_week * (horizonOf(scenario, horizonDays) / 7);
 }
 
 /** Demand now expected across the horizon, base carried by the total attributed movement. */
-export function canonicalExpectedDemandUnits(horizonDays?: number): number {
-  return canonicalBaseDemandUnits(horizonDays) * (1 + CANONICAL_SCENARIO.demand.total_demand_movement_pct / 100);
+export function scenarioExpectedDemandUnits(scenario: CanonicalScenario, horizonDays?: number): number {
+  return scenarioBaseDemandUnits(scenario, horizonDays) * (1 + scenario.demand.total_demand_movement_pct / 100);
 }
 
 /** What the operation can actually serve across the horizon, at the standing allocation. */
-export function canonicalServableDemandUnits(horizonDays?: number): number {
-  return canonicalBaseDemandUnits(horizonDays) * CANONICAL_SCENARIO.supply.supplier_capacity_index;
+export function scenarioServableDemandUnits(scenario: CanonicalScenario, horizonDays?: number): number {
+  return scenarioBaseDemandUnits(scenario, horizonDays) * scenario.supply.supplier_capacity_index;
 }
 
 /** Expected demand we cannot serve. The Decision Gap, in units. */
-export function canonicalExposedDemandUnits(horizonDays?: number): number {
-  return Math.max(0, canonicalExpectedDemandUnits(horizonDays) - canonicalServableDemandUnits(horizonDays));
+export function scenarioExposedDemandUnits(scenario: CanonicalScenario, horizonDays?: number): number {
+  return Math.max(
+    0,
+    scenarioExpectedDemandUnits(scenario, horizonDays) - scenarioServableDemandUnits(scenario, horizonDays)
+  );
 }
 
 /** Capacity the contractual flex clause releases across the horizon. */
-export function canonicalFlexCapacityUnits(horizonDays?: number): number {
-  return canonicalBaseDemandUnits(horizonDays) * (CANONICAL_SCENARIO.supply.supplier_flex_rate_pct / 100);
+export function scenarioFlexCapacityUnits(scenario: CanonicalScenario, horizonDays?: number): number {
+  return scenarioBaseDemandUnits(scenario, horizonDays) * (scenario.supply.supplier_flex_rate_pct / 100);
 }
 
 /**
  * Revenue realised per unit across the horizon: list, less the committed promotion on the
- * share of volume that transacts on it. THE revenue basis for the connected journey — no
+ * share of volume that transacts on it. THE revenue basis for a scenario's journey — no
  * surface derives its own.
  */
-export function canonicalRealisedRevenuePerUnitGbp(): number {
-  const { list_price_gbp, promotion_depth_pct, promotion_participation_pct } = CANONICAL_SCENARIO.economics;
+export function scenarioRealisedRevenuePerUnitGbp(scenario: CanonicalScenario): number {
+  const { list_price_gbp, promotion_depth_pct, promotion_participation_pct } = scenario.economics;
   return round2(list_price_gbp * (1 - (promotion_depth_pct / 100) * (promotion_participation_pct / 100)));
 }
 
 /** Gross margin realised per unit, at the declared rate on realised revenue. */
-export function canonicalGrossMarginPerUnitGbp(): number {
-  return round2(canonicalRealisedRevenuePerUnitGbp() * (CANONICAL_SCENARIO.economics.gross_margin_rate_pct / 100));
+export function scenarioGrossMarginPerUnitGbp(scenario: CanonicalScenario): number {
+  return round2(scenarioRealisedRevenuePerUnitGbp(scenario) * (scenario.economics.gross_margin_rate_pct / 100));
 }
 
 /**
  * Unit cost implied by the realised price and the declared margin rate. Published so the
- * margin assumption can be checked against the shelf price rather than taken on trust:
- * at a £2.49 list this implies a margin at full price of roughly 42%, which is where an
- * own-label cheese line sits.
+ * margin assumption can be checked against the shelf price rather than taken on trust.
  */
-export function canonicalImpliedUnitCostGbp(): number {
-  return round2(canonicalRealisedRevenuePerUnitGbp() - canonicalGrossMarginPerUnitGbp());
+export function scenarioImpliedUnitCostGbp(scenario: CanonicalScenario): number {
+  return round2(scenarioRealisedRevenuePerUnitGbp(scenario) - scenarioGrossMarginPerUnitGbp(scenario));
 }
 
 /** Price the customer pays while the committed promotion is running. */
-export function canonicalPromotedPriceGbp(): number {
-  const { list_price_gbp, promotion_depth_pct } = CANONICAL_SCENARIO.economics;
+export function scenarioPromotedPriceGbp(scenario: CanonicalScenario): number {
+  const { list_price_gbp, promotion_depth_pct } = scenario.economics;
   return round2(list_price_gbp * (1 - promotion_depth_pct / 100));
 }
 
 /** Gross margin earned per unit at list, before any promotion. */
-export function canonicalContributionPerUnitAtListGbp(): number {
-  return round2(CANONICAL_SCENARIO.economics.list_price_gbp - canonicalImpliedUnitCostGbp());
+export function scenarioContributionPerUnitAtListGbp(scenario: CanonicalScenario): number {
+  return round2(scenario.economics.list_price_gbp - scenarioImpliedUnitCostGbp(scenario));
 }
 
 /** Share of each point of price investment the retailer carries after supplier funding. */
-export function canonicalRetailerFundedShare(): number {
-  return 1 - CANONICAL_SCENARIO.economics.supplier_promotional_funding_pct / 100;
+export function scenarioRetailerFundedShare(scenario: CanonicalScenario): number {
+  return 1 - scenario.economics.supplier_promotional_funding_pct / 100;
 }
 
 /**
  * Share of unit contribution given up per point of discount depth, derived from the price, the
- * cost and the funding agreement rather than assumed. One point of depth invests `list x 1%` in
- * price, of which the retailer carries `1 - supplier funding`, out of a contribution of
- * `list - cost`. Every term is a declared property of this scenario, so the erosion rate moves
- * with the economics instead of sitting at a flat rate no price supported.
+ * cost and the funding agreement rather than assumed.
  */
-export function canonicalContributionErosionPerDepthPoint(): number {
-  const contribution = canonicalContributionPerUnitAtListGbp();
+export function scenarioContributionErosionPerDepthPoint(scenario: CanonicalScenario): number {
+  const contribution = scenarioContributionPerUnitAtListGbp(scenario);
   if (contribution <= 0) return 0;
-  return (CANONICAL_SCENARIO.economics.list_price_gbp * 0.01 * canonicalRetailerFundedShare()) / contribution;
+  return (scenario.economics.list_price_gbp * 0.01 * scenarioRetailerFundedShare(scenario)) / contribution;
 }
 
 /**
  * Contribution earned per unit at a given promotional depth, after supplier funding. THE
- * promotion economics primitive: every elasticity point, campaign evaluation and frontier
- * comparison in the connected journey resolves its per-unit economics here.
+ * promotion economics primitive.
  */
-export function canonicalContributionAtDepthGbp(depthPct: number, listPriceGbp?: number, unitCostGbp?: number): number {
-  const list = listPriceGbp ?? CANONICAL_SCENARIO.economics.list_price_gbp;
-  const cost = unitCostGbp ?? canonicalImpliedUnitCostGbp();
-  const retailerInvestment = list * (depthPct / 100) * canonicalRetailerFundedShare();
+export function scenarioContributionAtDepthGbp(
+  scenario: CanonicalScenario,
+  depthPct: number,
+  listPriceGbp?: number,
+  unitCostGbp?: number
+): number {
+  const list = listPriceGbp ?? scenario.economics.list_price_gbp;
+  const cost = unitCostGbp ?? scenarioImpliedUnitCostGbp(scenario);
+  const retailerInvestment = list * (depthPct / 100) * scenarioRetailerFundedShare(scenario);
   return Number((list - retailerInvestment - cost).toFixed(4));
 }
 
 /** Revenue exposed by demand we cannot serve. */
-export function canonicalRevenueExposureGbp(horizonDays?: number): number {
-  return canonicalExposedDemandUnits(horizonDays) * canonicalRealisedRevenuePerUnitGbp();
+export function scenarioRevenueExposureGbp(scenario: CanonicalScenario, horizonDays?: number): number {
+  return scenarioExposedDemandUnits(scenario, horizonDays) * scenarioRealisedRevenuePerUnitGbp(scenario);
 }
 
 /** Gross margin exposed by demand we cannot serve. */
-export function canonicalMarginExposureGbp(horizonDays?: number): number {
-  return canonicalExposedDemandUnits(horizonDays) * canonicalGrossMarginPerUnitGbp();
+export function scenarioMarginExposureGbp(scenario: CanonicalScenario, horizonDays?: number): number {
+  return scenarioExposedDemandUnits(scenario, horizonDays) * scenarioGrossMarginPerUnitGbp(scenario);
 }
 
 /** Un-promoted demand per day — the run rate days of cover are measured against. */
-export function canonicalBaseRunRatePerDay(): number {
-  return CANONICAL_SCENARIO.demand.base_demand_units_per_week / 7;
+export function scenarioBaseRunRatePerDay(scenario: CanonicalScenario): number {
+  return scenario.demand.base_demand_units_per_week / 7;
 }
 
 /** Days of cover held in store at the un-promoted run rate. */
-export function canonicalStoreCoverDays(): number {
-  return CANONICAL_SCENARIO.inventory.store_units / canonicalBaseRunRatePerDay();
+export function scenarioStoreCoverDays(scenario: CanonicalScenario): number {
+  return scenario.inventory.store_units / scenarioBaseRunRatePerDay(scenario);
 }
 
 /** Days of cover held across store and distribution centres at the un-promoted run rate. */
-export function canonicalNetworkCoverDays(): number {
-  const { store_units, distribution_centre_units } = CANONICAL_SCENARIO.inventory;
-  return (store_units + distribution_centre_units) / canonicalBaseRunRatePerDay();
-}
-
-/** Midnight UTC on the scenario's last observed day — the instant every window is measured from. */
-export function canonicalScenarioNowIso(): string {
-  return `${CANONICAL_SCENARIO.calendar.observed_history_end_date}T00:00:00.000Z`;
-}
-
-/** A date `days` after the scenario clock, as an ISO instant. */
-export function canonicalScenarioDateIso(daysAfterNow: number): string {
-  return new Date(Date.parse(canonicalScenarioNowIso()) + daysAfterNow * 86_400_000).toISOString();
-}
-
-/** The window the committed promotion runs in: the first projected day, for its declared length. */
-export function canonicalPromotionWindow(): { start_iso: string; end_iso: string } {
-  return {
-    start_iso: canonicalScenarioDateIso(1),
-    end_iso: canonicalScenarioDateIso(CANONICAL_SCENARIO.calendar.promotion_duration_days)
-  };
+export function scenarioNetworkCoverDays(scenario: CanonicalScenario): number {
+  const { store_units, distribution_centre_units } = scenario.inventory;
+  return (store_units + distribution_centre_units) / scenarioBaseRunRatePerDay(scenario);
 }
 
 /** Stores in a named scope. Falls back to the national estate for an unknown scope. */
-export function canonicalStoreCount(scope: string): number {
-  return CANONICAL_SCENARIO.estate.region_store_counts[scope]
-    ?? CANONICAL_SCENARIO.estate.national_store_count;
+export function scenarioStoreCount(scenario: CanonicalScenario, scope: string): number {
+  return scenario.estate.region_store_counts[scope] ?? scenario.estate.national_store_count;
 }
 
 /**
  * The scenario's own label for a scope. Surfaces publish this rather than a bare store
  * count, so "National" and "North West" mean the same thing on every screen.
  */
-export function canonicalScopeLabel(scope: string): string {
+export function scenarioScopeLabel(scenario: CanonicalScenario, scope: string): string {
   return scope === 'National' || scope === 'national'
-    ? CANONICAL_SCENARIO.identity.market_scope_label
+    ? scenario.identity.market_scope_label
     : scope;
 }
 
+/** The abstract weekly population a derived-impact engine works on. It IS the scenario's own. */
+export function scenarioWeeklyPopulationUnits(scenario: CanonicalScenario): number {
+  return scenario.demand.base_demand_units_per_week;
+}
+
+// ── Declared differentiation (ADR-079) ────────────────────────────────────────
+
 /**
- * The abstract weekly population WP10-C's derived-impact engine works on. It IS the
- * scenario's un-promoted weekly demand — the two were separate worlds before this record,
- * which is how Promotion and Campaign Decision came to publish pounds that Demand had
- * never heard of.
+ * The declared multiplier for a named scope. 1 where the scenario declares nothing, which
+ * is the answer for every scope of the canonical scenario.
+ *
+ * A multiplier is only honoured when the scenario also declares WHY it exists. An
+ * undeclared reason is a modelling error, not a silent 1.03.
  */
+export function scenarioScopeResponseMultiplier(scenario: CanonicalScenario, scope: string): number {
+  const declared = scenario.differentiation.scope_response_multipliers[scope];
+  if (typeof declared !== 'number') return 1;
+  const reason = scenario.differentiation.scope_response_reasons[scope];
+  if (!reason || !reason.trim()) {
+    throw new Error(
+      `Scenario ${scenario.identity.scenario_id} declares a response multiplier for scope "${scope}" `
+      + 'with no stated reason. ADR-079: differentiation is declared, never asserted.'
+    );
+  }
+  return declared;
+}
+
+/** The declared threshold bonus at a depth, in percentage points. Zero where none is declared. */
+export function scenarioDepthResponseAnomalyPp(scenario: CanonicalScenario, depthPct: number): number {
+  return scenario.differentiation.depth_response_anomalies
+    .find(a => a.depth_pct === depthPct)?.uplift_bonus_pp ?? 0;
+}
+
+/**
+ * THE demand response to promotional depth, net of the cannibalisation it causes.
+ *
+ * This is the single basis the elasticity curve plots and the causal engine attributes.
+ * Before ADR-079 the curve carried seeded literals calibrated against the causal engine
+ * WITH its hash band applied, so the two agreed at the one scope whose name happened to
+ * hash to 1.06 and diverged by up to six per cent everywhere else. Deriving both from
+ * this function is what makes the agreement structural instead of coincidental.
+ */
+export function scenarioDepthResponsePp(
+  scenario: CanonicalScenario,
+  depthPct: number,
+  scope?: string
+): number {
+  const multiplier = scope ? scenarioScopeResponseMultiplier(scenario, scope) : 1;
+  const gross = depthPct * scenario.economics.promotional_response_pp_per_depth_point;
+  const net = gross * (1 - scenario.economics.cannibalisation_rate_pct / 100);
+  const anomaly = scenarioDepthResponseAnomalyPp(scenario, depthPct);
+  return round2((net + anomaly) * multiplier);
+}
+
+// ── Scenario clock (ADR-078) ──────────────────────────────────────────────────
+// The clock itself lives in `scenario-clock.ts`. These are the scenario-bound readings.
+
+/** Midnight UTC on the scenario's last observed day — the instant every window is measured from. */
+export function scenarioClockNowIso(scenario: CanonicalScenario): string {
+  return clockNowIso(scenario);
+}
+
+/** A date `days` after the scenario clock, as an ISO instant. */
+export function scenarioClockDateIso(scenario: CanonicalScenario, daysAfterNow: number): string {
+  return clockDateIso(scenario, daysAfterNow);
+}
+
+/** How old an observation is, in scenario days, at this scenario's own Today. */
+export function scenarioObservationAgeDays(scenario: CanonicalScenario, observedAtIso: string): number {
+  return clockFreshnessDays(scenario, observedAtIso);
+}
+
+/** The window the committed promotion runs in: the first projected day, for its declared length. */
+export function scenarioPromotionWindow(scenario: CanonicalScenario): { start_iso: string; end_iso: string } {
+  return {
+    start_iso: scenarioClockDateIso(scenario, 1),
+    end_iso: scenarioClockDateIso(scenario, scenario.calendar.promotion_duration_days)
+  };
+}
+
+// ── Derivations, layer B: the PROTECTED REFERENCE ─────────────────────────────
+// Each accessor below binds layer A to `CANONICAL_SCENARIO` by name, at exactly one
+// place per quantity. This is the only file that names the reference scenario for a
+// derivation; every surface reads through these, and the certification harness reads
+// layer A directly with whatever scenario it is certifying.
+
+export function canonicalBaseDemandUnits(horizonDays?: number): number {
+  return scenarioBaseDemandUnits(CANONICAL_SCENARIO, horizonDays);
+}
+
+export function canonicalExpectedDemandUnits(horizonDays?: number): number {
+  return scenarioExpectedDemandUnits(CANONICAL_SCENARIO, horizonDays);
+}
+
+export function canonicalServableDemandUnits(horizonDays?: number): number {
+  return scenarioServableDemandUnits(CANONICAL_SCENARIO, horizonDays);
+}
+
+export function canonicalExposedDemandUnits(horizonDays?: number): number {
+  return scenarioExposedDemandUnits(CANONICAL_SCENARIO, horizonDays);
+}
+
+export function canonicalFlexCapacityUnits(horizonDays?: number): number {
+  return scenarioFlexCapacityUnits(CANONICAL_SCENARIO, horizonDays);
+}
+
+export function canonicalRealisedRevenuePerUnitGbp(): number {
+  return scenarioRealisedRevenuePerUnitGbp(CANONICAL_SCENARIO);
+}
+
+export function canonicalGrossMarginPerUnitGbp(): number {
+  return scenarioGrossMarginPerUnitGbp(CANONICAL_SCENARIO);
+}
+
+export function canonicalImpliedUnitCostGbp(): number {
+  return scenarioImpliedUnitCostGbp(CANONICAL_SCENARIO);
+}
+
+export function canonicalPromotedPriceGbp(): number {
+  return scenarioPromotedPriceGbp(CANONICAL_SCENARIO);
+}
+
+export function canonicalContributionPerUnitAtListGbp(): number {
+  return scenarioContributionPerUnitAtListGbp(CANONICAL_SCENARIO);
+}
+
+export function canonicalRetailerFundedShare(): number {
+  return scenarioRetailerFundedShare(CANONICAL_SCENARIO);
+}
+
+export function canonicalContributionErosionPerDepthPoint(): number {
+  return scenarioContributionErosionPerDepthPoint(CANONICAL_SCENARIO);
+}
+
+export function canonicalContributionAtDepthGbp(
+  depthPct: number,
+  listPriceGbp?: number,
+  unitCostGbp?: number
+): number {
+  return scenarioContributionAtDepthGbp(CANONICAL_SCENARIO, depthPct, listPriceGbp, unitCostGbp);
+}
+
+export function canonicalRevenueExposureGbp(horizonDays?: number): number {
+  return scenarioRevenueExposureGbp(CANONICAL_SCENARIO, horizonDays);
+}
+
+export function canonicalMarginExposureGbp(horizonDays?: number): number {
+  return scenarioMarginExposureGbp(CANONICAL_SCENARIO, horizonDays);
+}
+
+export function canonicalBaseRunRatePerDay(): number {
+  return scenarioBaseRunRatePerDay(CANONICAL_SCENARIO);
+}
+
+export function canonicalStoreCoverDays(): number {
+  return scenarioStoreCoverDays(CANONICAL_SCENARIO);
+}
+
+export function canonicalNetworkCoverDays(): number {
+  return scenarioNetworkCoverDays(CANONICAL_SCENARIO);
+}
+
+export function canonicalScenarioNowIso(): string {
+  return scenarioClockNowIso(CANONICAL_SCENARIO);
+}
+
+export function canonicalScenarioDateIso(daysAfterNow: number): string {
+  return scenarioClockDateIso(CANONICAL_SCENARIO, daysAfterNow);
+}
+
+export function canonicalPromotionWindow(): { start_iso: string; end_iso: string } {
+  return scenarioPromotionWindow(CANONICAL_SCENARIO);
+}
+
+export function canonicalStoreCount(scope: string): number {
+  return scenarioStoreCount(CANONICAL_SCENARIO, scope);
+}
+
+export function canonicalScopeLabel(scope: string): string {
+  return scenarioScopeLabel(CANONICAL_SCENARIO, scope);
+}
+
 export function canonicalWeeklyPopulationUnits(): number {
-  return CANONICAL_SCENARIO.demand.base_demand_units_per_week;
+  return scenarioWeeklyPopulationUnits(CANONICAL_SCENARIO);
+}
+
+export function canonicalDepthResponsePp(depthPct: number, scope?: string): number {
+  return scenarioDepthResponsePp(CANONICAL_SCENARIO, depthPct, scope);
+}
+
+export function canonicalScopeResponseMultiplier(scope: string): number {
+  return scenarioScopeResponseMultiplier(CANONICAL_SCENARIO, scope);
+}
+
+export function canonicalDepthResponseAnomalyPp(depthPct: number): number {
+  return scenarioDepthResponseAnomalyPp(CANONICAL_SCENARIO, depthPct);
 }

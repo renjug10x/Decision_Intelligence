@@ -10,7 +10,8 @@ import {
   validateCommercialIntent,
   validateCounterfactualBaseline,
   validateCausalDemandContribution,
-  calculateDerivedImpacts
+  calculateDerivedImpacts,
+  CANONICAL_SCENARIO_ID
 } from '../../packages/contracts/src/index';
 import {
   clearCampaignIntents,
@@ -304,7 +305,7 @@ function runTests() {
       decision_state_id: 'ds_cdi02',
       decision_state_version: 1,
       tenant_id: 'tenant_uk_retail_01',
-      scenario_id: 'SCN-PROMO-01',
+      scenario_id: CANONICAL_SCENARIO_ID,
       scenario_family: 'promotion_surge',
       promotion_lift: 20,
       supplier_capacity_cap: 10,
@@ -567,7 +568,7 @@ function runTests() {
       decision_state_id: 'ds_lift0',
       decision_state_version: 1,
       tenant_id: 'tenant_uk_retail_01',
-      scenario_id: 'SCN-PROMO-01',
+      scenario_id: CANONICAL_SCENARIO_ID,
       scenario_family: 'promotion_surge',
       promotion_lift: 0,
       supplier_capacity_cap: 10,
@@ -585,7 +586,7 @@ function runTests() {
       decision_state_id: 'ds_lift20',
       decision_state_version: 1,
       tenant_id: 'tenant_uk_retail_01',
-      scenario_id: 'SCN-PROMO-01',
+      scenario_id: CANONICAL_SCENARIO_ID,
       scenario_family: 'promotion_surge',
       promotion_lift: 20,
       supplier_capacity_cap: 10,
@@ -612,7 +613,7 @@ function runTests() {
       decision_state_id: 'ds_lift_abs',
       decision_state_version: 1,
       tenant_id: 'tenant_uk_retail_01',
-      scenario_id: 'SCN-PROMO-01',
+      scenario_id: CANONICAL_SCENARIO_ID,
       scenario_family: 'promotion_surge',
       // promotion_lift omitted — default semantics
       supplier_capacity_cap: 10,

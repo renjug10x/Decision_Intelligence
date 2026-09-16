@@ -247,7 +247,7 @@ not surprised by it.
 The freshness check is proven against fixtures (`run-atl07-tests.ts` C13) and cannot be proven against
 the corpus until R-04 is populated. Recorded so the coverage claim stays honest.
 
-### R-19 — The signal fabric stamps civil wall-clock time where the scenario clock is authoritative · **OPEN — assigned `SCI-01`**
+### R-19 — The signal fabric stamps civil wall-clock time where the scenario clock is authoritative · **CLOSED — `SCI-01`, 2026-09-16**
 
 Measured at `f9c5679c` against the running application. Two consecutive identical
 `GET /api/v1/signals` calls return byte-identical `baseline_value`, `observed_value`, `delta`,
@@ -265,7 +265,15 @@ and `FM-01` closed it; the forecast window now derives from the data's own cover
 signal fabric, and it was never in scope of that migration. Recorded separately so neither is read as
 covering the other. Closed by ADR-078 under `SCI-01`.
 
-### R-20 — Observability signals contradict the canonical decision case · **OPEN — assigned `SCI-01`**
+**Closure evidence (2026-09-16).** `packages/contracts/src/scenario-clock.ts` owns the contract and
+maps every `SimulationPeriod` to a scenario-day offset. `enterprise-signal-generator.ts` and
+`dynamic-signal-simulator.ts` stamp `observed_at` / `effective_at` through it. Measured against the
+running application: two consecutive `GET /api/v1/signals` reads are byte-identical including both
+timestamps, and the Observability panel publishes *"as at 2026-06-03 (scenario time, not the wall
+clock)"* with each signal carrying its observed period — `T-7`, `T-3`, `T-2`, `T-1`, `Today`.
+Asserted by `run-signal-tests` 3b / 5d and `run-canonical-scenario-tests` §11.
+
+### R-20 — Observability signals contradict the canonical decision case · **CLOSED — `SCI-01`, 2026-09-16**
 
 The Observability & Governance signals panel issues `GET /api/v1/signals` with no scenario parameter.
 The route defaults to `family_id=promotion_surge`, `scenario_id=SCN-PROMO-01`, and the surface
@@ -279,7 +287,17 @@ survived review — the surface looks canonical until the supplier is read. High
 risk in the estate at this baseline. Closed by ADR-077 under `SCI-01`, whose part 4 — no surface
 resolves a scenario by default — is what stops it returning through another route.
 
-### R-21 — `skuContextFactor` is a name hash with economic effect · **OPEN — assigned `SCI-01`**
+**Closure evidence (2026-09-16).** Measured against the running application at 1440 / 1024 / 720: the
+signals panel publishes `SUPPLIER_CAPACITY_PRESSURE` against **Cheshire Cheese Co** at the scenario's
+own 385,000 → 450,065 units a week, under scenario `SCN-FRESH-DAIRY-CHEDDAR-001`. `FreshDirect UK`
+and `SCN-PROMO-01` appear nowhere in the payload. `GET /api/v1/signals` with no `scenario_id` returns
+`HTTP 400` naming the missing parameter, and with `scenario_id=SCN-PROMO-01` returns `HTTP 400`
+because the identity is not registered. Four defaulting sites were removed rather than one: the two
+signal routes, the world service's own copy of the same rule behind the proxy, and the decision-state
+store, which opened every session on the retired identity and on three constraint literals naming
+FreshDirect UK at 48,000 units a week.
+
+### R-21 — `skuContextFactor` is a name hash with economic effect · **CLOSED — `SCI-01`, 2026-09-16**
 
 `lib/campaign-causal-engine.ts` applies `0.94 + (hashSeed(sku_scope‖region) % 13)/100`, a ±6% band on
 every causal number, derived from the **spelling** of a SKU list and a region name. It is
@@ -295,6 +313,22 @@ scenario named *North West* and one named *Northwest* would differ economically 
 It is a material part of the residual Promotion seam ADR-075 bounded rather than closed. Closed by
 ADR-079 under `SCI-01`, which retires it rather than parameterising it and re-derives the ADR-075
 assertion instead of relaxing it.
+
+**Closure evidence (2026-09-16).** `skuContextFactor` and `hashSeed` are removed from
+`lib/campaign-causal-engine.ts`; `CanonicalScenario.differentiation` declares scope multipliers with
+mandatory reasons — the canonical scenario declares NONE — and depth-response anomalies with theirs.
+§8 of the canonical suite now asserts exact equality of the price-depth response at national and
+regional scope, and attributes the remaining divergence to named design components. A source guard in
+§11 fails the build if a hash of a name becomes a numeric factor again.
+
+**What closure exposed, and it is the substantive finding of `SCI-01`.** The seeded elasticity curve
+was itself calibrated against the hashed engine: it carried 2.34pp per point of depth where the
+record declares 2.4pp gross and 8% cannibalisation, which is 2.208pp net. 2.34 = 2.208 x 1.06, and
+1.06 is what `hashSeed('P004::National')` returned. The curve and the engine therefore agreed at
+exactly one scope, by coincidence, and the `ADR-075` bound was measuring that coincidence. Deriving
+the curve from the record moves the Promotion surface's published figures — 20% depth from +46.8% and
++£8.1K to +44.16% and −£5.2K — and is recorded in `COGNIX_PRESENTATION_SYNC_DELTA.md` §3.1.
+Demand → Promotion → Campaign Decision §1 and §2 are unchanged to the digit.
 
 ### R-22 — `ESF-2`'s simulation engine is complete and consumed by no production surface · **OPEN — assigned `SCI-05`**
 
@@ -326,6 +360,31 @@ State and 10D is Memory & Learning API Extraction. The letters do not correspond
 `COGNIX_INNOVATION_BACKLOG.md`. A reader should treat the *completed* list as authoritative for what
 was built and the *planned* list as authoritative for what remains, and cite by capability name
 rather than by letter.
+
+### R-26 — CDI-03 opportunity and micro-market SCORES are still derived from a name hash · **OPEN — unassigned**
+
+Found while closing `R-21` and recorded rather than fixed, because fixing it is not `SCI-01`'s to do.
+
+`lib/campaign-opportunity-engine.ts` derives opportunity-window and micro-market readiness points
+from `hash01()`, keyed on dates, `tenant_id`, the region name and the SKU list:
+`4 + 24 * hash01('event', …)`, `2 + 22 * hash01('weather', …, region)` and
+`8 + 12 * hash01('avail', store_id, sku)`. It is the same fragility under renaming that ADR-079
+describes — two spellings of one region produce different window scores — and it has the same
+consequence for authored scenarios, whose region and SKU names are arbitrary strings.
+
+**Why it is not closed here.** ADR-079's ruling names `skuContextFactor` and governs a scenario's
+published ECONOMICS. These values are readiness SCORES: they are declared `synthetic_demo: true` with
+a stated rationale, they price nothing, and no money on any surface moves with them. Retiring them
+would change CDI-03's published opportunity windows with no ADR authorising that change, which is the
+scope discipline ADR-084 part 3 exists to enforce.
+
+**How it is held.** `run-canonical-scenario-tests.ts` §11 carries it as a single DECLARED exclusion
+from the hash guard, named in source with this residual's reasoning, plus an assertion that the
+exclusion stays honest — `hash01` must continue to touch no monetary term. Anything NEW of this shape,
+anywhere in the engines, still fails the build.
+
+**Disposition.** For the packet that next owns CDI-03 scoring. It should be resolved the same way
+ADR-079 resolved the economics: declare the differentiation with a reason, or have none.
 
 ### R-25 — `ATL-06B` assertion `A6b` is stale, and the estate carries two Google SDKs · **OPEN — GOVERNED**
 

@@ -4,7 +4,15 @@
 Promotion, Campaign Decision, Decision Ripple and Inventory.
 **Implementation:** `packages/contracts/src/canonical-scenario-model.ts`
 **Enforcement:** `tests/unit/run-canonical-scenario-tests.ts`
-**Decisions:** ADR-073 (one canonical decision case) · ADR-074 (one currency layer)
+**Decisions:** ADR-073 (one canonical decision case) · ADR-073 Amendment A (one MODEL, instantiated per
+scenario) · ADR-074 (one currency layer) · ADR-077 (one scenario identity) · ADR-078 (the scenario
+clock) · ADR-079 (declared differentiation) · ADR-082 (one provenance vocabulary)
+
+**Read as a model since `SCI-01` (2026-09-16).** `CanonicalScenario` is the model;
+`SCN-FRESH-DAIRY-CHEDDAR-001` is its first instance and remains the protected reference. Every rule in
+§2 survives per scenario unchanged — they were always properties of a scenario rather than properties
+of there being exactly one. The derivations are `scenario*(scenario, …)`; the `canonical*(…)`
+accessors bind the reference instance by name at one place per quantity.
 
 ---
 
@@ -100,10 +108,30 @@ Economics:
 | Promotion participation | 85% of horizon volume transacts on promotion |
 | Gross margin rate | 30% of realised revenue |
 | Supplier promotional funding | 35% of the price investment |
-| Demand response to price | 2.4pp per point of discount depth |
+| Demand response to price | 2.4pp per point of discount depth — **gross**; net of cannibalisation this is 2.208pp, and the elasticity curve plots the net figure |
 | Cannibalisation | 8% of incremental volume |
 | Waste | 14,700 units per week at the un-promoted run rate |
 | Substitution recovery | 35% of unserved demand |
+
+Declared differentiation (ADR-079):
+
+| Value | Declared |
+|---|---|
+| Scope response multipliers | **None.** Nothing about the North West makes a point of depth buy more or less volume there than nationally, beyond what the estate's own size already accounts for |
+| Depth-response anomalies | **+2.74pp at 14% depth.** A threshold price point wins feature space and signage that a 12% cut does not, and volume follows the display as much as the price. A seeded behavioural property of the category, admissible under rule 4 |
+
+Taxonomy (ADR-077 part 2):
+
+| Value | Declared |
+|---|---|
+| World family | `promotion_surge` — classification only. It carries no economics |
+| Commercial archetype | `ARCH-CHILLED-ELASTIC` — supplies elasticity, cannibalisation, plays and narrative. It supplies no second population, price basis or estate, and it originates no scenario identity |
+
+Provenance (ADR-082):
+
+| Value | Declared |
+|---|---|
+| origin · method · authority | `modelled` · `rule` · `authoritative` |
 
 ## 5. Derived values
 
@@ -126,7 +154,19 @@ erosion per depth point = £2.49 × 1% × 65% ÷ £1.04           = 1.56% of con
 
 revenue exposure        = exposed × £2.07
 margin exposure         = exposed × £0.62
+
+depth response (net)    = depth × 2.4pp × (1 − 8%)          = 2.208pp per point
+                          + declared anomaly at that depth
+  at 20%                = 20 × 2.208                        = 44.16%
+  at 14%                = 14 × 2.208 + 2.74                 = 33.65%
 ```
+
+**On the depth response.** Until `SCI-01` the elasticity curve carried these values as literals —
+2.34pp per point — and the causal engine multiplied its own response by `skuContextFactor`, a ±6% band
+hashed from the SKU list and the region name. The literals had been calibrated against the engine WITH
+that band applied, at the one scope whose name hashed to 1.06, so the two surfaces agreed at exactly
+one scope by coincidence. ADR-079 retired the hash and the curve is now derived from the terms above.
+See `COGNIX_PRESENTATION_SYNC_DELTA.md` §3.1 for the values that moved.
 
 **Declared scale against measured run rate.** The record declares 350,000 units a week. The Demand
 surface independently *measures* 349,998 from the observed history. These are different quantities

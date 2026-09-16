@@ -21,7 +21,8 @@ import {
   canonicalStoreCount,
   canonicalContributionAtDepthGbp,
   canonicalImpliedUnitCostGbp,
-  canonicalWeeklyPopulationUnits
+  canonicalWeeklyPopulationUnits,
+  canonicalDepthResponsePp
 } from '../packages/contracts/src/canonical-scenario-model';
 
 /**
@@ -97,17 +98,34 @@ export function deriveElasticityEconomics(
  * The 14% tier carries a deliberate bump above the linear response: a threshold price point wins
  * feature space and signage that a 12% cut does not, and the volume follows the display as much
  * as the price. SEEDED OBSERVATION — a behavioural property of the category that no price sheet
- * can derive.
+ * can derive — now DECLARED on the scenario record as a depth-response anomaly with its reason
+ * attached, rather than folded invisibly into a curve literal.
+ *
+ * Why the responses are derived rather than listed (ADR-079)
+ * ----------------------------------------------------------
+ * They used to be literals: 11.7, 23.4, 35.5, 46.8, 58.5, 70.2 — a flat 2.34pp per point of
+ * depth. The record declares 2.4pp per point and an 8% cannibalisation rate, which gives 2.208pp
+ * per point net. The missing 6% was `skuContextFactor`: the causal engine multiplied its response
+ * by a hash of the SKU list and the region name, and at the one scope the curve was calibrated
+ * against — "National" — that hash happened to be 1.06. So the two surfaces agreed at exactly one
+ * scope by arithmetic coincidence and diverged by up to six per cent everywhere else, which is the
+ * bound ADR-075 recorded as a residual rather than closed. Deriving both the curve and the engine
+ * from the record's declared terms is what makes the agreement structural.
  */
 const CANONICAL_DEPTH_RESPONSE = [
-  { discount_pct: 0, expected_demand_uplift_pct: 0, notes: 'No promotion — the un-promoted base' },
-  { discount_pct: 5, expected_demand_uplift_pct: 11.7, notes: 'Shallow cut, contribution still building' },
-  { discount_pct: 10, expected_demand_uplift_pct: 23.4, notes: 'Volume response accelerating' },
-  { discount_pct: 14, expected_demand_uplift_pct: 35.5, is_cognix_recommended: true, notes: 'Threshold price point wins feature space — best contribution on this curve' },
-  { discount_pct: 20, expected_demand_uplift_pct: 46.8, is_current: true, notes: 'The committed plan — more volume, materially less contribution than 14%' },
-  { discount_pct: 25, expected_demand_uplift_pct: 58.5, notes: 'Response saturating while price investment keeps rising' },
-  { discount_pct: 30, expected_demand_uplift_pct: 70.2, notes: 'Contribution collapse' }
-] as const;
+  { discount_pct: 0, notes: 'No promotion — the un-promoted base' },
+  { discount_pct: 5, notes: 'Shallow cut, contribution still building' },
+  { discount_pct: 10, notes: 'Volume response accelerating' },
+  { discount_pct: 14, is_cognix_recommended: true, notes: 'Threshold price point wins feature space — best contribution on this curve' },
+  { discount_pct: 20, is_current: true, notes: 'The committed plan — more volume, materially less contribution than 14%' },
+  { discount_pct: 25, notes: 'Response saturating while price investment keeps rising' },
+  { discount_pct: 30, notes: 'Contribution collapse' }
+].map(pt => ({
+  ...pt,
+  // DERIVED from the record's own declared elasticity, cannibalisation rate and threshold
+  // effect — never restated as a literal beside them (ADR-073 rule 2).
+  expected_demand_uplift_pct: canonicalDepthResponsePp(pt.discount_pct)
+}));
 
 /** Compact pounds for narrative composed in this module. Display converts it like any other amount. */
 function formatGbpShort(v: number): string {
@@ -2422,8 +2440,17 @@ export function buildCampaignIntentFromArchetype(
       ],
       open_questions: ['How will competitors respond to promotional launch?'],
       assumptions: ['Synthetic demo baseline calibrated to enterprise store network'],
-      scenario_id: `SCN-${archetype.id}`,
-      scenario_family: 'promotion_surge'
+      /*
+       * ADR-077 part 1: nothing but a scenario record may ORIGINATE a scenario identity.
+       * This used to mint `SCN-${archetype.id}` — a third source of scenario identity beside
+       * the canonical record and the retired world seed, and one that resolved to nothing.
+       * An archetype is the COMMERCIAL PROJECTION of a scenario (part 2): it supplies
+       * elasticity, cannibalisation, plays and narrative, and it takes the scenario's
+       * identity rather than asserting one of its own.
+       */
+      scenario_id: CANONICAL_SCENARIO.identity.scenario_id,
+      scenario_family: CANONICAL_SCENARIO.taxonomy.family_id,
+      archetype_id: archetype.id
     },
     canvas_progress: {
       active_area: 'DECISION_CONTEXT',

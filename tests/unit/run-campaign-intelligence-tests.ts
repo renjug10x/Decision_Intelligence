@@ -216,16 +216,44 @@ async function runCampaignIntelligenceTests() {
   const evalWith = (overrides: Record<string, unknown>) =>
     evaluateCampaignDecision(browserShapeRequest(chilled, overrides));
 
+  /*
+   * ADR-079 inverts what this pair asserts, and the inversion is the point.
+   *
+   * These two used to assert that renaming the SKU MOVED the economics — which was true,
+   * and was the defect: `skuContextFactor` hashed the SKU list and the region name into a
+   * +/-6% band, so `P004` and `P023` returned different money for the same modelled
+   * situation, and a user-authored scenario spelt "North West" and one spelt "Northwest"
+   * would have too. On economics sitting near a contribution breakeven, six per cent was
+   * enough to flip a verdict.
+   *
+   * The governed invariant is the opposite: an identifier is not a modelled difference.
+   * Economics move when a DECLARED property moves, and a declared property has a reason
+   * attached that a Decision Trace can read out.
+   */
   const skuA = evalWith({ sku_id: 'P004' });
   const skuB = evalWith({ sku_id: 'P023' });
   assert(
-    skuA.causal.intervention_uplift_pp !== skuB.causal.intervention_uplift_pp,
-    'SKU change (P004 → P023) changes engine-attributed demand uplift'
+    skuA.causal.intervention_uplift_pp === skuB.causal.intervention_uplift_pp,
+    'Renaming the SKU does not move engine-attributed demand uplift — an identifier is not a modelled difference',
+    `${skuA.causal.intervention_uplift_pp} vs ${skuB.causal.intervention_uplift_pp}`
   );
   assert(
-    skuA.counterfactual.campaign_delta.contribution_delta_gbp !==
+    skuA.counterfactual.campaign_delta.contribution_delta_gbp ===
       skuB.counterfactual.campaign_delta.contribution_delta_gbp,
-    'SKU change changes engine-computed contribution economics'
+    'Renaming the SKU does not move engine-computed contribution economics',
+    `${skuA.counterfactual.campaign_delta.contribution_delta_gbp} vs ${skuB.counterfactual.campaign_delta.contribution_delta_gbp}`
+  );
+  /*
+   * And the same for the region, which is the case that made authored scenarios impossible:
+   * two spellings of one place must not price differently.
+   */
+  const regionA = evalWith({ region: 'North West' });
+  const regionB = evalWith({ region: 'Northwest' });
+  assert(
+    regionA.counterfactual.demand_bridge!.price_depth_response_pp ===
+      regionB.counterfactual.demand_bridge!.price_depth_response_pp,
+    'Two spellings of one region buy the same demand response for the same price cut',
+    `${regionA.counterfactual.demand_bridge!.price_depth_response_pp} vs ${regionB.counterfactual.demand_bridge!.price_depth_response_pp}`
   );
 
   const d10 = evalWith({ discount_depth_pct: 10 });

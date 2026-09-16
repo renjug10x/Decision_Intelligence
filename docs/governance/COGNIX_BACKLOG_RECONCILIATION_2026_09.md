@@ -96,7 +96,7 @@ planned. Both statements are true and the backlog must say so.
 | `IFI-01` Intent Fusion | COMPLETED | **CLOSE — confirmed** | `run-ifi1-tests.ts` green; `lib/intent-fusion/` present |
 | `DDF-01` Demand Decision Frontier | COMPLETED | **CLOSE — confirmed** | Forecast Stability, Decision Gap, Decision Window, Decision Regret all resolve from engines; ADR-040…043 |
 | `CTW-01` / `CTW-01R` / `CTW-02` | COMPLETED | **CLOSE — confirmed** | 65 / 60 / 82 assertions, zero failures |
-| `ADR-075` residual — bounded divergence between planning curve and causal engine | Open, bounded | **MERGE → `SCI-01`** | The bound is the `skuContextFactor` band. ADR-079 retires the hash; the assertion is re-derived to exact agreement on the depth response with design components named. The bridge itself stands |
+| `ADR-075` residual — bounded divergence between planning curve and causal engine | **CLOSED — `SCI-01`, 2026-09-16** | **MERGED → `SCI-01`** | The bound is the `skuContextFactor` band. ADR-079 retires the hash; the assertion is re-derived to exact agreement on the depth response with design components named. The bridge itself stands |
 | `DOT-1` … `DOT-12` Demand Observability & Demand Truth | ROADMAP | **DEFER — unchanged** | No `DOT` item is authorised. `DOT-11` was gated behind `ESF-4`; reactivating `ESF-4` unblocks it **as roadmap only**. The estate remains at Demand Observability Level 0 |
 
 ### 2.5 Atlas, governance and architecture
@@ -147,9 +147,9 @@ Registered in [`COGNIX_ATLAS_RESIDUAL_REGISTER.md`](COGNIX_ATLAS_RESIDUAL_REGIST
 
 | ID | Residual | State |
 |---|---|---|
-| `R-19` | Signal fabric stamps civil wall-clock time where the scenario clock is authoritative | **OPEN — assigned `SCI-01`** |
-| `R-20` | Observability signals bound to `SCN-PROMO-01` / FreshDirect UK, contradicting the canonical decision case | **OPEN — assigned `SCI-01`** |
-| `R-21` | `skuContextFactor` — a hash of SKU and region names produces a ±6% economic band that cannot be explained on a Decision Trace | **OPEN — assigned `SCI-01`** |
+| `R-19` | Signal fabric stamps civil wall-clock time where the scenario clock is authoritative | **CLOSED — `SCI-01`, 2026-09-16** |
+| `R-20` | Observability signals bound to `SCN-PROMO-01` / FreshDirect UK, contradicting the canonical decision case | **CLOSED — `SCI-01`, 2026-09-16** |
+| `R-21` | `skuContextFactor` — a hash of SKU and region names produces a ±6% economic band that cannot be explained on a Decision Trace | **CLOSED — `SCI-01`, 2026-09-16**. Closure moved the Promotion elasticity tiers; see `COGNIX_PRESENTATION_SYNC_DELTA.md` §3.1 |
 | `R-22` | `ESF-2`'s simulation engine is complete and consumed by no production surface | **OPEN — assigned `SCI-05`** |
 | `R-23` | Master Plan records 74 cross-surface assertions; measured value is 243 | **CLOSED in this commit** — Master Plan corrected |
 | `R-24` | Programme 10 phase letters collide between the planned and completed lists | **OPEN — GOVERNED**, recorded not renumbered |

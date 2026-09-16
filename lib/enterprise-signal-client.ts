@@ -43,7 +43,13 @@ export async function fetchEnterpriseSignals(params: QuerySignalsParams = {}): P
   }
 }
 
-export async function fetchCurrentScenarioSignals(scenarioId: string = 'SCN-PROMO-01', tenantId: string = 'tenant_uk_retail_01'): Promise<EnterpriseSignal[]> {
+/**
+ * Signals for a named scenario.
+ *
+ * `scenarioId` is REQUIRED. It used to default to `'SCN-PROMO-01'`, which meant a caller
+ * that had not yet resolved a scenario silently asked for a retired one (ADR-077 part 4).
+ */
+export async function fetchCurrentScenarioSignals(scenarioId: string, tenantId: string = 'tenant_uk_retail_01'): Promise<EnterpriseSignal[]> {
   try {
     const res = await fetch(`/api/v1/signals/current?scenario_id=${scenarioId}&tenant_id=${tenantId}`);
     if (!res.ok) return [];

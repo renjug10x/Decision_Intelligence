@@ -12,7 +12,8 @@ import {
   TransitionCommandPayload,
   DecisionStateTransitionResult,
   calculateDerivedImpacts,
-  validateDecisionStateCommand
+  validateDecisionStateCommand,
+  getActiveScenario
 } from '@/packages/contracts/src/index';
 
 export interface IDecisionStateStore {
@@ -87,6 +88,8 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
     const initialInterventions: string[] = [];
 
     const derived = calculateDerivedImpacts(initialParams, initialInterventions);
+    const activeScenario = getActiveScenario();
+    // A platform receipt: when this session's state was created (ADR-078 part 2).
     const now = new Date().toISOString();
 
     const newState: DecisionState = {
@@ -95,8 +98,14 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
       session_id: params.session_id,
       domain_id: params.domain_id || 'retail_grocery',
       persona_id: params.persona_id || 'exec',
-      scenario_id: params.scenario_id || 'SCN-PROMO-01',
-      scenario_family: params.scenario_family || 'promotion_surge',
+      /*
+       * ADR-077. A new decision state opens on the scenario the estate is RUNNING, resolved
+       * from the registry. It used to open on the literal `SCN-PROMO-01` with family
+       * `promotion_surge` — so every session in the connected journey carried the retired
+       * scenario's identity, and the Observability panel published it back as fact.
+       */
+      scenario_id: params.scenario_id || activeScenario.identity.scenario_id,
+      scenario_family: params.scenario_family || activeScenario.taxonomy.family_id,
       state_version: 1,
       created_at: now,
       updated_at: now,
@@ -108,10 +117,16 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
         'sig_ps_004',
         'sig_ps_005'
       ],
+      /*
+       * Derived from the scenario's own supply and economics. These were three literals
+       * naming a supplier and a weekly cap that belonged to the retired world seed, sitting
+       * in the state object the whole connected journey reads its identity from.
+       */
       constraints: [
-        'FreshDirect UK allocation cap: 48,000 units/week',
-        'Trafford DC weekend overtime limit: 20 hours',
-        'Target category margin loss cap: 3.0%'
+        `${activeScenario.supply.supplier_name} allocation cap: `
+          + `${Math.round(activeScenario.demand.base_demand_units_per_week * activeScenario.supply.supplier_capacity_index).toLocaleString('en-GB')} units/week`,
+        `${activeScenario.identity.focus_region} DC weekend overtime limit: 20 hours`,
+        `Target category margin loss cap: 3.0%`
       ],
       selected_interventions: initialInterventions,
       derived_impacts: derived,

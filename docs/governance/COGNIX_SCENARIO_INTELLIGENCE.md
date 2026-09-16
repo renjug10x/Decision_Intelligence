@@ -3,7 +3,7 @@
 **Status:** Authoritative. Governs the evolution from a prepared demonstration to a scenario-driven
 Decision Intelligence laboratory.
 **Authorised:** 2026-09-15 against baseline `f9c5679c` on `feature/cognix-enterprise-demo-hardening`.
-**Implementation:** none yet. Programme `SCI`, defined in
+**Implementation:** `SCI-01` complete (2026-09-16). Programme `SCI`, defined in
 [`COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md`](COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md).
 **Decisions:** ADR-077 · ADR-078 · ADR-079 · ADR-080 · ADR-081 · ADR-082 · ADR-083 · ADR-084 ·
 ADR-044 Amendment B · ADR-051 Amendment A · ADR-073 Amendment A.
@@ -57,7 +57,7 @@ authoring and CSV admission; everything else is unification of assets that alrea
 | `ENTERPRISE_WORLD_SCENARIOS` — six `ScenarioFamilyId` families | `packages/contracts/src/enterprise-world-seed.ts`, `/api/v1/scenarios` | **`ScenarioFamilyId` retained as taxonomy on the canonical record.** Its economics are retired; its temporal series become a scenario's declared evidence |
 | `CampaignArchetype` — seven archetypes | `lib/campaign-archetypes.ts` | **Retained as the commercial projection of a scenario.** Supplies elasticity, cannibalisation, plays and narrative; supplies no second population, price basis or estate |
 
-### 3.1 The contradiction this removes
+### 3.1 The contradiction this removes — **REMOVED (`SCI-01`, 2026-09-16)**
 
 At `f9c5679c` the Observability & Governance signals panel issues `GET /api/v1/signals` with no
 scenario parameter. The route defaults to `family_id=promotion_surge`, `scenario_id=SCN-PROMO-01`,
@@ -68,6 +68,13 @@ and the surface publishes `SUPPLIER_CAPACITY_PRESSURE` against **FreshDirect UK*
 The generator is partly migrated already: it names *Fresh Dairy* and *P004 Cheddar Mature 400g*
 correctly. This is a half-completed migration, not an untouched legacy path, and ADR-077 part 4 —
 **no surface resolves a scenario by default** — is what stops it recurring through a different route.
+
+**Closed by `SCI-01` on 2026-09-16.** The panel names the scenario it asks about; the routes refuse a
+request that names none; the signals publish Cheshire Cheese Co at the scenario's own 385,000 →
+450,065 units a week. Four defaulting sites were removed, not one — both signal routes, the world
+service's own copy of the rule behind the proxy, and the decision-state store, which opened every
+session on `SCN-PROMO-01` with constraint literals naming FreshDirect UK. Evidence: `R-20` in
+[`COGNIX_ATLAS_RESIDUAL_REGISTER.md`](COGNIX_ATLAS_RESIDUAL_REGISTER.md).
 
 ## 4. Target architecture
 

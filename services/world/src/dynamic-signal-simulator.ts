@@ -17,6 +17,8 @@ import {
   validateTemporalRange,
   validateSignalSimulationContext
 } from '../../../packages/contracts/src/index';
+import { resolveScenario } from '../../../packages/contracts/src/scenario-registry';
+import { scenarioPeriodInstantIso, platformReceiptNowIso } from '../../../packages/contracts/src/scenario-clock';
 
 const GENERATOR_VERSION = 'sim_gen_v1.0.0';
 
@@ -41,11 +43,28 @@ export function simulateEnterpriseSignalTimelines(request: SignalSimulationReque
   const toIdx = ORDERED_SIMULATION_PERIODS.indexOf(toPeriod);
   const targetPeriods = ORDERED_SIMULATION_PERIODS.slice(fromIdx, toIdx + 1);
 
-  const scenarioFamily = context.scenario_family || (context.scenario_id.includes('BREACH') ? 'supplier_breach' : 'promotion_surge');
   // Nullish default only — explicit 0 must remain 0 (never coerce via || into a 20% promo world).
   const promoLift = context.promotion_lift ?? 20; // percent
   const stateVersion = context.decision_state_version || 1;
-  const now = new Date().toISOString();
+
+  /*
+   * ADR-078. Every observation on a simulated timeline is stamped on the SCENARIO clock,
+   * at the instant its own period falls on. It used to be `new Date()` — the same civil
+   * instant on every period of every timeline, which made a T-90 observation and a T+30
+   * one equally fresh and left the Observability freshness column permanently at zero.
+   *
+   * The scenario is RESOLVED from the context's identity, never defaulted (ADR-077 part 4).
+   */
+  const scenario = resolveScenario(context.scenario_id);
+  const at = (period: SimulationPeriod) => scenarioPeriodInstantIso(scenario, period);
+
+  /*
+   * The family is the RESOLVED scenario's own taxonomy. It used to be sniffed out of the
+   * scenario id — `scenario_id.includes('BREACH')` — which meant a scenario's behaviour
+   * depended on the spelling of its identifier, the same class of defect ADR-079 retires
+   * on the economics side.
+   */
+  const scenarioFamily = context.scenario_family || scenario.taxonomy.family_id;
 
   // Find active interventions and their effective periods
   const slaFlexIntervention = context.selected_interventions?.find(i => i.intervention_id.includes('sla_flex') || i.intervention_id.includes('flex'));
@@ -54,7 +73,7 @@ export function simulateEnterpriseSignalTimelines(request: SignalSimulationReque
   const simulationId = `sig_sim_${Math.random().toString(36).substr(2, 9)}`;
   const timelines: EnterpriseSignalTimeline[] = [];
 
-  if (scenarioFamily === 'promotion_surge' || context.scenario_id.includes('PROMO')) {
+  if (scenarioFamily === 'promotion_surge') {
     // Timeline 1: SEARCH_VELOCITY_ACCELERATION
     timelines.push({
       timeline_id: `tl_search_${context.scenario_id}`,
@@ -63,7 +82,8 @@ export function simulateEnterpriseSignalTimelines(request: SignalSimulationReque
       tenant_id: context.tenant_id,
       scenario_id: context.scenario_id,
       entity_type: 'CATEGORY',
-      entity_id: 'Fresh Dairy',
+      // Derived from the resolved scenario — never a literal beside its identity (ADR-077).
+      entity_id: scenario.identity.category,
       unit: 'percent_baseline',
       synthetic_demo: true,
       schema_version: '1.0',
@@ -85,8 +105,8 @@ export function simulateEnterpriseSignalTimelines(request: SignalSimulationReque
 
         return {
           period,
-          observed_at: now,
-          effective_at: now,
+          observed_at: at(period),
+          effective_at: at(period),
           baseline_value: 100,
           observed_value: 100 + deltaPct,
           delta: deltaPct,
@@ -112,7 +132,7 @@ export function simulateEnterpriseSignalTimelines(request: SignalSimulationReque
       tenant_id: context.tenant_id,
       scenario_id: context.scenario_id,
       entity_type: 'SKU',
-      entity_id: 'P004 Cheddar Mature 400g',
+      entity_id: `${scenario.identity.sku_id} ${scenario.identity.sku_name}`,
       unit: 'percent_baseline',
       synthetic_demo: true,
       schema_version: '1.0',
@@ -133,8 +153,8 @@ export function simulateEnterpriseSignalTimelines(request: SignalSimulationReque
 
         return {
           period,
-          observed_at: now,
-          effective_at: now,
+          observed_at: at(period),
+          effective_at: at(period),
           baseline_value: 100,
           observed_value: 100 + deltaPct,
           delta: deltaPct,
@@ -160,7 +180,12 @@ export function simulateEnterpriseSignalTimelines(request: SignalSimulationReque
       tenant_id: context.tenant_id,
       scenario_id: context.scenario_id,
       entity_type: 'SUPPLIER',
-      entity_id: 'FreshDirect UK',
+      /*
+       * The R-20 leak on the simulated path. This named FreshDirect UK — the supplier
+       * DEMO-HARD-01 retired — beside a timeline whose category and SKU had already been
+       * migrated to the canonical scenario. The supplier is the scenario's own.
+       */
+      entity_id: scenario.supply.supplier_name,
       unit: 'units_per_week',
       synthetic_demo: true,
       schema_version: '1.0',
@@ -177,8 +202,8 @@ export function simulateEnterpriseSignalTimelines(request: SignalSimulationReque
 
         return {
           period,
-          observed_at: now,
-          effective_at: now,
+          observed_at: at(period),
+          effective_at: at(period),
           baseline_value: baselineCap,
           observed_value: demandDemand,
           delta: demandDemand - baselineCap,
@@ -205,7 +230,7 @@ export function simulateEnterpriseSignalTimelines(request: SignalSimulationReque
       tenant_id: context.tenant_id,
       scenario_id: context.scenario_id,
       entity_type: 'DC',
-      entity_id: 'Trafford RDC',
+      entity_id: `${scenario.identity.focus_region} RDC`,
       unit: 'days_of_cover',
       synthetic_demo: true,
       schema_version: '1.0',
@@ -226,8 +251,8 @@ export function simulateEnterpriseSignalTimelines(request: SignalSimulationReque
 
         return {
           period,
-          observed_at: now,
-          effective_at: now,
+          observed_at: at(period),
+          effective_at: at(period),
           baseline_value: baselineCover,
           observed_value: observedCover,
           delta,
@@ -254,7 +279,7 @@ export function simulateEnterpriseSignalTimelines(request: SignalSimulationReque
       tenant_id: context.tenant_id,
       scenario_id: context.scenario_id,
       entity_type: 'SUPPLIER',
-      entity_id: 'Greencore Ready Meals',
+      entity_id: scenario.supply.supplier_name,
       unit: 'hours',
       synthetic_demo: true,
       schema_version: '1.0',
@@ -281,8 +306,8 @@ export function simulateEnterpriseSignalTimelines(request: SignalSimulationReque
 
         return {
           period,
-          observed_at: now,
-          effective_at: now,
+          observed_at: at(period),
+          effective_at: at(period),
           baseline_value: baselineDelay,
           observed_value: observedDelay,
           delta: observedDelay - baselineDelay,
@@ -310,6 +335,11 @@ export function simulateEnterpriseSignalTimelines(request: SignalSimulationReque
     decision_state_version: stateVersion,
     generator_version: GENERATOR_VERSION,
     timelines,
-    timestamp: now
+    /*
+     * A SERVER RECEIPT, not scenario evidence: it records when the platform ran the
+     * simulation. ADR-078 part 2 keeps civil time exactly here, and the named helper is
+     * what makes that a deliberate choice rather than an oversight.
+     */
+    timestamp: platformReceiptNowIso()
   };
 }

@@ -7,6 +7,7 @@
 import { decisionStateStore } from '../../lib/decision-state-store';
 import { calculateDerivedImpacts } from '../../packages/contracts/src/decision-state-model';
 import { canonicalWeeklyPopulationUnits, CANONICAL_SCENARIO } from '../../packages/contracts/src/canonical-scenario-model';
+import { CANONICAL_SCENARIO_ID } from '../../packages/contracts/src/index';
 
 function assert(condition: boolean, message: string) {
   if (!condition) {
@@ -24,7 +25,7 @@ function runTests() {
   const stateA = decisionStateStore.createOrInitialiseState({
     tenant_id: 'tenant_uk_retail_01',
     session_id: 'ses_test_1001',
-    scenario_id: 'SCN-PROMO-01'
+    scenario_id: CANONICAL_SCENARIO_ID
   });
 
   assert(stateA !== null, 'Decision state should be created');

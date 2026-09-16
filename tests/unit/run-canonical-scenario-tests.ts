@@ -31,6 +31,16 @@ import {
   canonicalWeeklyPopulationUnits,
   canonicalStoreCount,
   canonicalNetworkCoverDays,
+  canonicalScenarioNowIso,
+  CANONICAL_SCENARIO_ID,
+  getActiveScenarioId,
+  requireScenarioId,
+  resolveScenario,
+  validateProvenanceDescriptor,
+  provenanceFromEvidenceOrigin,
+  provenanceFromDemandInputClass,
+  provenanceFromTelemetryProvenance,
+  provenanceFromArchetypeGraphProvenance,
   calculateDerivedImpacts,
   DecisionScenarioParameters,
   SEEDED_FALLBACK_RATES,
@@ -65,7 +75,10 @@ import { CDI02_BASE_WEEKLY_UNITS } from '../../packages/contracts/src/campaign-t
 import { formatBaseMoney, localiseMoneyInText, convertBaseAmount, formatStatement } from '../../lib/currency/format';
 import { clearCampaignIntents, registerCampaignIntent } from '../../lib/campaign-intent-store';
 import { createDefaultCampaignIntentDraft } from '../../packages/contracts/src/campaign-intent-model';
-import { evaluateCampaignDecision, SKU_CONTEXT_BAND_PCT } from '../../lib/campaign-causal-engine';
+import { evaluateCampaignDecision } from '../../lib/campaign-causal-engine';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join } from 'node:path';
+import { generateSyntheticSignalSnapshot } from '../../services/world/src/enterprise-signal-generator';
 import productsData from '../../data/products.json';
 import suppliersData from '../../data/suppliers.json';
 
@@ -460,19 +473,47 @@ console.log('\n=== 8. PROMOTION MODEL RECONCILIATION ===========================
   );
 
   /*
-   * At a different scope the two legitimately differ, and by a bounded amount: the engine applies
-   * a declared +/-6% SKU-and-region differentiation band that a national curve does not model.
-   * Asserting the BAND is what stops that divergence growing into a second economic model without
-   * anyone noticing.
+   * ADR-079 replaces the old bounded-divergence assertion rather than relaxing it.
+   *
+   * This used to assert that a different scope moved the price-depth response only within a
+   * +/-6% band — and the bound WAS the `skuContextFactor` hash band, so the assertion was
+   * measuring the defect rather than the model. With the hash retired and differentiation
+   * declared, the price cut buys the same demand response at every scope unless the scenario
+   * SAYS otherwise and says why. What legitimately differs between scopes is audience,
+   * placement and timing, which is exactly what ADR-075 said the seam was, and those appear
+   * in the design components rather than in the price-depth response.
    */
   const regional = evaluateAt('sess_reconcile_regional', CANONICAL_SCENARIO.identity.focus_region);
   const regionalDepth = regional.counterfactual.demand_bridge!.price_depth_response_pp;
   const nationalDepth = bridge!.price_depth_response_pp;
-  const divergencePct = Math.abs(regionalDepth - nationalDepth) / nationalDepth * 100;
   assert(
-    divergencePct <= SKU_CONTEXT_BAND_PCT * 2,
-    'A different scope moves the price-depth response only within the declared context band',
-    `${regionalDepth} vs ${nationalDepth} — ${divergencePct.toFixed(2)}% against a +/-${SKU_CONTEXT_BAND_PCT}% band`
+    regionalDepth === nationalDepth,
+    'The price-depth response is identical at every scope, because the scenario declares no scope differentiation',
+    `${regionalDepth} at ${CANONICAL_SCENARIO.identity.focus_region} vs ${nationalDepth} at ${CANONICAL_SCENARIO.identity.market_scope_label}`
+  );
+  assert(
+    Object.keys(CANONICAL_SCENARIO.differentiation.scope_response_multipliers).length === 0,
+    'The canonical scenario declares no scope response multiplier, so nothing modifies its depth response'
+  );
+  /*
+   * And the divergence that DOES remain between the two scopes is named, driver by driver.
+   * A difference nobody can point at is how a second economic model starts.
+   */
+  const regionalDesign = regional.counterfactual.demand_bridge!.campaign_design_response_pp;
+  const nationalDesign = bridge!.campaign_design_response_pp;
+  const namedDesignDelta = Number(
+    regional.counterfactual.demand_bridge!.design_components
+      .reduce((sum, c) => {
+        const national = bridge!.design_components.find(n => n.driver_id === c.driver_id);
+        return sum + (c.contribution_pp - (national?.contribution_pp ?? 0));
+      }, 0)
+      .toFixed(2)
+  );
+  assertClose(
+    namedDesignDelta,
+    Number((regionalDesign - nationalDesign).toFixed(2)),
+    0.01,
+    'Every percentage point by which two scopes differ is attributed to a named design component'
   );
   assert(
     regional.counterfactual.demand_bridge!.price_depth_response_pp
@@ -827,6 +868,199 @@ console.log('\n=== 12. RESET AND FX DEGRADATION ================================
     'A degraded rate set still converts rather than refusing');
   assert(convertFromBase(exposure, 'GBP', fallback) === exposure,
     'A degraded rate set still leaves the base currency untouched');
+}
+
+
+console.log('\n=== 11. SCI-01 SOURCE GUARDS =======================================\n');
+
+{
+  /*
+   * Three source guards, because each of these defects was invisible to every behavioural
+   * assertion in this file. A route that defaults a scenario still returns valid signals; a
+   * civil-time stamp still validates; a name hash is still deterministic. They were found by
+   * reading, and they come back the same way unless something reads for them every run.
+   */
+  const ROOT = join(__dirname, '..', '..');
+
+  const sourceFiles = (dir: string): string[] => {
+    const out: string[] = [];
+    for (const entry of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+      if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name.startsWith('.')) continue;
+      const rel = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) out.push(...sourceFiles(rel));
+      else if (/\.tsx?$/.test(entry.name)) out.push(rel);
+    }
+    return out;
+  };
+
+  const stripComments = (code: string) =>
+    code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  const appSources = sourceFiles('app').concat(sourceFiles('services'));
+  const engineSources = sourceFiles('lib').concat(sourceFiles('packages/contracts/src'));
+  const allSources = appSources.concat(engineSources).concat(sourceFiles('components'));
+
+  // ── Guard 1 — no literal scenario default on any route (ADR-077 part 4) ─────
+  const defaulting: string[] = [];
+  for (const rel of allSources) {
+    const code = stripComments(readFileSync(join(ROOT, rel), 'utf8'));
+    // `something || 'SCN-…'` or `?? 'SCN-…'` — a scenario identity acquired by falling back.
+    if (/(\|\||\?\?)\s*['"`]SCN-[A-Z0-9-]+['"`]/.test(code)) defaulting.push(rel);
+    // A route parameter defaulting to a world family is the same defect wearing taxonomy.
+    if (/searchParams\.get\([^)]*\)\s*\|\|\s*['"`](promotion_surge|supplier_breach|weather_demand|fresh_perishable_waste|dc_overtime|regional_imbalance)['"`]/.test(code)) {
+      defaulting.push(rel);
+    }
+  }
+  assert(
+    defaulting.length === 0,
+    'No source file resolves a scenario identity by defaulting to a literal',
+    defaulting.join(', ')
+  );
+
+  // ── Guard 2 — no civil time in deterministic scenario evidence (ADR-078) ────
+  /*
+   * Scoped to where the boundary actually is. `new Date()` is CORRECT for a server receipt,
+   * a telemetry ingestion stamp or a health reading, so a blanket ban would be wrong and
+   * would be turned off within a week. What must never happen is a scenario OBSERVATION
+   * taking the wall clock.
+   */
+  const civilEvidence: string[] = [];
+  for (const rel of allSources) {
+    const code = stripComments(readFileSync(join(ROOT, rel), 'utf8'));
+    if (/\b(observed_at|effective_at)\s*:\s*(new Date\(\)|now|Date\.now\(\))/.test(code)) {
+      civilEvidence.push(rel);
+    }
+  }
+  assert(
+    civilEvidence.length === 0,
+    'No scenario observation is stamped with civil wall-clock time',
+    civilEvidence.join(', ')
+  );
+
+  // Two consecutive reads of the same scenario are byte-identical, timestamps included.
+  const readA = generateSyntheticSignalSnapshot(CANONICAL_SCENARIO, 'tenant_uk_retail_01');
+  const readB = generateSyntheticSignalSnapshot(CANONICAL_SCENARIO, 'tenant_uk_retail_01');
+  assert(
+    JSON.stringify(readA) === JSON.stringify(readB),
+    'Two consecutive signal reads are byte-identical, timestamps included'
+  );
+  assert(
+    readA.every(s => Date.parse(s.observed_at) <= Date.parse(canonicalScenarioNowIso())),
+    'Every observation is stamped at or before the scenario clock, so freshness is a real reading'
+  );
+
+  // ── Guard 3 — no hash-derived economic modifier in source (ADR-079) ─────────
+  /*
+   * What is forbidden is a hash of a NAME becoming a NUMBER that money is multiplied by.
+   * Hashing a name into a stable IDENTIFIER is not only allowed, it is preferred — several
+   * engines derive execution and evaluation ids that way precisely so an id never comes from
+   * the clock. So the guard looks at what the hash BECOMES: a string id passes, a numeric
+   * factor does not. A blanket ban on `charCodeAt` would flag four correct call sites and be
+   * switched off within a week, which is how guards stop guarding.
+   */
+  /*
+   * One DECLARED exclusion, recorded rather than silently scoped away.
+   *
+   * `lib/campaign-opportunity-engine.ts` derives CDI-03 opportunity-window and micro-market
+   * READINESS POINTS from `hash01()` keyed on dates, store ids, region and SKU names. It is
+   * the same fragility under renaming that ADR-079 describes, and it is a real finding — but
+   * it modifies a SCORE, not this scenario's published economics, and ADR-079's ruling names
+   * `skuContextFactor`. Retiring it would move CDI-03's published windows with no governance
+   * authorising that. Registered as a residual for the packet that owns CDI-03 scoring; named
+   * here so the guard keeps firing for anything NEW rather than being switched off.
+   */
+  const DECLARED_NON_ECONOMIC_HASHES = ['lib/campaign-opportunity-engine.ts'];
+
+  const hashed: string[] = [];
+  for (const rel of engineSources) {
+    if (DECLARED_NON_ECONOMIC_HASHES.includes(rel)) continue;
+    const code = stripComments(readFileSync(join(ROOT, rel), 'utf8'));
+    if (/skuContextFactor|SKU_CONTEXT_BAND_PCT/.test(code)) { hashed.push(`${rel} (named hash modifier)`); continue; }
+
+    for (const fn of code.split(/\bfunction\s/).slice(1)) {
+      const body = fn.slice(0, fn.indexOf('\n}') + 2 || undefined);
+      if (!/charCodeAt\(/.test(body)) continue;
+      // A hash that leaves as an identifier: `toString(radix)` or interpolated into a string.
+      const becomesIdentifier = /\.toString\(\s*\d+\s*\)/.test(body) || /return\s*`/.test(body);
+      // A hash that leaves as a band or factor: `0.94 + (seed % 13) / 100` and its relatives.
+      const becomesFactor = /return[^;]*[%&|^]\s*\d+[^;]*[/*+-]/.test(body) || /return\s*\d*\.\d+\s*\+/.test(body);
+      if (becomesFactor || !becomesIdentifier) hashed.push(`${rel} (hash used numerically)`);
+    }
+  }
+  assert(
+    hashed.length === 0,
+    'No engine derives an economic modifier from a hash of a name',
+    hashed.join(', ')
+  );
+  // The declared exclusion must stay non-economic: it may score, it may not price.
+  const opportunityCode = stripComments(readFileSync(join(ROOT, DECLARED_NON_ECONOMIC_HASHES[0]), 'utf8'));
+  assert(
+    !/hash01\([^)]*\)[^;\n]*(gbp|Gbp|GBP|contribution|margin|revenue|price)/.test(opportunityCode),
+    'The one declared non-economic hash still touches no money',
+    DECLARED_NON_ECONOMIC_HASHES[0]
+  );
+
+  // ── The identity invariant the guards exist to protect ─────────────────────
+  assert(
+    getActiveScenarioId() === CANONICAL_SCENARIO_ID,
+    'The registry declares exactly one demo-active scenario and it is the canonical one',
+    String(getActiveScenarioId())
+  );
+  let missingRefused = false;
+  try { requireScenarioId(null, 'guard'); } catch { missingRefused = true; }
+  assert(missingRefused, 'A missing scenario_id is refused rather than resolved');
+  let unknownRefused = false;
+  try { resolveScenario('SCN-PROMO-01'); } catch { unknownRefused = true; }
+  assert(unknownRefused, 'The retired SCN-PROMO-01 identity no longer resolves to anything');
+
+  // The supplier named in the signals IS the supplier named in the economics (R-20).
+  const supplierSignal = readA.find(s => s.signal_type === 'SUPPLIER_CAPACITY_PRESSURE');
+  assert(
+    !!supplierSignal && supplierSignal.entity_id === CANONICAL_SCENARIO.supply.supplier_name,
+    'One supplier is named for the canonical scenario across economics and signals',
+    `${supplierSignal?.entity_id} vs ${CANONICAL_SCENARIO.supply.supplier_name}`
+  );
+  /*
+   * The retired supplier must not survive anywhere the connected journey generates evidence
+   * or carries identity. Scoped to those paths deliberately: FreshDirect UK still appears in
+   * unconnected legacy surfaces (Waste, Category, Command Centre) which are not part of this
+   * journey and belong to later packets. Widening it here would fail on work SCI-01 does not own.
+   */
+  const CONNECTED_EVIDENCE_PATHS = [
+    'services/world/src/enterprise-signal-generator.ts',
+    'services/world/src/dynamic-signal-simulator.ts',
+    'lib/decision-state-store.ts',
+    'lib/campaign-causal-engine.ts'
+  ];
+  const retiredSupplierLeaks = CONNECTED_EVIDENCE_PATHS.filter(rel =>
+    /FreshDirect/.test(stripComments(readFileSync(join(ROOT, rel), 'utf8')))
+  );
+  assert(
+    retiredSupplierLeaks.length === 0,
+    'No retired supplier survives in the connected journey\'s signal, causal or decision-state path',
+    retiredSupplierLeaks.join(', ')
+  );
+
+  // ── Provenance vocabulary (ADR-082) ────────────────────────────────────────
+  assert(
+    validateProvenanceDescriptor(CANONICAL_SCENARIO.provenance.descriptor).valid,
+    'The scenario record carries a valid ADR-082 provenance descriptor'
+  );
+  assert(
+    !validateProvenanceDescriptor({ origin: 'drafted', method: 'llm', authority: 'authoritative' }).valid,
+    'A drafted value may never carry authority, whatever declares it'
+  );
+  assert(
+    provenanceFromEvidenceOrigin('ESF-6_ATTESTED_SOURCE').origin === 'attested'
+      && provenanceFromDemandInputClass('MODELLED_DEMO_ASSUMPTION').origin === 'modelled'
+      && provenanceFromTelemetryProvenance('measured').origin === 'observed'
+      && provenanceFromArchetypeGraphProvenance('DERIVED').origin === 'derived',
+    'All five existing provenance vocabularies map onto the one declared vocabulary'
+  );
+  assert(
+    provenanceFromDemandInputClass('SYNTHETIC_OBSERVED').origin === 'modelled',
+    'A synthetic observation never maps to `observed`, so it cannot pass as client telemetry'
+  );
 }
 
 console.log(`\n=================================================================`);
