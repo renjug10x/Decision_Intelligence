@@ -1,11 +1,18 @@
 # CogniX Scenario Certification Gate
 
-**Status:** Authoritative specification. **Not yet implemented.**
+**Status:** Authoritative specification. **Implemented by `SCI-02` (2026-09-16).**
 **Authorised:** 2026-09-15 against baseline `f9c5679c`.
 **Decision:** ADR-080.
 **Owning packet:** `SCI-02`. It owns the certification contract; every other packet consumes it.
-**Implementation target:** `tests/unit/run-canonical-scenario-tests.ts` generalised into a
-scenario-parameterised harness, plus the certification state carried on the scenario record.
+**Implementation:** `packages/contracts/src/scenario-certification-model.ts` (the contract) ·
+`lib/scenario-certification.ts` (the twelve dimension evaluators and the gate) ·
+`lib/scenario-runtime.ts` (the one server path that installs it) ·
+`tests/unit/run-sci02-certification-tests.ts` (53 assertions on the mechanism) ·
+`tests/unit/run-canonical-scenario-tests.ts` §14 (the catalogue run).
+
+**First certification result:** `SCN-FRESH-DAIRY-CHEDDAR-001` is **`CERTIFIED`** on all twelve
+dimensions across **84 executed checks**, with no dimension resting on a declared
+non-applicability.
 
 ---
 
@@ -78,6 +85,25 @@ certification before it reaches a client.
 The existing 243 assertions are not copied per scenario. They become a harness parameterised by
 scenario and executed over the registered catalogue.
 
+**How the split landed (`SCI-02`).** Three classes, not two, because the middle one is what makes
+the arrangement honest:
+
+| Class | Where it lives | Executed for |
+|---|---|---|
+| **Universal** — true of any scenario | `lib/scenario-certification.ts` | every registered scenario |
+| **Capability-specific** — true where the scenario models the capability | the same harness, behind a named applicability predicate carrying its reason | the scenarios it applies to; declared `NOT_APPLICABLE` with a reason elsewhere |
+| **Instance-specific** — the protected journey's own digits, its archetype catalogue, the `SCI-01` source guards | `tests/unit/run-canonical-scenario-tests.ts` | `SCN-FRESH-DAIRY-CHEDDAR-001` only |
+
+The test the split has to pass is that **adding a scenario does not mean copying a file**. It does
+not: a new scenario is certified by the harness, and only a new INSTANCE claim belongs in the suite.
+
+**Measured against the three obligations:** no assertion was weakened — the one assertion that
+changed is `C-8`, which was CORRECTED to include the scenario's own declared substitution-recovery
+term after it wrongly failed the reference scenario. The canonical suite's published values are
+unchanged to the digit, re-measured in a browser at 1440 / 1024 / 720. Coverage rose rather than
+fell: the canonical suite runs **275** assertions (from 260), and the harness executes **84** per
+scenario on top of that.
+
 **Three obligations on the generalisation, recorded so `SCI-02` cannot satisfy the letter and lose
 the substance:**
 
@@ -124,6 +150,11 @@ ADR-083:
 It does not authorise implementation. It does not define the certification data structure — that is
 `SCI-02`'s to design and own. It does not grant any scenario certified status; no scenario is
 certified until the harness exists and reports it.
+
+**As at 2026-09-16 the harness exists and reports.** One scenario is registered and it is
+`CERTIFIED`. Nothing in this record grants that status; the harness measured it, and the same
+harness refuses a scenario that does not reconcile — demonstrated against a test fixture that fails
+six dimensions with the divergence named on each.
 
 ## 11. Related governance
 

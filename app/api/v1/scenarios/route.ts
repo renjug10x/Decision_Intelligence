@@ -20,12 +20,9 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import {
-  scenarioCatalogue,
-  getActiveScenarioId,
-  scenarioTemporalEvidence,
-  platformReceiptNowIso
-} from '@/packages/contracts/src/index';
+import { scenarioTemporalEvidence, platformReceiptNowIso } from '@/packages/contracts/src/index';
+// Through the scenario runtime: importing it installs the Scenario Certification Gate.
+import { scenarioCatalogue, getActiveScenarioId } from '@/lib/scenario-runtime';
 
 const WORLD_SERVICE_URL = process.env.COGNIX_WORLD_SERVICE_URL || 'http://localhost:8081';
 const WORLD_MODE = (process.env.COGNIX_WORLD_MODE as 'service' | 'demo-fallback' | 'local') || 'demo-fallback';

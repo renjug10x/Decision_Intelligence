@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { generateSyntheticSignalSnapshot } from '@/services/world/src/enterprise-signal-generator';
-import { listRegisteredScenarios } from '@/packages/contracts/src/scenario-registry';
+import { listRegisteredScenarios } from '@/lib/scenario-runtime';
 import { platformReceiptNowIso } from '@/packages/contracts/src/scenario-clock';
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

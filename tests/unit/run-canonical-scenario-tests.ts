@@ -10,6 +10,23 @@
  * The rule throughout: restating an engine's own arithmetic back to it proves nothing. Every
  * assertion below either compares TWO INDEPENDENT SURFACES, or checks a value against something
  * outside the code that produced it.
+ *
+ * What lives here, after `SCI-02`
+ * -------------------------------
+ * This file is now the INSTANCE half of a two-part framework, and the split is deliberate.
+ *
+ *   UNIVERSAL invariants — true of ANY scenario — moved into the certification harness
+ *   (`lib/scenario-certification.ts`), where they are stated once as functions of a scenario
+ *   and executed over the registered catalogue. §14 below runs that harness and asserts its
+ *   verdicts, so this suite still fails if a registered scenario stops reconciling.
+ *
+ *   INSTANCE invariants — the protected journey's own digits, the archetype catalogue it
+ *   projects through, the currency behaviour of its published amounts, and the `SCI-01`
+ *   source guards — stay here, because they are assertions about
+ *   `SCN-FRESH-DAIRY-CHEDDAR-001` rather than about scenarios in general.
+ *
+ * The test the split has to pass: adding a scenario must not mean copying this file. It does
+ * not. A new scenario is certified by the harness; only a new INSTANCE claim belongs here.
  */
 
 import {
@@ -41,6 +58,12 @@ import {
   provenanceFromDemandInputClass,
   provenanceFromTelemetryProvenance,
   provenanceFromArchetypeGraphProvenance,
+  CERTIFICATION_DIMENSION_IDS,
+  validateCertificationResult,
+  listRegisteredScenarios,
+  registerScenario,
+  activateScenario,
+  resetScenarioRegistry,
   calculateDerivedImpacts,
   DecisionScenarioParameters,
   SEEDED_FALLBACK_RATES,
@@ -79,6 +102,8 @@ import { evaluateCampaignDecision } from '../../lib/campaign-causal-engine';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { generateSyntheticSignalSnapshot } from '../../services/world/src/enterprise-signal-generator';
+import { certifyRegisteredScenarios, installScenarioCertificationGate } from '../../lib/scenario-certification';
+import { SECOND_SCENARIO } from '../fixtures/scenario/second-scenario';
 import productsData from '../../data/products.json';
 import suppliersData from '../../data/suppliers.json';
 
@@ -871,7 +896,7 @@ console.log('\n=== 12. RESET AND FX DEGRADATION ================================
 }
 
 
-console.log('\n=== 11. SCI-01 SOURCE GUARDS =======================================\n');
+console.log('\n=== 13. SCI-01 SOURCE GUARDS =======================================\n');
 
 {
   /*
@@ -1060,6 +1085,149 @@ console.log('\n=== 11. SCI-01 SOURCE GUARDS ====================================
   assert(
     provenanceFromDemandInputClass('SYNTHETIC_OBSERVED').origin === 'modelled',
     'A synthetic observation never maps to `observed`, so it cannot pass as client telemetry'
+  );
+}
+
+
+console.log('\n=== 14. GENERALISED RECONCILIATION OVER THE CATALOGUE ==============\n');
+
+{
+  /*
+   * The generalisation, asserted rather than described.
+   *
+   * The universal invariants are no longer written once per scenario in this file; they are
+   * stated once in the certification harness and executed over the registered catalogue.
+   * What this section proves is that the arrangement actually holds: the reference scenario
+   * certifies through the same gate as everything else, the gate refuses what does not
+   * reconcile, and the coverage did not shrink on the way.
+   */
+  const results = certifyRegisteredScenarios();
+  assert(results.length >= 1, 'The certification harness runs over the registered catalogue', String(results.length));
+
+  const canonicalResult = results.find(r => r.scenario_id === CANONICAL_SCENARIO_ID);
+  assert(!!canonicalResult, 'The reference scenario is in the catalogue the harness runs over');
+  assert(
+    validateCertificationResult(canonicalResult!).valid,
+    'The reference scenario\'s certification result is admissible',
+    validateCertificationResult(canonicalResult!).errors.join('; ')
+  );
+  assert(
+    canonicalResult!.state === 'CERTIFIED',
+    'SCN-FRESH-DAIRY-CHEDDAR-001 is CERTIFIED by the same gate as every other scenario',
+    `${canonicalResult!.state}: ${canonicalResult!.failed_dimensions.join(', ')}`
+  );
+  assert(
+    canonicalResult!.dimensions.length === CERTIFICATION_DIMENSION_IDS.length,
+    'All twelve governed dimensions were evaluated for the reference scenario'
+  );
+  assert(
+    canonicalResult!.dimensions.every(d => d.verdict === 'PASS'),
+    'No dimension of the reference scenario rests on a declared non-applicability',
+    canonicalResult!.dimensions.filter(d => d.verdict !== 'PASS').map(d => `${d.dimension}=${d.verdict}`).join(', ')
+  );
+
+  /*
+   * §6 obligation 3: coverage per scenario is at least what the canonical scenario had.
+   * The figure is asserted rather than trusted, because "we generalised it" is exactly the
+   * claim that is easiest to make and hardest to notice losing.
+   */
+  assert(
+    canonicalResult!.assertion_count >= 60,
+    'The generalised harness executes a substantial body of checks per scenario',
+    String(canonicalResult!.assertion_count)
+  );
+
+  // Every registered scenario carries a verdict. A scenario the gate never looked at is the
+  // hole the gate exists to close.
+  assert(
+    listRegisteredScenarios().every(sc => results.some(r => r.scenario_id === sc.identity.scenario_id)),
+    'Every registered scenario receives a verdict — none is skipped'
+  );
+
+  // The gate must be installed in the running estate, not merely available to tests.
+  assert(
+    getActiveScenarioId() === CANONICAL_SCENARIO_ID,
+    'The demo-active scenario is the certified reference scenario',
+    String(getActiveScenarioId())
+  );
+
+  // ADR-080: only a certified scenario may be demo-active. Proven by refusal, not by comment.
+  installScenarioCertificationGate();
+  let uncertifiedRefused = false;
+  try {
+    registerScenario(SECOND_SCENARIO);
+    activateScenario(SECOND_SCENARIO.identity.scenario_id);
+  } catch {
+    uncertifiedRefused = true;
+  }
+  assert(uncertifiedRefused, 'An uncertified scenario cannot become demo-active');
+  assert(
+    getActiveScenarioId() === CANONICAL_SCENARIO_ID,
+    'A refused activation leaves the certified scenario in place'
+  );
+  resetScenarioRegistry();
+  installScenarioCertificationGate();
+}
+
+console.log('\n=== 15. SCI-02 SOURCE GUARDS ======================================\n');
+
+{
+  /*
+   * The gate is only a gate where it is installed. `lib/scenario-runtime.ts` installs it as
+   * a side effect of being imported, so a server route that resolves a scenario THROUGH the
+   * registry rather than through the runtime would resolve one the gate never saw.
+   *
+   * This guard is what stops that reappearing, and it is the same shape as the `SCI-01`
+   * guards above: the defect is invisible to every behavioural assertion, because a route
+   * that bypasses the gate still returns perfectly valid signals.
+   */
+  const ROOT = join(__dirname, '..', '..');
+  const stripComments = (code: string) =>
+    code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  const routeFiles: string[] = [];
+  const walk = (dir: string) => {
+    for (const entry of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+      if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name.startsWith('.')) continue;
+      const rel = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) walk(rel);
+      else if (entry.name === 'route.ts') routeFiles.push(rel);
+    }
+  };
+  walk('app/api');
+
+  const RESOLVERS = /\b(requireScenarioId|getActiveScenario|scenarioCatalogue|listRegisteredScenarios|activateScenario)\b/;
+  const ungated = routeFiles.filter(rel => {
+    const code = stripComments(readFileSync(join(ROOT, rel), 'utf8'));
+    if (!RESOLVERS.test(code)) return false;
+    // Resolving is fine; resolving through the ungated registry is not.
+    return !/from '@\/lib\/scenario-runtime'/.test(code)
+      && !/from '\.\.?\/.*_shared\/scenario-request'/.test(code);
+  });
+  assert(
+    ungated.length === 0,
+    'No route resolves or activates a scenario outside the gated scenario runtime',
+    ungated.join(', ')
+  );
+
+  // And the shared resolver itself must go through the runtime.
+  const sharedResolver = stripComments(
+    readFileSync(join(ROOT, 'app/api/v1/_shared/scenario-request.ts'), 'utf8')
+  );
+  assert(
+    /from '@\/lib\/scenario-runtime'/.test(sharedResolver),
+    'The shared route resolver resolves through the gated scenario runtime'
+  );
+
+  // The certification harness must not be able to certify by asserting a verdict.
+  const harness = stripComments(readFileSync(join(ROOT, 'lib/scenario-certification.ts'), 'utf8'));
+  assert(
+    !/verdict:\s*'PASS'/.test(harness),
+    'The harness never writes a PASS verdict directly — every verdict is derived from its checks'
+  );
+  assert(
+    /deriveDimensionVerdict\(/.test(harness),
+    'The harness derives every dimension verdict from the checks that ran'
   );
 }
 

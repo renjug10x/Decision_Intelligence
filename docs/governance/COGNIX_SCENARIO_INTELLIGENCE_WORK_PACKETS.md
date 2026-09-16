@@ -1,6 +1,7 @@
 # CogniX Scenario Intelligence — Work Packets (`SCI`)
 
-**Status:** Authorised for implementation. **`SCI-01` COMPLETE (2026-09-16). `SCI-02` is next and has not started.**
+**Status:** Authorised for implementation. **Wave 0 implementation COMPLETE: `SCI-01` and `SCI-02`
+both delivered (2026-09-16). GATE A HAS NOT PASSED — see §9. Wave 1 is NOT authorised.**
 **Authorised:** 2026-09-15 against baseline `f9c5679c` on `feature/cognix-enterprise-demo-hardening`.
 **Governs:** programme `SCI` — the Scenario Laboratory.
 **Execution model:** two agents, **Cursor** and **Antigravity**, concurrently where the dependency
@@ -39,7 +40,7 @@ and the lanes never touch.
 | ID | Title | Class | Tool | Wave | Status |
 |---|---|---|---|---|---|
 | `SCI-01` | Scenario Contract, Clock, Registry & Provenance Foundation | **FOUNDATION** | Cursor | 0 | **[COMPLETED 2026-09-16]** |
-| `SCI-02` | Scenario Certification Gate & Reconciliation Generalisation | **FOUNDATION** | Cursor | 0 | Not started |
+| `SCI-02` | Scenario Certification Gate & Reconciliation Generalisation | **FOUNDATION** | Cursor | 0 | **[COMPLETED 2026-09-16]** |
 | `SCI-03` | Curated Scenario Domain Packs | CURSOR | Cursor | 1 | Not started |
 | `SCI-04` | Scenario Selection Experience | ANTIGRAVITY | Antigravity | 1 | Not started |
 | `SCI-05` | Living Evidence Engine — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 | Not started |
@@ -369,6 +370,38 @@ acceptance depends on.
 scenario cannot be activated. Master Plan assertion count corrected against measurement.
 
 **Handoff artefact.** The certification contract and the first certification result. **Gate A.**
+
+---
+
+### `SCI-02` outcome — **[COMPLETED 2026-09-16]**
+
+Cut from `1a3b2d64`, the `SCI-01` head. Evidence:
+[`COGNIX_SCI_02_CERTIFICATION_GATE_REPORT.md`](../reports/COGNIX_SCI_02_CERTIFICATION_GATE_REPORT.md).
+
+| Definition-of-done clause | Result |
+|---|---|
+| Harness runs per scenario | `lib/scenario-certification.ts` executes the twelve dimensions as functions of a scenario, over the registered catalogue. **84 checks per scenario** |
+| Canonical scenario `CERTIFIED` | `SCN-FRESH-DAIRY-CHEDDAR-001` passes all twelve dimensions, none resting on a declared non-applicability |
+| An uncertified scenario cannot be activated | Proven by refusal in `run-sci02-certification-tests` §5 and in the canonical suite §14, not by comment. A test fixture failing six dimensions is refused activation, and the refusal names the dimensions |
+| Master Plan assertion count corrected against measurement | Corrected to **275** (canonical suite) plus **84** per scenario in the harness |
+
+**Assertion count did not fall.** Canonical suite 260 → **275**. New `SCI-02` suite: **53**. Harness:
+**84** executed checks per registered scenario. Estate: **43 runners, 42 fully green**, `run-atl06b-tests`
+failing only `A6b` — `R-25`, byte-identical to the baseline.
+
+**One assertion changed, and it was corrected rather than weakened.** `C-8` initially failed the
+reference scenario at 47,093 against 72,450 because the check omitted the scenario's own declared
+substitution-recovery share. §5 decides that case — *if the gate cannot certify the reference
+scenario, the gate is wrong* — so the check was corrected to the full declared expression and
+strengthened with a companion assertion that the recovery term is actually applied rather than merely
+declared.
+
+**What the gate revealed, and it is the finding of this packet.** `SCI-01` parameterised the
+CONTRACT; the ENGINES still read the canonical-bound layer. The harness probes those engine surfaces
+with the scenario under test, so a second scenario fails `C-5`, `C-7`, `C-8` and `C-12` with the
+divergence named. **That is the gate working**: a catalogue is safe precisely because a second
+scenario cannot reach a demonstration while the engines answer with the first one's economics.
+Registered as `R-27`, and it is now `SCI-03`'s precondition rather than a client's discovery.
 
 ---
 
@@ -830,9 +863,31 @@ Full table: [`COGNIX_BACKLOG_RECONCILIATION_2026_09.md`](COGNIX_BACKLOG_RECONCIL
 
 Recorded only against evidence.
 
+### Gate A — evaluated 2026-09-16 — **NOT PASSED**
+
+Both Wave-0 packets are implemented and their tests are green. The gate still does not pass, on
+three of its ten conditions, and a gate that fails does not become a warning.
+
+| # | Condition | Result |
+|---|---|---|
+| 1 | Both lane branches committed and pushed | **PASS.** Wave 0 is single-lane by design. `SCI-01` pushed at `1a3b2d64`; `SCI-02` pushed on `feature/cognix-sci-02-certification-gate` |
+| 2 | Independent packet tests green on each branch separately | **PASS.** `SCI-01` green at its head; `SCI-02` green on its own branch. `R-25` only, on both |
+| 3 | Deliberate merge or rebase against the declared base | **NOT SATISFIED.** `SCI-02` was cut from the `SCI-01` head exactly and has not drifted, but the deliberate convergence merge onto `feature/cognix-sci-wave0-convergence` has not been performed. §5 reserves it to one operator in one place, and no packet may perform it on its own authority |
+| 4 | No unresolved contract drift | **PASS.** All four `SCI-01` contract files are byte-identical to `1a3b2d64`, verified by diff. `SCI-02` added its own contract and changed none of theirs |
+| 5 | Full relevant regression | **PASS.** 43 runners, 42 fully green; `run-atl06b-tests` fails only `A6b` (`R-25`), identical to baseline. Every runner captured individually |
+| 6 | Certification gate green for every registered scenario | **PASS, and not yet required** — this condition binds from Gate B. One scenario is registered and it is `CERTIFIED` |
+| 7 | Protected journey reconciled to the digit | **PASS.** §1 and §2 unchanged, re-measured in a browser at three widths |
+| 8 | Browser acceptance at 1440 / 1024 / 720 | **PASS, with a recorded limitation.** Performed against a production build served natively. The supported Docker path could not be exercised: the image registry CDN is refused by this environment's egress policy |
+| 9 | Next wave's cross-lane contracts declared and frozen | **NOT SATISFIED.** The Wave-2 contracts — Signal Materiality & Decision Relevance, Refresh Operation, Models & Methods — are owned by `SCI-05` and are due to be declared at this gate under the §0 rule. `SCI-01` did not declare them and `SCI-02` does not own them. **This is the condition that most needs an owner before Wave 1 is cut**, because `SCI-06` is built against these contracts in Wave 2 while `SCI-05` implements them |
+| 10 | Governance status updated only after evidence, and the convergence SHA recorded | **NOT SATISFIED**, because conditions 3 and 9 are not. Status is recorded here against the evidence that exists; no convergence SHA is recorded |
+
+**Consequence, stated rather than softened.** No contract is frozen. Wave 1 is not authorised.
+`SCI-03` and `SCI-04` are not cut. The three open conditions are convergence actions and a
+contract declaration, not implementation defects — the Wave-0 code is complete and green.
+
 | Gate | Wave | Required before | Convergence SHA |
 |---|---|---|---|
-| Gate A | 0 | Wave 1 | *not yet recorded — `SCI-02` must complete first* |
+| Gate A | 0 | Wave 1 | *not recorded — 3 of 10 conditions open (see above)* |
 | Gate B | 1 | Wave 2 | *not yet recorded* |
 | Gate C | 2 | Wave 3 | *not yet recorded* |
 | Gate D | 3 | Wave 4 | *not yet recorded* |

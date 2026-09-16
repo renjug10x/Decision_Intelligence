@@ -386,6 +386,65 @@ anywhere in the engines, still fails the build.
 **Disposition.** For the packet that next owns CDI-03 scoring. It should be resolved the same way
 ADR-079 resolved the economics: declare the differentiation with a reason, or have none.
 
+### R-27 — The engines still resolve against the reference scenario, so no second scenario can certify · **OPEN — precondition for `SCI-03`**
+
+Found by running the `SCI-02` certification gate against a second scenario, and it is the most
+consequential thing the gate has surfaced.
+
+`SCI-01` parameterised the CONTRACT: `scenario*(scenario, …)` are pure functions of a scenario and
+`canonical*(…)` binds the reference instance. The ENGINES still read the bound layer.
+`deriveUnitEconomics()` reads `canonicalRealisedRevenuePerUnitGbp()`; `CDI02_BASE_WEEKLY_UNITS` is
+`canonicalWeeklyPopulationUnits()`; `DDF_SLA_FLEX_UNITS_PER_WEEK` and `DDF_GROSS_MARGIN_RATE_PCT` are
+canonical module constants; the elasticity curve is the canonical one; and
+`createDefaultCampaignIntentDraft` opens on the canonical identity.
+
+Measured: a test fixture declaring a 120,000-unit week, a different SKU and a different supplier
+fails **six** dimensions — `C-1`, `C-2`, `C-5`, `C-7`, `C-8`, `C-12` — each naming its divergence,
+for example *"the derived-impact population is this scenario's own weekly demand — 350000 vs 120000
+— 65.7143% apart"*.
+
+**This is the gate working, not a defect in it.** A catalogue is safe precisely because a second
+scenario cannot reach a demonstration while the engines answer with the first one's economics. What
+changes is that the work is now visible and costed before `SCI-03` starts, rather than discovered by
+a client looking at two scenarios that publish the same numbers.
+
+**Disposition.** A precondition for `SCI-03`: a curated pack cannot be certified — and therefore
+cannot be demo-active — until the engines resolve against the scenario they are asked about. It was
+explicitly out of `SCI-02`'s scope, whose non-scope reads *"no engine change beyond what the harness
+requires"*.
+
+### R-28 — The `cognix-world` domain service does not install the certification gate · **OPEN — GOVERNED**
+
+`lib/scenario-runtime.ts` installs the gate as a side effect of import, and every Next.js route that
+resolves or activates a scenario now goes through it — enforced by a source guard in
+`run-canonical-scenario-tests.ts` §15. The `cognix-world` service does not, and deliberately cannot
+as things stand: `services/world/tsconfig.json` includes only `src/**/*` and
+`packages/contracts/src/**/*`, so the domain service depends on contracts and not on the web app's
+engines. Importing the harness there would pull the campaign, demand and archetype engines into a
+service whose job is to generate signals.
+
+**Why it is recorded rather than closed.** The gate governs ACTIVATION, and the world service does
+not activate scenarios — it answers for ones already registered. The exposure is therefore bounded:
+were a second scenario ever registered in that process without being certified, the world service
+would serve signals for it. Today exactly one scenario is registered and it is certified.
+
+**Disposition.** For whichever packet first registers a second scenario in the domain service, which
+is likely `SCI-03`. The options are to move the harness behind a contracts-level interface the
+service can consume, or to have the service refuse any scenario that is not demo-active. Either is a
+design decision with an ADR attached, which is why `SCI-02` did not take it unilaterally.
+
+### R-29 — A retired mechanism is still described in the present tense in `campaign-frontier-engine.ts` · **OPEN — minor**
+
+`lib/campaign-frontier-engine.ts` (the `playScopedIntentId` comment) states that
+*"`skuContextFactor` is keyed on category, sku_scope and region"*. `skuContextFactor` was retired by
+`SCI-01` under ADR-079. The surrounding reasoning still holds — the id is content-derived and feeds
+no numeric seed — but a comment naming a function that no longer exists will mislead the next reader
+into thinking the hash survives somewhere.
+
+Recorded rather than corrected because `SCI-02`'s scope is certification and reconciliation, and the
+packet was directed not to perform cleanup outside it. One line, for whichever packet next touches
+the frontier engine.
+
 ### R-25 — `ATL-06B` assertion `A6b` is stale, and the estate carries two Google SDKs · **OPEN — GOVERNED**
 
 `run-atl06b-tests.ts` `A6b` asserts *"…and package.json gained no new provider dependency"*, checking

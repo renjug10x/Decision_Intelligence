@@ -2,6 +2,7 @@ export * from './provenance-vocabulary';
 export * from './scenario-clock';
 export * from './canonical-scenario-model';
 export * from './scenario-registry';
+export * from './scenario-certification-model';
 export * from './currency-model';
 export * from './enterprise-world-model';
 export * from './enterprise-world-seed';

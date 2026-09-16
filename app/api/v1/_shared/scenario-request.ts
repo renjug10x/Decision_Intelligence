@@ -17,12 +17,14 @@
  */
 
 import { NextResponse } from 'next/server';
-import {
-  CanonicalScenario,
-  requireScenarioId,
-  ScenarioResolutionError
-} from '@/packages/contracts/src/index';
+import { CanonicalScenario } from '@/packages/contracts/src/index';
 import { platformReceiptNowIso } from '@/packages/contracts/src/scenario-clock';
+/*
+ * Through the scenario runtime, never the registry directly: importing it installs the
+ * Scenario Certification Gate, so a route cannot resolve a scenario that has not been
+ * through the gate (ADR-080).
+ */
+import { requireScenarioId, ScenarioResolutionError } from '@/lib/scenario-runtime';
 
 export type ScenarioRequestResult =
   | { ok: true; scenario: CanonicalScenario }

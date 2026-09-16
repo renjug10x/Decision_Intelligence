@@ -3,8 +3,9 @@
 **Status:** Authoritative. Governs the evolution from a prepared demonstration to a scenario-driven
 Decision Intelligence laboratory.
 **Authorised:** 2026-09-15 against baseline `f9c5679c` on `feature/cognix-enterprise-demo-hardening`.
-**Implementation:** `SCI-01` complete (2026-09-16). Programme `SCI`, defined in
-[`COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md`](COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md).
+**Implementation:** Wave 0 complete — `SCI-01` and `SCI-02` (2026-09-16). **Gate A has not passed**;
+Wave 1 is not authorised. Programme `SCI`, defined in
+[`COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md`](COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md) §9.
 **Decisions:** ADR-077 · ADR-078 · ADR-079 · ADR-080 · ADR-081 · ADR-082 · ADR-083 · ADR-084 ·
 ADR-044 Amendment B · ADR-051 Amendment A · ADR-073 Amendment A.
 **Predecessor record:** [`COGNIX_CANONICAL_SCENARIO.md`](COGNIX_CANONICAL_SCENARIO.md) — unchanged in
@@ -126,7 +127,9 @@ session on `SCN-PROMO-01` with constraint literals naming FreshDirect UK. Eviden
 3. **Differentiation is declared.** No hash-derived modifier stands between a scenario's declared
    parameters and its published economics. (ADR-079)
 4. **No scenario is demo-active until certified**, and non-applicability is declared with a reason
-   rather than passed silently. (ADR-080)
+   rather than passed silently. (ADR-080) — **implemented by `SCI-02`.** The gate installs into the
+   `SCI-01` activation seam, and a scenario that fails a mandatory dimension is refused activation
+   with the failed dimensions named.
 5. **Refresh advances evidence and reports decision consequence.** (ADR-081)
 6. **One provenance vocabulary**, mapped from the five the estate already carries. (ADR-082)
 7. **GenAI drafts structure; engines compute economics**, and a confirmed scenario reproduces with

@@ -1138,7 +1138,7 @@ product, region and horizon the previous two screens had just established.
 | **Multi-currency** | GBP base, USD and EUR display; ECB rates through the platform's own cached endpoint, dated fallback, no credential. ADR-074 |
 | **Repeatability** | A *Restart scenario* control returns the demonstration to its opening position deterministically |
 | **Continuity** | A restrained scenario identity strip states the product, scope and horizon on every surface |
-| **Tests** | `tests/unit/run-canonical-scenario-tests.ts` — cross-surface and currency assertions that fail if two surfaces stop agreeing on the same quantity. **Recorded as 74 at `DEMO-HARD-01` closure; measured at `f9c5679c` as 243 passed / 0 failed** after `DEMO-HARD-02` and `-04` added to it. Corrected 2026-09-15 per residual `R-23`. **`SCI-01` took it to 260 passed / 0 failed**, adding the scenario-identity, clock and provenance assertions and the three source guards; the ADR-075 bounded-divergence assertion was replaced by exact agreement rather than relaxed |
+| **Tests** | `tests/unit/run-canonical-scenario-tests.ts` — cross-surface and currency assertions that fail if two surfaces stop agreeing on the same quantity. **Recorded as 74 at `DEMO-HARD-01` closure; measured at `f9c5679c` as 243 passed / 0 failed** after `DEMO-HARD-02` and `-04` added to it. Corrected 2026-09-15 per residual `R-23`. **`SCI-01` took it to 260 passed / 0 failed**, adding the scenario-identity, clock and provenance assertions and the three source guards; the ADR-075 bounded-divergence assertion was replaced by exact agreement rather than relaxed. **`SCI-02` took it to 275**, adding the generalised catalogue run and the gate source guards, and added `run-sci02-certification-tests` at 53 assertions plus 84 executed checks per scenario in the certification harness |
 
 **Evidence.** [`COGNIX_PRESENTATION_SYNC_DELTA.md`](../reports/COGNIX_PRESENTATION_SYNC_DELTA.md)
 states, value by value, what the live application now shows against the pre-hardening demonstration
@@ -1198,9 +1198,20 @@ this workstream hardens the demonstration of what Release 1.0 already contained.
 ## PROGRAMME `SCI` — SCENARIO INTELLIGENCE (THE SCENARIO LABORATORY)
 
 **Authorised 2026-09-15 against baseline `f9c5679c` on `feature/cognix-enterprise-demo-hardening`.
-Status: `[IN PROGRESS]` — `SCI-01` **[COMPLETED 2026-09-16]**, cut from the authorisation commit
-`b5bf1bd9`. `SCI-02` is next and has not started. No convergence SHA is recorded: Gate A requires
-`SCI-02` as well.**
+Status: `[IN PROGRESS]` — Wave 0 implementation complete. `SCI-01` **[COMPLETED 2026-09-16]** at
+`1a3b2d64`; `SCI-02` **[COMPLETED 2026-09-16]** on `feature/cognix-sci-02-certification-gate`.
+**GATE A HAS NOT PASSED** — 3 of its 10 conditions are open (the convergence merge, the Wave-2
+contract declaration, and the SHA record that depends on both). No contract is frozen and Wave 1 is
+not authorised. Condition-by-condition evidence is in
+[`COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md`](COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md) §9.**
+
+**`SCI-02` outcome.** The Scenario Certification Gate exists and is enforced at the one activation
+seam `SCI-01` declared. `SCN-FRESH-DAIRY-CHEDDAR-001` is `CERTIFIED` on all twelve governed
+dimensions across 84 executed checks, by the same gate that would certify any other scenario. The
+reconciliation suite is generalised rather than duplicated: universal invariants are stated once as
+functions of a scenario and run over the catalogue, while the protected journey's own digits stay
+instance-specific. Evidence:
+[`COGNIX_SCI_02_CERTIFICATION_GATE_REPORT.md`](../reports/COGNIX_SCI_02_CERTIFICATION_GATE_REPORT.md).
 
 **`SCI-01` outcome.** The four Wave-0 contracts exist — Scenario Contract, Scenario Clock, Scenario
 Registry & Activation, Provenance Vocabulary — and the three live defects the programme was authorised
