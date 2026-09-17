@@ -503,6 +503,128 @@ contract already declares `ScenarioAsAtMarker` and `RefreshDelta` for exactly th
 history should come from the same place its advance does, and inventing a second projection inside
 `SCI-03` would have created precisely the parallel model this workstream removes.
 
+### R-35 — Demand, Promotion and Campaign Decision publish the reference scenario's economics for every scenario · **OPEN — HOLDS GATE B**
+
+Found by driving the converged Wave-1 product in a browser. It is the reason Gate B is OPEN and Wave
+2 is not authorised.
+
+After convergence the strip, the selector, certification, activation, decision state and reset all
+follow the active scenario correctly. The three DECISION SURFACES do not:
+
+| surface | Fresh Dairy | Chilled Salmon | Premium Bakery | governed truth |
+|---|---|---|---|---|
+| **Demand** base | 699,996 | **699,996** | **349,998** | 94,080 / 26,040 |
+| **Promotion** | 20% → +44.16% / −£5.2K, recommends **14%** | **identical** | **identical** | Salmon **10%**; Bakery **0% — do not promote** |
+| **Campaign Decision** | Cheddar Mature 400g · National, 14 days | **identical** | **identical** | Salmon P048; Bakery P023 · London · 7 days |
+
+On these surfaces the three scenarios are label variations — the precise thing `SCI-03`'s *"switching
+changes economics, signals and recommendations, not labels"* and `SCI-04`'s *"every surface reflects
+the active scenario"* both forbid.
+
+**It is a conflict between two correct decisions, not an oversight.**
+
+1. `components/PromotionPlanner.tsx` opens on the literal `'ARCH-CHILLED-ELASTIC'` — a hard-coded
+   scenario identity in a component, which `SCI-04`'s own definition of done forbids and which no
+   source guard catches, because the guards look for `SCN-` literals and pack names.
+2. Pointing it at the active scenario's archetype would publish CONTRADICTORY economics.
+   `SCI-03` deliberately bound the archetype catalogue to the reference instance as *"the REFERENCE
+   framework's comparative library … priced here deliberately"*, and its alternative entries carry
+   seeded numbers:
+
+   | | archetype `ARCH-PREMIUM-ARTISAN` | certified `SCN-BAKERY-SOURDOUGH-003` |
+   |---|---|---|
+   | depth | 15% | committed 10% |
+   | demand uplift | +12.0% | +7.68% at 10% |
+   | contribution | −£1,850 | −£641 at 10%; best is **£0 at 0%** |
+   | verdict | "MARGIN RISK" | **do not promote** |
+
+   Two economic models for one scenario is the defect ADR-073 and ADR-080 exist to prevent.
+3. The Demand surface reads ONE seeded history (`data/sales_daily.json`) calibrated to the reference
+   scenario's ~50,000 units/day. No salmon or bakery series exists, and inventing one is the
+   fabrication ADR-079 forbids — the same judgement `SCI-03` made in retiring `temporal_evidence`
+   (R-30) rather than rescale a series it had not modelled.
+
+**Neither lane owned it.** `SCI-03`'s non-scope: *"No selection UI."* `SCI-04`'s non-scope: *"No
+scenario content"*, with declared ownership of the context strip, the controls, the selector and the
+shell mount point — not the decision surfaces. The `SCI-03 → SCI-04` content edge converges at Gate
+B, and this is what converging it exposed.
+
+**Disposition.** Raised as a convergence event under ADR-084 part 2 rather than decided inside a
+merge. The three candidate resolutions each carry a cost that is a governance decision, not an
+engineering one: derive every archetype entry from its certified scenario (rewrites `SCI-03`'s
+comparative library and needs per-scenario demand history authored); have the decision surfaces read
+the certified scenario directly instead of archetype content (a `SCI-04`-class change to surfaces
+`SCI-04` did not own); or restrict the selector to the reference scenario until a packet owns this
+(which defeats `SCI-04`). **Unassigned pending that decision.**
+
+### R-34 — The sidebar footer is unreachable below roughly 900px of viewport height · **OPEN — pre-existing**
+
+The sidebar is 896px tall with `overflow-y: visible` and never scrolls, so Currency, *Restart
+scenario*, *Observability & Governance* and *Exit Demo* fall below a 768px fold.
+
+Isolated as a viewport-HEIGHT condition, not a breakpoint one: reachable at 1440×900, 1024×900 and
+720×900; unreachable at 1024×768 and 720×768. **Not caused by Wave-1 convergence** — with `SCI-04`'s
+added action row removed from the DOM the sidebar is still 872px, already past a 768px fold. Gate B's
+browser acceptance at the three governed widths passes; this is recorded because it was found, not
+because it blocks. Unassigned.
+
+### R-33 — The browser resolved a different scenario from the server · **CLOSED by Wave-1 convergence**
+
+Two parts, both found by running the converged product and both fixed at convergence.
+
+**The curated packs never reached the browser.** Registration happens at module load of
+`packages/contracts/src/scenario-packs`; every server path reached it through the contracts barrel and
+no client path did. Measured on the production bundle: `SCN-CHILLED-SALMON-002` and
+`SCN-BAKERY-SOURDOUGH-003` appeared in **zero** client chunks, so `isScenarioRegistered` answered
+false in the browser and `ScenarioContextStrip` fell through to the reference scenario after every
+switch. `lib/scenario-client-registry.ts` is now the browser counterpart to `lib/scenario-runtime.ts`.
+
+**The active scenario was never mirrored.** Client-side engines resolve through `scenarioInScope()`,
+which reads the browser's registry. `SCI-04` mirrored the server's activation only at selection time,
+inside a swallowing `catch`, so a page load or refresh left the browser computing the reference
+scenario. `syncActiveScenario` mirrors the server's already-gated answer and
+`DecisionStateProvider` applies it synchronously before publishing the state that triggers the
+re-render, so no frame renders the previous scenario's economics.
+
+Neither lane could have found it: `SCI-03` registered packs nothing client-side consumed, and
+`SCI-04` resolved a catalogue that had one entry in it.
+
+### R-32 — Two registries answer "which scenario is active?" differently · **MITIGATED — underlying split open with R-28**
+
+In service mode `POST /api/v1/scenarios` activates in the Next process, while `GET` proxies the
+catalogue from `cognix-world`, which holds its own registry, has no activation endpoint and never
+learns of a switch. Measured: activate Premium Bakery → `200`, then `GET` reported
+`SCN-FRESH-DAIRY-CHEDDAR-001`.
+
+**Disposition.** The domain catalogue stays upstream's; which of it the estate is RUNNING is now
+answered by the process that performs activation, and the certification badge is applied there too
+for the same reason (`cognix-world` does not install the gate — R-28). The underlying split remains:
+`cognix-world` is not activation-aware. For whichever packet makes it so, with R-28.
+
+### R-31 — The session opened on the reference scenario's plan, and Restart restored it · **CLOSED by Wave-1 convergence**
+
+`DEFAULT_SCENARIO_PARAMS` in `lib/decision-state-store.ts` declared `promotion_lift: 20`,
+`forecast_horizon_days: 14`, `'20_percent_off'` and `'national'` — the reference scenario's committed
+terms, and correct while it was the only registered scenario.
+
+Measured before the fix, all three scenarios opened identically at 20% / 14 days / national, and
+**Restart restored those values under a bakery decision** — "Restart restores Fresh Dairy
+unconditionally", the defect the scenario-specific reset condition exists to catch. After:
+
+| | promotion_lift | horizon | scope | method | cap |
+|---|---|---|---|---|---|
+| Fresh Dairy | 20 | 14 | national | `20_percent_off` | 10 |
+| Chilled Salmon | 10 | 14 | national | `10_percent_off` | 2 |
+| Premium Bakery | 10 | **7** | **regional** | `10_percent_off` | 6 |
+
+Every field derives from the record via `scenarioOpeningDecisionParameters`. Restart reads the
+state's OWN `scenario_id`, and derived impacts are recalculated with that scenario bound, so a state
+can never carry one scenario's parameters and another's arithmetic. **Fresh Dairy's derived opening
+position is bit-identical to the retired constant.**
+
+This is `R-27`'s class in the one layer `SCI-03` had no reason to reach — `R-27` was about ENGINES
+resolving against the reference scenario; this was the SESSION's opening position doing the same.
+
 ### R-25 — `ATL-06B` assertion `A6b` is stale, and the estate carries two Google SDKs · **OPEN — GOVERNED**
 
 `run-atl06b-tests.ts` `A6b` asserts *"…and package.json gained no new provider dependency"*, checking

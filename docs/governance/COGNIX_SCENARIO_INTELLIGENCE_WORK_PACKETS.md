@@ -1,9 +1,13 @@
 # CogniX Scenario Intelligence — Work Packets (`SCI`)
 
 **Status:** Authorised for implementation. **Wave 0 COMPLETE and converged. `SCI-01` and `SCI-02`
-delivered (2026-09-16); GATE A PASSED (2026-09-17) — see §9. Wave 1 IS authorised. `SCI-03`
-delivered (2026-09-17) on `feature/cognix-sci-03-curated-scenarios` — three certified scenarios and
-`R-27` closed; `SCI-04` still to land. GATE B is NOT passed: it needs both Wave-1 lanes.**
+delivered (2026-09-16); GATE A PASSED (2026-09-17) — see §9. Wave 1 DELIVERED and CONVERGED:
+`SCI-03` (2026-09-17, `feature/cognix-sci-03-curated-scenarios`) and `SCI-04` (2026-09-17,
+`feature/cognix-sci-04-scenario-selection`) are both committed and were converged deliberately onto
+`feature/cognix-sci-wave1-convergence` on 2026-09-17. GATE B IS OPEN — nine of ten conditions pass
+on evidence, and the cross-surface invariant fails (`R-35`). WAVE 2 IS NOT AUTHORISED: `SCI-05` and
+`SCI-06` must not be cut. See §9 and
+[`COGNIX_WAVE1_CONVERGENCE_GATE_B_ASSESSMENT.md`](../reports/COGNIX_WAVE1_CONVERGENCE_GATE_B_ASSESSMENT.md).**
 **Authorised:** 2026-09-15 against baseline `f9c5679c` on `feature/cognix-enterprise-demo-hardening`.
 **Governs:** programme `SCI` — the Scenario Laboratory.
 **Execution model:** two agents, **Cursor** and **Antigravity**, concurrently where the dependency
@@ -924,6 +928,53 @@ Full table: [`COGNIX_BACKLOG_RECONCILIATION_2026_09.md`](COGNIX_BACKLOG_RECONCIL
 
 Recorded only against evidence.
 
+### Gate B — **OPEN**, assessed 2026-09-17
+
+Converged deliberately on `feature/cognix-sci-wave1-convergence` from `SCI-03`
+`eff9bec0f515ae6c7d585a376b09d490515a2a24` and `SCI-04` `01f2130a027ec97607fc8fb2e9ec1356ebf06446`,
+both verified as single commits whose parent is the declared Wave-1 base
+`13ce376e19239a4081e6c68764e470733ffc52b5`. Changed-file overlap was exactly two files and both
+conflicted; both were reconciled by stated semantics rather than by taking a side.
+
+| # | Condition | Verdict |
+|---|---|---|
+| 1 | Both lane branches committed and pushed | **PASS** |
+| 2 | Independent packet tests green on each branch separately | **PASS** — `SCI-03` 96/96, `SCI-04` 53/53 at their own heads. `SCI-04` additionally failed `tsc --noEmit` at its head; two type errors in its own test file were fixed at convergence |
+| 3 | Deliberate merge against the declared base | **PASS** — branch cut at the base, each lane merged `--no-ff` explicitly |
+| 4 | No unresolved contract drift | **PASS** — all five frozen contracts and the Wave-2 declaration byte-identical across base / `SCI-03` / `SCI-04` / converged |
+| 5 | Full relevant regression | **PASS** — 46 runners individually accounted, 45 fully green, 3,303 assertions passed, `R-25` the only failure in the estate |
+| 6 | Certification gate green for every registered scenario | **PASS** — all three `CERTIFIED`, 12/12 dimensions, 84 checks each, zero `NOT_APPLICABLE`, gate not weakened |
+| 7 | Protected journey reconciled | **PASS** — 20% → +44.16% / −£5,167 and 14% → +33.65% / +£32,976, and the Demand presentation values, unchanged to the digit |
+| 8 | Browser acceptance at 1440 / 1024 / 720 | **PASS for the shell and selector** — 279 checks, 0 failures, standalone production server against the real `cognix-world` service. **Docker NOT claimed** — daemon starts, blob CDN refused `403` |
+| 9 | Next wave's contracts declared and frozen | **PASS** — the three `SCI-05` contracts remain declaration-only and singly owned |
+| 10 | Governance updated on evidence; convergence SHA recorded | **PARTIAL** — governance updated; **no SHA-B, because Gate B did not pass** |
+| — | **Cross-surface invariant: every surface reflects the active scenario** | **FAIL — `R-35`** |
+
+**`R-35`, the one failure.** Demand, Promotion and Campaign Decision publish the REFERENCE
+scenario's economics, identity, scope and recommendation for all three scenarios. Measured on the
+converged product: Promotion shows *"20% … +44.16% … recommends 14%"* whether Fresh Dairy, Chilled
+Salmon or Premium Bakery is active, and Campaign Decision opens on *"Cheddar Mature 400g ·
+National, 14 days"* in all three. On those surfaces the three scenarios are label variations, which
+is what both packets' cross-surface invariants forbid.
+
+It is a genuine conflict rather than an oversight. `PromotionPlanner.tsx` opens on the literal
+`'ARCH-CHILLED-ELASTIC'`; pointing it at the active scenario's archetype would publish the
+archetype catalogue's SEEDED economics (`ARCH-PREMIUM-ARTISAN`: 15%, +12%, −£1,850) against the
+certified scenario's DERIVED answer (0%, do not promote) — two economic models for one scenario;
+and the Demand surface reads one seeded history calibrated to the reference scenario, with no
+salmon or bakery series in existence. `SCI-03` deliberately bound the archetype catalogue to the
+reference instance as a comparative library; `SCI-04` owned the strip, controls, selector and shell
+mount point, not the decision surfaces. **Neither lane owned this, and resolving it is a
+convergence event under ADR-084 part 2, not a merge decision.**
+
+**Consequence: Wave 2 is NOT authorised.** No SHA-B. `SCI-05` and `SCI-06` must not be cut. To
+close Gate B: decide `R-35`, assign the owning packet, and re-evaluate condition 8 and the
+cross-surface invariant against that implementation. Nothing else in the assessment is outstanding.
+
+Full evidence: [`COGNIX_WAVE1_CONVERGENCE_GATE_B_ASSESSMENT.md`](../reports/COGNIX_WAVE1_CONVERGENCE_GATE_B_ASSESSMENT.md).
+
+---
+
 ### Gate A — **PASSED**, closed 2026-09-17
 
 Re-evaluated from the CONVERGENCE STATE, not from either packet's claims. Every condition was
@@ -995,7 +1046,7 @@ Gate B, not as a commit (ADR-084 part 2).
 | Gate | Wave | Required before | Convergence SHA |
 |---|---|---|---|
 | Gate A | 0 | Wave 1 | **`8d6d960cd7d1a24ea41737da2d04bd4e47765a86`** — Wave 1 is cut from the head of `feature/cognix-sci-wave0-convergence`, one governance-only commit ahead |
-| Gate B | 1 | Wave 2 | *not yet recorded* |
+| Gate B | 1 | Wave 2 | **not recorded — Gate B is OPEN.** Convergence performed on `feature/cognix-sci-wave1-convergence`; a convergence SHA marks a PASSED gate, and recording one would assert a freeze the evidence does not support |
 | Gate C | 2 | Wave 3 | *not yet recorded* |
 | Gate D | 3 | Wave 4 | *not yet recorded* |
 | Gate E | 4 | — | *not yet recorded* |
