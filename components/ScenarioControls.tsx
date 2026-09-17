@@ -19,7 +19,7 @@ import {
   getActiveScenario,
   resolveScenario,
   isScenarioRegistered
-} from '@/packages/contracts/src/scenario-registry';
+} from '@/lib/scenario-client-registry';
 import { getOrCreateSessionId } from '@/lib/journey-client';
 
 type ResetPhase = 'idle' | 'working' | 'done';

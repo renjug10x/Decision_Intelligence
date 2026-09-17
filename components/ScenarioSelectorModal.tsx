@@ -7,7 +7,7 @@ import {
   activateScenarioOnServer,
   ScenarioCatalogueEntry
 } from '@/lib/world-client';
-import { activateScenario as clientActivateScenario } from '@/packages/contracts/src/scenario-registry';
+import { activateScenario as clientActivateScenario } from '@/lib/scenario-client-registry';
 import { getOrCreateSessionId } from '@/lib/journey-client';
 
 interface ScenarioSelectorModalProps {

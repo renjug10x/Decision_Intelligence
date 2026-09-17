@@ -20,7 +20,7 @@ import {
   getActiveScenario,
   resolveScenario,
   isScenarioRegistered
-} from '@/packages/contracts/src/scenario-registry';
+} from '@/lib/scenario-client-registry';
 import { useDecisionState } from '@/context/DecisionStateContext';
 import { getOrCreateSessionId } from '@/lib/journey-client';
 import ScenarioSelectorModal from '@/components/ScenarioSelectorModal';
