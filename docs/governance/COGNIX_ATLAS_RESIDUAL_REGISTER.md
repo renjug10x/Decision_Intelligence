@@ -476,7 +476,36 @@ Recorded rather than corrected because `SCI-02`'s scope is certification and rec
 packet was directed not to perform cleanup outside it. One line, for whichever packet next touches
 the frontier engine.
 
-### R-30 — The family temporal series contradicts a certified scenario's own record · **OPEN — assigned `SCI-05`**
+### R-30 — The family temporal series contradicts a certified scenario's own record · **CLOSED by `SCI-05`**
+
+**Closed 2026-09-17**, through the governed signal/evidence architecture and not by restoring
+anything. The legacy world-family series is not reinstated, rescaled or consulted — asserted against
+both `/api/v1/scenarios` implementations.
+
+The successor is a per-scenario evidence timeline from `ESF-2`'s own simulator, on each scenario's
+own clock, with per-observation provenance naming the rule and drivers: 4 timelines for Fresh Dairy,
+3 for Chilled Salmon, 5 for Premium Bakery, three different signatures.
+
+**What closing it exposed.** The SIMULATOR still carried the defect `SCI-03` had removed from the
+signal GENERATOR, because nothing called the simulator until Refresh did: one branch for
+`promotion_surge`, and a fallback of literal lead times — `24, 28, 36, 42, 46, 48, 52, 60, 36, 24`
+against a baseline of `24` — belonging to no scenario. Both curated packs received the same single
+timeline with the same numbers, and its provenance declared `breach_family: 'supplier_breach'` over a
+bakery decision.
+
+The reference branch carried retired-estate literals of its own: `baselineCap = 48000`,
+`flexUnits = 7000` and `7.0` / `3.8` days of cover, from the 50-store estate `DEMO-HARD-01` retired,
+while the record declares 350,000 units a week at an allocation index of 1.10. The supplier NAME had
+been migrated at `R-20`; the quantity beside it had not. Every amplitude is now read from the record;
+only the shape a pressure signal follows is declared, once, in one constant.
+
+`SCI-03R`'s deterministic demand HISTORIES did not close this and were correctly not credited with
+doing so: a forecast history is what a statistical model is fitted to, not the evidence timeline a
+decision is revised by. Different artefact, different purpose.
+
+**The original record follows, unaltered.**
+
+### R-30 (as first recorded) — the contradictory family series · **superseded by the closure above**
 
 Found by publishing three certified scenarios through `/api/v1/scenarios` for the first time.
 
@@ -503,7 +532,70 @@ contract already declares `ScenarioAsAtMarker` and `RefreshDelta` for exactly th
 history should come from the same place its advance does, and inventing a second projection inside
 `SCI-03` would have created precisely the parallel model this workstream removes.
 
-### R-36 — The Demand promotion adjustment is a generic function of depth · **OPEN — unassigned**
+### R-37 — Two scenarios declare observed customer behaviour and carry no signal that can convey it · **OPEN — unassigned**
+
+Found while proving `R-36` closed.
+
+The commercial-intent seam is closed and each scenario's declared contribution now reaches the
+surface. The declared TOTAL still reconciles only for the reference scenario:
+
+| | declared total | published |
+|---|---|---|
+| `SCN-FRESH-DAIRY-CHEDDAR-001` | 28.59% | **+28.6%** |
+| `SCN-CHILLED-SALMON-002` | 26.4% | +18.1% |
+| `SCN-BAKERY-SOURDOUGH-003` | 11.2% | +4.2% |
+
+The gap is the `OBSERVED_BEHAVIOUR` component, and the cause is exact. That component reaches the
+surface through `forecast_stability.expected_revision_pct`, which `DDF-01` declares is driven by
+demand-side signal types only:
+
+| | declared `OBSERVED_BEHAVIOUR` | signal types that revise a forecast |
+|---|---|---|
+| Fresh Dairy | 10.9pp | search velocity, basket adds |
+| Chilled Salmon | 8.0pp | **none** |
+| Premium Bakery | 5.1pp | **none** |
+
+Both curated packs declare observed customer behaviour on their record and carry no evidence that can
+carry it. It is a declared attribution with no carrier, not a calculation defect.
+
+**Why `SCI-05` did not fix it.** The two routes are authoring a demand-side signal for those packs —
+scenario content, `SCI-03`'s, and `SCI-05`'s non-scope states plainly that it adds **no new signal
+types** — or widening `DDF_STABILITY_SIGNAL_TYPES`, which is `DDF-01`'s contract and not `SCI-05`'s to
+change unilaterally. Either is an owner's decision. Raised rather than absorbed.
+
+### R-36 — The Demand promotion adjustment is a generic function of depth · **CLOSED by `SCI-05`**
+
+**Closed 2026-09-17.** It was TWO seams, not one: `lib/demand-forecast.ts` applied
+`1 + promotion_depth / 100` to the model's forward expectation, and
+`lib/demand-decision-frontier/demand-frontier-engine.ts` **divided the same reconstruction back out**
+to recover the baseline. Neither read the scenario.
+
+Fixing only the first would have been worse than fixing neither — the projection would have applied
+the declared contribution while the frontier divided out a generic one, and the difference between
+two wrong halves would have surfaced as the promotion attribution. That is why the fix is a module,
+`packages/contracts/src/scenario-demand-attribution.ts`, that both sides call.
+
+It reads `demand.movement_attribution`, the declaration the certification gate reconciles `C-5`
+against. Measured on the running surface:
+
+| | declared | before | after |
+|---|---|---|---|
+| Fresh Dairy | 19.6pp | 19.6pp | **+19.6pp** |
+| Chilled Salmon | 20.9pp | 9.6pp | **+20.9pp** |
+| Premium Bakery | 7.7pp | 9.6pp | **+7.6pp** |
+
+Away from the committed depth it scales by the scenario's own declared depth-response curve, the one
+the gate evaluates `C-6` with; at zero depth it is zero. The reference scenario's factor is exactly
+`1.200000` — the retired generic value, reproduced by arithmetic and not by exemption, because
+19.6pp against its declared −2.0pp trend is 0.2 exactly.
+
+`SCI-03R`'s modelled histories also needed de-trending: the borrowed category shape carried the
+category's own drift on top of the declared trend, publishing the salmon pack's −2.5pp as +6.4pp.
+The rhythm is borrowed; the direction is the scenario's.
+
+**The original record follows, unaltered.**
+
+### R-36 (as first recorded) — the generic depth function · **superseded by the closure above**
 
 Found while proving `R-35` closed, and recorded rather than absorbed.
 

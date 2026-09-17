@@ -52,7 +52,7 @@ and the lanes never touch.
 | `SCI-02` | Scenario Certification Gate & Reconciliation Generalisation | **FOUNDATION** | Cursor | 0 | **[COMPLETED 2026-09-16]** |
 | `SCI-03` | Curated Scenario Domain Packs | CURSOR | Cursor | 1 | **[COMPLETED 2026-09-17]** |
 | `SCI-04` | Scenario Selection Experience | ANTIGRAVITY | Antigravity | 1 | **[COMPLETED 2026-09-17]** |
-| `SCI-05` | Living Evidence Engine — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 | Not started |
+| `SCI-05` | Living Evidence Engine — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 | **[COMPLETED 2026-09-17]** |
 | `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 | Not started |
 | `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | Not started |
 | `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | Not started |
@@ -638,6 +638,42 @@ identifiers on a client-facing surface (ADR-067).
 deterministically. Materiality and relevance derived. Register published. Regression green.
 
 **Handoff artefact.** Three implemented contracts plus a worked Refresh delta for `SCI-06`.
+
+---
+
+### `SCI-05` outcome — **[COMPLETED 2026-09-17]**
+
+Cut from `cacbb5b364ad6dcab841f7e8bb96557a44054a49`, the Wave-2 base, which carries SHA-B and Gate B
+PASSED. Delivered on `feature/cognix-sci-05-living-evidence`. Not merged.
+
+| Definition-of-done clause | Result |
+|---|---|
+| Refresh advances, re-evaluates and states decision consequence deterministically | `POST /api/v1/evidence/refresh` advances the as-at marker one `SimulationPeriod` on the scenario clock and publishes the `RefreshDelta` with its mandatory consequence statement. Two runs after Restart hash identically; a Refresh is byte-identical under `UTC`, `America/New_York` and `Asia/Tokyo` |
+| Materiality and relevance derived | Materiality by leave-one-out over every published quantity; relevance by re-evaluating the decision artefacts under both bodies of evidence. No scenario record carries a field that could author either, asserted |
+| Register published | Nine entries per scenario from the forecast registry and the engines that genuinely run, in the ADR-082 vocabulary. GenAI appears only where a credential is configured; otherwise declared `undescribed` with its reason |
+| Regression green | **48 runners, 47 fully green, 3,633 assertions.** `R-25`'s `A6b` the only `[FAIL]` line |
+| Certification obligations — `C-4` green for every scenario | Three scenarios `CERTIFIED`, 12/12 dimensions, 84 checks, zero `NOT_APPLICABLE`, signals dimension `C-4` PASS |
+| No contract drift | All six frozen contracts byte-identical to the Wave-2 base. The three Living Evidence contracts are implemented, never redefined |
+| Non-scope held | No `SCI-06` UI, no new signal types, no external connectors, no third confidence score, no provider change |
+
+**`R-30` CLOSED.** Per-scenario evidence timelines from `ESF-2`'s simulator on each scenario's own
+clock — 4, 3 and 5 timelines respectively, every amplitude read from the record. Closing it required
+fixing the simulator, which still carried the literal ladder `SCI-03` had removed from the generator
+and which gave both curated packs the same timeline with the same numbers.
+
+**`R-36` CLOSED as scoped.** The commercial-intent effect was reconstructed as `1 + depth/100` in TWO
+places — the projection applied it and the frontier divided it back out. One governed module now
+serves both. Published contribution: 19.6pp / 20.9pp / 7.6pp against declared 19.6 / 20.9 / 7.7. The
+reference scenario's factor is exactly `1.200000`, unchanged by arithmetic rather than by exemption.
+
+**`R-37` OPENED.** Both curated packs declare an `OBSERVED_BEHAVIOUR` contribution and carry no
+signal type that `DDF-01` admits as revising a forecast, so their declared TOTAL still under-reports.
+Resolving it is scenario content (`SCI-03`'s) or `DDF-01`'s stability declaration — not `SCI-05`'s to
+take unilaterally, and this packet's non-scope forbids new signal types.
+
+**Gate C is NOT passed and convergence has NOT started.** `SCI-06` runs concurrently and owns all
+presentation; the domain and API behaviour it consumes is listed in
+[`COGNIX_SCI_05_LIVING_EVIDENCE_REPORT.md`](../reports/COGNIX_SCI_05_LIVING_EVIDENCE_REPORT.md) §11.
 
 ---
 
