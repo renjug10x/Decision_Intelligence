@@ -503,7 +503,70 @@ contract already declares `ScenarioAsAtMarker` and `RefreshDelta` for exactly th
 history should come from the same place its advance does, and inventing a second projection inside
 `SCI-03` would have created precisely the parallel model this workstream removes.
 
-### R-35 — Demand, Promotion and Campaign Decision publish the reference scenario's economics for every scenario · **OPEN — HOLDS GATE B**
+### R-36 — The Demand promotion adjustment is a generic function of depth · **OPEN — unassigned**
+
+Found while proving `R-35` closed, and recorded rather than absorbed.
+
+`declareScenarioAdjustment` in `lib/demand-forecast.ts` computes the forward promotion factor as
+`1 + promoLift / 100`. It takes no account of the scenario's declared elasticity, so it reproduces
+the reference scenario's declared commercial-intent contribution by calibration and states the
+other two wrongly:
+
+| | declared `COMMERCIAL_INTENT` / total movement | published on Demand |
+|---|---|---|
+| `SCN-FRESH-DAIRY-CHEDDAR-001` | 19.6pp / 28.59% | **+19.6pp / +28.6%** |
+| `SCN-CHILLED-SALMON-002` | 20.9pp / 26.4% | **+9.6pp / +6.0%** |
+| `SCN-BAKERY-SOURDOUGH-003` | 7.7pp / 11.2% | **+9.6pp / +5.9%** |
+
+This is the shape of defect ADR-079 recorded when it retired `skuContextFactor`: *"the two surfaces
+agreed at exactly one scope by arithmetic coincidence."* Here the coincidence is that a generic
+`1 + depth/100` happens to land on the reference scenario's declared 19.6pp at its committed 20%.
+
+**Why `SCI-03R` did not fix it.** The honest correction is to derive the factor from the scenario's
+declared depth response — and at the reference scenario that moves `+28.6%`, `900,125`, `769,996`
+and `130,129`, the values `COGNIX_PRESENTATION_SYNC_DELTA.md` §1 pins and the repair directive
+protects absolutely. It also touches the Promotion two-model seam ADR-075 bounded rather than
+closed. Changing a protected published value and re-opening a bounded seam are owner decisions, not
+things a scoped repair is entitled to take.
+
+**It does not hold the Gate-B cross-surface condition.** The perspectives consume the active
+scenario's identity, history, population, economics and recommendation; this is a further quantity
+WITHIN the Demand perspective that is calibrated rather than derived. Unassigned; a candidate for
+whichever packet next opens the Promotion seam.
+
+### R-35 — Demand, Promotion and Campaign Decision publish the reference scenario's economics for every scenario · **CLOSED by `SCI-03R`**
+
+**Closed 2026-09-17** on `feature/cognix-sci-03r-scenario-perspective-binding`. The conflict recorded
+below was decided rather than absorbed. Three causes, three layers:
+
+| cause | resolution |
+|---|---|
+| The seeded estate held one history, ending on the REFERENCE scenario's own declared window, so the other two were fitted on its population | `lib/forecast/scenario-series.ts` answers "what is THIS scenario's history?" and branches on EVIDENCE COVERAGE, never on identity: observed where the estate covers the declared window (the reference scenario, asserted byte-identical), modelled from declared terms where it does not |
+| `PromotionPlanner` opened on the literal `'ARCH-CHILLED-ELASTIC'`, and the alternative archetypes carry seeded economics that contradict their certified scenarios | `scenarioArchetypeProjection` is ADR-077 part 2 in code — archetype supplies declared configuration and narrative, scenario supplies every number, and the curve is `scenarioElasticityCurve`, the same function the gate evaluates `C-6` with |
+| Nine surface reads of `CANONICAL_*` — layer B, the protected reference bound by name, which a SURFACE is not entitled to | all resolve the scenario in scope |
+
+Measured after the repair, at 1440 / 1024 / 720:
+
+| surface | Fresh Dairy | Chilled Salmon | Premium Bakery |
+|---|---|---|---|
+| Demand base | 699,996 | **95,400** | **26,518** |
+| Promotion | recommends **14%** | recommends **10%** | recommends **0% — do not promote** |
+| Campaign Decision | Cheddar · National, 14 days | **Atlantic Salmon · National, 14 days** | **White Sourdough · London, 7 days** |
+
+**The guard matters as much as the fix.** `run-sci03r-perspective-tests.ts` §6 asserts the PROPERTY
+over every surface file — no decision surface binds the reference instance by name, none pins an
+archetype by literal, none branches on a scenario identity, and the demand path fits the active
+scenario's dataset. Every other assertion in the estate would still have passed while `R-35` was
+present, because each was exercised with one scenario active. That is why this was found in a
+browser and not in a test, and why it will not be again.
+
+Neither Wave-1 lane owned it: `SCI-03`'s non-scope was "no selection UI", `SCI-04`'s was "no
+scenario content" with declared ownership of the strip, controls, selector and shell mount point.
+The `SCI-03 → SCI-04` content edge converges at Gate B, and this is what converging it exposed.
+
+**The original record follows, unaltered.**
+
+### R-35 (as first recorded) — the conflict, stated rather than resolved · **superseded by the closure above**
 
 Found by driving the converged Wave-1 product in a browser. It is the reason Gate B is OPEN and Wave
 2 is not authorised.

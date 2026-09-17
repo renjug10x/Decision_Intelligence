@@ -1,7 +1,10 @@
 # Wave-1 Convergence and Gate-B Assessment
 
-**Date:** 2026-09-17.
-**Result:** **GATE B IS OPEN. Wave 2 is NOT authorised.**
+**Date:** 2026-09-17. **Re-evaluated after `SCI-03R`, same day — see §14.**
+**Result:** **GATE B PASSED.** Wave 2 is authorised.
+**Original result, preserved:** GATE B OPEN on `R-35`. `SCI-03R`
+(`feature/cognix-sci-03r-scenario-perspective-binding`) closed it, and every condition was re-run
+from the repaired state rather than carried over.
 **Convergence branch:** `feature/cognix-sci-wave1-convergence`.
 **Converged from:** `SCI-03` `eff9bec0f515ae6c7d585a376b09d490515a2a24` · `SCI-04`
 `01f2130a027ec97607fc8fb2e9ec1356ebf06446`, both cut from the declared Wave-1 base
@@ -405,3 +408,62 @@ the surfaces `R-35` concerns.
 **What is needed to close Gate B:** a decision on `R-35` §8, assignment of the packet that will
 implement it, and re-evaluation of condition 8 and the cross-surface invariant against that
 implementation. Nothing else in this record is outstanding.
+
+*(§§1–13 above are the ORIGINAL assessment and are left exactly as written. §14 records the
+re-evaluation.)*
+
+---
+
+## 14. Re-evaluation after `SCI-03R` — Gate B PASSED
+
+`R-35` was raised in §8 as a convergence event requiring a governance decision rather than a merge
+decision. That decision was taken and implemented as **`SCI-03R` — Scenario Perspective Binding**,
+whose evidence is [`COGNIX_SCI_03R_SCENARIO_PERSPECTIVE_BINDING.md`](COGNIX_SCI_03R_SCENARIO_PERSPECTIVE_BINDING.md).
+
+**Every condition was re-run from the repaired state.** None is carried over from §7, because a
+repair touching the demand pipeline, the Promotion projection and nine surface bindings can regress
+anything.
+
+| # | Condition | Verdict |
+|---|---|---|
+| 1 | Both lane branches committed and pushed | **PASS** — unchanged; `eff9bec` and `01f2130` both single commits on the declared base |
+| 2 | Independent packet tests green on each branch separately | **PASS** — unchanged |
+| 3 | Deliberate convergence against the declared base | **PASS** — unchanged; `SCI-03R` is a repair ON the convergence state, cut from `b9880f7` |
+| 4 | No unresolved contract drift | **PASS** — all five frozen contracts and the Wave-2 declaration byte-identical to `b9880f7`, re-verified by blob hash |
+| 5 | Full relevant regression | **PASS** — 47 runners individually accounted, **46 fully green**, 3,433 assertions passed; `R-25`'s `A6b` the only `[FAIL]` line in the estate |
+| 6 | Certification gate green for every registered scenario | **PASS** — three scenarios `CERTIFIED`, 12/12 dimensions, 84 checks, zero `NOT_APPLICABLE`, gate unaltered |
+| 7 | Protected journey reconciled | **PASS** — 20% → +44.16% / −£5,167; 14% → +33.65% / +£32,976; Demand 699,996 / 900,125 / 769,996, and the reference scenario's history asserted byte-identical to the observed estate series |
+| 8 | Browser acceptance at 1440 / 1024 / 720 | **PASS** — the governed sequence driven through the real selector at all three widths, **258 checks, 0 failures**. Docker still NOT claimed |
+| 9 | Next wave's contracts declared and frozen | **PASS** — the three `SCI-05` contracts remain declaration-only and singly owned |
+| 10 | Governance updated on evidence; convergence SHA recorded | **PASS** — this section is the evidence; **SHA-B** recorded in the work-packet register |
+| — | **Cross-surface invariant: every surface reflects the active scenario** | **PASS** — §14.1 |
+
+### 14.1 The condition that failed, re-measured
+
+| surface | Fresh Dairy | Chilled Salmon | Premium Bakery |
+|---|---|---|---|
+| **Demand** base | 699,996 | **95,400** | **26,518** |
+| **Promotion** | 20% → +44.16%, recommends **14%** | 10% → +20.9%, recommends **10%** | 10% → +7.68%, recommends **0% — do not promote** |
+| **Campaign Decision** | Cheddar Mature 400g · National, 14 days | **Atlantic Salmon Fillet 300g · National, 14 days** | **White Sourdough 800g · London, 7 days** |
+
+Three scenarios, three different decisions, on the surfaces a client actually reads. Switching back
+to Fresh Dairy restores every original value. Compare the same table in §8.
+
+A **source guard** now asserts the property rather than the outputs: no decision surface binds the
+reference instance by name, none pins an archetype by literal, none branches on a scenario identity,
+and the demand path fits the active scenario's dataset. Every §8 measurement would have passed
+without it, because each was taken with one scenario active.
+
+### 14.2 Gate B
+
+**PASSED.** Ten conditions and the cross-surface invariant, all on evidence measured from the
+repaired state.
+
+**Wave 2 is authorised.** `SCI-05` (Cursor) and `SCI-06` (Antigravity) may be cut from SHA-B and may
+run concurrently — §4 permits exactly that pairing.
+
+**Two things Wave 2 must carry, recorded so they are not rediscovered.** `R-36`: the Demand
+promotion adjustment is a generic function of depth, calibrated to the reference scenario, and
+states the other two scenarios' declared commercial-intent contribution wrongly. Correcting it moves
+protected values and touches the ADR-075 Promotion seam, so it is an owner's decision rather than a
+repair. `R-30` remains `SCI-05`'s and is not closed by deterministic scenario history.

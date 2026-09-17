@@ -4,10 +4,13 @@
 delivered (2026-09-16); GATE A PASSED (2026-09-17) — see §9. Wave 1 DELIVERED and CONVERGED:
 `SCI-03` (2026-09-17, `feature/cognix-sci-03-curated-scenarios`) and `SCI-04` (2026-09-17,
 `feature/cognix-sci-04-scenario-selection`) are both committed and were converged deliberately onto
-`feature/cognix-sci-wave1-convergence` on 2026-09-17. GATE B IS OPEN — nine of ten conditions pass
-on evidence, and the cross-surface invariant fails (`R-35`). WAVE 2 IS NOT AUTHORISED: `SCI-05` and
-`SCI-06` must not be cut. See §9 and
-[`COGNIX_WAVE1_CONVERGENCE_GATE_B_ASSESSMENT.md`](../reports/COGNIX_WAVE1_CONVERGENCE_GATE_B_ASSESSMENT.md).**
+`feature/cognix-sci-wave1-convergence` on 2026-09-17. Gate B was OPEN on the cross-surface invariant
+(`R-35`); `SCI-03R` — Scenario Perspective Binding closed it on
+`feature/cognix-sci-03r-scenario-perspective-binding`, and every condition was re-run from the
+repaired state. GATE B PASSED (2026-09-17) — see §9. WAVE 2 IS AUTHORISED: `SCI-05` and `SCI-06` may
+be cut from SHA-B. See
+[`COGNIX_WAVE1_CONVERGENCE_GATE_B_ASSESSMENT.md`](../reports/COGNIX_WAVE1_CONVERGENCE_GATE_B_ASSESSMENT.md)
+and [`COGNIX_SCI_03R_SCENARIO_PERSPECTIVE_BINDING.md`](../reports/COGNIX_SCI_03R_SCENARIO_PERSPECTIVE_BINDING.md).**
 **Authorised:** 2026-09-15 against baseline `f9c5679c` on `feature/cognix-enterprise-demo-hardening`.
 **Governs:** programme `SCI` — the Scenario Laboratory.
 **Execution model:** two agents, **Cursor** and **Antigravity**, concurrently where the dependency
@@ -928,7 +931,7 @@ Full table: [`COGNIX_BACKLOG_RECONCILIATION_2026_09.md`](COGNIX_BACKLOG_RECONCIL
 
 Recorded only against evidence.
 
-### Gate B — **OPEN**, assessed 2026-09-17
+### Gate B — **PASSED**, closed 2026-09-17
 
 Converged deliberately on `feature/cognix-sci-wave1-convergence` from `SCI-03`
 `eff9bec0f515ae6c7d585a376b09d490515a2a24` and `SCI-04` `01f2130a027ec97607fc8fb2e9ec1356ebf06446`,
@@ -947,8 +950,8 @@ conflicted; both were reconciled by stated semantics rather than by taking a sid
 | 7 | Protected journey reconciled | **PASS** — 20% → +44.16% / −£5,167 and 14% → +33.65% / +£32,976, and the Demand presentation values, unchanged to the digit |
 | 8 | Browser acceptance at 1440 / 1024 / 720 | **PASS for the shell and selector** — 279 checks, 0 failures, standalone production server against the real `cognix-world` service. **Docker NOT claimed** — daemon starts, blob CDN refused `403` |
 | 9 | Next wave's contracts declared and frozen | **PASS** — the three `SCI-05` contracts remain declaration-only and singly owned |
-| 10 | Governance updated on evidence; convergence SHA recorded | **PARTIAL** — governance updated; **no SHA-B, because Gate B did not pass** |
-| — | **Cross-surface invariant: every surface reflects the active scenario** | **FAIL — `R-35`** |
+| 10 | Governance updated on evidence; convergence SHA recorded | **PASS** — governance updated from the evidence; **SHA-B recorded below** |
+| — | **Cross-surface invariant: every surface reflects the active scenario** | **PASS — after `SCI-03R`.** Was FAIL on `R-35` at first assessment |
 
 **`R-35`, the one failure.** Demand, Promotion and Campaign Decision publish the REFERENCE
 scenario's economics, identity, scope and recommendation for all three scenarios. Measured on the
@@ -967,9 +970,32 @@ reference instance as a comparative library; `SCI-04` owned the strip, controls,
 mount point, not the decision surfaces. **Neither lane owned this, and resolving it is a
 convergence event under ADR-084 part 2, not a merge decision.**
 
-**Consequence: Wave 2 is NOT authorised.** No SHA-B. `SCI-05` and `SCI-06` must not be cut. To
-close Gate B: decide `R-35`, assign the owning packet, and re-evaluate condition 8 and the
-cross-surface invariant against that implementation. Nothing else in the assessment is outstanding.
+**How `R-35` was closed — `SCI-03R`, Scenario Perspective Binding.** The conflict was decided rather
+than absorbed: an archetype supplies declared configuration and narrative (ADR-077 part 2) and the
+SCENARIO supplies every number, through `scenarioElasticityCurve` — the same function the
+certification gate evaluates `C-6` with. The Demand pipeline fits the active scenario's own history,
+which is the observed estate series where the estate covers the scenario's declared window (the
+reference scenario, asserted byte-identical) and a series derived from declared terms where it does
+not. Nine surface reads of the bound reference layer now resolve the scenario in scope, and a source
+guard asserts the property so the defect class fails a test rather than a browser.
+
+Re-measured across all three widths after the repair:
+
+| surface | Fresh Dairy | Chilled Salmon | Premium Bakery |
+|---|---|---|---|
+| Demand base | 699,996 | **95,400** | **26,518** |
+| Promotion | recommends **14%** | recommends **10%** | recommends **0% — do not promote** |
+| Campaign Decision | Cheddar Mature 400g · National, 14 days | **Atlantic Salmon · National, 14 days** | **White Sourdough · London, 7 days** |
+
+**Consequence: Wave 2 IS authorised.** `SCI-05` (Cursor) and `SCI-06` (Antigravity) may be cut from
+SHA-B and may run concurrently — §4 permits exactly that pairing.
+
+**Two things Wave 2 carries, recorded so they are not rediscovered.** `R-36`: the Demand promotion
+adjustment is a generic function of depth calibrated to the reference scenario, so it states the
+other two scenarios' declared commercial-intent contribution wrongly — correcting it moves protected
+values and touches the ADR-075 Promotion seam, which makes it an owner's decision rather than a
+repair. `R-30` remains `SCI-05`'s: deterministic scenario history is a demand history the forecast
+pipeline fits, not the per-scenario evidence series the Refresh contract declares.
 
 Full evidence: [`COGNIX_WAVE1_CONVERGENCE_GATE_B_ASSESSMENT.md`](../reports/COGNIX_WAVE1_CONVERGENCE_GATE_B_ASSESSMENT.md).
 
@@ -1046,7 +1072,24 @@ Gate B, not as a commit (ADR-084 part 2).
 | Gate | Wave | Required before | Convergence SHA |
 |---|---|---|---|
 | Gate A | 0 | Wave 1 | **`8d6d960cd7d1a24ea41737da2d04bd4e47765a86`** — Wave 1 is cut from the head of `feature/cognix-sci-wave0-convergence`, one governance-only commit ahead |
-| Gate B | 1 | Wave 2 | **not recorded — Gate B is OPEN.** Convergence performed on `feature/cognix-sci-wave1-convergence`; a convergence SHA marks a PASSED gate, and recording one would assert a freeze the evidence does not support |
+| Gate B | 1 | Wave 2 | **SHA-B recorded below**, on `feature/cognix-sci-03r-scenario-perspective-binding` |
 | Gate C | 2 | Wave 3 | *not yet recorded* |
 | Gate D | 3 | Wave 4 | *not yet recorded* |
 | Gate E | 4 | — | *not yet recorded* |
+
+### SHA-B
+
+**SHA-B = `__SHA_B__`**
+
+That is the Wave-1 convergence state plus the `SCI-03R` repair that closed `R-35` and its Gate-B
+evidence: `SCI-03` + `SCI-04`, converged, with the decision perspectives bound to the active
+certified scenario. It is the state the five Wave-0 contracts remain frozen at and the three
+`SCI-05` contracts remain declared at (ADR-084 part 2 — a contract is frozen at a declared
+convergence SHA, not at a moment in time), and the four hashes in
+`COGNIX_SCI_03R_SCENARIO_PERSPECTIVE_BINDING.md` §11 are unchanged from `b9880f7`.
+
+**Wave 2 is cut from the head of `feature/cognix-sci-03r-scenario-perspective-binding`.** The head
+is one commit ahead of SHA-B — this record of the SHA itself, which a commit cannot contain about
+itself, and which changes no code. Cutting from SHA-B and cutting from the branch head therefore
+give an identical working tree; the branch head is the correct base because it carries the complete
+governance record. This is the same honest two-step used for SHA-A.
