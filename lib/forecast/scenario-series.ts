@@ -103,6 +103,25 @@ function declaredTrendPp(scenario: CanonicalScenario): number {
     .reduce((sum, a) => sum + a.contribution_pp, 0);
 }
 
+/**
+ * The basis a modelled history declares. `R-39` reads it to decide where the underlying trend comes
+ * from, so it is named once rather than string-matched at each call site.
+ */
+export const MODELLED_HISTORY_BASIS = 'MODELLED_FROM_DECLARED_SCENARIO_TERMS';
+
+/**
+ * Whether this scenario's underlying trend is DECLARED rather than observed.
+ *
+ * `R-39`. True exactly when the history is modelled from the record — the estate holds no evidence
+ * for the scenario's own window, so nothing observed a trend and the record is the only authority
+ * for one. False where the history is the estate's own observed series: there the trend is in the
+ * evidence, the fitted model measures it, and the record describes what was measured. The question
+ * is EVIDENCE COVERAGE and is never scenario identity.
+ */
+export function trendIsDeclared(dataset: ForecastDataset): boolean {
+  return dataset.provenance.scope?.basis === MODELLED_HISTORY_BASIS;
+}
+
 /** Whether the seeded estate holds evidence for this scenario's declared history window. */
 export function observedHistoryCoversScenario(
   scenario: CanonicalScenario,
@@ -162,55 +181,73 @@ export async function buildScenarioForecastDataset(params: {
   const targetEnd = epochDay(scenario.calendar.observed_history_end_date);
   const rotation = ((targetEnd - shapeEnd) % 7 + 7) % 7;
 
-  const usable = shape.observations.slice(0, shape.observations.length - rotation);
+  const rotated = shape.observations.slice(0, shape.observations.length - rotation);
+  /*
+   * WHOLE WEEKS ONLY. A partial week at the oldest end would be normalised against a week it is not,
+   * and `initialise` in the Holt-Winters adapter reads its cycles forward from index 0, so a
+   * remainder there also offsets every cycle the model measures from every week this normalises.
+   * Trimming it is what makes the two alignments the same one.
+   */
+  const usable = rotated.slice(rotated.length % 7);
   if (usable.length < 8) return observed;
 
-  const count = usable.length;
-
   /*
-   * DE-TREND the borrowed shape before applying the scenario's own.
+   * DE-DRIFT the borrowed shape, by normalising every whole week of it to the same weekly total.
    *
-   * `SCI-05` (`R-36`). The category series carries its own drift, and multiplying the declared
-   * trend on top of it left the fitted forward trend as the SUM of the two: `Chilled` rises, so
-   * the salmon pack's declared −2.5pp was published as +6.4pp. The shape is borrowed for its
-   * WEEKDAY RHYTHM and its texture, not for its direction — the direction is the scenario's, and
-   * it is declared.
+   * `SCI-05` (`R-36`) removed the shape's drift by dividing out its ordinary-least-squares line.
+   * That flattens the shape GLOBALLY and leaves its local drift intact, which `R-39` measured: over
+   * the last twenty-one days of the de-trended `Chilled` series the residual is −0.17%/day, against
+   * a declared trend of −0.179%/day. The history therefore carried roughly twice the drift the
+   * record declares, and how much depended on what the borrowed category happened to be doing.
    *
-   * The drift removed is the ordinary least-squares slope through the shape, divided out so the
-   * rhythm is preserved exactly and only the trend line is flattened. Deterministic, and derived
-   * from the shape itself rather than assumed.
+   * A weekly normalisation removes drift at the resolution the model actually tracks it — level and
+   * trend are updated weekly-seasonally — while preserving the within-week rhythm and the day-to-day
+   * texture exactly, because every day is scaled by its own week's factor. Deterministic, derived
+   * from the shape itself, and with nothing assumed about the shape's direction.
+   *
+   * What the borrowed series contributes after this is what it was borrowed for: a Saturday reads
+   * like a Saturday, and a quiet Tuesday is still quiet. Its DIRECTION contributes nothing, because
+   * the direction is the scenario's own and the scenario declares it.
    */
   const shapeValues = usable.map(o => Math.max(0, o.value));
-  const n = shapeValues.length;
-  const meanX = (n - 1) / 2;
-  const meanY = shapeValues.reduce((a, b) => a + b, 0) / n;
-  let sxy = 0;
-  let sxx = 0;
-  for (let i = 0; i < n; i++) {
-    sxy += (i - meanX) * (shapeValues[i] - meanY);
-    sxx += (i - meanX) * (i - meanX);
-  }
-  const slope = sxx > 0 ? sxy / sxx : 0;
-  const deTrended = shapeValues.map((v, i) => {
-    const fitted = meanY + slope * (i - meanX);
-    return fitted > 0 ? v * (meanY / fitted) : v;
+  const count = shapeValues.length;
+  const wholeWeeks = Math.floor(count / 7);
+  const weekMean = (week: number) => {
+    const from = count - (week + 1) * 7;
+    let sum = 0;
+    for (let i = from; i < from + 7; i++) sum += shapeValues[i];
+    return sum / 7;
+  };
+  const referenceMean = wholeWeeks > 0 ? weekMean(0) : shapeValues.reduce((a, b) => a + b, 0) / count;
+  const deDrifted = shapeValues.map((v, i) => {
+    // Weeks are counted BACK from the end, so the newest whole week is week 0 and any partial
+    // remainder at the oldest end takes the oldest whole week's factor rather than one of its own.
+    const week = Math.min(Math.max(0, wholeWeeks - 1), Math.floor((count - 1 - i) / 7));
+    const mean = wholeWeeks > 0 ? weekMean(week) : referenceMean;
+    return mean > 0 ? v * (referenceMean / mean) : v;
   });
 
+  /*
+   * `R-39`. The declared `UNDERLYING_TREND` is NOT applied here any more.
+   *
+   * It used to be injected backwards into the history as a linear drift so the statistical model
+   * would pick it up. The record states it as a movement of the base across the horizon — the same
+   * basis as the commercial intent beside it — and a declared quantity round-tripped through an
+   * estimated model comes back as the model's damping rather than as the declaration. It is applied
+   * forward of the clock by `scenarioUnderlyingTrendFactor`, which is where the record states it,
+   * and the history is left as what it is: this scenario's un-promoted level, carrying the borrowed
+   * weekday rhythm and nothing else.
+   */
   const trendPp = declaredTrendPp(scenario);
   const horizonDays = Math.max(1, scenario.calendar.forecast_horizon_days);
+  const shaped = deDrifted;
+
   /*
-   * The declared trend is stated as percentage points over the forecast horizon, so a day of it is
-   * that divided by the horizon. Going BACK from the clock the drift is undone, which is why a
-   * declining trend leaves a history that was higher in the past.
+   * Anchor the LEVEL on the declared weekly quantity. With the drift removed week by week, every
+   * whole week of the series already carries the same total, so anchoring on the trailing seven days
+   * and anchoring on the whole series are the same anchor — which is the point: the level of a
+   * scenario's history is a property of its record, not of how much of the history is in view.
    */
-  const trendPerDay = trendPp / 100 / horizonDays;
-
-  const shaped = deTrended.map((v, i) => {
-    const daysBeforeEnd = count - 1 - i;
-    return v * (1 - trendPerDay * daysBeforeEnd);
-  });
-
-  // Anchor the LEVEL on the trailing seven days: the declared base is the weekly level at the clock.
   const trailingWeek = shaped.slice(-7).reduce((s, v) => s + v, 0);
   const declaredWeek = declaredWeeklyLevel(scenario, measure);
   const scale = trailingWeek > 0 ? declaredWeek / trailingWeek : 0;
@@ -235,12 +272,15 @@ export async function buildScenarioForecastDataset(params: {
         `${shapeSource}:${capped.length}:${scenario.calendar.observed_history_end_date}`,
       source:
         `Modelled from ${scenario.identity.scenario_id}'s declared terms — weekly level ` +
-        `${declaredWeek.toLocaleString('en-GB')} anchored on the trailing seven days, underlying ` +
-        `trend ${trendPp}pp over ${horizonDays} days, history ending on its declared ` +
+        `${declaredWeek.toLocaleString('en-GB')}, history ending on its declared ` +
         `${scenario.calendar.observed_history_end_date} — over the observed ` +
         `${shapeSource === 'estate' ? 'estate' : `${shapeSource} category`} weekday shape from ` +
-        'data/sales_daily.json. NOT observed retailer data for this scenario: the seeded estate ' +
-        'holds no rows in this window, and a modelled history is declared rather than implied.',
+        'data/sales_daily.json, normalised week by week so the borrowed shape contributes rhythm ' +
+        `and no direction. The declared underlying trend of ${trendPp}pp over ${horizonDays} days ` +
+        'is applied FORWARD of the clock against the declared base, which is where the record ' +
+        'states it (`R-39`), and is therefore not a slope in this history. NOT observed retailer ' +
+        'data for this scenario: the seeded estate holds no rows in this window, and a modelled ' +
+        'history is declared rather than implied.',
       scope: {
         scenario_id: scenario.identity.scenario_id,
         category: scenario.identity.category,

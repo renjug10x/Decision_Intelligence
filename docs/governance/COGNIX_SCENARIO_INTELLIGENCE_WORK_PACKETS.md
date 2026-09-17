@@ -722,6 +722,59 @@ remains Antigravity's and unmerged.
 
 ---
 
+### `R-38` + `R-39` repair — Demand Base and Trend Attribution Integrity — **[COMPLETED 2026-09-17]**
+
+| | |
+|---|---|
+| **Class** | Pre-Gate-C repair |
+| **Base** | `d2959e59368b5d9a37613de4545c83ddc8201284` (`R-37` head) |
+| **Branch** | `feature/cognix-r38-r39-demand-base-integrity` |
+| **Scope** | The Demand economic base and the declared trend leg. Nothing else |
+
+**Objective.** Remove the last two seams between a scenario's record and what the Demand surface
+publishes, so the estate holds *one scenario → one economic baseline → one declared attribution
+decomposition*, independent of how much history the interface chooses to show.
+
+| Definition-of-done clause | Result |
+|---|---|
+| A presentation control cannot move a decision quantity | Base, expected demand, executable frontier, exposed demand, Decision Gap, revenue and margin exposure and Decision Regret are **identical at 14 / 21 / 30 days of displayed history** on all three scenarios, measured through the governed API on the running topology. The reference scenario read 67,652 / 53,540 / 50,647 units exposed before |
+| One economic baseline per scenario | `deriveDemandBase` resolves `scenarioBaseDemandUnits` — the same quantity the gate reconciles `C-3.7` against and Living Evidence publishes on. The observed run rate is still measured and published as evidence, with its variance against the declaration named |
+| The declared trend is realised as declared | Published **−1.96 / −2.50 / −1.60pp** against declared **−2.0 / −2.5 / −1.6pp** |
+| The declared commercial intent is unchanged | Published **+19.61 / +20.90 / +7.70pp** against declared **19.6 / 20.9 / 7.7pp** |
+| Attribution reconciles to the published total | Within 0.05pp on every scenario, asserted |
+| No frozen contract changed | All six byte-identical |
+| No scenario-identity branching | Asserted by source guard over every file the repair touches |
+| Certification | 3/3 `CERTIFIED`, 12/12 dimensions, 84/84 checks, zero `NOT_APPLICABLE`, byte-identical across runs |
+| Living Evidence unaffected | Materiality, decision relevance, Refresh, the scenario clock and the `R-37` carriers all unchanged — Living Evidence was already resolving the record's base, which is what made `R-38` a second basis rather than a window bug |
+| Regression green | **50 runners, 49 fully green, 3,885 assertions.** `R-25`'s `A6b` the only `[FAIL]` line |
+| Browser acceptance | 1440 / 1024 / 720 — **150 checks, 0 failures**, including the history-window invariance probe and Promotion / Campaign Decision remaining scenario-specific |
+
+**`R-38` CLOSED.** It was not a window bug but a SECOND economic basis: the frontier derived its own
+denominator for a quantity the record already answers (ADR-073 Amendment A), and the two agreed for the
+reference scenario only because its real 21-day mean landed within four units of its declared base.
+ADR-041 Amendment A's ruling — one denominator, `emerging_pct − executable_pct ≡ exposed ÷ base` — is
+unchanged and still holds by construction.
+
+**`R-39` CLOSED.** A declared attribution cannot survive a round trip through an estimated model: the
+borrowed category shape contributed −0.17%/day of its own local drift and the fitted model damped
+−4.98pp of history slope to −1.60pp. The borrowed shape is now normalised week by week so it carries
+rhythm and no direction, and the declared trend is applied forward of the clock against the base by
+`scenarioUnderlyingTrendFactor`, the mirror of the factor `R-36` introduced for commercial intent.
+
+**`R-41` OPENED.** `R-37`'s carrier amplitudes were calibrated against the basis this repair corrected,
+so the observed-behaviour leg now realises +8.05pp and +5.20pp against declared 8.0 and 5.1 — inside
+`R-37`'s asserted tolerance, and deliberately not re-tuned. **`R-40` is untouched and still open.**
+
+**Fresh Dairy.** Base 699,996 → **700,000**, servable 769,996 → **770,000**, exposed 130,129 →
+**130,125**, and 46,130 → **46,125** after the intervention. Expected demand 900,125, +28.6%, 18.6pp,
+6.6pp, 62h, Forecast Stability 64, £269.4K and £80.7K are all unchanged. The three unit quantities move
+onto the record's own arithmetic; `COGNIX_PRESENTATION_SYNC_DELTA.md` §1a records it and no slide needs
+a change.
+
+**Gate C is NOT passed and has NOT been evaluated.** `SCI-06` is untouched and unmerged.
+
+---
+
 ## `SCI-06` — Observability & Governance Experience
 
 | | |

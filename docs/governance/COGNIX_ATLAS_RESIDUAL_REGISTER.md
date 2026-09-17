@@ -617,7 +617,34 @@ scenario content, `SCI-03`'s, and `SCI-05`'s non-scope states plainly that it ad
 types** — or widening `DDF_STABILITY_SIGNAL_TYPES`, which is `DDF-01`'s contract and not `SCI-05`'s to
 change unilaterally. Either is an owner's decision. Raised rather than absorbed.
 
-### R-38 — The demand base is measured over whatever history the chart is showing · **OPEN — unassigned**
+### R-38 — The demand base is measured over whatever history the chart is showing · **CLOSED**
+
+**Closed 2026-09-17** by the `R-38` + `R-39` repair. `deriveDemandBase` now resolves the scenario's
+own declared un-promoted base across the horizon — `scenarioBaseDemandUnits`, the same quantity the
+Scenario Certification Gate reconciles `C-3.7` against and the same one Living Evidence has always
+published on. The observed run rate is still measured, and is published beside it as evidence with
+`run_rate_variance_pct` naming how far the two are apart, so nothing was hidden: what changed is that
+one of them is no longer silently standing in for the other.
+
+**It was not a window bug, it was a second basis.** ADR-041 Amendment A rules ONE denominator, and the
+frontier was deriving its own for a quantity the record already answers — ADR-073 Amendment A. The two
+agreed for the reference scenario because its real 21-day mean happened to land within four units of
+its declared base, which is exactly why the seam stayed invisible until a second scenario arrived.
+ADR-041 Amendment A's actual ruling is unchanged and still holds by construction: one denominator,
+every quantity resolved against it, `emerging_pct − executable_pct ≡ exposed ÷ base`.
+
+Measured on the running production topology, for all three scenarios at 14 / 21 / 30 days of displayed
+history — economic base, expected demand, executable frontier, exposed demand, Decision Gap pp, revenue
+and margin exposure and Decision Regret are **identical at every window**. The reference scenario's
+exposed demand read 67,652 / 53,540 / 50,647 units before the repair and reads 130,125 at every window
+after it. `run-r38-r39-demand-base-tests.ts` §2 runs the whole pipeline three times and asserts it.
+
+The censored-history rule is untouched: a day the source holds no record for is still excluded from
+the run-rate reading rather than averaged in as a zero.
+
+**The original record follows, unaltered.**
+
+### R-38 (as first recorded) — the base that moved with the chart · **superseded by the closure above**
 
 Found while proving `R-37` closed, by asking why a reconciled `OBSERVED_BEHAVIOUR` component still
 left the declared total short.
@@ -651,7 +678,64 @@ Measured: correcting this alone moves **Bakery from +9.35% to +11.20%**, which i
 digit, and **Salmon from +26.17% to +27.62%**, which is further from its record than where it
 started. Salmon needs `R-39` corrected with it — see below.
 
-### R-39 — A declared `UNDERLYING_TREND` is realised at the forecast mean, not over the declared horizon · **OPEN — unassigned**
+### R-39 — A declared `UNDERLYING_TREND` is realised at the forecast mean, not over the declared horizon · **CLOSED**
+
+**Closed 2026-09-17** by the `R-38` + `R-39` repair.
+
+**The root cause, restated after measuring it.** `SCI-03R` injected the declared trend backwards into
+the modelled history as a linear drift so the statistical model would *pick it up*. A declared quantity
+cannot survive that round trip, for two reasons that were measured rather than assumed:
+
+| | |
+|---|---|
+| the borrowed shape carries its own drift | the `Chilled` category series retains **−0.17%/day** of local drift over the salmon pack's window after `SCI-05`'s global de-trend, against a declared **−0.179%/day**. The history carried roughly twice its declared trend, and how much depended on what the borrowed category happened to be doing |
+| an estimated model damps what it is given | extrapolating that history linearly gives **−4.98pp**; the fitted Holt-Winters returns **−1.60pp**. The damping is a property of the fit, not of the record |
+
+The two errors partly cancelled, which is why the published trend was neither the declaration nor
+anything predictable: −1.60pp against a declared −2.5pp for salmon, −1.69pp against −1.6pp for bakery.
+
+**The repair, in two parts.**
+
+1. The borrowed shape is now normalised **week by week** rather than by one global least-squares line,
+   so it contributes the weekday rhythm and the day-to-day texture it was borrowed for and contributes
+   no direction at all. A modelled history is trimmed to whole weeks, which also aligns it with the
+   cycles the Holt-Winters initialisation reads. Every week of a modelled history now carries the
+   record's declared weekly level, asserted.
+2. The declared trend is applied where the record states it — **forward of the clock, against the
+   base** — by `scenarioUnderlyingTrendFactor`, the exact mirror of the `scenarioCommercialIntentFactor`
+   `R-36` introduced. The record's own arithmetic spine states every driver that way, and the two
+   factors compose to the record's additive decomposition to the digit:
+   `base × (1 + trend/100) × (1 + (intent/100)/(1 + trend/100)) = base × (1 + trend/100 + intent/100)`.
+
+Nothing is calibrated and no multiplier is fitted. The forecast is still the fitted model's output
+carrying declared factors — the same mechanism `R-36` established — and it is still fitted to a
+legitimate scenario history with real weekday texture and empirically calibrated intervals.
+
+**Where it applies, and why that is not an inconsistency.** A trend is declared only where nothing
+observed one. Where the estate holds the scenario's own history the trend is IN that evidence, the
+fitted model measures it, and the record describes what was measured — the reference scenario realises
+−1.96pp against a declared −2.0pp on its own observed series, and applying a declared factor there
+would count one movement twice. The predicate is the dataset's own provenance basis, which is EVIDENCE
+COVERAGE and never scenario identity; `run-r38-r39-demand-base-tests.ts` §9 asserts that no file
+touched by this repair names a scenario at all.
+
+**Measured on the running production topology.**
+
+| | declared trend | published | declared intent | published | total | record |
+|---|---|---|---|---|---|---|
+| Fresh Dairy | −2.0pp | **−1.96pp** *(measured from its own observed history)* | 19.6pp | **+19.61pp** | **+28.59%** | 28.59% |
+| Chilled Salmon | −2.5pp | **−2.50pp** | 20.9pp | **+20.90pp** | **+26.45%** | 26.4% |
+| Premium Bakery | −1.6pp | **−1.60pp** | 7.7pp | **+7.70pp** | **+11.30%** | 11.2% |
+
+The residual on both packs is the `OBSERVED_BEHAVIOUR` leg, which realises +8.05pp and +5.20pp against
+declared 8.0 and 5.1. `R-37`'s carrier amplitudes were calibrated against the basis this repair
+corrected, and they were deliberately NOT re-tuned to close the last tenth of a point: both remain
+inside the ±0.25pp tolerance `R-37` asserts, and chasing a total by editing an evidence amplitude is
+the behaviour this workstream exists to remove. `R-41` records the optional re-derivation.
+
+**The original record follows, unaltered.**
+
+### R-39 (as first recorded) — the trend realised at the forecast mean · **superseded by the closure above**
 
 Found with `R-38`, and independent of it.
 
@@ -684,6 +768,32 @@ Bakery needs only `R-38`: its declared trend is already realised to 0.09pp. A pa
 of these without the other will move a certified scenario **away** from its record while appearing
 to fix a defect, so they are recorded as one piece of work in two parts and should be evaluated
 together before Gate C.
+
+### R-41 — `R-37`'s carrier amplitudes are calibrated against a basis `R-38`/`R-39` corrected · **OPEN — optional**
+
+`R-37` authored each curated pack's observed-behaviour carriers so that ADR-040's transfer function
+would return the contribution the record declares, and measured them against the frontier as it then
+stood. `R-38` and `R-39` corrected that frontier's denominator and its trend leg, so the same
+amplitudes now return slightly more:
+
+| | declared | at `R-37` | after `R-38`/`R-39` |
+|---|---|---|---|
+| Chilled Salmon | 8.0pp | +8.03pp | **+8.05pp** |
+| Premium Bakery | 5.1pp | +5.11pp | **+5.20pp** |
+
+Both remain inside the ±0.25pp tolerance `run-r37-observed-behaviour-tests.ts` §8 asserts, so nothing
+is failing. The consequence is visible only in the published total, which reads +26.45% and +11.30%
+against records of 26.4% and 11.2%.
+
+**Salmon cannot be improved.** ADR-040's expected revision is `probability × mid-magnitude` over
+integers, so it lands on a coarse lattice; the reachable totals either side of the record are 26.45%
+and 26.33%, and the current carriers already take the nearer one. **Bakery could reach 11.2%** with a
+carrier pair returning a 4.8% revision rather than 4.9%.
+
+Left open rather than taken, deliberately. Re-deriving one pack's evidence amplitude to move one
+displayed total by a tenth of a point, inside a packet scoped to the demand base and the trend, is
+number-chasing however it is documented. It belongs to whoever next owns the curated packs, with the
+carrier rule re-derived for both packs together rather than for the one that happens to move.
 
 ### R-40 — `services/world/dist` is a tracked build artefact three packets stale · **OPEN — GOVERNED**
 

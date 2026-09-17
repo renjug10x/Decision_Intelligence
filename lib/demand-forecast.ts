@@ -33,12 +33,14 @@ import {
   isRefusal
 } from '../packages/contracts/src/forecast-model-model';
 import { SeriesMeasure, SeriesScope } from './forecast/series';
-import { buildScenarioForecastDataset } from './forecast/scenario-series';
+import { buildScenarioForecastDataset, trendIsDeclared } from './forecast/scenario-series';
 import { scenarioInScope } from '../packages/contracts/src/scenario-scope';
 import { CanonicalScenario } from '../packages/contracts/src/canonical-scenario-model';
 import {
   scenarioCommercialIntentPp,
-  scenarioCommercialIntentFactor
+  scenarioCommercialIntentFactor,
+  scenarioUnderlyingTrendDeclaredPp,
+  scenarioUnderlyingTrendFactor
 } from '../packages/contracts/src/scenario-demand-attribution';
 import { executeForecast } from './forecast/forecast-engine';
 
@@ -110,6 +112,14 @@ export function declareScenarioAdjustment(params: {
    * scope — the same resolution every other engine uses (R-27).
    */
   scenario?: CanonicalScenario;
+  /**
+   * `R-39`. Whether this scenario's underlying trend is DECLARED rather than observed — true where
+   * the history the model was fitted to is modelled from the record, because nothing observed a
+   * trend to fit. Decided by the caller from the dataset's own provenance, on evidence coverage and
+   * never on identity. Omitted, no declared trend is applied, which is the answer for a scenario
+   * whose own history the estate holds.
+   */
+  trendIsDeclared?: boolean;
 }): DeclaredScenarioAdjustment {
   const scenario = params.scenario ?? scenarioInScope();
 
@@ -125,7 +135,27 @@ export function declareScenarioAdjustment(params: {
   const cannibalisation = 1 - params.cannibalization / 100;
   const event = eventFactor(params.eventBoost, params.category);
 
+  /*
+   * THE declared underlying trend (`R-39`). The record states every driver as a movement of the
+   * un-promoted base across the horizon, so the trend belongs here, forward of the clock, beside the
+   * commercial intent — not injected backwards into the history for an estimated model to recover.
+   *
+   * Applied only where the trend is declared rather than observed. Where the estate holds the
+   * scenario's own history the trend is already in the series the model was fitted to, and applying
+   * it again would count one movement twice.
+   */
+  const declaredTrendPp = scenarioUnderlyingTrendDeclaredPp(scenario);
+  const trend = params.trendIsDeclared === true ? scenarioUnderlyingTrendFactor(scenario) : 1;
+
   const factors: ScenarioFactor[] = [
+    ...(params.trendIsDeclared === true
+      ? [{
+          key: 'underlying_trend',
+          label: 'Underlying demand trend',
+          setting: `${declaredTrendPp >= 0 ? '+' : ''}${declaredTrendPp}pp declared over ${scenario.calendar.forecast_horizon_days} days`,
+          factor: Number(trend.toFixed(6))
+        }]
+      : []),
     {
       key: 'promotion_depth',
       label: 'Promotion depth',
@@ -141,7 +171,7 @@ export function declareScenarioAdjustment(params: {
     }
   ];
 
-  const combined = Number((promotion * cannibalisation * event).toFixed(6));
+  const combined = Number((trend * promotion * cannibalisation * event).toFixed(6));
   return {
     factors,
     combined_factor: combined,
@@ -280,6 +310,9 @@ export async function projectDemand(request: DemandProjectionRequest): Promise<D
    * which is the point. A hand-authored forecast output would have bypassed it.
    */
   const dataset = await buildScenarioForecastDataset({ scenario: projectedScenario, scope, measure });
+  // `R-39`. Where this history is modelled from the record, nothing observed a trend and the record
+  // is the authority for one. Read from the dataset's own provenance, never from the scenario's id.
+  const declaredTrend = trendIsDeclared(dataset);
 
   const outcome: ForecastOutcome = executeForecast({
     model_id: request.modelId,
@@ -296,7 +329,8 @@ export async function projectDemand(request: DemandProjectionRequest): Promise<D
     cannibalization: request.cannibalization,
     eventBoost: request.eventBoost,
     category: request.category,
-    scenario: projectedScenario
+    scenario: projectedScenario,
+    trendIsDeclared: declaredTrend
   });
   const k = scenario.combined_factor;
 

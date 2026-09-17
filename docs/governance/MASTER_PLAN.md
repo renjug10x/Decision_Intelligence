@@ -1293,11 +1293,12 @@ redesign.
 | `SCI-08` | Create Your Own Scenario Experience | POST-DEMO | Antigravity | 4 | Not started |
 | `SCI-10` | CSV Scenario Enrichment via Attested Admission | POST-DEMO | Cursor | 4 | Not started |
 
-Two repairs were authorised between packets and are recorded with the packets they repair in
+Three repairs were authorised between packets and are recorded with the packets they repair in
 [`COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md`](COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md):
-**`SCI-03R`** (Scenario Perspective Binding, the Gate-B blocker `R-35`) and the **`R-37` repair**
-(Curated Scenario Observed-Behaviour Evidence Carrier), both **[COMPLETED 2026-09-17]**. Neither is a
-new packet; each closes a named residual against an existing one. Gate C has not been evaluated.
+**`SCI-03R`** (Scenario Perspective Binding, the Gate-B blocker `R-35`), the **`R-37` repair**
+(Curated Scenario Observed-Behaviour Evidence Carrier) and the **`R-38` + `R-39` repair** (Demand Base
+and Trend Attribution Integrity), all **[COMPLETED 2026-09-17]**. None is a new packet; each closes a
+named residual against an existing one. Gate C has not been evaluated.
 
 ### Parallel execution
 

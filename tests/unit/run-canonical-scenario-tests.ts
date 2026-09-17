@@ -410,7 +410,7 @@ console.log('\n=== 6. CURRENCY =================================================
   // Non-monetary values must be untouched by the currency layer.
   const units = canonicalExposedDemandUnits();
   assert(convertBaseAmount(units, 'GBP', rates) === units, 'Unit counts are not converted on the base path');
-  const sentence = '130,129 units exposed over 14 days at 18.6pp, stability 64, 62h remaining, 1,450 stores';
+  const sentence = '130,125 units exposed over 14 days at 18.6pp, stability 64, 62h remaining, 1,450 stores';
   assert(localiseMoneyInText(sentence, 'USD', rates) === sentence,
     'Units, percentages, scores, hours and store counts are left alone by the money transform');
 
