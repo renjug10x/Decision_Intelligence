@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { projectDemand, isDemandRefusal, SUPPORTED_HORIZONS, DemandMetric } from '@/lib/demand-forecast';
 import { recommendForecastModel } from '@/lib/forecast/forecast-engine';
-import { buildForecastDataset } from '@/lib/forecast/series';
+import { buildScenarioForecastDataset } from '@/lib/forecast/scenario-series';
+import { scenarioInScope } from '@/packages/contracts/src/scenario-scope';
 import { isRegisteredModel } from '@/lib/forecast/registry';
 
 /**
@@ -78,7 +79,9 @@ export async function POST(request: NextRequest) {
     // a planner changing a slider does not need it recomputed.
     let recommendation = null;
     if (body.include_recommendation === true) {
-      const dataset = await buildForecastDataset({
+      // The measured recommendation is measured against the SAME history the projection fitted.
+      const dataset = await buildScenarioForecastDataset({
+        scenario: scenarioInScope(),
         scope: outcome.scope,
         measure: outcome.measure
       });

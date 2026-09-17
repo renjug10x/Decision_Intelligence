@@ -17,7 +17,8 @@ import {
 import { CampaignArchetype } from '@/lib/campaign-archetypes';
 import { label as executiveLabel } from '@/lib/campaign-decision-language';
 import { useCurrency } from '@/context/CurrencyContext';
-import { CANONICAL_SCENARIO } from '@/packages/contracts/src/canonical-scenario-model';
+/* SCI-03R (`R-35`): the ACTIVE scenario, not the reference instance bound by name. A surface that reads `CANONICAL_*` publishes Fresh Dairy's terms under whatever scenario is selected. */
+import { scenarioInScope } from '@/packages/contracts/src/scenario-scope';
 
 interface CampaignDiscoveryHeroProps {
   archetype: CampaignArchetype;
@@ -338,7 +339,7 @@ export default function CampaignDiscoveryHero({
           >
             {formatGbp(d.net_contribution_delta_gbp)}
             <span style={{ fontSize: '0.75rem', fontWeight: 400, color: '#94A3B8' }}>
-              over {CANONICAL_SCENARIO.calendar.promotion_duration_days} days
+              over {scenarioInScope().calendar.promotion_duration_days} days
             </span>
           </div>
         </div>
@@ -458,7 +459,7 @@ export default function CampaignDiscoveryHero({
             <span style={{ fontSize: '0.8rem', color: '#334155' }}>
               Contribution over{' '}
               {liveEvaluation?.counterfactual?.economic_basis?.campaign_window_days
-                ?? CANONICAL_SCENARIO.calendar.promotion_duration_days}{' '}
+                ?? scenarioInScope().calendar.promotion_duration_days}{' '}
               days:{' '}
               <strong>
                 {typeof liveEvaluation?.counterfactual?.economic_basis?.contribution_delta_over_window_gbp === 'number'

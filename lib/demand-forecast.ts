@@ -9,7 +9,7 @@
  *
  * Nothing here forecasts. It composes:
  *
- *     buildForecastDataset  →  executeForecast  →  declared scenario adjustment  →  decision layer
+ *     buildScenarioForecastDataset  →  executeForecast  →  declared scenario adjustment  →  decision layer
  *
  * and the one rule it exists to hold is that **the model named on screen is the implementation that
  * produced the numbers**. Demand & Forecast and the Continuous Live Decision Twin now reach the same
@@ -32,7 +32,9 @@ import {
   ForecastModelId,
   isRefusal
 } from '../packages/contracts/src/forecast-model-model';
-import { buildForecastDataset, SeriesMeasure, SeriesScope } from './forecast/series';
+import { SeriesMeasure, SeriesScope } from './forecast/series';
+import { buildScenarioForecastDataset } from './forecast/scenario-series';
+import { scenarioInScope } from '../packages/contracts/src/scenario-scope';
 import { executeForecast } from './forecast/forecast-engine';
 
 export type DemandMetric = 'revenue' | 'units' | 'waste';
@@ -229,7 +231,17 @@ export async function projectDemand(request: DemandProjectionRequest): Promise<D
   if (request.category) scope.category = request.category;
 
   const measure = MEASURE_BY_METRIC[request.metric];
-  const dataset = await buildForecastDataset({ scope, measure });
+  /*
+   * SCI-03R (`R-35`). The history fitted here is THE ACTIVE SCENARIO'S, resolved through the
+   * scenario in scope exactly as every other engine resolves one. Where the seeded estate covers
+   * the scenario's declared window this is the observed series unchanged — which is why the
+   * reference scenario's published figures are untouched — and where it does not, it is a history
+   * modelled from that scenario's declared terms and labelled as modelled.
+   *
+   * The statistical pipeline below is unchanged and unaware: it fits whatever history it is given,
+   * which is the point. A hand-authored forecast output would have bypassed it.
+   */
+  const dataset = await buildScenarioForecastDataset({ scenario: scenarioInScope(), scope, measure });
 
   const outcome: ForecastOutcome = executeForecast({
     model_id: request.modelId,

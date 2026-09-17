@@ -10,12 +10,17 @@ import { trackJourneyEvent, debouncedTrackJourneyEvent } from '@/lib/journey-cli
 
 import { useDecisionState } from '@/context/DecisionStateContext';
 import { useCurrency } from '@/context/CurrencyContext';
+/*
+ * SCI-03R (`R-35`): the ACTIVE scenario, not the reference instance bound by name. Decision Ripple
+ * prices the consequence of a decision, and a consequence priced on a scenario the reader is not
+ * looking at is the same defect one surface further on.
+ */
 import {
-  CANONICAL_SCENARIO,
-  canonicalBaseDemandUnits,
-  canonicalRealisedRevenuePerUnitGbp,
-  canonicalGrossMarginPerUnitGbp
-} from '@/packages/contracts/src/canonical-scenario-model';
+  scenarioInScope,
+  inScopeBaseDemandUnits,
+  inScopeRealisedRevenuePerUnitGbp,
+  inScopeGrossMarginPerUnitGbp
+} from '@/packages/contracts/src/scenario-scope';
 
 interface DecisionRippleProps {
   onNavigateToExperiment?: (experimentId: string) => void;
@@ -93,9 +98,9 @@ export default function DecisionRippleIntelligence({ onNavigateToExperiment }: D
 
   const scopeMultiplier = campaignScope === 'national' ? 1.0 : campaignScope === 'regional' ? 0.6 : 0.75;
 
-  const baselineUnits = canonicalBaseDemandUnits();
-  const revenuePerUnit = canonicalRealisedRevenuePerUnitGbp();
-  const marginPerUnit = canonicalGrossMarginPerUnitGbp();
+  const baselineUnits = inScopeBaseDemandUnits();
+  const revenuePerUnit = inScopeRealisedRevenuePerUnitGbp();
+  const marginPerUnit = inScopeGrossMarginPerUnitGbp();
 
   /** Volume response to promotional spend: RIPPLE_VOLUME_RESPONSE_PER_POINT per point, scaled by reach. */
   const volumeLiftPct = budgetBoost * RIPPLE_VOLUME_RESPONSE_PER_POINT * scopeMultiplier;
@@ -110,7 +115,7 @@ export default function DecisionRippleIntelligence({ onNavigateToExperiment }: D
   const realisedMarginRatePct = directRevenue > 0 ? (netMarginDelta / directRevenue) * 100 : 0;
   const marginErosionPercent = Math.max(
     0,
-    CANONICAL_SCENARIO.economics.gross_margin_rate_pct - realisedMarginRatePct
+    scenarioInScope().economics.gross_margin_rate_pct - realisedMarginRatePct
   ).toFixed(1);
   /** Extra throughput the network must absorb, as a share of its planned handling for the horizon. */
   const congestionPct = Math.round(volumeLiftPct);
@@ -405,7 +410,7 @@ export default function DecisionRippleIntelligence({ onNavigateToExperiment }: D
             </div>
           </div>
           <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', lineHeight: 1.4 }}>
-            Overtime, expedited freight and replenishment labour take {marginErosionPercent}pp off the {CANONICAL_SCENARIO.economics.gross_margin_rate_pct}% planned margin rate on this volume.
+            Overtime, expedited freight and replenishment labour take {marginErosionPercent}pp off the {scenarioInScope().economics.gross_margin_rate_pct}% planned margin rate on this volume.
           </p>
         </div>
 

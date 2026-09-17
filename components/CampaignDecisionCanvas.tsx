@@ -128,7 +128,8 @@ import {
 } from '@/lib/decision-state-client';
 import { useApp } from '@/lib/context';
 import { useCurrency } from '@/context/CurrencyContext';
-import { CANONICAL_SCENARIO } from '@/packages/contracts/src/canonical-scenario-model';
+/* SCI-03R (`R-35`): the ACTIVE scenario, not the reference instance bound by name. A surface that reads `CANONICAL_*` publishes Fresh Dairy's terms under whatever scenario is selected. */
+import { scenarioInScope } from '@/packages/contracts/src/scenario-scope';
 
 interface CampaignDecisionCanvasProps {
   onNavigateToExperiment?: (experimentId: string) => void;
@@ -1834,7 +1835,7 @@ export default function CampaignDecisionCanvas({
             {decisionIdentityLabel}
           </div>
           <p style={{ margin: 0, fontSize: '0.9375rem', color: 'var(--text-secondary)', maxWidth: 720, lineHeight: 1.55 }}>
-            {CANONICAL_SCENARIO.identity.sku_name} · {CANONICAL_SCENARIO.identity.market_scope_label}, {CANONICAL_SCENARIO.calendar.forecast_horizon_days} days.
+            {scenarioInScope().identity.sku_name} · {scenarioInScope().identity.market_scope_label}, {scenarioInScope().calendar.forecast_horizon_days} days.
             The product, scope and window come across from the demand outlook — what has not been decided is whether to
             intervene at all. Promotion is one lever among several, and doing nothing is one of them.
           </p>

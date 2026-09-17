@@ -35,6 +35,7 @@ import {
 } from '../packages/contracts/src/canonical-scenario-model';
 import {
   scenarioInScope,
+  withScenarioInScope,
   inScopeScenarioDateIso,
   inScopeStoreCount,
   inScopeContributionAtDepthGbp,
@@ -2450,6 +2451,304 @@ export function getCampaignArchetype(id?: string): CampaignArchetype {
 /**
  * Helper to get an archetype by ID
  */
+/**
+ * SCI-03R — the ACTIVE SCENARIO's commercial projection, on the shared Promotion framework.
+ *
+ * `R-35` part 2. `PromotionPlanner` opened on the literal `'ARCH-CHILLED-ELASTIC'`, so every
+ * scenario was shown the reference scenario's curve, recommendation and narrative. Pointing the
+ * surface at the active scenario's own archetype would NOT have fixed it: an archetype's seeded
+ * economics are its own. `ARCH-PREMIUM-ARTISAN` declares 15% depth, +12.0% volume and −£1,850,
+ * while the certified `SCN-BAKERY-SOURDOUGH-003` derives 0% — do not promote. Serving the first
+ * under the second's identity is two economic models for one scenario, which is the defect
+ * ADR-073 and ADR-080 exist to prevent.
+ *
+ * ADR-077 part 2 already says which half of an archetype is which: it *"supplies elasticity,
+ * cannibalisation, plays and narrative, and it no longer supplies a second population, price basis
+ * or estate."* This function is that sentence in code.
+ *
+ * | from the ARCHETYPE (declared configuration, narrative) | from the SCENARIO (economic truth) |
+ * |---|---|
+ * | headline, confidence, tension prose, waterfall driver set, opportunity regions, play shapes | SKU, category, price, cost, estate, depth, duration, region, elasticity, cannibalisation |
+ * | | THE CURVE, and therefore the recommendation |
+ *
+ * **The curve is `scenarioElasticityCurve`, the same function the Scenario Certification Gate
+ * evaluates `C-6` with.** There is no second derivation, no scenario-specific branch, no
+ * post-hoc rewriting of an output and no calibration constant. Fresh Dairy returns 14%, Chilled
+ * Salmon 10% and Premium Bakery 0% because their declared terms say so, and if a record changed
+ * the surface would change with it.
+ */
+function scenarioHeadlineParts(
+  scenario: CanonicalScenario,
+  current: ElasticityPoint,
+  recommended: ElasticityPoint
+): NarrativeStatement {
+  /*
+   * The scope phrase is the scenario's own declared market scope. "across the whole estate" is
+   * what a NATIONAL decision is; a regional one says where it runs instead of overclaiming.
+   */
+  const scopePhrase = scenario.identity.market_scope === 'NATIONAL'
+    ? 'across the whole estate'
+    : `across ${scenario.identity.market_scope_label}`;
+
+  const opening = `A ${current.discount_pct}% cut ${scopePhrase} lifts demand `
+    + `${current.expected_demand_uplift_pct}% and adds `;
+  const gap = recommended.net_contribution_delta_gbp - current.net_contribution_delta_gbp;
+
+  /*
+   * The second sentence branches on what THE CURVE answers, never on which scenario this is. A
+   * curve whose best point is 0% has no "same curve returns more at a shallower depth" to offer,
+   * and saying so plainly is the commercially valuable answer the bakery pack exists to give.
+   */
+  if (recommended.discount_pct === 0) {
+    return [
+      { kind: 'text', text: opening },
+      { kind: 'money', money: moneyAmount(current.net_contribution_delta_gbp, 'contribution_at_committed_depth'), compact: true },
+      { kind: 'text', text: ' of contribution. No depth on this curve is accretive: not promoting returns ' },
+      { kind: 'money', money: moneyAmount(recommended.net_contribution_delta_gbp, 'contribution_at_recommended_depth'), compact: true },
+      { kind: 'text', text: ', which is ' },
+      { kind: 'money', money: moneyAmount(gap, 'contribution_left_on_the_table'), compact: true },
+      { kind: 'text', text: ' more than the committed plan.' }
+    ];
+  }
+
+  /*
+   * A curve whose best point IS the committed depth has no shallower alternative to offer, and
+   * "returns £0 more at the depth you already chose" is a sentence that reads as a broken panel
+   * rather than as the answer it is.
+   */
+  if (recommended.discount_pct === current.discount_pct) {
+    return [
+      { kind: 'text', text: opening },
+      { kind: 'money', money: moneyAmount(current.net_contribution_delta_gbp, 'contribution_at_committed_depth'), compact: true },
+      { kind: 'text', text: ' of contribution, and no other depth on this curve returns more. The committed depth is already the best one; what is left to decide is whether the demand it creates can be served.' }
+    ];
+  }
+
+  return [
+    { kind: 'text', text: opening },
+    { kind: 'money', money: moneyAmount(current.net_contribution_delta_gbp, 'contribution_at_committed_depth'), compact: true },
+    { kind: 'text', text: ' of contribution. The same curve returns ' },
+    { kind: 'money', money: moneyAmount(recommended.net_contribution_delta_gbp, 'contribution_at_recommended_depth'), compact: true },
+    { kind: 'text', text: ` at ${recommended.discount_pct}% — ` },
+    { kind: 'money', money: moneyAmount(gap, 'contribution_left_on_the_table'), compact: true },
+    { kind: 'text', text: ' more, on demand the supply agreement can actually serve.' }
+  ];
+}
+
+/**
+ * The demand decomposition, with the price line derived from the scenario's own curve.
+ *
+ * Generalises `buildCanonicalWaterfall`: the archetype's declared driver SET and its ambient
+ * readings are kept — which drivers there are is narrative, and ADR-077 leaves that to the
+ * archetype — while the price-elasticity line and the net are solved so the decomposition adds up
+ * to what the curve beside it says the cut buys. A waterfall that disagreed with the chart under
+ * it is the three-numbers-for-one-quantity defect this was written against.
+ */
+function scenarioWaterfall(archetype: CampaignArchetype, current: ElasticityPoint): WaterfallItem[] {
+  /*
+   * Lines are identified by the convention every archetype's waterfall already follows —
+   * `…base…`, `…elas…`, `…net…` — rather than by the reference archetype's exact ids, which are
+   * `wf_elas`/`wf_net` on one archetype and `wf_s_elas`/`wf_s_net` on another. Matching the
+   * literal ids silently left five of the seven archetypes carrying their seeded decomposition.
+   */
+  const seeded = archetype.waterfall;
+  const isBase = (w: WaterfallItem) => w.id.includes('base');
+  const isPrice = (w: WaterfallItem) => w.id.includes('elas');
+  const isNet = (w: WaterfallItem) => w.id.includes('net');
+  if (!seeded.some(isPrice) || !seeded.some(isNet)) return seeded;
+
+  const depthResponse = current.expected_demand_uplift_pct;
+  const otherInterventionPp = seeded
+    .filter(w => w.driver_class === 'intervention' && !isPrice(w) && !isNet(w))
+    .reduce((sum, w) => sum + w.contribution_pp, 0);
+  const ambientPp = seeded
+    .filter(w => w.driver_class === 'ambient' && !isBase(w) && !isNet(w))
+    .reduce((sum, w) => sum + w.contribution_pp, 0);
+
+  const elasticityPp = Number((depthResponse - otherInterventionPp).toFixed(1));
+  const netPp = Number((ambientPp + depthResponse).toFixed(1));
+  const pp = (v: number) => `${v >= 0 ? '+' : ''}${v.toFixed(1)} pp`;
+
+  return seeded.map(item => {
+    if (isPrice(item)) {
+      return {
+        ...item,
+        label: `Price Elasticity (${current.discount_pct}% Cut)`,
+        contribution_pp: elasticityPp,
+        value_display: pp(elasticityPp),
+        provenance: 'DERIVED' as const
+      };
+    }
+    if (isNet(item)) {
+      return {
+        ...item,
+        contribution_pp: netPp,
+        value_display: pp(netPp),
+        rationale:
+          'Total expected demand change across the window, ambient movement included. The '
+          + `intervention-attributable share is ${pp(depthResponse)} — the figure the elasticity `
+          + 'curve plots, and the one CDI-02 credits to the campaign.',
+        provenance: 'DERIVED' as const
+      };
+    }
+    return item;
+  });
+}
+
+/**
+ * THE archetype a scenario projects onto, resolved from its own declared taxonomy.
+ *
+ * `taxonomy.archetype_id` is on the record, so no surface has to know which archetype a scenario
+ * belongs to and none may branch on its identity to decide.
+ */
+export function scenarioArchetypeProjection(scenario: CanonicalScenario): CampaignArchetype {
+  /*
+   * Bound for the whole derivation. The shared helpers below read the scenario in scope, so a
+   * projection asked for a scenario the estate is not currently running would otherwise be priced
+   * against whichever one is — one scenario's identity carrying another's arithmetic, which is the
+   * defect this function exists to remove. Synchronous by contract, which this is.
+   */
+  return withScenarioInScope(scenario, () => buildScenarioArchetypeProjection(scenario));
+}
+
+function buildScenarioArchetypeProjection(scenario: CanonicalScenario): CampaignArchetype {
+  const declared = getArchetypeById(scenario.taxonomy.archetype_id);
+  const archetype = declared ?? CAMPAIGN_ARCHETYPES_MAP['ARCH-CHILLED-ELASTIC'];
+
+  // The shared engine. The same curve the certification gate evaluates C-6 against.
+  const curve = scenarioElasticityCurve(scenario);
+  const committedDepth = scenario.economics.promotion_depth_pct;
+  const current = curve.find(p => p.discount_pct === committedDepth) ?? curve.find(p => p.is_current) ?? curve[0];
+  const recommended = curve.find(p => p.is_cognix_recommended) ?? current;
+  const hasAccretiveDepth = curve.some(p => p.net_contribution_delta_gbp > 0);
+
+  const storeCount = scenarioStoreCount(scenario, scenario.identity.market_scope_label);
+  const economics = {
+    list_price_gbp: scenario.economics.list_price_gbp,
+    unit_cost_gbp: scenarioImpliedUnitCostGbp(scenario),
+    base_weekly_units_per_store: scenarioWeeklyPopulationUnits(scenario) / Math.max(1, storeCount)
+  };
+
+  const headlineParts = scenarioHeadlineParts(scenario, current, recommended);
+
+  return {
+    ...archetype,
+
+    // ── Declared scenario configuration. Identity is the record's, never the archetype's. ──
+    category: scenario.identity.category,
+    default_sku: scenario.identity.sku_id,
+    sku_name: scenario.identity.sku_name,
+    cost_price: economics.unit_cost_gbp,
+    rrp: economics.list_price_gbp,
+    base_weekly_units_per_store: economics.base_weekly_units_per_store,
+    price_elasticity: scenario.economics.promotional_response_pp_per_depth_point,
+    cannibalisation_rate: scenario.economics.cannibalisation_rate_pct / 100,
+    default_discount_pct: committedDepth,
+    default_duration_days: scenario.calendar.promotion_duration_days,
+    default_region: scenario.identity.market_scope_label,
+
+    // ── Economic truth, all of it from the one curve. ──
+    elasticity_curve: curve,
+
+    discovery: {
+      ...archetype.discovery,
+      /*
+       * The headline sentence and the confidence stay the archetype's: ADR-077 part 2 leaves
+       * narrative to the projection. Every NUMBER in the discovery is the scenario's.
+       */
+      core_narrative: statementToBaseText(headlineParts),
+      core_narrative_parts: headlineParts,
+      key_finding:
+        `${scenario.estate.high_opportunity_incremental_share_pct}% of the incremental volume comes from `
+        + `${scenario.estate.high_opportunity_store_count.toLocaleString('en-GB')} stores, `
+        + `concentrated in the ${scenario.identity.focus_region}.`,
+      /*
+       * Derived from what the curve answers, not declared. No accretive depth is a margin risk
+       * whatever the archetype was seeded to say; a committed depth that is already the best point
+       * on its own curve is an accretive go; anything else is the conditional case where the
+       * recommendation differs from the plan.
+       */
+      decision_verdict: (!hasAccretiveDepth
+        ? 'MARGIN RISK'
+        : recommended.discount_pct === current.discount_pct
+          ? 'ACCRETIVE GO'
+          : 'CONDITIONAL GO') as CampaignArchetype['discovery']['decision_verdict'],
+      expected_demand_uplift_pct: current.expected_demand_uplift_pct,
+      net_contribution_delta_gbp: current.net_contribution_delta_gbp,
+      primary_tension_description:
+        `The committed ${current.discount_pct}% cut buys volume `
+        + `(+${current.expected_demand_uplift_pct}%) with unit contribution, and creates demand beyond what the `
+        + 'supply agreement can serve. It is a volume success, a contribution sacrifice, and an availability risk at once.'
+    },
+
+    waterfall: scenarioWaterfall(archetype, current),
+
+    curve_summary: {
+      current_discount_pct: current.discount_pct,
+      current_contribution_gbp: current.net_contribution_delta_gbp,
+      recommended_discount_pct: recommended.discount_pct,
+      recommended_contribution_gbp: recommended.net_contribution_delta_gbp,
+      has_accretive_depth: hasAccretiveDepth
+    },
+
+    /* The same funding rule `withCanonicalEconomics` applies, against this scenario's own gap. */
+    inverse_conditions: archetype.inverse_conditions.map(condition => {
+      if (condition.target_parameter !== 'SUPPLIER_FUNDING') return condition;
+      const required = Math.max(
+        0,
+        Math.round(recommended.net_contribution_delta_gbp - current.net_contribution_delta_gbp)
+      );
+      if (required === 0) {
+        return {
+          ...condition,
+          target_value: 0,
+          target_display: 'no funding needed',
+          condition_text: 'Supplier co-funding is not what decides this',
+          explanation:
+            `At ${current.discount_pct}% the committed depth is already the best point on this curve, `
+            + 'so trade funding would improve the return without changing the decision.'
+        };
+      }
+      return {
+        ...condition,
+        target_value: required,
+        target_display: `${formatGbpShort(required)} funding`,
+        condition_text: `Supplier co-funding >= ${formatGbpShort(required)}`,
+        explanation:
+          `${formatGbpShort(required)} of trade funding would make the committed ${current.discount_pct}% depth worth as much as `
+          + `reducing to ${recommended.discount_pct}%. Below that, the shallower cut is the better decision.`
+      };
+    }),
+
+    /* Play SHAPES are the archetype's; what each one is worth is this scenario's arithmetic. */
+    opportunity_matrix: archetype.opportunity_matrix.map(cell => ({
+      ...cell,
+      store_count: scenarioStoreCount(scenario, cell.region)
+    })),
+
+    frontier_plays: archetype.frontier_plays.map(play => {
+      const stores = Math.max(1, Math.min(play.stores_count, scenarioStoreCount(scenario, scenario.identity.market_scope_label)));
+      return {
+        ...play,
+        stores_count: stores,
+        net_contribution_delta_gbp: deriveFrontierPlayContributionGbp(
+          play.discount_pct,
+          stores,
+          play.duration_days,
+          play.expected_demand_uplift_pct,
+          0,
+          economics
+        )
+      };
+    })
+  };
+}
+
+/** The projection for the scenario the current computation is for (layer C). */
+export function inScopeArchetypeProjection(): CampaignArchetype {
+  return scenarioArchetypeProjection(scenarioInScope());
+}
+
 export function getArchetypeById(id: string): CampaignArchetype | undefined {
   if (id in CAMPAIGN_ARCHETYPES_MAP) {
     return CAMPAIGN_ARCHETYPES_MAP[id as ArchetypeId];

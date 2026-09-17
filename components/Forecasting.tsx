@@ -32,7 +32,8 @@ import {
 } from '@/packages/contracts/src/forecast-model-model';
 import type { DemandProjection } from '@/lib/demand-forecast';
 import { currencySymbol } from '@/lib/currency/format';
-import { CANONICAL_SCENARIO } from '@/packages/contracts/src/canonical-scenario-model';
+/* SCI-03R (`R-35`): the ACTIVE scenario, not the reference instance bound by name. A surface that reads `CANONICAL_*` publishes Fresh Dairy's terms under whatever scenario is selected. */
+import { scenarioInScope } from '@/packages/contracts/src/scenario-scope';
 
 const TENANT_ID = 'tenant_uk_retail_01';
 
@@ -866,7 +867,7 @@ export default function Forecasting({ onNavigateToExperiment, onNavigateToSoluti
               background: C.sunken, border: `1px solid ${C.line}`
             }}>
               <span style={{ fontSize: '0.8125rem', color: C.body, lineHeight: 1.5 }}>
-                A committed {CANONICAL_SCENARIO.economics.promotion_depth_pct}% promotion is the
+                A committed {scenarioInScope().economics.promotion_depth_pct}% promotion is the
                 largest single driver of this movement — and it was planned against the outlook this
                 surface has just revised.
               </span>

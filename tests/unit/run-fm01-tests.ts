@@ -623,9 +623,20 @@ async function run() {
 
   {
     const demandSource = read('lib/demand-forecast.ts');
+    /*
+     * REPOINTED, not relaxed (`SCI-03R`, 2026-09-17). This asserted the literal
+     * `buildForecastDataset`, and `R-35` moved the demand path onto
+     * `buildScenarioForecastDataset` so the projection fits THE ACTIVE SCENARIO'S history rather
+     * than the one seeded estate series. The property R-01 is about is unchanged — the path
+     * consumes a governed `ForecastDataset` and never opens a demo file itself — and it is now
+     * asserted against the symbol that actually carries it, with the scenario binding asserted
+     * alongside it so a drift back to the raw estate series fails here too.
+     */
     assert(
-      /buildForecastDataset/.test(demandSource) && !/sales_daily\.json/.test(executable(demandSource)),
-      'R-01: the demand path consumes a ForecastDataset and never reaches into a demo file itself'
+      /buildScenarioForecastDataset/.test(demandSource)
+        && /scenarioInScope\(\)/.test(executable(demandSource))
+        && !/sales_daily\.json/.test(executable(demandSource)),
+      'R-01: the demand path consumes a ForecastDataset for the ACTIVE SCENARIO and never reaches into a demo file itself'
     );
     const flightRoute = read('app/api/v1/campaigns/flight/route.ts');
     assert(

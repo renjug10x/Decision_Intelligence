@@ -14,7 +14,8 @@ import {
   Check
 } from 'lucide-react';
 import { CampaignArchetype, estimateInterventionEconomics, regionStoreCounts } from '@/lib/campaign-archetypes';
-import { canonicalStoreCount } from '@/packages/contracts/src/canonical-scenario-model';
+/* SCI-03R (`R-35`): the ACTIVE scenario, not the reference instance bound by name. A surface that reads `CANONICAL_*` publishes Fresh Dairy's terms under whatever scenario is selected. */
+import { inScopeStoreCount } from '@/packages/contracts/src/scenario-scope';
 import { useCurrency } from '@/context/CurrencyContext';
 
 export interface ActiveIntervention {
@@ -58,7 +59,7 @@ export default function InterventionWorkspace({
 
   // Current-configuration economics derived from the archetype's seeded elasticity curve
   // at the ACTUAL selected discount/region/duration — never the archetype's default story.
-  const currentStores = canonicalStoreCount(currentRegion);
+  const currentStores = inScopeStoreCount(currentRegion);
   const currentEconomics = estimateInterventionEconomics(archetype, {
     discount_pct: currentDiscount,
     stores: currentStores,

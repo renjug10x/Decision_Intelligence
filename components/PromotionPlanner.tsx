@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   Tag,
   Sparkles,
@@ -31,8 +31,14 @@ import {
   CampaignArchetype,
   CAMPAIGN_DEMO_TENANT_ID,
   CAMPAIGN_DEMO_SESSION_ID,
-  regionStoreCounts
+  regionStoreCounts,
+  scenarioArchetypeProjection
 } from '@/lib/campaign-archetypes';
+import {
+  getActiveScenario,
+  resolveScenario,
+  isScenarioRegistered
+} from '@/lib/scenario-client-registry';
 import {
   evaluateCampaignDecisionClient,
   discoverCampaignOpportunityClient,
@@ -124,11 +130,38 @@ export default function PromotionPlanner({
   // Mode Switcher: Pre-Flight Planning vs Live Decision Twin
   const [activeMode, setActiveMode] = useState<'PLANNING' | 'DECISION_TWIN'>('PLANNING');
 
-  // Selected Archetype
-  const [selectedArchetypeId, setSelectedArchetypeId] = useState<string>('ARCH-CHILLED-ELASTIC');
-  const [archetype, setArchetype] = useState<CampaignArchetype>(
-    getArchetypeById('ARCH-CHILLED-ELASTIC') || CAMPAIGN_ARCHETYPES[0]
+  /*
+   * SCI-03R (`R-35`). The Promotion surface opens on THE ACTIVE SCENARIO'S commercial projection.
+   *
+   * It used to open on the literal `'ARCH-CHILLED-ELASTIC'`, so selecting Chilled Salmon or
+   * Premium Bakery changed the context strip and left this surface publishing the reference
+   * scenario's curve, recommendation and narrative — the three scenarios were label variations
+   * here. Pointing it at the active scenario's own archetype would not have been the fix either:
+   * an archetype's seeded economics are its own, and `ARCH-PREMIUM-ARTISAN`'s 15% / +12% / −£1,850
+   * contradicts the certified bakery record's derived "0%, do not promote".
+   *
+   * `scenarioArchetypeProjection` is the reconciliation: the archetype supplies declared
+   * configuration and narrative, the scenario supplies every number, and the curve is
+   * `scenarioElasticityCurve` — the same function the certification gate evaluates C-6 with.
+   */
+  const activeScenario = (() => {
+    try {
+      if (decisionState?.scenario_id && isScenarioRegistered(decisionState.scenario_id)) {
+        return resolveScenario(decisionState.scenario_id);
+      }
+      return getActiveScenario();
+    } catch {
+      return getActiveScenario();
+    }
+  })();
+
+  const scenarioProjection = useMemo(
+    () => scenarioArchetypeProjection(activeScenario),
+    [activeScenario.identity.scenario_id]
   );
+
+  const [selectedArchetypeId, setSelectedArchetypeId] = useState<string>(scenarioProjection.id);
+  const [archetype, setArchetype] = useState<CampaignArchetype>(scenarioProjection);
 
   // Active Scenario Configuration Controls
   const [skuId, setSkuId] = useState<string>(archetype.default_sku);
@@ -239,9 +272,31 @@ export default function PromotionPlanner({
     [activeMode, archetype, liveReadiness, flight, outlook, momentsResult.moments.length]
   );
 
+  /*
+   * Follow the active scenario. A scenario switch re-opens this surface on that scenario's own
+   * projection and its declared configuration, so no previous scenario's depth, region, duration
+   * or SKU survives the switch. Keyed on the scenario identity rather than on the projection
+   * object, which is rebuilt on every render.
+   */
+  useEffect(() => {
+    setSelectedArchetypeId(scenarioProjection.id);
+    setArchetype(scenarioProjection);
+    setSkuId(scenarioProjection.default_sku);
+    setMechanic(scenarioProjection.default_mechanic);
+    setDiscountDepth(scenarioProjection.default_discount_pct);
+    setTargetRegion(scenarioProjection.default_region);
+    setDurationDays(scenarioProjection.default_duration_days);
+    setProposedIntervention(null);
+  }, [activeScenario.identity.scenario_id]);
+
   // When selected archetype changes, reset default configuration parameters
   const handleSelectArchetype = (archId: string) => {
-    const arch = getArchetypeById(archId);
+    /*
+     * Choosing the active scenario's own archetype returns the scenario's projection, not the
+     * catalogue's seeded entry. The catalogue remains what ADR-077 part 2 makes it — a comparative
+     * library of other situations — and picking one of those is still a deliberate comparison.
+     */
+    const arch = archId === scenarioProjection.id ? scenarioProjection : getArchetypeById(archId);
     if (!arch) return;
     setSelectedArchetypeId(archId);
     setArchetype(arch);

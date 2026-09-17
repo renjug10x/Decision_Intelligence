@@ -14,7 +14,8 @@ import {
 } from 'lucide-react';
 import { CampaignArchetype, WaterfallItem, ElasticityPoint } from '@/lib/campaign-archetypes';
 import { useCurrency } from '@/context/CurrencyContext';
-import { CANONICAL_SCENARIO } from '@/packages/contracts/src/canonical-scenario-model';
+/* SCI-03R (`R-35`): the ACTIVE scenario, not the reference instance bound by name. A surface that reads `CANONICAL_*` publishes Fresh Dairy's terms under whatever scenario is selected. */
+import { scenarioInScope } from '@/packages/contracts/src/scenario-scope';
 
 interface DemandIntelligenceLensProps {
   archetype: CampaignArchetype;
@@ -414,7 +415,7 @@ export default function DemandIntelligenceLens({
             <span>
               {hoveredElasticityPoint
                 ? `${hoveredElasticityPoint.discount_pct}% Discount Analysis: ${hoveredElasticityPoint.notes || 'Simulated response'}`
-                : `Active configuration: ${currentDiscount}% discount depth · price elasticity ε = ${archetype.price_elasticity} · supplier funds ${CANONICAL_SCENARIO.economics.supplier_promotional_funding_pct}% of the price invested (modelled assumption)`}
+                : `Active configuration: ${currentDiscount}% discount depth · price elasticity ε = ${archetype.price_elasticity} · supplier funds ${scenarioInScope().economics.supplier_promotional_funding_pct}% of the price invested (modelled assumption)`}
             </span>
           </div>
 

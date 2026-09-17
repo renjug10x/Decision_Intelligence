@@ -19,7 +19,8 @@ import {
   estimateInterventionEconomics,
   regionStoreCounts
 } from '@/lib/campaign-archetypes';
-import { canonicalStoreCount } from '@/packages/contracts/src/canonical-scenario-model';
+/* SCI-03R (`R-35`): the ACTIVE scenario, not the reference instance bound by name. A surface that reads `CANONICAL_*` publishes Fresh Dairy's terms under whatever scenario is selected. */
+import { inScopeStoreCount } from '@/packages/contracts/src/scenario-scope';
 import { useCurrency } from '@/context/CurrencyContext';
 
 interface InverseAnalysisLensProps {
@@ -45,7 +46,7 @@ export default function InverseAnalysisLens({
   const [testedHypothesis, setTestedHypothesis] = useState<Record<string, boolean>>({});
 
   const handleModelCondition = (cond: InverseCondition) => {
-    const defaultScope = canonicalStoreCount(archetype.default_region);
+    const defaultScope = inScopeStoreCount(archetype.default_region);
     let disc = archetype.default_discount_pct;
     let scope = defaultScope;
     const dur = archetype.default_duration_days;
