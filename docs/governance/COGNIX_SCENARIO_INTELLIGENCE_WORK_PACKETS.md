@@ -53,7 +53,7 @@ and the lanes never touch.
 | `SCI-03` | Curated Scenario Domain Packs | CURSOR | Cursor | 1 | **[COMPLETED 2026-09-17]** |
 | `SCI-04` | Scenario Selection Experience | ANTIGRAVITY | Antigravity | 1 | **[COMPLETED 2026-09-17]** |
 | `SCI-05` | Living Evidence Engine — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 | Not started |
-| `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 | Not started |
+| `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 | **[COMPLETED 2026-09-17 — Awaiting Gate C]** |
 | `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | Not started |
 | `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | Not started |
 | `SCI-08` | Create Your Own Scenario Experience | **POST-DEMO** | Antigravity | 4 | Not started |
@@ -696,6 +696,25 @@ whether the decision changed. Visual-system conformance reviewed explicitly.
 Contextual Decision Trace. No visual drift. Regression green.
 
 **Handoff artefact.** The reorganised surface. **Gate C — the 23 September target.**
+
+**Completion record (2026-09-17).**
+- **Authoritative base:** Verified HEAD of `feature/cognix-sci-03r-scenario-perspective-binding` at `cacbb5b364ad6dcab841f7e8bb96557a44054a49` (Gate B PASS recorded).
+- **Lane execution:** Wave 2 Antigravity lane strictly respecting concurrency boundary (ADR-084). Zero domain calculation performed in UI; consumed frozen Gate-A contracts (`packages/contracts/src/living-evidence-contracts.ts` and `provenance-vocabulary.ts`).
+- **Surface architecture:** Consolidated into 4 primary governed sections (`Evidence & Signals`, `Models & Methods`, `Platform Health`, `Decision Trace`), plus retained architecture storyboard under `ADR-051` / `SB-GATE` notice and plainly named Platform Configuration.
+- **Evidence & Signals:** Freshness, source system, unified provenance sentences (ADR-082), 4 materiality bands (`IMMATERIAL`, `NOTABLE`, `MATERIAL`, `DECISIVE`), and decision relevance statements (`RECOMMENDATION`, `DECISION_WINDOW`, etc.). Governed Refresh UX with complete lifecycle states (`idle`, `refreshing`, `refreshed`, `unchanged`, `failed`) and natural consequence statement.
+- **Models & Methods:** Categorised strictly into Calculated (`rule`/`measured`), Fitted (`statistical`), Drafted (`llm`), and Human (`manual`). Zero prompt, token count, temperature, internal model IDs, or API keys exposed. Google GenAI referenced exclusively under Drafted / llm.
+- **Platform Health:** Measurable-only health adhering to `ATL-FINAL` precedent. Embedded `<AtlasHealth />` audit, real landscape capability lifecycle, and honest unmeasured declarations. Zero fake 99.99% SLAs.
+- **Decision Trace:** Direct contextual invocation from `PromotionPlanner.tsx` and `CampaignDecisionCanvas.tsx` via accessible `<DecisionTraceModal />` dialog, as well as dedicated tab in Observability. Answers the 4 key business questions, displays active decision rationale, unified ADR-082 provenance sentence, shared decision state controls (`refreshState`, `resetScenario`), and journey telemetry.
+- **Test verification:**
+  - `tests/unit/run-sci06-observability-tests.ts`: **165/165 PASSED**
+  - `tests/unit/run-gate-a-tests.ts`: **48/48 PASSED** (singularity of contracts preserved; no smuggled SCI-05 domain logic)
+  - `tests/unit/run-atl04r-tests.ts`: **124/124 PASSED** (sidebar navigation, diagnostics, shared state controls intact)
+  - `tests/unit/run-atlfinal-tests.ts`: **57/57 PASSED** (Atlas Health embedded, no admin console framing)
+  - `tests/unit/run-sci04-scenario-selection-tests.ts`: **53/53 PASSED**
+  - `tests/unit/run-canonical-scenario-tests.ts`: **275/275 PASSED**
+  - `tests/unit/run-sci03r-perspective-tests.ts`: **130/130 PASSED**
+  - `npm run build`: **74/74 static/dynamic routes compiled and typechecked with ZERO errors**.
+- **Awaiting Gate C:** Integration with Claude Code's real SCI-05 Living Evidence engines scheduled for Gate C convergence.
 
 ---
 

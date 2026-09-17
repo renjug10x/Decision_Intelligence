@@ -83,6 +83,7 @@ import InterventionWorkspace, { ActiveIntervention } from '@/components/campaign
 import LiveDecisionTwinLens from '@/components/campaign/LiveDecisionTwinLens';
 import FlightActivationPanel, { ActivationChoice } from '@/components/campaign/FlightActivationPanel';
 import CampaignOutlookPanel from '@/components/campaign/CampaignOutlookPanel';
+import DecisionTraceModal from '@/components/observability/DecisionTraceModal';
 import {
   deriveDecisionMoments,
   deriveCampaignOutlook,
@@ -176,6 +177,7 @@ export default function PromotionPlanner({
 
   // Active Proposed Intervention
   const [proposedIntervention, setProposedIntervention] = useState<ActiveIntervention | null>(null);
+  const [isTraceModalOpen, setIsTraceModalOpen] = useState<boolean>(false);
 
   // Live Governed-Engine Evaluation State (CDI-02/03/04/06)
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
@@ -941,6 +943,35 @@ export default function PromotionPlanner({
       {/* ── Mode 1: Pre-Flight Planning Experience ── */}
       {activeMode === 'PLANNING' && (
         <>
+          {/* Contextual Decision Trace Bar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, padding: '0 4px' }}>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+              Scenario Context: <strong>{activeScenario?.identity.scenario_name || 'Certified Reference'}</strong>
+            </span>
+            <button
+              type="button"
+              id="btn-trace-decision-promo"
+              onClick={() => setIsTraceModalOpen(true)}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: '6px 12px',
+                borderRadius: 6,
+                background: '#FFFFFF',
+                border: '1px solid var(--border)',
+                color: 'var(--text)',
+                fontSize: '0.8125rem',
+                fontWeight: 650,
+                cursor: 'pointer'
+              }}
+              title="Inspect contextual Decision Trace (SCI-06)"
+            >
+              <Activity size={13} color="var(--g10x-orange)" />
+              <span>Decision Trace</span>
+            </button>
+          </div>
+
           {/* ── Scenario Configuration & Archetype Bar ── */}
           <div
             style={{
@@ -1334,6 +1365,13 @@ export default function PromotionPlanner({
           onApplyInFlightAction={handleApplyInFlightAction}
         />
       )}
+
+      {/* Contextual Decision Trace Modal (SCI-06) */}
+      <DecisionTraceModal
+        isOpen={isTraceModalOpen}
+        onClose={() => setIsTraceModalOpen(false)}
+        scenarioId={activeScenario.identity.scenario_id}
+      />
     </div>
   );
 }

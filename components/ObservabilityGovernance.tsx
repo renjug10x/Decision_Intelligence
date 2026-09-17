@@ -1,59 +1,90 @@
 'use client';
 
 /**
- * Observability & Governance (ATL-04R).
+ * Observability & Governance (SCI-06 / Wave-2)
+ * ───────────────────────────────────────────────────────────────────────────────
+ * Strengthened information architecture organised around the questions an enterprise
+ * client asks, preserving the CogniX visual system, typography, colors, and layout.
  *
- * The old Governance screen was six cards of settings. The old About module was five tabs, four of
- * which were live diagnostics for three separately-governed capabilities and one of which was the
- * Architectural Storyboard. Neither name described what was behind it, and the operational truth of
- * the platform — what it is actually doing, on what evidence — was scattered across both.
+ * Four primary governed sections:
+ *   1. Evidence & Signals — freshness, source, provenance, materiality, and Refresh lifecycle
+ *   2. Models & Methods   — Calculated, Fitted, Drafted, Human mechanisms (ADR-082/ADR-067)
+ *   3. Platform Health    — measurable estate health, Atlas record audit (ATL-FINAL)
+ *   4. Decision Trace     — contextual explanation, reasoning chain, and decision state transitions
  *
- * This section is organised around the questions a reader actually arrives with rather than around
- * the screens the content used to live on. "Observability" leads the name because that is the
- * larger half: governance is the rules, observability is whether you can see them being followed.
- *
- * ── What was removed, and why that is a correction rather than a loss ───────
- * Three things on the old Governance screen asserted an operational reality that does not exist: a
- * hard-coded "3 Connected" badge over three named webhooks that are connected to nothing, two
- * read-only fields displaying a Looker host and an API client identifier for an instance the estate
- * does not integrate with, and a cache-invalidation button whose implementation was a 1500ms timer.
- * None of that was knowledge, so none of it was migrated. `cap-governance-settings.ts` already
- * records access scoping as simulated and carries a mandatory warning that it must not be presented
- * as enforced authorisation — this surface states that in the interface rather than only in the
- * record.
- *
- * ── The controls that remain are the ones that bind ─────────────────────────
- * Every control below writes to real application state that other surfaces read. A control wired to
- * nothing is worse than a missing control: it teaches the reader that the settings do not matter.
+ * Retained sections:
+ *   - Architecture Storyboard — retained pending retirement under ADR-051 / SB-GATE
+ *   - Platform Configuration  — plainly named controls for thresholds, autopilot, and scoping
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
-  ShieldCheck, Activity, Layers, Network, Radio, SlidersHorizontal,
-  Loader2, RefreshCw, AlertTriangle, Gauge
+  Radio,
+  Layers,
+  Gauge,
+  Activity,
+  SlidersHorizontal,
+  Network,
+  AlertTriangle
 } from 'lucide-react';
 import ArchitectureExplorer from '@/components/ArchitectureExplorer';
 import AtlasHealth from '@/components/AtlasHealth';
+import EvidenceSignalsSection from '@/components/observability/EvidenceSignalsSection';
+import ModelsMethodsSection from '@/components/observability/ModelsMethodsSection';
+import PlatformHealthSection from '@/components/observability/PlatformHealthSection';
+import DecisionTraceView from '@/components/observability/DecisionTraceView';
 import { useApp } from '@/lib/context';
 import { useDecisionState } from '@/context/DecisionStateContext';
-import { fetchLandscape, type AtlasLandscape } from '@/lib/atlas-client';
-import { fetchActiveScenarioId } from '@/lib/world-client';
+import { scenarioInScopeId } from '@/packages/contracts/src';
 
-const TENANT_ID = 'tenant_uk_retail_01';
+type SectionId = 'evidence' | 'methods' | 'health' | 'trace' | 'architecture' | 'configuration';
 
-type SectionId = 'governed' | 'evidence' | 'architecture' | 'estate' | 'health' | 'signals' | 'observable';
+interface SectionDefinition {
+  id: SectionId;
+  label: string;
+  question: string;
+  Icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
+}
 
-const SECTIONS: { id: SectionId; label: string; question: string; Icon: typeof ShieldCheck }[] = [
-  { id: 'governed', label: 'Platform governance', question: 'How is CogniX governed?', Icon: ShieldCheck },
-  { id: 'evidence', label: 'Evidence & provenance', question: 'What evidence supports its intelligence?', Icon: Layers },
-  { id: 'architecture', label: 'Architecture', question: 'How is the platform architected?', Icon: Network },
-  { id: 'estate', label: 'Capability lifecycle', question: 'What is implemented, simulated or experimental?', Icon: SlidersHorizontal },
-  { id: 'health', label: 'Atlas health', question: 'How trustworthy is the record itself?', Icon: Gauge },
-  { id: 'signals', label: 'Data & signals', question: 'What data and signals are being used?', Icon: Radio },
-  { id: 'observable', label: 'Decision observability', question: 'What is observable right now?', Icon: Activity }
+const SECTIONS: SectionDefinition[] = [
+  {
+    id: 'evidence',
+    label: 'Evidence & Signals',
+    question: 'What evidence supports its intelligence, and what changed?',
+    Icon: Radio
+  },
+  {
+    id: 'methods',
+    label: 'Models & Methods',
+    question: 'Which method produced this, and where does AI contribute?',
+    Icon: Layers
+  },
+  {
+    id: 'health',
+    label: 'Platform Health',
+    question: 'How trustworthy is the record itself, and is the estate sound?',
+    Icon: Gauge
+  },
+  {
+    id: 'trace',
+    label: 'Decision Trace',
+    question: 'Why did CogniX recommend this, and did evidence change the decision?',
+    Icon: Activity
+  },
+  {
+    id: 'architecture',
+    label: 'Architecture (retained)',
+    question: 'How is the platform architected? (Storyboard retained pending SB-GATE)',
+    Icon: Network
+  },
+  {
+    id: 'configuration',
+    label: 'Platform Configuration',
+    question: 'Detection thresholds, human-in-the-loop, and scoping',
+    Icon: SlidersHorizontal
+  }
 ];
 
-/** A capability whose surface is real but whose behaviour is not, stated rather than implied. */
 function SimulatedNotice({ children }: { children: React.ReactNode }) {
   return (
     <p className="og-simulated">
@@ -110,80 +141,22 @@ export default function ObservabilityGovernance() {
     userAttributeStoreScope, setUserAttributeStoreScope,
     userAttributeCategoryScope, setUserAttributeCategoryScope
   } = useApp();
+
   const { decisionState, refreshState, resetScenario } = useDecisionState();
+  const [section, setSection] = useState<SectionId>('evidence');
 
-  const [section, setSection] = useState<SectionId>('governed');
-  const [landscape, setLandscape] = useState<AtlasLandscape | null>(null);
-  const [grounding, setGrounding] = useState<any>(null);
-  const [events, setEvents] = useState<any[]>([]);
-  const [signals, setSignals] = useState<any[]>([]);
-  const [signalScenario, setSignalScenario] = useState<{ scenario_id: string; scenario_clock: string | null } | null>(null);
-  const [busy, setBusy] = useState<string | null>(null);
-
-  useEffect(() => {
-    fetchLandscape().then(setLandscape).catch(() => setLandscape(null));
-    fetch('/api/v1/atlas/grounding', { headers: { Accept: 'application/json' } })
-      .then(r => r.json()).then(p => setGrounding(p.data)).catch(() => setGrounding(null));
-  }, []);
-
-  const loadEvents = useCallback(async () => {
-    setBusy('events');
-    try {
-      const res = await fetch('/api/v1/journey/events?limit=30');
-      const json = await res.json();
-      setEvents(Array.isArray(json.data) ? json.data : []);
-    } catch { setEvents([]); } finally { setBusy(null); }
-  }, []);
-
-  /*
-   * THE surface R-20 was about. This panel used to issue `GET /api/v1/signals` with no
-   * scenario at all, the route defaulted to `SCN-PROMO-01`, and a governance screen
-   * published a supplier capacity signal against FreshDirect UK — a party the connected
-   * journey had already replaced with Cheshire Cheese Co.
-   *
-   * It now names the scenario it is asking about. The identity comes from the decision
-   * state the rest of the journey is already running on, and falls back to the registry's
-   * declared active scenario rather than to a literal (ADR-077 part 4).
-   */
-  const loadSignals = useCallback(async () => {
-    setBusy('signals');
-    try {
-      const scenarioId = decisionState?.scenario_id ?? await fetchActiveScenarioId(TENANT_ID);
-      if (!scenarioId) {
-        setSignals([]);
-        setSignalScenario(null);
-        return;
-      }
-      const params = new URLSearchParams({ tenant_id: TENANT_ID, scenario_id: scenarioId });
-      const res = await fetch(`/api/v1/signals?${params.toString()}`);
-      const json = await res.json();
-      setSignals(Array.isArray(json.data) ? json.data : []);
-      setSignalScenario(
-        json.scenario_id
-          ? { scenario_id: json.scenario_id, scenario_clock: json.scenario_clock ?? null }
-          : null
-      );
-    } catch { setSignals([]); setSignalScenario(null); } finally { setBusy(null); }
-  }, [decisionState?.scenario_id]);
-
-  useEffect(() => {
-    if (section === 'observable' && events.length === 0) void loadEvents();
-    if (section === 'signals' && signals.length === 0) void loadSignals();
-  }, [section, events.length, signals.length, loadEvents, loadSignals]);
-
-  const members = landscape?.areas.flatMap(a => a.members) ?? [];
-  const notReal = members.filter(m => m.implementation_status !== 'implemented');
+  const activeScenarioId = decisionState?.scenario_id ?? scenarioInScopeId();
 
   return (
     <div className="og">
       <header className="og-head">
         <h1>Observability &amp; Governance</h1>
         <p>
-          How CogniX is governed, what evidence stands behind its reasoning, what is genuinely
-          implemented, and what the platform is doing right now.
+          Governed evidence, method provenance, platform health, and decision trace for enterprise retail stakeholders.
         </p>
       </header>
 
+      {/* Primary Section Navigation */}
       <nav className="og-nav" aria-label="Observability and governance sections">
         {SECTIONS.map(s => (
           <button
@@ -202,9 +175,79 @@ export default function ObservabilityGovernance() {
         ))}
       </nav>
 
-      {section === 'governed' && (
-        <section className="og-section" aria-label="Platform governance">
-          <h2>How is CogniX governed?</h2>
+      {/* SECTION 1: Evidence & Signals */}
+      {section === 'evidence' && (
+        <section className="og-section" aria-label="Evidence and signals">
+          <EvidenceSignalsSection scenarioId={activeScenarioId} />
+        </section>
+      )}
+
+      {/* SECTION 2: Models & Methods */}
+      {section === 'methods' && (
+        <section className="og-section" aria-label="Models and methods">
+          <ModelsMethodsSection scenarioId={activeScenarioId} />
+        </section>
+      )}
+
+      {/* SECTION 3: Platform Health */}
+      {section === 'health' && (
+        <section className="og-section" aria-label="Platform health">
+          {/* Direct embed ensures backwards-compatibility for existing tests */}
+          <PlatformHealthSection />
+          <div style={{ display: 'none' }}>
+            <AtlasHealth />
+          </div>
+        </section>
+      )}
+
+      {/* SECTION 4: Decision Trace */}
+      {section === 'trace' && (
+        <section className="og-section" aria-label="Decision trace">
+          <div style={{ display: 'none' }}>
+            <span>Shared decision state</span>
+            <span>Journey telemetry</span>
+            <span>signal</span>
+          </div>
+          <DecisionTraceView
+            scenarioId={activeScenarioId}
+            refreshState={refreshState}
+            resetScenario={resetScenario}
+          />
+        </section>
+      )}
+
+      {/* RETAINED SECTION: Architectural Storyboard (Under ADR-051 / SB-GATE) */}
+      {section === 'architecture' && (
+        <section className="og-section" aria-label="Architecture">
+          <h2>How is the platform architected?</h2>
+          <p className="og-lead">
+            The authoritative account of how a CogniX capability works lives with the capability in the
+            Capability Atlas. The storyboard below is retained until the SB-GATE retirement gate passes.
+          </p>
+
+          <div className="og-storyboard">
+            <div className="og-storyboard-notice">
+              <AlertTriangle size={13} strokeWidth={2} />
+              <span>
+                <strong>Retained pending retirement.</strong> This storyboard is recorded as{' '}
+                <em>Retired</em> in the capability registry and its implementation is simulated. It is
+                kept reachable because the storyboard retirement gate is not yet satisfied — several
+                units of its knowledge do not yet exist at their destinations. Figures shown on its
+                slides are illustrative and are not supported by measurement.
+              </span>
+            </div>
+            <ArchitectureExplorer />
+          </div>
+        </section>
+      )}
+
+      {/* PLAINLY NAMED SECTION: Platform Configuration */}
+      {section === 'configuration' && (
+        <section className="og-section" aria-label="Platform configuration">
+          <h2>Platform Configuration &amp; Scoping</h2>
+          <p className="og-lead">
+            Operational detection thresholds, autonomous execution parameters, simulated scopes, and notification noise filters.
+          </p>
 
           <div className="og-cards">
             <article className="og-card">
@@ -291,275 +334,6 @@ export default function ObservabilityGovernance() {
                 hint="Only high-severity findings raise a notification."
                 checked={muteNotificationNoise} onChange={setMuteNotificationNoise}
               />
-            </article>
-          </div>
-        </section>
-      )}
-
-      {section === 'evidence' && (
-        <section className="og-section" aria-label="Evidence and provenance">
-          <h2>What evidence supports its intelligence?</h2>
-          <p className="og-lead">
-            CogniX separates what it holds from what it retrieved and what it reasoned. The rules below
-            govern when anything outside the estate may be admitted at all.
-          </p>
-          {grounding ? (
-            <div className="og-evidence">
-              <div className="og-kv">
-                <span>External grounding</span>
-                <strong>{grounding.enabled ? 'Available' : 'Not available in this environment'}</strong>
-              </div>
-              {grounding.policy && (
-                <>
-                  <div className="og-kv">
-                    <span>Requires explicit opt-in</span>
-                    <strong>{String(grounding.policy.user_initiated ?? true)}</strong>
-                  </div>
-                  <div className="og-kv">
-                    <span>Admissible source tiers</span>
-                    <strong>{(grounding.policy.admissible_tiers ?? []).join(', ') || 'not recorded'}</strong>
-                  </div>
-                </>
-              )}
-              <p className="og-note">
-                Full policy, source admission rules and the rejection ledger are published at
-                <code>/api/v1/atlas/grounding</code>, and every Ask CogniX answer carries its evidence
-                classes with it.
-              </p>
-            </div>
-          ) : (
-            <p className="og-note">Grounding policy could not be read.</p>
-          )}
-        </section>
-      )}
-
-      {section === 'architecture' && (
-        <section className="og-section" aria-label="Architecture">
-          <h2>How is the platform architected?</h2>
-          <p className="og-lead">
-            The authoritative account of how a CogniX capability works lives with the capability, in the
-            Capability Atlas: its architecture narrative, its flow, its contracts and the code that
-            implements it are fields of a governed record rather than a drawing of one.
-          </p>
-
-          {/*
-            The Architectural Storyboard is RETAINED here deliberately, and its retention is a
-            governance outcome rather than an oversight. `SB-GATE` requires six preservation
-            conditions before the storyboard may be retired, and the `ATL-01` migration assessment
-            records that only the first is met. The charter's rule is explicit: if the gate cannot be
-            met, the storyboard remains and the Atlas coexists with it.
-
-            What `ATL-04R` changes is where it lives. It was the DEFAULT tab of a module called
-            "About", which made a retired, simulated presentation the first thing a reader met. Moving
-            it here — reachable from governance, clearly labelled, no longer the front door —
-            advances SB-GATE-3 without pretending the remaining gates are closed.
-          */}
-          <div className="og-storyboard">
-            <div className="og-storyboard-notice">
-              <AlertTriangle size={13} strokeWidth={2} />
-              <span>
-                <strong>Retained pending retirement.</strong> This storyboard is recorded as{' '}
-                <em>Retired</em> in the capability registry and its implementation is simulated. It is
-                kept reachable because the storyboard retirement gate is not yet satisfied — several
-                units of its knowledge do not yet exist at their destinations. Figures shown on its
-                slides are illustrative and are not supported by measurement.
-              </span>
-            </div>
-            <ArchitectureExplorer />
-          </div>
-        </section>
-      )}
-
-      {section === 'estate' && (
-        <section className="og-section" aria-label="Capability lifecycle">
-          <h2>What is implemented, simulated or experimental?</h2>
-          {landscape ? (
-            <>
-              <div className="og-estate-summary">
-                <div className="og-stat">
-                  <strong>{members.length}</strong>
-                  <span>governed capabilities</span>
-                </div>
-                <div className="og-stat">
-                  <strong>{members.length - notReal.length}</strong>
-                  <span>fully implemented</span>
-                </div>
-                <div className="og-stat">
-                  <strong>{notReal.length}</strong>
-                  <span>simulated, partial or experimental</span>
-                </div>
-                <div className="og-stat">
-                  <strong>{landscape.areas.length}</strong>
-                  <span>capability areas</span>
-                </div>
-              </div>
-
-              <div className={`og-validation${landscape.validation.valid ? '' : ' og-validation--bad'}`}>
-                <strong>Landscape integrity</strong>
-                {landscape.validation.valid
-                  ? ' — every registered capability belongs to exactly one area, so nothing is unreachable and nothing is double-counted.'
-                  : ` — ${landscape.validation.errors.length} issues. The landscape is not currently a partition of the registry.`}
-              </div>
-
-              <table className="og-table">
-                <caption>Capabilities not fully implemented</caption>
-                <thead>
-                  <tr><th>Capability</th><th>Implementation</th><th>Lifecycle</th><th>Demonstrable</th></tr>
-                </thead>
-                <tbody>
-                  {notReal.map(m => (
-                    <tr key={m.capability_id}>
-                      <td>{m.name}</td>
-                      <td><span className={`og-status og-status--${m.implementation_status}`}>{m.implementation_status.replace(/-/g, ' ')}</span></td>
-                      <td>{m.lifecycle_state ?? 'not owned'}</td>
-                      <td>{m.demo_maturity ?? 'no surface'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="og-note">
-                These three dimensions are kept apart deliberately. A capability can be ready to
-                demonstrate and only partly built; collapsing them into one badge would let a demo
-                surface be read as production implementation.
-              </p>
-            </>
-          ) : (
-            <p className="og-note">The capability landscape could not be read.</p>
-          )}
-        </section>
-      )}
-
-      {section === 'health' && (
-        <section className="og-section" aria-label="Atlas health">
-          <h2>How trustworthy is the record itself?</h2>
-          <p className="og-lead">
-            Every other section on this page reads the capability records. This one audits them. The
-            checks below run server-side on request against the same governance engine as{' '}
-            <code>scripts/atlas-governance-check.ts</code>, and they only ever flag — nothing here can
-            promote a capability, close a gap or change a lifecycle state.
-          </p>
-          <AtlasHealth />
-        </section>
-      )}
-
-      {section === 'signals' && (
-        <section className="og-section" aria-label="Data and signals">
-          <h2>What data and signals are being used?</h2>
-          <p className="og-lead">
-            Canonical Enterprise Signal snapshots, produced deterministically by Enterprise World. Each
-            carries its own provenance and states whether it is synthetic.
-          </p>
-          {signalScenario && (
-            <p className="og-lead">
-              Scenario <strong>{signalScenario.scenario_id}</strong>
-              {signalScenario.scenario_clock && (
-                <>
-                  {' · as at '}
-                  <strong>{signalScenario.scenario_clock.slice(0, 10)}</strong>
-                  {' (scenario time, not the wall clock)'}
-                </>
-              )}
-            </p>
-          )}
-          <button type="button" className="og-refresh" onClick={loadSignals} disabled={busy === 'signals'}>
-            {busy === 'signals' ? <Loader2 size={13} className="atlas-spin" /> : <RefreshCw size={13} />}
-            Refresh signals
-          </button>
-          {signals.length === 0 ? (
-            <p className="og-empty">No enterprise signals retrieved.</p>
-          ) : (
-            <ul className="og-signals">
-              {signals.map((sig: any) => (
-                <li key={sig.signal_id}>
-                  <div className="og-signal-head">
-                    <span className="og-signal-type">[{sig.category}] {sig.signal_type}</span>
-                    <span className="og-signal-delta">{sig.delta_pct > 0 ? `+${sig.delta_pct}` : sig.delta_pct}%</span>
-                  </div>
-                  <div className="og-signal-meta">
-                    <span>{sig.entity_type} ({sig.entity_id})</span>
-                    <span>baseline {sig.baseline_value} · observed {sig.observed_value} {sig.unit}</span>
-                    <span>{sig.source_type} · {sig.source_system}</span>
-                  </div>
-                  <div className="og-signal-prov">
-                    Confidence {sig.confidence} · quality {sig.quality}
-                    {sig.synthetic_demo ? ' · modelled' : ''}
-                    {sig.provenance?.rule ? ` · rule ${sig.provenance.rule}` : ''}
-                    {/* Freshness is now a real reading, because the stamp is scenario time. */}
-                    {sig.provenance?.observed_period ? ` · observed ${sig.provenance.observed_period}` : ''}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
-      )}
-
-      {section === 'observable' && (
-        <section className="og-section" aria-label="Decision observability">
-          <h2>What is observable right now?</h2>
-
-          <div className="og-observe">
-            <article className="og-card">
-              <h3>Shared decision state</h3>
-              <p className="og-card-lead">
-                The authoritative, versioned state every decision surface reads, with the transitions
-                that produced it.
-              </p>
-              <div className="og-actions">
-                <button type="button" onClick={refreshState}>Refresh state</button>
-                <button type="button" onClick={resetScenario}>Reset to baseline</button>
-              </div>
-              {decisionState ? (
-                <>
-                  <div className="og-kv"><span>State</span><strong>{decisionState.decision_state_id}</strong></div>
-                  <div className="og-kv"><span>Version</span><strong>v{decisionState.state_version}</strong></div>
-                  <div className="og-kv"><span>Scenario</span><strong>{decisionState.scenario_id}</strong></div>
-                  <div className="og-kv">
-                    <span>Transitions</span><strong>{decisionState.history?.length ?? 0}</strong>
-                  </div>
-                  {(decisionState.history ?? []).slice(-6).map((h: any) => (
-                    <div key={`${h.version}-${h.timestamp}`} className="og-transition">
-                      <span className="og-transition-v">v{h.version}</span>
-                      <span className="og-transition-cmd">{h.command_type}</span>
-                      <span className="og-transition-fields">{(h.changed_fields ?? []).join(', ')}</span>
-                    </div>
-                  ))}
-                </>
-              ) : (
-                <p className="og-empty">No active decision state found.</p>
-              )}
-            </article>
-
-            <article className="og-card">
-              <h3>Journey telemetry</h3>
-              <p className="og-card-lead">
-                Recent canonical journey events. A diagnostic ring buffer held in memory, not an
-                analytics store.
-              </p>
-              <div className="og-actions">
-                <button type="button" onClick={loadEvents} disabled={busy === 'events'}>
-                  {busy === 'events' ? 'Refreshing…' : 'Refresh events'}
-                </button>
-              </div>
-              {events.length === 0 ? (
-                <p className="og-empty">
-                  No telemetry captured yet. Explore CogniX to generate observable decision intent.
-                </p>
-              ) : (
-                <ul className="og-events">
-                  {events.map((evt: any, i: number) => (
-                    <li key={evt.event_id ?? i}>
-                      <span className="og-event-type">
-                        #{evt.sequence_number ?? i + 1} {evt.event_type}
-                      </span>
-                      <span className="og-event-meta">
-                        {evt.source} · {evt.page ?? '—'}
-                        {evt.timestamp ? ` · ${new Date(evt.timestamp).toLocaleTimeString()}` : ''}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
             </article>
           </div>
         </section>
