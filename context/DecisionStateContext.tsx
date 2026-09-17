@@ -4,6 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { DecisionState, DecisionCommandType } from '@/packages/contracts/src/index';
 import { fetchCurrentDecisionState, executeDecisionCommand, resetDecisionState } from '@/lib/decision-state-client';
 import { getOrCreateSessionId } from '@/lib/journey-client';
+import { syncActiveScenario } from '@/lib/scenario-client-registry';
 
 interface DecisionStateContextValue {
   decisionState: DecisionState | null;
@@ -28,6 +29,19 @@ export function DecisionStateProvider({ children }: { children: ReactNode }) {
     try {
       const state = await fetchCurrentDecisionState(sessionId);
       if (state) {
+        /*
+         * Wave-1 convergence (R-33). The Shared Decision State is where the SERVER tells the
+         * browser which scenario the estate is running, and every client-side engine resolves
+         * through `scenarioInScope()`, which reads this browser's own registry. Mirroring the
+         * server's answer HERE — synchronously, before the state that triggers the re-render is
+         * published — is what makes Demand, Promotion and Campaign Decision compute the scenario
+         * the strip is naming instead of the one this tab booted on.
+         *
+         * Order matters: the registry is a module singleton, so updating it before `setDecisionState`
+         * means the render this state change causes already resolves the right scenario. Doing it in
+         * an effect would render one frame of the previous scenario's economics first.
+         */
+        syncActiveScenario(state.scenario_id);
         setDecisionState(state);
         setError(null);
       } else {

@@ -13,7 +13,11 @@ import {
   DecisionStateTransitionResult,
   calculateDerivedImpacts,
   validateDecisionStateCommand,
-  getActiveScenario
+  getActiveScenario,
+  resolveScenario,
+  isScenarioRegistered,
+  scenarioOpeningDecisionParameters,
+  withScenarioInScope
 } from '@/packages/contracts/src/index';
 
 export interface IDecisionStateStore {
@@ -51,15 +55,39 @@ export interface IDecisionStateStore {
   clearStore(): void;
 }
 
-const DEFAULT_SCENARIO_PARAMS: DecisionScenarioParameters = {
-  promotion_lift: 20,
-  supplier_capacity_cap: 10,
-  forecast_horizon_days: 14,
-  promotion_method: '20_percent_off',
-  campaign_scope: 'national',
-  cannibalisation_factor: 0,
-  event_boost: 'none'
-};
+/*
+ * The opening position used to be a module constant here — `promotion_lift: 20`,
+ * `forecast_horizon_days: 14`, `'20_percent_off'`, `'national'`. Those are the REFERENCE
+ * scenario's committed terms, correct while it was the only registered scenario and wrong for
+ * two of the three the Wave-1 catalogue now offers. It is derived per scenario now
+ * (`scenarioOpeningDecisionParameters`, R-31); a constant evaluated at import is exactly how a
+ * surface came to be pinned to one scenario, which is the discipline `R-27` established.
+ */
+
+/** The scenario a decision state is FOR — the one named, or the one the estate is running. */
+function scenarioForState(scenarioId?: string) {
+  if (scenarioId && isScenarioRegistered(scenarioId)) return resolveScenario(scenarioId);
+  return getActiveScenario();
+}
+
+/**
+ * The opening position for that scenario, with the scenario BOUND for the derivation.
+ *
+ * Binding matters: `calculateDerivedImpacts` reads the scenario in scope, so a state created for
+ * scenario X while the estate is running Y would otherwise open with X's plan and Y's arithmetic.
+ * The binding is synchronous by contract, which is what this callback is.
+ */
+function openingPositionFor(scenarioId?: string): {
+  scenario: ReturnType<typeof getActiveScenario>;
+  params: DecisionScenarioParameters;
+  derived: ReturnType<typeof calculateDerivedImpacts>;
+} {
+  const scenario = scenarioForState(scenarioId);
+  return withScenarioInScope(scenario, () => {
+    const params = scenarioOpeningDecisionParameters(scenario);
+    return { scenario, params, derived: calculateDerivedImpacts(params, []) };
+  });
+}
 
 class InMemoryDecisionStateStore implements IDecisionStateStore {
   private statesMap: Map<string, DecisionState> = new Map();
@@ -95,11 +123,17 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
     }
 
     const stateId = `ds_${Math.random().toString(36).substr(2, 9)}`;
-    const initialParams: DecisionScenarioParameters = { ...DEFAULT_SCENARIO_PARAMS };
     const initialInterventions: string[] = [];
 
-    const derived = calculateDerivedImpacts(initialParams, initialInterventions);
-    const activeScenario = getActiveScenario();
+    /*
+     * The state opens on the position ITS OWN scenario is committed to, derived from the record
+     * — not on the reference scenario's plan. `activeScenario` below is that same scenario, so
+     * identity, constraints, parameters and arithmetic all come from one place (R-31).
+     */
+    const opening = openingPositionFor(params.scenario_id);
+    const initialParams: DecisionScenarioParameters = opening.params;
+    const derived = opening.derived;
+    const activeScenario = opening.scenario;
     // A platform receipt: when this session's state was created (ADR-078 part 2).
     const now = new Date().toISOString();
 
@@ -202,7 +236,8 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
         new_version: 0,
         command_type: commandPayload.command_type,
         changed_fields: [],
-        derived_impacts: calculateDerivedImpacts(DEFAULT_SCENARIO_PARAMS, []),
+        /* No state, so no scenario of its own: the estate's active scenario is the only honest basis. */
+        derived_impacts: openingPositionFor().derived,
         state: null as any,
         error: 'Decision state not found'
       };
@@ -386,14 +421,29 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
         break;
 
       case 'RESET_SCENARIO':
-        Object.assign(updatedParams, DEFAULT_SCENARIO_PARAMS);
+        /*
+         * Restart returns this session to the opening position of the scenario IT is running —
+         * read from `currentState.scenario_id`, not from whichever scenario the estate happens to
+         * have active, and not from the reference scenario. Restoring the reference scenario's
+         * plan under a bakery decision is the "Restart restores Fresh Dairy unconditionally"
+         * defect Gate B's scenario-specific reset condition exists to catch (R-31).
+         */
+        Object.assign(updatedParams, openingPositionFor(currentState.scenario_id).params);
         updatedInterventions = [];
         changedFields.push('reset_to_baseline');
         break;
     }
 
-    // Recalculate deterministic derived impacts
-    const newDerivedImpacts = calculateDerivedImpacts(updatedParams, updatedInterventions);
+    /*
+     * Recalculate deterministic derived impacts, BOUND to the scenario this state is for. Without
+     * the binding the engine reads whichever scenario the estate is running, so a state would carry
+     * one scenario's parameters and another's arithmetic — two scenario stories in one object,
+     * which is what the shared decision state exists to prevent.
+     */
+    const newDerivedImpacts = withScenarioInScope(
+      scenarioForState(currentState.scenario_id),
+      () => calculateDerivedImpacts(updatedParams, updatedInterventions)
+    );
     const newVersion = currentState.state_version + 1;
     const now = new Date().toISOString();
 

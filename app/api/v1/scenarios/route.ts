@@ -156,7 +156,22 @@ export async function GET(request: NextRequest) {
        * one certification authority, whichever mode served the entries.
        */
       if (Array.isArray(data?.data)) {
-        return NextResponse.json({ ...data, data: withCertification(data.data) });
+        /*
+         * `active_scenario_id` is answered HERE, not upstream. Activation happens in this process
+         * (`POST` below, through the gated runtime); `cognix-world` holds its own registry, has no
+         * activation endpoint and never learns of a switch, so its `active_scenario_id` is
+         * whatever it bootstrapped with. Proxying that verbatim published a stale active scenario
+         * to the client after every switch in service mode — two registries answering the same
+         * question differently, which is the duplicate scenario state Wave-1 convergence is for.
+         * The domain catalogue stays upstream's; which of it the estate is RUNNING is this
+         * process's to say. Recorded as R-32 against whichever packet makes `cognix-world`
+         * activation-aware; see also R-28.
+         */
+        return NextResponse.json({
+          ...data,
+          active_scenario_id: getActiveScenarioId(),
+          data: withCertification(data.data)
+        });
       }
       return NextResponse.json(data);
     }

@@ -3,6 +3,7 @@
  * Transport-neutral types, command registry, deterministic calculations, and schema definitions.
  */
 
+import { CanonicalScenario } from './canonical-scenario-model';
 import {
   scenarioInScope,
   inScopeWeeklyPopulationUnits,
@@ -32,6 +33,62 @@ export interface DecisionScenarioParameters {
   campaign_scope: 'national' | 'regional' | 'phased';
   cannibalisation_factor: number;  // e.g. 0 to 20 percent
   event_boost: string;             // e.g. 'none', 'bank_holiday', 'heatwave'
+}
+
+/**
+ * The OPENING POSITION of a decision state, derived from the scenario it is for.
+ *
+ * Wave-1 convergence (R-31). This was `DEFAULT_SCENARIO_PARAMS` in `lib/decision-state-store.ts`:
+ * a module constant declaring `promotion_lift: 20`, `forecast_horizon_days: 14`,
+ * `promotion_method: '20_percent_off'` and `campaign_scope: 'national'`. Those are the REFERENCE
+ * scenario's committed terms, and while it was the only registered scenario they were also simply
+ * correct.
+ *
+ * With three certified scenarios and a selector to reach them they are correct for one and wrong
+ * for two: `SCN-CHILLED-SALMON-002` commits 10% over 14 days, `SCN-BAKERY-SOURDOUGH-003` commits
+ * 10% over 7 days in one region. Every session opened on the reference scenario's plan whatever it
+ * had selected, and Restart returned it there — "Restart restores Fresh Dairy unconditionally",
+ * which is the defect Gate B's scenario-specific reset condition exists to catch.
+ *
+ * This is the same class of defect as `R-27`, in the one layer `SCI-03` had no reason to reach:
+ * `R-27` was about ENGINES resolving against the reference scenario, and this is the SESSION's
+ * opening position doing the same. `SCI-03` had no selector to expose it and `SCI-04` authored no
+ * scenario content, so neither lane could have found it alone.
+ *
+ * Every field is DERIVED from the record, never restated. Nothing here declares economics.
+ */
+export function scenarioOpeningDecisionParameters(scenario: CanonicalScenario): DecisionScenarioParameters {
+  const depth = scenario.economics.promotion_depth_pct;
+  return {
+    /* The depth the scenario's plan is COMMITTED to — the position a reader arrives at. */
+    promotion_lift: depth,
+    /*
+     * Standing supplier headroom above un-promoted demand, as a percentage. The record declares
+     * it as an index (1.10 = base plus 10%), and this parameter is that headroom.
+     */
+    supplier_capacity_cap: Math.round((scenario.supply.supplier_capacity_index - 1) * 1000) / 10,
+    forecast_horizon_days: scenario.calendar.forecast_horizon_days,
+    promotion_method: `${depth}_percent_off`,
+    /*
+     * Where the committed intervention runs, mapped from the scenario's own market scope rather
+     * than assumed national. A store-cluster scope is a phased rollout in this vocabulary.
+     */
+    campaign_scope:
+      scenario.identity.market_scope === 'NATIONAL' ? 'national'
+      : scenario.identity.market_scope === 'REGION' ? 'regional'
+      : 'phased',
+    /*
+     * Zero, and not because there is no cannibalisation: the declared depth responses are already
+     * NET of it, so adding a factor here would count it twice.
+     */
+    cannibalisation_factor: 0,
+    event_boost: 'none'
+  };
+}
+
+/** The opening position for the scenario the current computation is for (layer C). */
+export function inScopeOpeningDecisionParameters(): DecisionScenarioParameters {
+  return scenarioOpeningDecisionParameters(scenarioInScope());
 }
 
 export interface DecisionDerivedImpacts {

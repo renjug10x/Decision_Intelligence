@@ -7,7 +7,7 @@ import {
   activateScenarioOnServer,
   ScenarioCatalogueEntry
 } from '@/lib/world-client';
-import { activateScenario as clientActivateScenario } from '@/lib/scenario-client-registry';
+import { syncActiveScenario as clientSyncActiveScenario } from '@/lib/scenario-client-registry';
 import { getOrCreateSessionId } from '@/lib/journey-client';
 
 interface ScenarioSelectorModalProps {
@@ -103,12 +103,13 @@ export default function ScenarioSelectorModal({
         return;
       }
 
-      // Sync local client registry instance if available
-      try {
-        clientActivateScenario(scenario.scenario_id);
-      } catch {
-        // Local sync best-effort; server has canonically activated
-      }
+      /*
+       * Mirror the server's activation into this browser's registry so client-side engines resolve
+       * the scenario that was just activated. This used to swallow its own failure, which is how a
+       * selection could succeed on the server while every surface kept computing the previous
+       * scenario (R-33). The shared mirror reports a disagreement instead of hiding it.
+       */
+      clientSyncActiveScenario(scenario.scenario_id);
 
       onScenarioActivated?.(scenario.scenario_id);
       onClose();

@@ -40,6 +40,12 @@
 // browser's registry. `SCI-03` owns the declaration; this module owns reaching it from a client.
 import '@/packages/contracts/src/scenario-packs';
 
+import {
+  getActiveScenarioId,
+  isScenarioRegistered,
+  activateScenario
+} from '@/packages/contracts/src/scenario-registry';
+
 export {
   getActiveScenario,
   getActiveScenarioId,
@@ -50,3 +56,46 @@ export {
   ScenarioResolutionError,
   type ScenarioRegistryEntry
 } from '@/packages/contracts/src/scenario-registry';
+
+/**
+ * Mirror the SERVER's active scenario into this browser's registry.
+ *
+ * Wave-1 convergence (R-33). The client registry bootstraps on the reference scenario and is only
+ * changed by an explicit `activateScenario`. `SCI-04` called it once, at the moment of selection,
+ * inside a swallowing `catch` — so a page LOAD, a refresh, or any selection whose mirror threw left
+ * the browser resolving the reference scenario while the server ran another.
+ *
+ * That split is not cosmetic. Every client-side engine resolves through `scenarioInScope()`, which
+ * falls back to this registry's active scenario, so Promotion published the reference scenario's
+ * curve — "a 20% cut lifts demand 44.16% … £33.0K at 14%" — under a bakery identity whose own
+ * derived answer is 0%, do not promote; and Campaign Decision opened on "Cheddar Mature 400g ·
+ * National, 14 days" under the same strip. Three scenarios reduced to label variations, which is
+ * exactly what `SCI-03`'s cross-surface invariant forbids.
+ *
+ * The server is the authority and this is a mirror of a decision it has ALREADY gated: only a
+ * certified scenario can be activated (ADR-080), and the id passed here comes from the estate's own
+ * Shared Decision State. Mirroring grants nothing the server did not already grant.
+ *
+ * It returns whether the browser now agrees with the server, rather than throwing or failing
+ * silently: a caller that needs to know can ask, and a disagreement is reported rather than
+ * rendered.
+ */
+export function syncActiveScenario(scenarioId: string | undefined | null): boolean {
+  if (!scenarioId) return false;
+  if (getActiveScenarioId() === scenarioId) return true;
+  if (!isScenarioRegistered(scenarioId)) {
+    console.warn(
+      `[scenario-client-registry] The server is running ${scenarioId}, which this browser's registry `
+      + 'does not know. Surfaces would resolve a different scenario, so the mismatch is reported '
+      + 'rather than hidden.'
+    );
+    return false;
+  }
+  try {
+    activateScenario(scenarioId);
+    return true;
+  } catch (error: any) {
+    console.warn(`[scenario-client-registry] Could not mirror ${scenarioId} locally: ${error?.message}`);
+    return false;
+  }
+}
