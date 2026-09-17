@@ -80,8 +80,8 @@ import {
   deriveUnitEconomics,
   deriveDemandBase,
   deriveFlexCapacityUnits,
-  DDF_GROSS_MARGIN_RATE_PCT,
-  DDF_SLA_FLEX_UNITS_PER_WEEK
+  ddfGrossMarginRatePct,
+  ddfSlaFlexUnitsPerWeek
 } from '../../lib/demand-decision-frontier/demand-frontier-engine';
 
 import {
@@ -89,12 +89,12 @@ import {
   CANONICAL_ELASTICITY_CURVE,
   CANONICAL_CURRENT_POINT,
   CANONICAL_RECOMMENDED_POINT,
-  REGION_STORE_COUNTS,
+  regionStoreCounts,
   LEGACY_DEMO_ESTATE_STORES,
   archetypeBaselineUnits
 } from '../../lib/campaign-archetypes';
 
-import { CDI02_BASE_WEEKLY_UNITS } from '../../packages/contracts/src/campaign-timeline-model';
+import { cdi02BaseWeeklyUnits } from '../../packages/contracts/src/campaign-timeline-model';
 import { formatBaseMoney, localiseMoneyInText, convertBaseAmount, formatStatement } from '../../lib/currency/format';
 import { clearCampaignIntents, registerCampaignIntent } from '../../lib/campaign-intent-store';
 import { createDefaultCampaignIntentDraft } from '../../packages/contracts/src/campaign-intent-model';
@@ -191,7 +191,7 @@ console.log('\n=== 1. SCENARIO IDENTITY ========================================
 
 console.log('\n=== 2. ONE ESTATE =================================================\n');
 
-assert(REGION_STORE_COUNTS.National === CANONICAL_SCENARIO.estate.national_store_count,
+assert(regionStoreCounts().National === CANONICAL_SCENARIO.estate.national_store_count,
   'Promotion estate is the canonical estate');
 assert(canonicalStoreCount('North West') === CANONICAL_SCENARIO.estate.region_store_counts['North West'],
   'Focus region resolves to one store count');
@@ -295,13 +295,13 @@ console.log('\n=== 4. CROSS-SURFACE INVARIANTS =================================
   assertClose(flexFromEngine, canonicalFlexCapacityUnits(), 0.01,
     'Supplier flex recovers the same units on the Demand surface and in the scenario record');
   assertClose(
-    DDF_SLA_FLEX_UNITS_PER_WEEK,
+    ddfSlaFlexUnitsPerWeek(),
     canonicalWeeklyPopulationUnits() * CANONICAL_SCENARIO.supply.supplier_flex_rate_pct / 100,
     0.0001, 'Flex allowance is a share of the canonical population, not a separate count'
   );
 
   // Campaign Decision must not start from a population of its own.
-  assertClose(CDI02_BASE_WEEKLY_UNITS, canonicalWeeklyPopulationUnits(), 0.0001,
+  assertClose(cdi02BaseWeeklyUnits(), canonicalWeeklyPopulationUnits(), 0.0001,
     'Campaign timeline works on the canonical weekly population');
 
   // The unit economics three surfaces publish must be ONE set of numbers.
@@ -311,7 +311,7 @@ console.log('\n=== 4. CROSS-SURFACE INVARIANTS =================================
     `${econ.revenue_per_unit_gbp} vs ${canonicalRealisedRevenuePerUnitGbp()}`);
   assert(econ.gross_margin_per_unit_gbp === canonicalGrossMarginPerUnitGbp(),
     'Demand margin per unit IS the canonical margin basis');
-  assert(DDF_GROSS_MARGIN_RATE_PCT === CANONICAL_SCENARIO.economics.gross_margin_rate_pct,
+  assert(ddfGrossMarginRatePct() === CANONICAL_SCENARIO.economics.gross_margin_rate_pct,
     'One margin rate across the journey');
 
   // A projection that agrees with the canonical basis must not displace it.

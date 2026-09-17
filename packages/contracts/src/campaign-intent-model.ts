@@ -13,7 +13,8 @@
  */
 
 import { CommercialIntent } from './commercial-intent-model';
-import { CANONICAL_SCENARIO, CANONICAL_SCENARIO_ID, canonicalPromotionWindow } from './canonical-scenario-model';
+import { scenarioInScope, inScopePromotionWindow } from './scenario-scope';
+import { resolveCategory } from './campaign-decision-taxonomy-model';
 
 export type CampaignObjectiveType =
   | 'INVENTORY_CLEARANCE'
@@ -208,7 +209,8 @@ export function createDefaultCampaignIntentDraft(
   options?: { domain_id?: string; scenario_id?: string }
 ): CampaignIntent {
   const now = new Date().toISOString();
-  const window = canonicalPromotionWindow();
+  const scenario = scenarioInScope();
+  const window = inScopePromotionWindow();
   /*
    * A new decision OPENS ON THE CONNECTED CASE.
    *
@@ -229,14 +231,23 @@ export function createDefaultCampaignIntentDraft(
       objective_type: 'REVENUE_ACCELERATION',
       intervention_posture: 'UNDECIDED',
       framing_question:
-        `A ${CANONICAL_SCENARIO.economics.promotion_depth_pct}% promotion on `
-        + `${CANONICAL_SCENARIO.identity.sku_name} is already committed ${CANONICAL_SCENARIO.identity.market_scope_label.toLowerCase()}, `
+        `A ${scenario.economics.promotion_depth_pct}% promotion on `
+        + `${scenario.identity.sku_name} is already committed ${scenario.identity.market_scope_label.toLowerCase()}, `
         + `and demand has moved above the plan it was built on. Is it still the right intervention?`,
-      // Catalogue-backed: P004 (Cheddar Mature 400g) is a Dairy line. The earlier default,
-      // "Fresh Dairy", matched no catalogue category, so the seeded decision opened against
-      // a category the estate does not stock.
-      category: 'DAIRY',
-      sku_scope: [CANONICAL_SCENARIO.identity.sku_id],
+      /*
+       * Catalogue-backed, and RESOLVED rather than written down. The earlier default was the
+       * literal 'DAIRY' — correct for P004 and wrong for every other scenario, which is R-27
+       * reaching the decision canvas: a curated pack would have opened its decision against
+       * the reference scenario's category whatever it actually trades in.
+       *
+       * A scenario names its category the way a merchant does ("Fresh Dairy"), so the resolver
+       * is given the subcategory as its fallback. An unresolvable category yields the scenario's
+       * own declared string rather than a borrowed one — wrong is better than wrong AND hidden.
+       */
+      category:
+        resolveCategory(scenario.identity.category, scenario.identity.subcategory)?.id
+        ?? scenario.identity.category,
+      sku_scope: [scenario.identity.sku_id],
       provisional_mechanic: undefined,
       provisional_discount_depth: undefined
     },
@@ -251,7 +262,7 @@ export function createDefaultCampaignIntentDraft(
       capacity_cap_note: 'Supplier capacity headroom remains a binding constraint to validate later.'
     },
     audience_market: {
-      region: CANONICAL_SCENARIO.identity.focus_region,
+      region: scenario.identity.focus_region,
       // A new decision has not yet chosen who to target or how to reach them. The neutral
       // values say exactly that, and leave targeting as something the analyst decides
       // rather than something the draft assumed on their behalf.
@@ -276,13 +287,13 @@ export function createDefaultCampaignIntentDraft(
       ],
       assumptions: [
         'Synthetic demo baseline — not a production forecast commitment',
-        `Context carried from ${CANONICAL_SCENARIO.identity.scenario_name}. The intervention itself is undecided.`
+        `Context carried from ${scenario.identity.scenario_name}. The intervention itself is undecided.`
       ],
       commercial_intent_ref: undefined,
       decision_state_id: undefined,
-      scenario_id: options?.scenario_id || CANONICAL_SCENARIO_ID,
+      scenario_id: options?.scenario_id || scenario.identity.scenario_id,
       // The family is the scenario's own taxonomy, never a literal beside its identity.
-      scenario_family: CANONICAL_SCENARIO.taxonomy.family_id
+      scenario_family: scenario.taxonomy.family_id
     },
     canvas_progress: {
       active_area: 'CAMPAIGN_INTENT',

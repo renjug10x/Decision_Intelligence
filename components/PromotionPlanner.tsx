@@ -31,7 +31,7 @@ import {
   CampaignArchetype,
   CAMPAIGN_DEMO_TENANT_ID,
   CAMPAIGN_DEMO_SESSION_ID,
-  REGION_STORE_COUNTS
+  regionStoreCounts
 } from '@/lib/campaign-archetypes';
 import {
   evaluateCampaignDecisionClient,
@@ -1063,7 +1063,7 @@ export default function PromotionPlanner({
                     * of a reader who needed to choose a reach. The count stays available where the
                     * arithmetic needs it; the control names the scope.
                     */}
-                  {Object.keys(REGION_STORE_COUNTS).map(region => (
+                  {Object.keys(regionStoreCounts()).map(region => (
                     <option key={region} value={region}>
                       {region === 'National' ? 'National — whole estate' : `${region} — regional cluster`}
                     </option>

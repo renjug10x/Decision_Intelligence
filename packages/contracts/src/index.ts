@@ -2,7 +2,17 @@ export * from './provenance-vocabulary';
 export * from './scenario-clock';
 export * from './canonical-scenario-model';
 export * from './scenario-registry';
+/*
+ * Layer C of the derivation stack: what ENGINES read. Bound to the certified scenario the
+ * current computation is for, never to the reference instance by name (R-27).
+ */
+export * from './scenario-scope';
 export * from './scenario-certification-model';
+/*
+ * The curated scenario catalogue. Importing it REGISTERS the packs; it neither certifies nor
+ * activates them, which stays with the gate (`SCI-03`).
+ */
+export * from './scenario-packs';
 /*
  * WAVE-2 CONTRACT DECLARATION, owned by `SCI-05`. Types and governed semantics only — no
  * engine, no calculation, no data. Declared at Gate A so `SCI-06` can build against a fixed

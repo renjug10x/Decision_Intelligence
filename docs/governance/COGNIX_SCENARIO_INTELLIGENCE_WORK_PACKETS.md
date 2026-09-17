@@ -1,8 +1,9 @@
 # CogniX Scenario Intelligence — Work Packets (`SCI`)
 
 **Status:** Authorised for implementation. **Wave 0 COMPLETE and converged. `SCI-01` and `SCI-02`
-delivered (2026-09-16); GATE A PASSED (2026-09-17) — see §9. Wave 1 IS authorised: `SCI-03` and
-`SCI-04` may be cut from SHA-A.**
+delivered (2026-09-16); GATE A PASSED (2026-09-17) — see §9. Wave 1 IS authorised. `SCI-03`
+delivered (2026-09-17) on `feature/cognix-sci-03-curated-scenarios` — three certified scenarios and
+`R-27` closed; `SCI-04` still to land. GATE B is NOT passed: it needs both Wave-1 lanes.**
 **Authorised:** 2026-09-15 against baseline `f9c5679c` on `feature/cognix-enterprise-demo-hardening`.
 **Governs:** programme `SCI` — the Scenario Laboratory.
 **Execution model:** two agents, **Cursor** and **Antigravity**, concurrently where the dependency
@@ -42,7 +43,7 @@ and the lanes never touch.
 |---|---|---|---|---|---|
 | `SCI-01` | Scenario Contract, Clock, Registry & Provenance Foundation | **FOUNDATION** | Cursor | 0 | **[COMPLETED 2026-09-16]** |
 | `SCI-02` | Scenario Certification Gate & Reconciliation Generalisation | **FOUNDATION** | Cursor | 0 | **[COMPLETED 2026-09-16]** |
-| `SCI-03` | Curated Scenario Domain Packs | CURSOR | Cursor | 1 | Not started |
+| `SCI-03` | Curated Scenario Domain Packs | CURSOR | Cursor | 1 | **[COMPLETED 2026-09-17]** |
 | `SCI-04` | Scenario Selection Experience | ANTIGRAVITY | Antigravity | 1 | Not started |
 | `SCI-05` | Living Evidence Engine — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 | Not started |
 | `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 | Not started |
@@ -413,7 +414,7 @@ Registered as `R-27`, and it is now `SCI-03`'s precondition rather than a client
 | **Class** | CURSOR |
 | **Tool** | Cursor |
 | **Wave / base** | 1 / SHA-A |
-| **Branch** | `feature/cognix-sci-03-scenario-packs` |
+| **Branch** | `feature/cognix-sci-03-curated-scenarios` (delivered; this record previously named `feature/cognix-sci-03-scenario-packs` and the implementation directive named the branch above — the delivered branch is authoritative) |
 
 **Objective.** Promote `ARCH-SUPPLY-CONSTRAINED` and `ARCH-PREMIUM-ARTISAN` to full certified
 scenarios by supplying the world half each archetype lacks.
@@ -455,6 +456,47 @@ activation.
 **Definition of done.** Three certified scenarios. Full regression green. No assertion weakened.
 
 **Handoff artefact.** Certification results for three scenarios.
+
+### `SCI-03` delivery record — 2026-09-17
+
+**Delivered.** Two full `CanonicalScenario` instances registered beside the protected reference
+scenario, all three `CERTIFIED` on all twelve dimensions at 84 applicable checks each, and `R-27`
+closed before either pack was authored.
+
+| | `SCN-FRESH-DAIRY-CHEDDAR-001` | `SCN-CHILLED-SALMON-002` | `SCN-BAKERY-SOURDOUGH-003` |
+|---|---|---|---|
+| SKU / supplier | P004 / SUP002 Cheshire Cheese Co | P048 / SUP006 Foodvest Fish | P023 / SUP011 Allied Bakeries |
+| family / archetype | `promotion_surge` / `ARCH-CHILLED-ELASTIC` | `supplier_breach` / `ARCH-SUPPLY-CONSTRAINED` | `fresh_perishable_waste` / `ARCH-PREMIUM-ARTISAN` |
+| scenario clock / horizon | 2026-06-03 / 14d | 2026-07-15 / 14d | 2026-09-09 / 7d |
+| base week / allocation | 350,000 / 1.10 | 47,040 / 1.02 | 26,040 / 1.06 |
+| elasticity / supplier funding | 2.4pp per point / 35% | 2.2pp per point / 60% | 0.8pp per point / 10% |
+| committed depth | 20% | 10% | 10% |
+| **derived recommendation** | **14%** — shallower than the plan | **10%** — the committed depth already wins | **0% — do not promote** |
+| binding constraint | margin | landed supply: 24.4pp of base exposed | margin, then same-day waste |
+
+**The recommendation is derived, not declared.** `is_cognix_recommended` was removed from the depth
+tiers and is now computed as the tier returning the most contribution;
+`assertRecommendationIsDerived` holds it there. The bakery pack is the case that proves it matters:
+at 0.8pp per point against 10% supplier funding, every plotted depth destroys contribution and no
+seeded label would ever have said so.
+
+**`R-27` CLOSED.** A third derivation layer — `scenarioInScope()` / `withScenarioInScope()` /
+`inScope*` — sits beside layer A (`scenarioX(scenario, …)`) and layer B (`canonicalX(…)`). Engines
+read layer C. The certification harness binds the scenario under test without activating it, because
+ADR-080 gates activation ON certification. Six module constants became functions. A source guard
+asserts no engine names a pack and no engine compares a scenario identity against a literal.
+
+**The protected journey is bit-for-bit unchanged.** A 385-line value probe run at SHA-A and at this
+head is identical: 20% → +44.16% / −£5,167; 14% → +33.65% / +£32,976; exposure £47,093; Decision Gap
+18.6pp on a 699,996-unit base. Confirmed again in Chromium at 1440 / 1024 / 720.
+
+**Opened.** `R-30` — the family temporal series contradicts a certified scenario's own record, in
+direction as well as scale. Stopped being served rather than rescaled; assigned to `SCI-05`, whose
+Refresh contract already declares the shape a real per-scenario history belongs in.
+
+**Not done, and deliberately.** No selection UI (`SCI-04`). No scope-response multipliers on either
+pack — neither scenario has a declared reason for one, and inventing one to look richer is what
+ADR-079 forbids. `R-25` untouched. `R-29` untouched: `SCI-03` does not touch the frontier engine.
 
 ---
 

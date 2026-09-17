@@ -16,14 +16,30 @@
 import { CampaignIntent, CampaignObjectiveType, InterventionPosture, PrimaryObjectiveMetric } from '../packages/contracts/src/campaign-intent-model';
 import { NarrativeStatement, moneyAmount, statementToBaseText } from '../packages/contracts/src/currency-model';
 import {
+  CanonicalScenario,
   CANONICAL_SCENARIO,
-  canonicalScenarioDateIso,
+  scenarioContributionAtDepthGbp,
+  scenarioImpliedUnitCostGbp,
+  scenarioWeeklyPopulationUnits,
+  scenarioStoreCount,
+  scenarioDepthResponsePp,
+  /*
+   * Layer B, used deliberately and only by the REFERENCE archetype entry below. That entry is
+   * the protected decision case's own commercial projection, so it names the reference instance
+   * where every other path in this module reads the scenario in scope.
+   */
   canonicalStoreCount,
-  canonicalContributionAtDepthGbp,
   canonicalImpliedUnitCostGbp,
   canonicalWeeklyPopulationUnits,
-  canonicalDepthResponsePp
+  canonicalContributionAtDepthGbp
 } from '../packages/contracts/src/canonical-scenario-model';
+import {
+  scenarioInScope,
+  inScopeScenarioDateIso,
+  inScopeStoreCount,
+  inScopeContributionAtDepthGbp,
+  inScopeWeeklyPopulationUnits
+} from '../packages/contracts/src/scenario-scope';
 
 /**
  * Single source of tenant/session identity for the campaign demo surface.
@@ -41,8 +57,9 @@ export const CAMPAIGN_DEMO_SESSION_ID = 'sess_001';
  * almost the same shops. The estate is illustrative and the journey speaks in SCOPES; the counts
  * exist so targeting arithmetic has a denominator, not so a store count becomes a headline.
  */
-export const REGION_STORE_COUNTS: Record<string, number> =
-  { ...CANONICAL_SCENARIO.estate.region_store_counts };
+export function regionStoreCounts(): Record<string, number> {
+  return { ...scenarioInScope().estate.region_store_counts };
+}
 
 /**
  * Promotion economics for an archetype, DERIVED from its own price, cost and volume and from the
@@ -66,13 +83,20 @@ export interface DerivedElasticityInputs {
 
 export function deriveElasticityEconomics(
   points: readonly (Omit<ElasticityPoint, 'unit_contribution_gbp' | 'net_contribution_delta_gbp'>)[],
-  inputs: DerivedElasticityInputs
+  inputs: DerivedElasticityInputs,
+  /**
+   * The scenario whose supplier-funding agreement prices this curve. Explicit so the reference
+   * curve below states which scenario it belongs to instead of inheriting whatever was in scope
+   * when this module was imported; omitted, it is the scenario in scope (R-27).
+   */
+  scenario: CanonicalScenario = scenarioInScope()
 ): ElasticityPoint[] {
-  const baselineContribution =
-    inputs.baseline_units * canonicalContributionAtDepthGbp(0, inputs.list_price_gbp, inputs.unit_cost_gbp);
+  const at = (d: number) =>
+    scenarioContributionAtDepthGbp(scenario, d, inputs.list_price_gbp, inputs.unit_cost_gbp);
+  const baselineContribution = inputs.baseline_units * at(0);
 
   return points.map(pt => {
-    const contribution = canonicalContributionAtDepthGbp(pt.discount_pct, inputs.list_price_gbp, inputs.unit_cost_gbp);
+    const contribution = at(pt.discount_pct);
     // Cannibalisation is charged against the INCREMENTAL volume the promotion creates, not against
     // the base: volume that was always going to sell cannot be taken from a neighbouring line.
     const incremental = inputs.baseline_units * (pt.expected_demand_uplift_pct / 100) * (1 - inputs.cannibalisation_rate);
@@ -112,20 +136,34 @@ export function deriveElasticityEconomics(
  * bound ADR-075 recorded as a residual rather than closed. Deriving both the curve and the engine
  * from the record's declared terms is what makes the agreement structural.
  */
-const CANONICAL_DEPTH_RESPONSE = [
+const DEPTH_TIERS = [
   { discount_pct: 0, notes: 'No promotion — the un-promoted base' },
   { discount_pct: 5, notes: 'Shallow cut, contribution still building' },
   { discount_pct: 10, notes: 'Volume response accelerating' },
-  { discount_pct: 14, is_cognix_recommended: true, notes: 'Threshold price point wins feature space — best contribution on this curve' },
-  { discount_pct: 20, is_current: true, notes: 'The committed plan — more volume, materially less contribution than 14%' },
+  { discount_pct: 14, notes: 'Threshold price point wins feature space — best contribution on this curve' },
+  { discount_pct: 20, notes: 'The committed plan — more volume, materially less contribution than 14%' },
   { discount_pct: 25, notes: 'Response saturating while price investment keeps rising' },
   { discount_pct: 30, notes: 'Contribution collapse' }
-].map(pt => ({
-  ...pt,
-  // DERIVED from the record's own declared elasticity, cannibalisation rate and threshold
-  // effect — never restated as a literal beside them (ADR-073 rule 2).
-  expected_demand_uplift_pct: canonicalDepthResponsePp(pt.discount_pct)
-}));
+] as const;
+
+/**
+ * The depth tiers a scenario is plotted at, with THIS scenario's declared response at each.
+ *
+ * `is_current` and `is_cognix_recommended` are not literals on a tier: the committed depth is
+ * whatever the scenario declares it is, and the recommended depth is whichever plotted tier
+ * returns the most contribution once the curve is priced. Marking them by hand is how a curve
+ * comes to recommend 14% for a scenario whose arithmetic says every point of depth destroys
+ * contribution — a caption contradicting the numbers underneath it.
+ */
+function scenarioDepthTiers(scenario: CanonicalScenario) {
+  return DEPTH_TIERS.map(pt => ({
+    ...pt,
+    is_current: pt.discount_pct === scenario.economics.promotion_depth_pct,
+    // DERIVED from the record's own declared elasticity, cannibalisation rate and threshold
+    // effect — never restated as a literal beside them (ADR-073 rule 2).
+    expected_demand_uplift_pct: scenarioDepthResponsePp(scenario, pt.discount_pct)
+  }));
+}
 
 /** Compact pounds for narrative composed in this module. Display converts it like any other amount. */
 function formatGbpShort(v: number): string {
@@ -140,9 +178,10 @@ function formatGbpShort(v: number): string {
 export function archetypeBaselineUnits(
   baseWeeklyUnitsPerStore: number,
   region: string,
-  durationDays: number
+  durationDays: number,
+  scenario: CanonicalScenario = scenarioInScope()
 ): number {
-  return baseWeeklyUnitsPerStore * canonicalStoreCount(region) * (durationDays / 7);
+  return baseWeeklyUnitsPerStore * scenarioStoreCount(scenario, region) * (durationDays / 7);
 }
 
 export type ArchetypeId =
@@ -417,10 +456,10 @@ export function deriveFrontierPlayContributionGbp(
   economics?: { list_price_gbp: number; unit_cost_gbp: number; base_weekly_units_per_store: number }
 ): number {
   const perStore = economics?.base_weekly_units_per_store
-    ?? canonicalWeeklyPopulationUnits() / canonicalStoreCount('National');
+    ?? inScopeWeeklyPopulationUnits() / inScopeStoreCount('National');
   const baselineUnits = perStore * storesCount * (durationDays / 7);
   const at = (d: number) =>
-    canonicalContributionAtDepthGbp(d, economics?.list_price_gbp, economics?.unit_cost_gbp);
+    inScopeContributionAtDepthGbp(d, economics?.list_price_gbp, economics?.unit_cost_gbp);
   const incremental = baselineUnits * (expectedUpliftPct / 100) * (1 - cannibalisationRate);
   return Math.round((baselineUnits + incremental) * at(discountPct) - baselineUnits * at(0));
 }
@@ -441,7 +480,7 @@ function rescaleLegacyStoreCount(storesCount: number, region: string): number {
   // written against the canonical estate and is left alone.
   if (storesCount > LEGACY_DEMO_ESTATE_STORES) return storesCount;
   const share = storesCount / LEGACY_DEMO_ESTATE_STORES;
-  return Math.max(1, Math.round(canonicalStoreCount(region) * share));
+  return Math.max(1, Math.round(inScopeStoreCount(region) * share));
 }
 
 /**
@@ -585,30 +624,128 @@ function canonicaliseArchetypes(
 }
 
 /**
- * The canonical decision case's elasticity curve: seeded demand response, derived economics.
- * Everything the Promotion surface publishes about depth resolves through this one object.
+ * A scenario's elasticity curve: declared demand response, derived economics.
+ *
+ * Everything a Promotion surface publishes about depth resolves through this one function. It
+ * used to be a module constant bound to the reference instance, which meant every scenario the
+ * certification gate put in front of it was plotted on Fresh Dairy's curve (R-27).
+ *
+ * The recommendation is DERIVED here rather than marked on a tier. The tier that returns the
+ * most contribution wins, and where the un-promoted point wins — which is the honest answer for
+ * an inelastic line with thin supplier funding — the curve recommends not promoting at all. No
+ * label is applied after the fact; the arithmetic decides, and `assertRecommendationIsDerived`
+ * is what stops that ever becoming a caption again.
  */
-export const CANONICAL_ELASTICITY_CURVE: ElasticityPoint[] = deriveElasticityEconomics(
-  CANONICAL_DEPTH_RESPONSE,
-  {
-    list_price_gbp: CANONICAL_SCENARIO.economics.list_price_gbp,
-    unit_cost_gbp: canonicalImpliedUnitCostGbp(),
-    baseline_units: archetypeBaselineUnits(
-      canonicalWeeklyPopulationUnits() / canonicalStoreCount('National'),
-      CANONICAL_SCENARIO.identity.market_scope_label,
-      CANONICAL_SCENARIO.calendar.promotion_duration_days
-    ),
-    /*
-     * Zero, and not because there is no cannibalisation: the responses above are already NET of
-     * it, the same basis the causal engine attributes on. Charging it a second time here is how a
-     * planning curve and a causal engine end up disagreeing about the same campaign.
-     */
-    cannibalisation_rate: 0
-  }
-);
+export function scenarioElasticityCurve(scenario: CanonicalScenario): ElasticityPoint[] {
+  const curve = deriveElasticityEconomics(
+    scenarioDepthTiers(scenario),
+    {
+      list_price_gbp: scenario.economics.list_price_gbp,
+      unit_cost_gbp: scenarioImpliedUnitCostGbp(scenario),
+      baseline_units: archetypeBaselineUnits(
+        scenarioWeeklyPopulationUnits(scenario) / scenarioStoreCount(scenario, 'National'),
+        scenario.identity.market_scope_label,
+        scenario.calendar.promotion_duration_days,
+        scenario
+      ),
+      /*
+       * Zero, and not because there is no cannibalisation: the responses above are already NET of
+       * it, the same basis the causal engine attributes on. Charging it a second time here is how a
+       * planning curve and a causal engine end up disagreeing about the same campaign.
+       */
+      cannibalisation_rate: 0
+    },
+    scenario
+  );
 
-/** One tier of the canonical curve, by depth. Plays read the curve rather than restating it. */
+  const best = curve.reduce((a, b) =>
+    b.net_contribution_delta_gbp > a.net_contribution_delta_gbp ? b : a
+  );
+  return curve.map(pt => ({ ...pt, is_cognix_recommended: pt.discount_pct === best.discount_pct }));
+}
+
+/**
+ * The guard that keeps the recommendation DERIVED.
+ *
+ * `SCI-03` removed `is_cognix_recommended` from the depth tiers because a curve that is TOLD
+ * which tier it recommends will keep saying so after the economics move underneath it — and
+ * the premium bakery pack is the case that proves it matters: at a declared elasticity of 0.8
+ * against 10% supplier funding, its best tier is not promoting at all, and no seeded label
+ * would ever have said that.
+ *
+ * This asserts the two properties that make the recommendation checkable rather than asserted:
+ * exactly one tier is recommended, and it is the tier that returns the most contribution.
+ */
+export function assertRecommendationIsDerived(
+  scenario: CanonicalScenario
+): { ok: boolean; violations: string[] } {
+  const violations: string[] = [];
+  const curve = scenarioElasticityCurve(scenario);
+
+  const recommended = curve.filter(p => p.is_cognix_recommended);
+  if (recommended.length !== 1) {
+    violations.push(
+      `${scenario.identity.scenario_id}: ${recommended.length} tiers marked recommended, expected exactly 1`
+    );
+  }
+
+  const best = curve.reduce((a, b) =>
+    b.net_contribution_delta_gbp > a.net_contribution_delta_gbp ? b : a
+  );
+  if (recommended[0] && recommended[0].discount_pct !== best.discount_pct) {
+    violations.push(
+      `${scenario.identity.scenario_id}: recommends ${recommended[0].discount_pct}% at `
+      + `£${recommended[0].net_contribution_delta_gbp} while ${best.discount_pct}% returns `
+      + `£${best.net_contribution_delta_gbp}`
+    );
+  }
+
+  const current = curve.filter(p => p.is_current);
+  const committed = scenario.economics.promotion_depth_pct;
+  const plotted = curve.some(p => p.discount_pct === committed);
+  if (plotted && (current.length !== 1 || current[0].discount_pct !== committed)) {
+    violations.push(
+      `${scenario.identity.scenario_id}: the committed ${committed}% is not the tier marked current`
+    );
+  }
+
+  return { ok: violations.length === 0, violations };
+}
+
+/**
+ * The curve for the scenario in scope, computed once per scenario.
+ *
+ * Memoised on the scenario's identity because a scenario record is immutable once registered and
+ * the surfaces below read the curve repeatedly inside one render.
+ */
+const CURVE_BY_SCENARIO = new Map<string, ElasticityPoint[]>();
+
+export function elasticityCurveInScope(): ElasticityPoint[] {
+  const scenario = scenarioInScope();
+  const key = scenario.identity.scenario_id;
+  const cached = CURVE_BY_SCENARIO.get(key);
+  if (cached) return cached;
+  const curve = scenarioElasticityCurve(scenario);
+  CURVE_BY_SCENARIO.set(key, curve);
+  return curve;
+}
+
+/** One tier of the IN-SCOPE curve, by depth. Plays read the curve rather than restating it. */
 export function curvePoint(discountPct: number): ElasticityPoint {
+  const curve = elasticityCurveInScope();
+  return curve.find(p => p.discount_pct === discountPct) ?? curve[0];
+}
+
+/**
+ * The protected reference instance's curve, bound by name at one place — layer B of the
+ * derivation stack. The archetype catalogue below is the REFERENCE framework's comparative
+ * library and is priced here deliberately, so it does not silently change shape with whatever
+ * scenario is in scope when this module is imported.
+ */
+export const CANONICAL_ELASTICITY_CURVE: ElasticityPoint[] = scenarioElasticityCurve(CANONICAL_SCENARIO);
+
+/** One tier of the reference curve, by depth. */
+export function canonicalCurvePoint(discountPct: number): ElasticityPoint {
   return CANONICAL_ELASTICITY_CURVE.find(p => p.discount_pct === discountPct) ?? CANONICAL_ELASTICITY_CURVE[0];
 }
 
@@ -879,8 +1016,8 @@ const SEEDED_ARCHETYPES: Record<ArchetypeId, CampaignArchetype> = {
         discount_pct: 10,
         stores_count: canonicalStoreCount('National'),
         duration_days: CANONICAL_SCENARIO.calendar.promotion_duration_days,
-        expected_demand_uplift_pct: curvePoint(10).expected_demand_uplift_pct,
-        net_contribution_delta_gbp: curvePoint(10).net_contribution_delta_gbp,
+        expected_demand_uplift_pct: canonicalCurvePoint(10).expected_demand_uplift_pct,
+        net_contribution_delta_gbp: canonicalCurvePoint(10).net_contribution_delta_gbp,
         supply_exposure: 'LOW',
         waste_impact_pct: -2.1,
         rationale: 'A conservative cut that protects unit economics and stays comfortably inside what the supplier can serve.'
@@ -892,8 +1029,8 @@ const SEEDED_ARCHETYPES: Record<ArchetypeId, CampaignArchetype> = {
         discount_pct: 25,
         stores_count: canonicalStoreCount('National'),
         duration_days: CANONICAL_SCENARIO.calendar.promotion_duration_days,
-        expected_demand_uplift_pct: curvePoint(25).expected_demand_uplift_pct,
-        net_contribution_delta_gbp: curvePoint(25).net_contribution_delta_gbp,
+        expected_demand_uplift_pct: canonicalCurvePoint(25).expected_demand_uplift_pct,
+        net_contribution_delta_gbp: canonicalCurvePoint(25).net_contribution_delta_gbp,
         supply_exposure: 'CRITICAL',
         waste_impact_pct: -6.0,
         rationale: 'Buys top-line volume outright. The response is saturating while the price investment keeps rising, and the demand created is far beyond anything the network can serve.'
@@ -2347,7 +2484,7 @@ export function estimateInterventionEconomics(
       ? pt
       : best
   );
-  const baselineStores = canonicalStoreCount(archetype.default_region);
+  const baselineStores = inScopeStoreCount(archetype.default_region);
   const storeScale = baselineStores > 0 ? proposal.stores / baselineStores : 1;
   const durationScale =
     archetype.default_duration_days > 0 ? proposal.duration_days / archetype.default_duration_days : 1;
@@ -2390,8 +2527,8 @@ export function buildCampaignIntentFromArchetype(
    * a fourteen-day campaign run fifteen days, so the surface published a window one day longer
    * than the horizon it was measured against.
    */
-  const start = canonicalScenarioDateIso(1).slice(0, 10);
-  const end = canonicalScenarioDateIso(duration).slice(0, 10);
+  const start = inScopeScenarioDateIso(1).slice(0, 10);
+  const end = inScopeScenarioDateIso(duration).slice(0, 10);
 
   const discount = overrides?.discount_depth_pct ?? overrides?.discount_pct ?? archetype.default_discount_pct;
   const sku = overrides?.sku_id || archetype.default_sku;
@@ -2448,8 +2585,8 @@ export function buildCampaignIntentFromArchetype(
        * elasticity, cannibalisation, plays and narrative, and it takes the scenario's
        * identity rather than asserting one of its own.
        */
-      scenario_id: CANONICAL_SCENARIO.identity.scenario_id,
-      scenario_family: CANONICAL_SCENARIO.taxonomy.family_id,
+      scenario_id: scenarioInScope().identity.scenario_id,
+      scenario_family: scenarioInScope().taxonomy.family_id,
       archetype_id: archetype.id
     },
     canvas_progress: {

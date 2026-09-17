@@ -32,7 +32,11 @@ import {
   SimulationPeriod,
   validateEnterpriseSignal
 } from '../../../packages/contracts/src/index';
-import { CanonicalScenario } from '../../../packages/contracts/src/canonical-scenario-model';
+import {
+  CanonicalScenario,
+  scenarioContributionAtDepthGbp,
+  scenarioContributionPerUnitAtListGbp
+} from '../../../packages/contracts/src/canonical-scenario-model';
 import { scenarioPeriodInstantIso, scenarioNowIso } from '../../../packages/contracts/src/scenario-clock';
 
 const GENERATOR = 'cognix_world_generator';
@@ -219,9 +223,26 @@ export function generateSyntheticSignalSnapshot(
       }
     ];
   } else if (scenario.taxonomy.family_id === 'supplier_breach') {
+    /*
+     * Every value below is DERIVED from the scenario's own record.
+     *
+     * It used to be three literals — a lead time that doubled, a 0.5-to-4.5-hour replenishment
+     * delay and a stockout probability that went from 5% to 68% — none of which belonged to any
+     * scenario. They were the same defect `SCI-01` removed from the `promotion_surge` branch,
+     * surviving in a branch nothing had yet run, and `SCI-03` is the packet that runs it.
+     */
     const driftTiming: SignalTiming = { observed_period: 'T-2', effective_period: 'T+3' };
-    const replenTiming: SignalTiming = { observed_period: 'T-1', effective_period: 'T+3' };
-    const stockoutTiming: SignalTiming = { observed_period: 'Today', effective_period: 'T+7' };
+    const allocationTiming: SignalTiming = { observed_period: 'T-1', effective_period: 'T+3' };
+    const coverTiming: SignalTiming = { observed_period: 'Today', effective_period: 'T+7' };
+
+    /*
+     * A supplier's lead time stretches in proportion to how far the demand on it exceeds the
+     * allocation it planned against. One queue, one declared ratio — not a doubling asserted
+     * because doubling reads well.
+     */
+    const demandOverAllocation = servableWeekly > 0 ? expectedWeekly / servableWeekly : 1;
+    const contractedLeadHours = calendar.supplier_lead_time_days * 24;
+    const observedLeadHours = round1(contractedLeadHours * demandOverAllocation);
 
     signals = [
       {
@@ -232,48 +253,172 @@ export function generateSyntheticSignalSnapshot(
         entity_type: 'SUPPLIER',
         entity_id: supply.supplier_name,
         ...stamp(scenario, driftTiming),
-        baseline_value: calendar.supplier_lead_time_days * 24,
-        observed_value: calendar.supplier_lead_time_days * 24 * 2,
-        delta: calendar.supplier_lead_time_days * 24,
-        delta_pct: 100,
+        baseline_value: contractedLeadHours,
+        observed_value: observedLeadHours,
+        delta: round1(observedLeadHours - contractedLeadHours),
+        delta_pct: round1(((observedLeadHours - contractedLeadHours) / contractedLeadHours) * 100),
         unit: 'hours',
         confidence: 96,
         quality: 98,
-        provenance: provenanceFor(scenario, 'supplier_lead_time_delay', driftTiming)
+        provenance: {
+          ...provenanceFor(scenario, 'supplier_lead_time_drift_under_allocation_pressure', driftTiming),
+          supplier_id: supply.supplier_id,
+          contracted_lead_time_days: String(calendar.supplier_lead_time_days)
+        }
       },
       {
         ...common,
         signal_id: 'sig_sb_002',
-        signal_type: 'REPLENISHMENT_DELAY',
+        signal_type: 'SUPPLIER_CAPACITY_PRESSURE',
         category: 'SUPPLY',
-        entity_type: 'DC',
-        entity_id: `${identity.focus_region} RDC`,
-        ...stamp(scenario, replenTiming),
-        baseline_value: 0.5,
-        observed_value: 4.5,
-        delta: 4.0,
-        delta_pct: 800,
-        unit: 'hours_delay',
-        confidence: 94,
-        quality: 95,
-        provenance: provenanceFor(scenario, 'dc_replenishment_queue_delay', replenTiming)
+        entity_type: 'SUPPLIER',
+        /*
+         * The same party the flex notice would be served on, and the same party the economics
+         * name. R-20 is a rule about every family, not about the one it was found in.
+         */
+        entity_id: supply.supplier_name,
+        ...stamp(scenario, allocationTiming),
+        baseline_value: servableWeekly,
+        observed_value: expectedWeekly,
+        delta: expectedWeekly - servableWeekly,
+        delta_pct: round1(((expectedWeekly - servableWeekly) / servableWeekly) * 100),
+        unit: 'units_per_week',
+        confidence: 95,
+        quality: 96,
+        provenance: {
+          ...provenanceFor(scenario, 'supplier_capacity_allocation_cap', allocationTiming),
+          supplier_id: supply.supplier_id,
+          flex_clause: supply.flex_clause_reference,
+          flex_rate_pct: String(supply.supplier_flex_rate_pct)
+        }
       },
       {
         ...common,
         signal_id: 'sig_sb_003',
-        signal_type: 'PROJECTED_STOCKOUT_RISK',
+        signal_type: 'STOCK_COVER_DECLINE',
+        category: 'INVENTORY',
+        entity_type: 'DC',
+        entity_id: `${identity.focus_region} RDC`,
+        ...stamp(scenario, coverTiming),
+        baseline_value: baseCoverDays,
+        observed_value: pressuredCoverDays,
+        delta: round1(pressuredCoverDays - baseCoverDays),
+        delta_pct: round1(((pressuredCoverDays - baseCoverDays) / baseCoverDays) * 100),
+        unit: 'days_of_cover',
+        confidence: 93,
+        quality: 94,
+        provenance: provenanceFor(scenario, 'rdc_cover_decline_under_lead_time_drift', coverTiming)
+      }
+    ];
+  } else if (scenario.taxonomy.family_id === 'fresh_perishable_waste') {
+    /*
+     * A short-life line's timeline is not a demand story. What a same-day bake publishes is
+     * the pressure on the bake plan, what ages on the shelf, and what the price investment
+     * does to contribution — which is the evidence a reader needs to answer *should we promote
+     * this at all?* rather than *how deep?*.
+     *
+     * Every value is derived from the record: the competitor trigger from the scenario's own
+     * OBSERVED_BEHAVIOUR attribution, the ageing pressure from its declared waste rate, the
+     * bake-plan pressure from its allocation index, and the margin compression from the
+     * promotion economics primitive both the curve and the causal engine resolve through.
+     */
+    const competitorTiming: SignalTiming = { observed_period: 'T-7', effective_period: 'T+1' };
+    const ageingTiming: SignalTiming = { observed_period: 'T-2', effective_period: 'T+3' };
+    const bakePlanTiming: SignalTiming = { observed_period: 'T-1', effective_period: 'T+3' };
+    const marginTiming: SignalTiming = { observed_period: 'Today', effective_period: 'T+7' };
+
+    const observedBehaviourPp = demand.movement_attribution
+      .filter(a => a.driver_class === 'OBSERVED_BEHAVIOUR')
+      .reduce((sum, a) => sum + a.contribution_pp, 0);
+
+    const baseWastePct = round1((scenario.economics.waste_units_per_week / baseWeekly) * 100);
+    // Bake to the promoted plan, sell to an inelastic response: the surplus ages on the shelf.
+    const pressuredWastePct = round1(
+      baseWastePct * (1 + demand.total_demand_movement_pct / 100)
+    );
+
+    const contributionAtList = scenarioContributionPerUnitAtListGbp(scenario);
+    const contributionAtDepth = scenarioContributionAtDepthGbp(
+      scenario,
+      scenario.economics.promotion_depth_pct
+    );
+
+    signals = [
+      {
+        ...common,
+        signal_id: 'sig_fw_001',
+        signal_type: 'COMPETITOR_CAMPAIGN_LAUNCH',
+        category: 'COMMERCIAL',
+        entity_type: 'CATEGORY',
+        entity_id: identity.category,
+        ...stamp(scenario, competitorTiming),
+        baseline_value: 100,
+        observed_value: round1(100 + observedBehaviourPp),
+        delta: round1(observedBehaviourPp),
+        delta_pct: round1(observedBehaviourPp),
+        unit: 'percent_baseline',
+        confidence: 86,
+        quality: 88,
+        provenance: provenanceFor(scenario, 'competitor_feature_observed_in_category', competitorTiming)
+      },
+      {
+        ...common,
+        signal_id: 'sig_fw_002',
+        signal_type: 'PERISHABLE_AGEING_PRESSURE',
         category: 'INVENTORY',
         entity_type: 'SKU',
         entity_id: `${identity.sku_id} ${identity.sku_name}`,
-        ...stamp(scenario, stockoutTiming),
-        baseline_value: 5,
-        observed_value: 68,
-        delta: 63,
-        delta_pct: 1260,
-        unit: 'percent_probability',
-        confidence: 93,
-        quality: 94,
-        provenance: provenanceFor(scenario, 'stockout_probability_acceleration', stockoutTiming)
+        ...stamp(scenario, ageingTiming),
+        baseline_value: baseWastePct,
+        observed_value: pressuredWastePct,
+        delta: round1(pressuredWastePct - baseWastePct),
+        delta_pct: round1(((pressuredWastePct - baseWastePct) / baseWastePct) * 100),
+        unit: 'percent_of_week',
+        confidence: 91,
+        quality: 93,
+        provenance: provenanceFor(scenario, 'short_life_surplus_ageing_under_promotion', ageingTiming)
+      },
+      {
+        ...common,
+        signal_id: 'sig_fw_003',
+        signal_type: 'SUPPLIER_CAPACITY_PRESSURE',
+        category: 'SUPPLY',
+        entity_type: 'SUPPLIER',
+        entity_id: supply.supplier_name,
+        ...stamp(scenario, bakePlanTiming),
+        baseline_value: servableWeekly,
+        observed_value: expectedWeekly,
+        delta: expectedWeekly - servableWeekly,
+        delta_pct: round1(((expectedWeekly - servableWeekly) / servableWeekly) * 100),
+        unit: 'units_per_week',
+        confidence: 94,
+        quality: 95,
+        provenance: {
+          ...provenanceFor(scenario, 'same_day_bake_plan_headroom', bakePlanTiming),
+          supplier_id: supply.supplier_id,
+          flex_clause: supply.flex_clause_reference,
+          lead_time_days: String(calendar.supplier_lead_time_days)
+        }
+      },
+      {
+        ...common,
+        signal_id: 'sig_fw_004',
+        signal_type: 'MARGIN_COMPRESSION',
+        category: 'FINANCIAL',
+        entity_type: 'SKU',
+        entity_id: `${identity.sku_id} ${identity.sku_name}`,
+        ...stamp(scenario, marginTiming),
+        baseline_value: Number(contributionAtList.toFixed(2)),
+        observed_value: Number(contributionAtDepth.toFixed(2)),
+        delta: Number((contributionAtDepth - contributionAtList).toFixed(2)),
+        delta_pct: round1(((contributionAtDepth - contributionAtList) / contributionAtList) * 100),
+        unit: 'gbp_per_unit',
+        confidence: 97,
+        quality: 98,
+        provenance: {
+          ...provenanceFor(scenario, 'unit_contribution_at_committed_depth', marginTiming),
+          supplier_promotional_funding_pct: String(scenario.economics.supplier_promotional_funding_pct)
+        }
       }
     ];
   } else {

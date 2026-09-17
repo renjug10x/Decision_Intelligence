@@ -31,7 +31,7 @@ import {
   ConfidenceBand,
   READINESS_THRESHOLD_POLICY,
   READINESS_DIMENSION_ORDER,
-  WP10C_RECOVERY_LEVER_HEADROOM,
+  wp10cRecoveryLeverHeadroom,
   EVIDENCE_STRENGTH_ORDER,
   getThreshold,
   weakestEvidenceStrength,
@@ -739,7 +739,7 @@ export function evaluateOperational(bundle: EvalBundle): {
 
   const di = bundle.decisionState.derived_impacts;
   const interventions = bundle.decisionState.selected_interventions || [];
-  const levers = Object.entries(WP10C_RECOVERY_LEVER_HEADROOM).map(([id, headroom]) => ({
+  const levers = Object.entries(wp10cRecoveryLeverHeadroom()).map(([id, headroom]) => ({
     intervention_id: id,
     headroom_units: headroom,
     applied: interventions.includes(id),

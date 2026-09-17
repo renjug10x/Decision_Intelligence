@@ -103,7 +103,7 @@ export type DeviationCorrespondence =
  * load-bearing honesty statement in this contract. The seeded campaign telemetry and the
  * CDI-05 projection are on different quantity bases and different populations — seeded
  * telemetry is £/day and an unanchored daily index; CDI-05 publishes a weekly-rate volume and
- * a weekly-rate contribution over `CDI02_BASE_WEEKLY_UNITS`. Subtracting one from the other
+ * a weekly-rate contribution over `cdi02BaseWeeklyUnits()`. Subtracting one from the other
  * would be a basis error of exactly the kind `CDI-08` exists to refuse.
  *
  * What the telemetry *can* legitimately supply is a **scale-free ratio** — how far off its own
@@ -203,7 +203,7 @@ export interface ContinuousSeriesPoint {
    * Transformed from the CDI-05 `attributable_effect_envelope` by the same arithmetic CDI-05
    * itself uses to turn an index into a quantity — the envelope bounds the attributable effect
    * in pp, the ambient component is added back, and the resulting index is scaled by
-   * `CDI02_BASE_WEEKLY_UNITS`. No width is invented and none is narrowed. It remains a
+   * `cdi02BaseWeeklyUnits()`. No width is invented and none is narrowed. It remains a
    * **declared** horizon profile, not a calibrated interval, and must never be rendered as one.
    */
   expectation_lower: number | null;

@@ -19,7 +19,7 @@ import {
   TimelineConfidenceEnvelope,
   DemandDecomposition,
   DecompositionRow,
-  CDI02_BASE_WEEKLY_UNITS,
+  cdi02BaseWeeklyUnits,
   REVENUE_REQUIRED_INPUT,
   POST_CAMPAIGN_NOT_MODELLED,
   PRE_CAMPAIGN_DISCLOSURE,
@@ -272,7 +272,7 @@ function buildLenses(
   const ivWaste = evaluation.counterfactual.predicted_with_intervention.waste_units;
 
   const volumeAt = (indexPct: number | null): number | null =>
-    indexPct == null ? null : Math.round(CDI02_BASE_WEEKLY_UNITS * (indexPct / 100));
+    indexPct == null ? null : Math.round(cdi02BaseWeeklyUnits() * (indexPct / 100));
 
   const demandValues = cf.points.map((pt, i) => ({
     period_index: pt.period_index,

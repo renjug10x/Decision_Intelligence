@@ -4,10 +4,10 @@
  */
 
 import {
-  CANONICAL_SCENARIO,
-  canonicalWeeklyPopulationUnits,
-  canonicalRealisedRevenuePerUnitGbp
-} from './canonical-scenario-model';
+  scenarioInScope,
+  inScopeWeeklyPopulationUnits,
+  inScopeRealisedRevenuePerUnitGbp
+} from './scenario-scope';
 
 export type DecisionCommandType =
   | 'SET_PROMOTION_LIFT'
@@ -123,7 +123,8 @@ export function calculateDerivedImpacts(
    * never heard of. Nothing here is declared: every quantity below is a ratio of the
    * scenario, so the whole engine rescales from one number.
    */
-  const BASE_DEMAND = canonicalWeeklyPopulationUnits();
+  const scenario = scenarioInScope();
+  const BASE_DEMAND = inScopeWeeklyPopulationUnits();
   const BASE_SUPPLIER_CAPACITY = BASE_DEMAND;
 
   // 1. Demand Lift
@@ -132,7 +133,7 @@ export function calculateDerivedImpacts(
   // 2. Base Capacity & Interventions. The flex clause releases a declared SHARE of base
   //    weekly demand; the buffer lever releases a smaller share of the same base.
   const flexUnits = interventions.includes('SLA_FLEX_RULE_4')
-    ? BASE_DEMAND * (CANONICAL_SCENARIO.supply.supplier_flex_rate_pct / 100)
+    ? BASE_DEMAND * (scenario.supply.supplier_flex_rate_pct / 100)
     : 0;
   const bufferUnits = interventions.includes('BUFFER_OPTIMISATION_R002')
     ? BASE_DEMAND * (BUFFER_OPTIMISATION_RATE_PCT / 100)
@@ -151,9 +152,9 @@ export function calculateDerivedImpacts(
    *    share customers recover on a substitute line. Derived from the scenario's own realised
    *    price — the previous £120 per unit was 58x the shelf price of the product in question.
    */
-  const retained_share = 1 - (CANONICAL_SCENARIO.economics.substitution_recovery_pct / 100);
+  const retained_share = 1 - (scenario.economics.substitution_recovery_pct / 100);
   const financial_exposure_gbp = Math.round(
-    commitment_gap_units * canonicalRealisedRevenuePerUnitGbp() * retained_share
+    commitment_gap_units * inScopeRealisedRevenuePerUnitGbp() * retained_share
   );
 
   // 6. DC Overtime (Ripple 2nd order)

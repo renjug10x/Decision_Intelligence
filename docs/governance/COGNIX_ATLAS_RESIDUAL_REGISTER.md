@@ -386,7 +386,7 @@ anywhere in the engines, still fails the build.
 **Disposition.** For the packet that next owns CDI-03 scoring. It should be resolved the same way
 ADR-079 resolved the economics: declare the differentiation with a reason, or have none.
 
-### R-27 — The engines still resolve against the reference scenario, so no second scenario can certify · **OPEN — precondition for `SCI-03`**
+### R-27 — The engines still resolve against the reference scenario, so no second scenario can certify · **CLOSED by `SCI-03`**
 
 Found by running the `SCI-02` certification gate against a second scenario, and it is the most
 consequential thing the gate has surfaced.
@@ -408,10 +408,41 @@ scenario cannot reach a demonstration while the engines answer with the first on
 changes is that the work is now visible and costed before `SCI-03` starts, rather than discovered by
 a client looking at two scenarios that publish the same numbers.
 
-**Disposition.** A precondition for `SCI-03`: a curated pack cannot be certified — and therefore
-cannot be demo-active — until the engines resolve against the scenario they are asked about. It was
-explicitly out of `SCI-02`'s scope, whose non-scope reads *"no engine change beyond what the harness
-requires"*.
+**Disposition — CLOSED by `SCI-03`, 17 September 2026.** Resolved as `SCI-03`'s first engineering
+problem, before either curated pack was authored.
+
+The derivation stack gained a third layer rather than a set of parameters
+(`packages/contracts/src/scenario-scope.ts`):
+
+| layer | accessor | binds to | who reads it |
+|---|---|---|---|
+| A | `scenarioX(scenario, …)` | its argument | the model, the certification harness |
+| B | `canonicalX(…)` | `CANONICAL_SCENARIO`, by name | instance-specific tests, the reference archetype entry |
+| **C** | **`inScopeX(…)`** | **`scenarioInScope()`** | **every engine** |
+
+`scenarioInScope()` returns the demo-active scenario, so an engine is *engine + active certified
+scenario* with no branch in it. A caller that must evaluate a NAMED scenario binds it for the
+duration of a synchronous computation with `withScenarioInScope`. There are exactly two: the
+certification harness, which cannot activate the scenario it is certifying because ADR-080 gates
+activation ON certification; and a request that names a scenario. Binding grants no activation.
+
+Repointed at layer C: `campaign-causal-engine.ts`, `demand-frontier-engine.ts`, the elasticity curve
+in `campaign-archetypes.ts`, `decision-state-model.ts`, `campaign-timeline-model.ts`,
+`campaign-intent-model.ts` and `campaign-readiness-model.ts`. Six module constants became functions
+(`ddfGrossMarginRatePct()`, `ddfFlexPremiumRatePct()`, `ddfSlaFlexUnitsPerWeek()`,
+`cdi02BaseWeeklyUnits()`, `wp10cRecoveryLeverHeadroom()`, `regionStoreCounts()`) because a constant
+evaluated at import is how a surface came to be pinned to one scenario in the first place.
+
+**Evidence it is closed.** The fixture that failed six dimensions now fails only `C-1`, `C-2` and
+`C-12` — the ways in which it deliberately contradicts the enterprise masters — and `C-5`, `C-7` and
+`C-8` reconcile for it at a 120,000-unit week. Both curated packs certify on all twelve dimensions.
+A source guard in `run-sci03-scenario-pack-tests.ts` §7 asserts that no engine names a pack, that no
+engine compares a scenario identity against a literal, and that the six constants do not return.
+
+**Evidence the protected journey is unchanged.** A 385-line value probe run at
+`13ce376e19239a4081e6c68764e470733ffc52b5` and at this head is byte-identical: demand, exposure,
+unit economics, the full elasticity curve, derived impacts, every archetype curve, three causal
+evaluations and the reference scenario's whole certification result.
 
 ### R-28 — The `cognix-world` domain service does not install the certification gate · **OPEN — GOVERNED**
 
@@ -444,6 +475,33 @@ into thinking the hash survives somewhere.
 Recorded rather than corrected because `SCI-02`'s scope is certification and reconciliation, and the
 packet was directed not to perform cleanup outside it. One line, for whichever packet next touches
 the frontier engine.
+
+### R-30 — The family temporal series contradicts a certified scenario's own record · **OPEN — assigned `SCI-05`**
+
+Found by publishing three certified scenarios through `/api/v1/scenarios` for the first time.
+
+`SCI-01` retired `ENTERPRISE_WORLD_SCENARIOS.baselineMetrics` as an economic authority but KEPT each
+family's `temporalData` on the route as *"a shape, not a baseline"*. With one scenario published
+that was arguable. With three it stopped being:
+
+| scenario | its record says | its family series says |
+|---|---|---|
+| `SCN-CHILLED-SALMON-002` | 47,040 units a week, allocation 1.02 → 47,981 servable | 41,000 demand against a flat 40,000 capacity |
+| `SCN-BAKERY-SOURDOUGH-003` | demand 11.2% **above** base under the promotion | demand **falling** at Today, 28,000 → 24,000 |
+
+Those disagree in DIRECTION as well as in scale, so no rescaling reconciles them. Published beside a
+certified record they would put two demand numbers on one catalogue card — the defect ADR-073 and
+ADR-075 exist to prevent, arriving through a field nobody renders.
+
+**Disposition.** `SCI-03` stopped serving the field on both `/api/v1/scenarios` implementations
+rather than rescaling a series it did not model, and left `scenarioTemporalEvidence()` exported and
+unchanged so the evidence for why it was retired survives. Nothing consumed it: `lib/world-client.ts`
+types it optional and no surface reads it.
+
+A real per-scenario evidence series over `T-90 … T+30` belongs to **`SCI-05`**, whose Refresh
+contract already declares `ScenarioAsAtMarker` and `RefreshDelta` for exactly this. A scenario's
+history should come from the same place its advance does, and inventing a second projection inside
+`SCI-03` would have created precisely the parallel model this workstream removes.
 
 ### R-25 — `ATL-06B` assertion `A6b` is stale, and the estate carries two Google SDKs · **OPEN — GOVERNED**
 

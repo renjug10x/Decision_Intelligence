@@ -38,13 +38,13 @@ import { simulateEnterpriseSignalTimelines } from '../services/world/src/dynamic
 import { SignalSimulationContext } from '../packages/contracts/src/enterprise-signal-model';
 import { CampaignDemandBridge } from '../packages/contracts/src/campaign-counterfactual-model';
 import {
-  CANONICAL_SCENARIO,
-  canonicalWeeklyPopulationUnits,
-  canonicalContributionPerUnitAtListGbp,
-  canonicalContributionErosionPerDepthPoint,
-  canonicalScopeResponseMultiplier,
-  canonicalDepthResponseAnomalyPp
-} from '../packages/contracts/src/canonical-scenario-model';
+  scenarioInScope,
+  inScopeWeeklyPopulationUnits,
+  inScopeContributionPerUnitAtListGbp,
+  inScopeContributionErosionPerDepthPoint,
+  inScopeScopeResponseMultiplier,
+  inScopeDepthResponseAnomalyPp
+} from '../packages/contracts/src/scenario-scope';
 
 const ENGINE_VERSION = 'cdi02_causal_engine_v1.1.0';
 const SCHEMA_VERSION = '1.0';
@@ -54,12 +54,12 @@ const SCHEMA_VERSION = '1.0';
  * could be reconciled with the £2.07 shelf reality the Demand journey was working in. A campaign
  * evaluated in one economic universe and executed in another is not a decision; it is a coincidence.
  */
-const BASE_WEEKLY_UNITS = canonicalWeeklyPopulationUnits();
+const baseWeeklyUnits = () => inScopeWeeklyPopulationUnits();
 
-/** Days the `BASE_WEEKLY_UNITS` rate covers. Named so the counterfactual can publish its basis. */
+/** Days the weekly rate covers. Named so the counterfactual can publish its basis. */
 const RATE_PERIOD_DAYS = 7;
-const UNIT_CONTRIBUTION_GBP = canonicalContributionPerUnitAtListGbp();
-const WASTE_BASELINE_UNITS = CANONICAL_SCENARIO.economics.waste_units_per_week;
+const unitContributionGbpAtList = () => inScopeContributionPerUnitAtListGbp();
+const wasteBaselineUnits = () => scenarioInScope().economics.waste_units_per_week;
 
 /**
  * Share of unit contribution given up per point of discount depth.
@@ -74,7 +74,7 @@ const WASTE_BASELINE_UNITS = CANONICAL_SCENARIO.economics.waste_units_per_week;
  * committed 20% national promotion now has to justify itself against the contribution it destroys
  * rather than being flattered by a calibration that under-charged for depth.
  */
-const PROMO_CONTRIBUTION_EROSION_PER_DEPTH_POINT = canonicalContributionErosionPerDepthPoint();
+const promoContributionErosionPerDepthPoint = () => inScopeContributionErosionPerDepthPoint();
 
 /**
  * Drivers that act on the world whether or not we intervene. They belong to the
@@ -166,7 +166,7 @@ export function resolveStatedMechanic(campaign: CampaignIntent): ResolvedMechani
  * scenario's position — there is no modifier and this returns 1.
  */
 function declaredScopeMultiplier(campaign: CampaignIntent): number {
-  return canonicalScopeResponseMultiplier(campaign.audience_market.region || '');
+  return inScopeScopeResponseMultiplier(campaign.audience_market.region || '');
 }
 
 function intrinsicDriftPp(campaign: CampaignIntent): number {
@@ -181,12 +181,23 @@ function nonPromotionResponsePp(campaign: CampaignIntent): number {
 }
 
 /**
- * The elasticity every other category is expressed relative to: the canonical decision case's
- * Dairy scenario. Anchoring here leaves the demonstration's own economics in place and states
- * every other category as a multiple of them.
+ * The elasticity every other category is expressed relative to: the elasticity of the CATEGORY
+ * THE SCENARIO IN SCOPE TRADES IN.
+ *
+ * This used to read the reference scenario's declared rate by name, which was correct for the
+ * one scenario and wrong for every other — R-27 in a single expression. Anchoring on the
+ * scenario's own category is what makes the ratio below mean what its name says: a campaign
+ * evaluated in the scenario's own category scales by 1 and gets the scenario's declared rate
+ * unaltered, and a campaign evaluated in a different category is stated as a multiple of it.
+ *
+ * Falls back to the scenario's declared rate where its category resolves to nothing, so an
+ * unresolvable category degrades to "no cross-category scaling" rather than to a divide by zero.
  */
-const CALIBRATION_CATEGORY_ELASTICITY =
-  CANONICAL_SCENARIO.economics.promotional_response_pp_per_depth_point;
+function calibrationCategoryElasticity(): number {
+  const scenario = scenarioInScope();
+  const own = resolveCategory(scenario.identity.category, scenario.identity.subcategory);
+  return own?.promotional_elasticity ?? scenario.economics.promotional_response_pp_per_depth_point;
+}
 
 /**
  * Demand bought per point of discount depth, at the calibration elasticity.
@@ -196,7 +207,9 @@ const CALIBRATION_CATEGORY_ELASTICITY =
  * four about what a discount does, and each was internally consistent, so neither looked wrong
  * on its own. Both now read the same declared rate.
  */
-const BASE_PP_PER_DISCOUNT_POINT = CALIBRATION_CATEGORY_ELASTICITY;
+function basePpPerDiscountPoint(): number {
+  return scenarioInScope().economics.promotional_response_pp_per_depth_point;
+}
 
 function mechanicResponsePp(depth: number, campaign: CampaignIntent): number {
   if (depth <= 0) return 0;
@@ -211,9 +224,10 @@ function mechanicResponsePp(depth: number, campaign: CampaignIntent): number {
   // rather than in a blended constant: an inelastic category (premium bakery, ε≈0.8) must
   // not be modelled as converting discount into volume like an elastic staple (ε≈2.4).
   const elasticity = resolveCategory(campaign.campaign_intent.category)?.promotional_elasticity;
+  const calibration = calibrationCategoryElasticity();
   const perPoint =
-    BASE_PP_PER_DISCOUNT_POINT *
-    (typeof elasticity === 'number' ? elasticity / CALIBRATION_CATEGORY_ELASTICITY : 1);
+    basePpPerDiscountPoint() *
+    (typeof elasticity === 'number' && calibration > 0 ? elasticity / calibration : 1);
   return Number((depth * perPoint * factor * reachedShare).toFixed(2));
 }
 
@@ -230,11 +244,12 @@ function mechanicResponsePp(depth: number, campaign: CampaignIntent): number {
  * a dairy threshold effect at full strength.
  */
 function thresholdPricePointPp(depth: number, campaign: CampaignIntent): number {
-  const declared = canonicalDepthResponseAnomalyPp(depth);
+  const declared = inScopeDepthResponseAnomalyPp(depth);
   if (declared === 0) return 0;
   const elasticity = resolveCategory(campaign.campaign_intent.category)?.promotional_elasticity;
+  const calibration = calibrationCategoryElasticity();
   const elasticityRatio =
-    typeof elasticity === 'number' ? elasticity / CALIBRATION_CATEGORY_ELASTICITY : 1;
+    typeof elasticity === 'number' && calibration > 0 ? elasticity / calibration : 1;
   return Number(
     (declared * elasticityRatio * declaredScopeMultiplier(campaign) * subsidisedVolumeShare(campaign))
       .toFixed(2)
@@ -393,8 +408,8 @@ function unitContributionFor(
   mechanicAttributed: boolean,
   campaign?: CampaignIntent
 ): number {
-  if (!mechanicAttributed || depth <= 0) return UNIT_CONTRIBUTION_GBP;
-  const erosion = depth * PROMO_CONTRIBUTION_EROSION_PER_DEPTH_POINT;
+  if (!mechanicAttributed || depth <= 0) return unitContributionGbpAtList();
+  const erosion = depth * promoContributionErosionPerDepthPoint();
 
   // A discount the estate cannot confine to the targeted cohort is paid on every unit sold,
   // including the volume that would have arrived at full price anyway. Where the route to
@@ -404,7 +419,7 @@ function unitContributionFor(
   // on less volume.
   const subsidisedShare = campaign ? subsidisedVolumeShare(campaign) : 1;
   const retained = Math.max(0, 1 - erosion * subsidisedShare);
-  return Number((UNIT_CONTRIBUTION_GBP * retained).toFixed(4));
+  return Number((unitContributionGbpAtList() * retained).toFixed(4));
 }
 
 /**
@@ -427,7 +442,7 @@ function buildTrajectory(
   label: DemandTrajectoryPoint['label'],
   indexPct: number,
   confidence: number,
-  unitContributionGbp: number = UNIT_CONTRIBUTION_GBP,
+  unitContributionGbp: number = unitContributionGbpAtList(),
   /**
    * Intervention clearance applies only when the causal model attributes positive
    * intervention uplift — never because the trajectory *label* says PREDICTED_*.
@@ -435,7 +450,7 @@ function buildTrajectory(
    */
   applyInterventionClearance: boolean = false
 ): DemandTrajectoryPoint {
-  const volume = Math.round(BASE_WEEKLY_UNITS * (indexPct / 100));
+  const volume = Math.round(baseWeeklyUnits() * (indexPct / 100));
   const wasteFactor = applyInterventionClearance && indexPct > 100 ? 0.92 : 1;
   return {
     label,
@@ -443,7 +458,7 @@ function buildTrajectory(
     volume_index_pct: Number(indexPct.toFixed(2)),
     contribution_gbp: Number((volume * unitContributionGbp).toFixed(2)),
     unit_contribution_gbp: unitContributionGbp,
-    waste_units: Math.round(WASTE_BASELINE_UNITS * wasteFactor * (indexPct > 105 ? 1.05 : 1)),
+    waste_units: Math.round(wasteBaselineUnits() * wasteFactor * (indexPct > 105 ? 1.05 : 1)),
     confidence
   };
 }
@@ -625,7 +640,7 @@ export function evaluateCausalDemandContribution(
       contribution_pp:
         campaign.campaign_intent.intervention_posture === 'CONSIDER_PROMOTION' && mechanic.mechanic_attributed
           ? -Number((mechanicResponsePp(mechanic.discount_depth, campaign)
-              * (CANONICAL_SCENARIO.economics.cannibalisation_rate_pct / 100)).toFixed(2))
+              * (scenarioInScope().economics.cannibalisation_rate_pct / 100)).toFixed(2))
           : 0,
       attributed:
         campaign.campaign_intent.intervention_posture === 'CONSIDER_PROMOTION' && mechanic.mechanic_attributed,
@@ -724,7 +739,7 @@ export function evaluateCausalDemandContribution(
        * or states that there is none.
        */
       scope_response_multiplier: String(declaredScopeMultiplier(campaign)),
-      scope_differentiation: CANONICAL_SCENARIO.differentiation.statement
+      scope_differentiation: scenarioInScope().differentiation.statement
     },
     timestamp: new Date().toISOString()
   };
@@ -747,7 +762,7 @@ export function campaignWindowDays(campaign: CampaignIntent): number {
     const days = (Date.parse(end) - Date.parse(start)) / 86_400_000 + 1;
     if (Number.isFinite(days) && days > 0) return Math.round(days);
   }
-  return CANONICAL_SCENARIO.calendar.promotion_duration_days;
+  return scenarioInScope().calendar.promotion_duration_days;
 }
 
 /** How the surface's two demand numbers relate. See `CampaignDemandBridge`. */

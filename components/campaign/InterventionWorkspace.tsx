@@ -13,7 +13,7 @@ import {
   Percent,
   Check
 } from 'lucide-react';
-import { CampaignArchetype, estimateInterventionEconomics, REGION_STORE_COUNTS } from '@/lib/campaign-archetypes';
+import { CampaignArchetype, estimateInterventionEconomics, regionStoreCounts } from '@/lib/campaign-archetypes';
 import { canonicalStoreCount } from '@/packages/contracts/src/canonical-scenario-model';
 import { useCurrency } from '@/context/CurrencyContext';
 
