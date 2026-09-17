@@ -934,7 +934,7 @@ Gate B, not as a commit (ADR-084 part 2).
 
 | Gate | Wave | Required before | Convergence SHA |
 |---|---|---|---|
-| Gate A | 0 | Wave 1 | **SHA-A — recorded in the commit following the convergence commit; see [`COGNIX_WAVE0_CONVERGENCE_GATE_A_CLOSURE.md`](../reports/COGNIX_WAVE0_CONVERGENCE_GATE_A_CLOSURE.md) §9** |
+| Gate A | 0 | Wave 1 | **`8d6d960cd7d1a24ea41737da2d04bd4e47765a86`** — Wave 1 is cut from the head of `feature/cognix-sci-wave0-convergence`, one governance-only commit ahead |
 | Gate B | 1 | Wave 2 | *not yet recorded* |
 | Gate C | 2 | Wave 3 | *not yet recorded* |
 | Gate D | 3 | Wave 4 | *not yet recorded* |

@@ -182,11 +182,17 @@ over HTTP. See `R-28`.
 
 ## 9. SHA-A
 
-**SHA-A is recorded in the commit immediately following this one**, because a commit cannot contain
-its own hash. This commit is the converged code state — `SCI-01` + `SCI-02` plus this closure's
-Wave-2 declaration and Gate-A evidence; the next commit adds only the SHA record and changes no code.
+**SHA-A = `8d6d960cd7d1a24ea41737da2d04bd4e47765a86`**
 
-Wave 1 is cut from the head of `feature/cognix-sci-wave0-convergence`.
+That is the Wave-0 convergence commit on `feature/cognix-sci-wave0-convergence`: `SCI-01` + `SCI-02`
+plus this closure's Wave-2 declaration and Gate-A evidence. It is the state the five Wave-0 contracts
+are frozen at and the three `SCI-05` contracts are declared at (ADR-084 part 2 — a contract is frozen
+at a declared convergence SHA, not at a moment in time).
+
+**Wave 1 is cut from the head of `feature/cognix-sci-wave0-convergence`.** The head is one commit
+ahead of SHA-A — this record of the SHA itself, which a commit cannot contain about itself. That
+commit changes no code, so cutting from SHA-A and cutting from the branch head give an identical
+working tree; the branch head is the correct base because it carries the complete governance record.
 
 ## 10. Wave 1
 
