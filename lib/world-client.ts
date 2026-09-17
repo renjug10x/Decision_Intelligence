@@ -20,6 +20,10 @@ import { ScenarioRegistryEntry, TemporalDataPoint } from '@/packages/contracts/s
 export interface ScenarioCatalogueEntry extends ScenarioRegistryEntry {
   /** The family's declared shape over `T-90 … T+30`. Evidence, never an economic baseline. */
   temporal_evidence?: TemporalDataPoint[];
+  /** Certification status from the Scenario Certification Gate (ADR-080). */
+  certification_state?: 'CERTIFIED' | 'FAILED' | 'UNCERTIFIED';
+  /** Human-readable certification summary from the gate. */
+  certification_summary?: string;
 }
 
 export interface ScenarioCatalogue {
@@ -68,4 +72,54 @@ export async function fetchActiveScenarioId(
   return catalogue.active_scenario_id
     ?? catalogue.scenarios.find(s => s.demo_active)?.scenario_id
     ?? null;
+}
+
+export interface ScenarioActivationResult {
+  success: boolean;
+  active_scenario_id?: string;
+  error?: string;
+}
+
+/**
+ * Activate a registered scenario on the server through the gated runtime.
+ * Under ADR-080, only certified scenarios are admitted.
+ */
+export async function activateScenarioOnServer(
+  scenarioId: string,
+  sessionId?: string,
+  tenantId: string = 'tenant_uk_retail_01'
+): Promise<ScenarioActivationResult> {
+  try {
+    const response = await fetch('/api/v1/scenarios', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Tenant-ID': tenantId
+      },
+      body: JSON.stringify({
+        scenario_id: scenarioId,
+        session_id: sessionId,
+        tenant_id: tenantId
+      })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.status === 'error') {
+      return {
+        success: false,
+        error: payload.message || `Activation refused (HTTP ${response.status})`
+      };
+    }
+
+    return {
+      success: true,
+      active_scenario_id: payload.active_scenario_id
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error?.message || 'Network error during scenario activation'
+    };
+  }
 }
