@@ -38,6 +38,7 @@ import {
   scenarioContributionPerUnitAtListGbp
 } from '../../../packages/contracts/src/canonical-scenario-model';
 import { scenarioPeriodInstantIso, scenarioNowIso } from '../../../packages/contracts/src/scenario-clock';
+import { observedBehaviourCarriers } from './observed-behaviour-carriers';
 
 const GENERATOR = 'cognix_world_generator';
 
@@ -78,6 +79,57 @@ function provenanceFor(
 }
 
 const round1 = (v: number) => Number(v.toFixed(1));
+
+/**
+ * `R-37` — the demand-side evidence for the movement the record attributes to observed behaviour.
+ *
+ * The carriers themselves are declared once, in `observed-behaviour-carriers.ts`, and the timeline
+ * simulator publishes the same ones across T-90 … T+30. This turns each into the snapshot signal the
+ * Demand surface reads now, on this generator's own clock stamp and provenance envelope, so an
+ * observed-behaviour carrier is indistinguishable in handling from any other signal this file
+ * publishes — which is what "generated through the existing signal architecture" has to mean if the
+ * evidence is to be believed.
+ */
+type SignalCommonFields = Pick<
+  EnterpriseSignal,
+  'tenant_id' | 'domain_id' | 'scenario_id' | 'source_type' | 'source_system' | 'synthetic_demo' | 'schema_version'
+>;
+
+function observedBehaviourSignals(
+  scenario: CanonicalScenario,
+  common: SignalCommonFields
+): EnterpriseSignal[] {
+  return observedBehaviourCarriers(scenario).map(carrier => {
+    const timing: SignalTiming = {
+      observed_period: carrier.observed_period,
+      effective_period: carrier.effective_period
+    };
+    const drivers = Object.fromEntries(
+      Object.entries(carrier.drivers).map(([key, value]) => [key, String(value)])
+    );
+    return {
+      ...common,
+      signal_id: carrier.signal_id,
+      signal_type: carrier.signal_type,
+      category: carrier.category,
+      entity_type: carrier.entity_type,
+      entity_id: carrier.entity_id,
+      ...stamp(scenario, timing),
+      baseline_value: 100,
+      observed_value: round1(100 + carrier.peak_delta_pct),
+      delta: round1(carrier.peak_delta_pct),
+      delta_pct: round1(carrier.peak_delta_pct),
+      unit: 'percent_baseline',
+      confidence: carrier.confidence,
+      quality: carrier.quality,
+      provenance: {
+        ...provenanceFor(scenario, carrier.rule, timing),
+        ...drivers,
+        rule_id: carrier.rule_id
+      }
+    };
+  });
+}
 
 /**
  * The scenario's signal snapshot.
@@ -245,6 +297,15 @@ export function generateSyntheticSignalSnapshot(
     const observedLeadHours = round1(contractedLeadHours * demandOverAllocation);
 
     signals = [
+      /*
+       * `R-37`. This family published lead-time drift, capacity pressure and stock cover — three
+       * SUPPLY observations — beside a record attributing 8.0pp of its movement to what customers
+       * were doing. `DDF_STABILITY_SIGNAL_TYPES` admits none of them, so Forecast Stability returned
+       * `INDETERMINATE` and the Demand surface published the scenario's movement with its
+       * observed-behaviour component missing. The carriers below are that component's evidence, and
+       * they are listed first because they are what was seen first.
+       */
+      ...observedBehaviourSignals(scenario, common),
       {
         ...common,
         signal_id: 'sig_sb_001',
@@ -361,6 +422,13 @@ export function generateSyntheticSignalSnapshot(
         quality: 88,
         provenance: provenanceFor(scenario, 'competitor_feature_observed_in_category', competitorTiming)
       },
+      /*
+       * `R-37`. The competitor feature above is the TRIGGER, and it is a `COMMERCIAL` signal that
+       * DDF-01 does not admit — correctly, because a competitor's marketing calendar is not a
+       * demand observation. What customers did in response is, and it is published here: the
+       * national category barely moves while the region the competitor is trading in moves hard.
+       */
+      ...observedBehaviourSignals(scenario, common),
       {
         ...common,
         signal_id: 'sig_fw_002',

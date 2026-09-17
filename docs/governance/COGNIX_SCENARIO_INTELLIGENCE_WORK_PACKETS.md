@@ -677,6 +677,51 @@ presentation; the domain and API behaviour it consumes is listed in
 
 ---
 
+### `R-37` repair — Curated Scenario Observed-Behaviour Evidence Carrier — **[COMPLETED 2026-09-17]**
+
+| | |
+|---|---|
+| **Class** | Wave-2 pre-convergence repair |
+| **Base** | `5450fecf1a88da3431f2ca551a924fc717273adb` (`SCI-05` head) |
+| **Branch** | `feature/cognix-r37-observed-behaviour-carrier` |
+| **Scope** | The two curated packs' observed-behaviour evidence. Nothing else |
+
+**Objective.** Give Chilled Salmon and Premium Bakery truthful evidence carriers for the
+`OBSERVED_BEHAVIOUR` their records declare, so the flow *declared observed behaviour → scenario-specific
+evidence → `DDF-01` admitted → forecast revision → published contribution* is real for every certified
+scenario rather than only for the reference one.
+
+| Definition-of-done clause | Result |
+|---|---|
+| Declared observed behaviour arrives through admitted evidence | Published contribution **+10.9pp / +8.0pp / +5.1pp** against declared **10.9 / 8.0 / 5.1**, read off the running Demand surface at 1440, 1024 and 720 |
+| `DDF_STABILITY_SIGNAL_TYPES` not widened | Unchanged, and asserted shut against the Gate-A list. No new `CanonicalSignalType` |
+| No supply or commercial signal repurposed | The bakery pack's `COMPETITOR_CAMPAIGN_LAUNCH` stays `COMMERCIAL` and stays refused; the customer response is published beside it |
+| Nothing hand-written into Demand | No contribution appears as a literal on the path; withdrawing the carriers returns the outlook to `INDETERMINATE` |
+| Fresh Dairy untouched | Snapshot, timelines and protected figures byte-identical — base 699,996, expected 900,125, gap 130,129, total +28.59% |
+| Certification | Three scenarios `CERTIFIED`, 12/12 dimensions, 84 checks, zero `NOT_APPLICABLE`, byte-identical across runs |
+| Living Evidence participation | Carriers appear on the T-90…T+30 timeline, carry a leave-one-out materiality band, and move the Decision Gap. Refresh states honestly where the decision did not change |
+| Regression green | **49 runners, 48 fully green, 3,778 assertions.** `R-25`'s `A6b` the only `[FAIL]` line, byte-identical to the baseline |
+| No contract drift | All six frozen contracts byte-identical |
+
+**`R-37` CLOSED.** The carriers are `CATEGORY_DEMAND_ACCELERATION` + `ORDER_VELOCITY_ACCELERATION` for
+the salmon pack and `CATEGORY_DEMAND_ACCELERATION` + `REGIONAL_DEMAND_SHIFT` for the bakery pack, all
+four from types ADR-040 already admits, declared once in
+`services/world/src/observed-behaviour-carriers.ts` and read by both the snapshot generator and the
+timeline simulator.
+
+**`R-38`, `R-39` and `R-40` OPENED.** Proving `R-37` closed exposed why the declared TOTAL still falls
+short for both packs, and the cause is not the evidence: the demand base is measured over the chart's
+history window (`R-38`) and a declared `UNDERLYING_TREND` is realised at the forecast mean rather than
+over its horizon (`R-39`). They offset each other and must be corrected together — correcting either
+alone moves a certified scenario further from its record. `R-40` records that `services/world/dist` is
+a tracked build artefact three packets stale. All three are in
+[`COGNIX_ATLAS_RESIDUAL_REGISTER.md`](COGNIX_ATLAS_RESIDUAL_REGISTER.md) with the arithmetic.
+
+**Gate C is NOT passed.** This is a pre-convergence repair, not a gate evaluation, and `SCI-06`
+remains Antigravity's and unmerged.
+
+---
+
 ## `SCI-06` — Observability & Governance Experience
 
 | | |

@@ -28,6 +28,7 @@ import {
   scenarioStoreCoverDays,
   scenarioRetailerFundedShare
 } from '../../../packages/contracts/src/canonical-scenario-model';
+import { observedBehaviourCarriers } from './observed-behaviour-carriers';
 
 const GENERATOR_VERSION = 'sim_gen_v1.0.0';
 
@@ -195,6 +196,47 @@ function supplyPressureTimelines(ctx: {
       tenantId: ctx.tenantId, scenarioId: ctx.scenarioId
     })
   ];
+}
+
+/**
+ * `R-37` — the declared observed behaviour, on a timeline.
+ *
+ * The same carriers the snapshot generator publishes, across the simulated periods, so the evidence
+ * the Demand surface reads now and the evidence the Living Evidence timeline replays are the same
+ * observations rather than two independently authored sets. `PRESSURE_PROFILE` is 1.00 at `Today`,
+ * which is what makes the timeline's own now identical to the snapshot.
+ *
+ * No relief factor. An SLA flex clause changes what the supplier can land; it does not change what
+ * customers did, and applying supply relief to demand evidence would let an intervention edit the
+ * observation it was taken in response to.
+ */
+function observedBehaviourTimelines(ctx: {
+  scenario: CanonicalScenario;
+  scenarioId: string;
+  tenantId: string;
+  periods: SimulationPeriod[];
+  at: (p: SimulationPeriod) => string;
+  stateVersion: number;
+}): EnterpriseSignalTimeline[] {
+  return observedBehaviourCarriers(ctx.scenario).map(carrier => derivedTimeline({
+    timelineId: `${carrier.timeline_id}_${ctx.scenarioId}`,
+    signalType: carrier.signal_type,
+    category: carrier.category,
+    entityType: carrier.entity_type,
+    entityId: carrier.entity_id,
+    unit: 'percent_baseline',
+    baseline: 100,
+    peakDelta: carrier.peak_delta_pct,
+    ruleId: carrier.rule_id,
+    drivers: carrier.drivers,
+    confidence: carrier.confidence,
+    quality: carrier.quality,
+    periods: ctx.periods,
+    at: ctx.at,
+    stateVersion: ctx.stateVersion,
+    tenantId: ctx.tenantId,
+    scenarioId: ctx.scenarioId
+  }));
 }
 
 export function simulateEnterpriseSignalTimelines(request: SignalSimulationRequest): SignalSimulationResponse {
@@ -508,6 +550,13 @@ export function simulateEnterpriseSignalTimelines(request: SignalSimulationReque
       const shortfallRatio = servable > 0 ? Math.max(0, expected / servable - 1) : 0;
       const baselineHours = scenario.calendar.supplier_lead_time_days * 24;
 
+      /*
+       * `R-37`. The demand evidence this family had none of, listed first because it is observed
+       * first: a category running ahead of plan and stores re-ordering faster than the
+       * replenishment cycle assumes.
+       */
+      timelines.push(...observedBehaviourTimelines(reliefCtx));
+
       timelines.push(derivedTimeline({
         timelineId: `tl_leadtime_${context.scenario_id}`,
         signalType: 'SUPPLIER_LEAD_TIME_DRIFT',
@@ -557,6 +606,12 @@ export function simulateEnterpriseSignalTimelines(request: SignalSimulationReque
         periods: targetPeriods, at, stateVersion,
         tenantId: context.tenant_id, scenarioId: context.scenario_id
       }));
+
+      /*
+       * `R-37`. The customer RESPONSE to the competitor feature above, which is the demand-side
+       * evidence DDF-01 admits — the trigger itself stays `COMMERCIAL` and stays out of it.
+       */
+      timelines.push(...observedBehaviourTimelines(reliefCtx));
 
       timelines.push(derivedTimeline({
         timelineId: `tl_ageing_${context.scenario_id}`,
