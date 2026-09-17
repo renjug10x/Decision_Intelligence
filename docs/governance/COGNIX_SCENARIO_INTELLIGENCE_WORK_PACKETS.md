@@ -1079,7 +1079,7 @@ Gate B, not as a commit (ADR-084 part 2).
 
 ### SHA-B
 
-**SHA-B = `__SHA_B__`**
+**SHA-B = `e0a9c23ddaa0f3c20d0b8b70bd41c1e657546aaf`**
 
 That is the Wave-1 convergence state plus the `SCI-03R` repair that closed `R-35` and its Gate-B
 evidence: `SCI-03` + `SCI-04`, converged, with the decision perspectives bound to the active
