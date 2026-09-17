@@ -44,6 +44,8 @@ export interface IDecisionStateStore {
 
   resetDecisionState(id: string): DecisionState | null;
 
+  switchScenarioForSession(tenantId: string, sessionId: string, scenarioId: string, scenarioFamily?: string): DecisionState;
+
   getStateHistory(id: string): any[];
 
   clearStore(): void;
@@ -80,7 +82,16 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
 
     if (existingId) {
       const existingState = this.statesMap.get(existingId);
-      if (existingState) return existingState;
+      if (existingState) {
+        const activeScenario = getActiveScenario();
+        const targetScenarioId = params.scenario_id || activeScenario.identity.scenario_id;
+        if (existingState.scenario_id === targetScenarioId) {
+          return existingState;
+        }
+        // Scenario differs from existing session state: clear stale session mapping
+        this.statesMap.delete(existingId);
+        this.sessionIndexMap.delete(sessionKey);
+      }
     }
 
     const stateId = `ds_${Math.random().toString(36).substr(2, 9)}`;
@@ -440,6 +451,26 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
     });
 
     return res.state;
+  }
+
+  public switchScenarioForSession(
+    tenantId: string,
+    sessionId: string,
+    scenarioId: string,
+    scenarioFamily?: string
+  ): DecisionState {
+    const sessionKey = this.getSessionKey(tenantId, sessionId);
+    const existingId = this.sessionIndexMap.get(sessionKey);
+    if (existingId) {
+      this.statesMap.delete(existingId);
+      this.sessionIndexMap.delete(sessionKey);
+    }
+    return this.createOrInitialiseState({
+      tenant_id: tenantId,
+      session_id: sessionId,
+      scenario_id: scenarioId,
+      scenario_family: scenarioFamily
+    });
   }
 
   public getStateHistory(id: string): any[] {

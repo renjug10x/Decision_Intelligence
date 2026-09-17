@@ -41,10 +41,71 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { platformReceiptNowIso } from '@/packages/contracts/src/index';
 // Through the scenario runtime: importing it installs the Scenario Certification Gate.
-import { scenarioCatalogue, getActiveScenarioId } from '@/lib/scenario-runtime';
+import {
+  scenarioCatalogue,
+  getActiveScenarioId,
+  activateScenario,
+  certifyRegisteredScenarios,
+  summariseCertification,
+  toScenarioRegistryEntry,
+  ScenarioResolutionError,
+  type CertificationState
+} from '@/lib/scenario-runtime';
+import { decisionStateStore } from '@/lib/decision-state-store';
 
 const WORLD_SERVICE_URL = process.env.COGNIX_WORLD_SERVICE_URL || 'http://localhost:8081';
 const WORLD_MODE = (process.env.COGNIX_WORLD_MODE as 'service' | 'demo-fallback' | 'local') || 'demo-fallback';
+
+/**
+ * The catalogue, each entry carrying its CERTIFICATION STATE (`SCI-04`) and nothing else added.
+ *
+ * Wave-1 convergence: where the two lanes met on this function
+ * -----------------------------------------------------------
+ * `SCI-03` removed `temporal_evidence` from this route (R-30) because two of the three
+ * certified packs contradict their family's legacy series in DIRECTION, not merely scale, and
+ * the converged Wave-1 experience prefers absence to contradictory evidence. `SCI-04`
+ * independently added the certification enrichment a client-facing selector needs, on top of
+ * the field `SCI-03` was removing. Both intents survive here: the certification enrichment is
+ * kept, the retired field is not reinstated. A real per-scenario evidence series remains
+ * `SCI-05`'s under its declared Refresh contract.
+ *
+ * Certification is MEASURED, never inferred. An entry the gate did not return a result for is
+ * reported `UNCERTIFIED`, not assumed certified because it happens to be demo-active — a route
+ * that infers a verdict it did not run is the formality this gate exists to prevent.
+ */
+type CertificationBadge = {
+  certification_state: CertificationState | 'UNCERTIFIED';
+  certification_summary: string;
+};
+
+function certificationBadges(): Map<string, CertificationBadge> {
+  return new Map(
+    certifyRegisteredScenarios().map(result => [
+      result.scenario_id,
+      {
+        certification_state: result.state,
+        certification_summary: summariseCertification(result)
+      }
+    ])
+  );
+}
+
+/** Add the gate's verdict to whatever catalogue entries the route is about to serve. */
+function withCertification<T extends { scenario_id: string }>(entries: T[]): (T & CertificationBadge)[] {
+  const badges = certificationBadges();
+  return entries.map(entry => ({
+    ...entry,
+    ...(badges.get(entry.scenario_id) ?? {
+      certification_state: 'UNCERTIFIED' as const,
+      certification_summary: `${entry.scenario_id} was not returned by the Scenario Certification Gate in this process; it is reported uncertified rather than assumed.`
+    })
+  }));
+}
+
+/** The in-process catalogue, certified. */
+function catalogueWithCertification() {
+  return withCertification(scenarioCatalogue());
+}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -60,7 +121,7 @@ export async function GET(request: NextRequest) {
     count: scenarioCatalogue().length,
     // A server receipt. Each entry carries its own scenario clock (ADR-078 part 2).
     timestamp: platformReceiptNowIso(),
-    data: scenarioCatalogue()
+    data: catalogueWithCertification()
   });
 
   // Mode 1: Explicit Server-side Local Mode
@@ -86,6 +147,17 @@ export async function GET(request: NextRequest) {
 
     if (upstreamRes.ok) {
       const data = await upstreamRes.json();
+      /*
+       * The DOMAIN catalogue is the world service's; the CERTIFICATION-AWARE view of it is this
+       * route's. `cognix-world` does not install the Scenario Certification Gate (R-28), so a
+       * proxied catalogue arrives with no verdict on it and a selector reading it would show
+       * every certified pack as unavailable. The gate IS installed in this process, so the
+       * badge is applied here rather than duplicating domain logic upstream — one catalogue,
+       * one certification authority, whichever mode served the entries.
+       */
+      if (Array.isArray(data?.data)) {
+        return NextResponse.json({ ...data, data: withCertification(data.data) });
+      }
       return NextResponse.json(data);
     }
 
@@ -111,4 +183,80 @@ export async function GET(request: NextRequest) {
   // Mode 3: Demo Fallback Mode
   console.warn(`[NextJS BFF Proxy] COGNIX_WORLD_MODE=demo-fallback: Upstream cognix-world service unreachable at ${WORLD_SERVICE_URL}. Using the in-process scenario registry for demo continuity.`);
   return NextResponse.json(body('demo_fallback', 'cognix-web-proxy-fallback'));
+}
+
+/**
+ * Scenario Activation (BFF Route)
+ *
+ * Activates a scenario through the gated scenario runtime.
+ * Under ADR-080, an uncertified scenario cannot become demo-active and is refused.
+ * When session_id is provided, the session's Shared Decision State is re-initialised
+ * so no prior-scenario state survives.
+ */
+export async function POST(request: NextRequest) {
+  const correlationId = request.headers.get('x-correlation-id') || `corr_act_${Math.random().toString(36).slice(2, 11)}`;
+  try {
+    const body = await request.json().catch(() => ({}));
+    const scenarioId = body.scenario_id;
+    const sessionId = body.session_id;
+    const tenantId = body.tenant_id || request.headers.get('x-tenant-id') || 'tenant_uk_retail_01';
+
+    if (!scenarioId || typeof scenarioId !== 'string' || !scenarioId.trim()) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          error: 'BadRequest',
+          message: 'An explicit scenario_id is required to activate a scenario (ADR-077 part 4).',
+          timestamp: platformReceiptNowIso()
+        },
+        { status: 400 }
+      );
+    }
+
+    // Gated activation: imports from '@/lib/scenario-runtime'
+    const scenario = activateScenario(scenarioId.trim());
+
+    // If session_id is provided, switch the session's Shared Decision State to the new scenario
+    if (sessionId) {
+      decisionStateStore.switchScenarioForSession(
+        tenantId,
+        sessionId,
+        scenario.identity.scenario_id,
+        scenario.taxonomy.family_id
+      );
+    }
+
+    return NextResponse.json({
+      status: 'success',
+      service: 'cognix-web-proxy',
+      tenant_id: tenantId,
+      correlation_id: correlationId,
+      active_scenario_id: scenario.identity.scenario_id,
+      scenario: toScenarioRegistryEntry(scenario),
+      timestamp: platformReceiptNowIso()
+    });
+  } catch (error: any) {
+    if (error instanceof ScenarioResolutionError) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          error: 'ScenarioActivationRefused',
+          message: error.message,
+          requested_scenario_id: error.requested ?? null,
+          timestamp: platformReceiptNowIso()
+        },
+        { status: 422 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        status: 'error',
+        error: 'InternalError',
+        message: error?.message || 'Failed to activate scenario',
+        timestamp: platformReceiptNowIso()
+      },
+      { status: 500 }
+    );
+  }
 }

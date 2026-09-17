@@ -44,7 +44,7 @@ and the lanes never touch.
 | `SCI-01` | Scenario Contract, Clock, Registry & Provenance Foundation | **FOUNDATION** | Cursor | 0 | **[COMPLETED 2026-09-16]** |
 | `SCI-02` | Scenario Certification Gate & Reconciliation Generalisation | **FOUNDATION** | Cursor | 0 | **[COMPLETED 2026-09-16]** |
 | `SCI-03` | Curated Scenario Domain Packs | CURSOR | Cursor | 1 | **[COMPLETED 2026-09-17]** |
-| `SCI-04` | Scenario Selection Experience | ANTIGRAVITY | Antigravity | 1 | Not started |
+| `SCI-04` | Scenario Selection Experience | ANTIGRAVITY | Antigravity | 1 | **[COMPLETED 2026-09-17]** |
 | `SCI-05` | Living Evidence Engine — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 | Not started |
 | `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 | Not started |
 | `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | Not started |
@@ -551,6 +551,24 @@ Regression green. No visual-system drift.
 
 **Handoff artefact.** Selection experience over frozen contracts, ready to reconcile with `SCI-03`
 content at Gate B.
+
+---
+
+### `SCI-04` outcome — **[COMPLETED 2026-09-17]**
+
+Cut from `13ce376e19239a4081e6c68764e470733ffc52b5` (Wave-0 convergence HEAD).
+Implemented client-facing scenario selection experience ("Choose a Scenario") strictly over frozen Wave-0 contracts, independent of concurrent `SCI-03` domain pack development.
+
+| Definition-of-done clause | Result |
+|---|---|
+| Selection and restart from UI path | `components/ScenarioContextStrip.tsx` and `components/ScenarioControls.tsx` expose discoverable "Change" scenario modal and active case "Restart" actions without requiring API knowledge. |
+| Dynamic scenario presentation | Active scenario identity and metadata (SKU, category, scope, horizon, supplier) dynamically resolved from canonical contracts / decision state rather than hardcoded literals. |
+| Catalogue from frozen contracts | `components/ScenarioSelectorModal.tsx` renders catalogue dynamically through `GET /api/v1/scenarios` with business framing, decision questions, taxonomy, and certification badges. Zero hardcoded economics or SCI-03 archetype keys. |
+| Governed activation path | `POST /api/v1/scenarios` activates scenarios via `@/lib/scenario-runtime`, enforcing the Scenario Certification Gate (ADR-080) and resetting session decision state cleanly via `switchScenarioForSession`. |
+| Honest uncertified handling | Uncertified or unavailable scenarios clearly display certification state badges and failure reasons in progressive disclosure; activation attempts are blocked and refused by ADR-080. |
+| No competing client state | Session decision state is cleanly bound to canonical active scenario via `switchScenarioForSession` in `lib/decision-state-store.ts`; no dual or divergent client-side scenario cache. |
+| Visual system preserved | Built strictly within CogniX design language with high-contrast executive presentation, WCAG-compliant keyboard and screen-reader accessibility (`role="dialog"`, `aria-modal`, Escape key), and tested responsiveness across 1440, 1024, and 720 breakpoints. |
+| Full regression green | **44 runners fully green, 1 pre-existing failure (`run-atl06b-tests` R-25, untouched)**. Canonical suite (275/275), Gate A (48/48), SCI-02 certification (53/53), Decision State (7/7), and new SCI-04 suite (53/53) all 100% PASS. Production build (`next build`) compiles 74/74 routes cleanly with 0 errors. Gate B remains OPEN awaiting Wave-1 convergence. |
 
 ---
 

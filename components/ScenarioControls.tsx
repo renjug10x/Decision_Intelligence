@@ -15,15 +15,30 @@ import { RotateCcw, Check, Loader2 } from 'lucide-react';
 import { useCurrency } from '@/context/CurrencyContext';
 import { useDecisionState } from '@/context/DecisionStateContext';
 import { SUPPORTED_CURRENCIES, SupportedCurrency } from '@/packages/contracts/src/currency-model';
-import { CANONICAL_SCENARIO } from '@/packages/contracts/src/canonical-scenario-model';
+import {
+  getActiveScenario,
+  resolveScenario,
+  isScenarioRegistered
+} from '@/packages/contracts/src/scenario-registry';
 import { getOrCreateSessionId } from '@/lib/journey-client';
 
 type ResetPhase = 'idle' | 'working' | 'done';
 
 export default function ScenarioControls({ onReset }: { onReset?: () => void } = {}) {
   const { currency, setCurrency, rates } = useCurrency();
-  const { resetScenario } = useDecisionState();
+  const { decisionState, resetScenario } = useDecisionState();
   const [phase, setPhase] = useState<ResetPhase>('idle');
+
+  const activeScenario = (() => {
+    try {
+      if (decisionState?.scenario_id && isScenarioRegistered(decisionState.scenario_id)) {
+        return resolveScenario(decisionState.scenario_id);
+      }
+      return getActiveScenario();
+    } catch {
+      return getActiveScenario();
+    }
+  })();
 
   const handleRestart = async () => {
     if (phase === 'working') return;
@@ -87,7 +102,7 @@ export default function ScenarioControls({ onReset }: { onReset?: () => void } =
       <button
         onClick={handleRestart}
         disabled={phase === 'working'}
-        title={`Return to the opening position of ${CANONICAL_SCENARIO.identity.scenario_name}`}
+        title={`Return to the opening position of ${activeScenario.identity.scenario_name}`}
         style={{
           width: '100%', padding: '6px 8px', fontSize: '0.75rem', borderRadius: 4,
           background: '#FFFFFF', border: '1px solid var(--border)',
