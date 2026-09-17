@@ -130,15 +130,30 @@ console.log('\n=== 2. THE GATE REFUSES WHAT DOES NOT RECONCILE =================
 
 /*
  * The whole point of the packet. `SECOND_SCENARIO` declares a different scale, supplier and
- * SKU. The engines still answer with the reference scenario's economics, so the second
- * scenario does NOT reconcile — and the gate says so, by dimension, rather than letting a
- * second disconnected economic universe reach a demonstration.
+ * SKU, and it is deliberately inconsistent with the enterprise masters: it names P012 as a
+ * "Chilled Ready Meal" the product master calls "Smoked Salmon 100g", serves the flex notice
+ * on a supplier that does not make the line, carries the reference scenario's £2.49 against a
+ * master price of £3.19, and is never registered. It does NOT reconcile, and the gate says so
+ * by dimension rather than letting a second disconnected economic universe reach a demo.
+ *
+ * WHAT CHANGED AT `SCI-03`, recorded here rather than quietly edited
+ * ------------------------------------------------------------------
+ * At `SCI-02` this fixture also failed C-5 through C-8, because the engines answered with the
+ * reference scenario's economics whatever was being certified. That was R-27, and the gate
+ * catching it is the reason it was found before a client did. `SCI-03` closed R-27 by moving
+ * the engines onto the scenario in scope, so those dimensions now reconcile for this fixture
+ * and only its genuine contradictions remain.
+ *
+ * The assertions below were therefore REPOINTED, not relaxed: each one still asserts the
+ * property `SCI-02` was asserting — that a failure is reported, named, reasoned and
+ * quantified — against a check that genuinely fails today. `run-sci03-scenario-pack-tests.ts`
+ * carries the positive half: that the engines now answer with the scenario in scope.
  */
 const second = certifyScenario(SECOND_SCENARIO);
 
 assert(
   second.state === 'FAILED',
-  'A scenario whose engines answer with another scenario\'s economics is NOT certified',
+  'A scenario that contradicts the enterprise masters is NOT certified',
   second.state
 );
 assert(
@@ -155,13 +170,30 @@ assert(
   'Every failed dimension records why it failed'
 );
 // The divergence is quantified, not merely asserted — a reader can act on it.
-const populationFailure = second.dimensions
-  .find(d => d.dimension === 'C-8')?.checks
-  .find(c => c.id === 'C-8.1');
+const priceFailure = second.dimensions
+  .find(d => d.dimension === 'C-2')?.checks
+  .find(c => c.id === 'C-2.10');
 assert(
-  !!populationFailure && !populationFailure.passed && /\d/.test(populationFailure.detail),
+  !!priceFailure && !priceFailure.passed && /\d/.test(priceFailure.detail),
   'A failed check states the measured divergence rather than only that it failed',
-  populationFailure?.detail
+  priceFailure?.detail
+);
+/*
+ * R-27's own regression guard, stated from the other side.
+ *
+ * The economic dimensions must now RECONCILE for a scenario that declares a different scale
+ * from the reference instance — 120,000 units a week against 350,000. If C-5, C-7 or C-8 ever
+ * fails for this fixture again, the engines have drifted back onto a scenario named by the
+ * code rather than the one in scope.
+ */
+assert(
+  ['C-5', 'C-7', 'C-8'].every(
+    id => second.dimensions.find(d => d.dimension === id)?.verdict === 'PASS'
+  ),
+  'The economic dimensions reconcile for a scenario of a different scale — R-27 stays closed',
+  ['C-5', 'C-7', 'C-8']
+    .map(id => `${id}=${second.dimensions.find(d => d.dimension === id)?.verdict}`)
+    .join(', ')
 );
 assert(
   second.assertion_count === canonical.assertion_count,

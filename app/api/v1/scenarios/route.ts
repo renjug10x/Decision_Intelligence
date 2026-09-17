@@ -7,10 +7,29 @@
  * What this route used to be. It served `ENTERPRISE_WORLD_SCENARIOS` — six families
  * carrying their own economics, including `SCN-PROMO-01` at a 55,000-unit week against
  * supplier FreshDirect UK. That was the second scenario world ADR-077 retires. The family
- * taxonomy survives, and each family's temporal series survives AS A SCENARIO'S DECLARED
- * EVIDENCE; their `baselineMetrics` do not survive as an economic authority and are not
- * served from here. A consumer that needs a demand, capacity or exposure figure reads the
- * scenario's own record.
+ * taxonomy survives; its `baselineMetrics` do not survive as an economic authority.
+ *
+ * `temporal_evidence` no longer survives either, and `SCI-03` is what settled it (R-30)
+ * -----------------------------------------------------------------------------------
+ * `SCI-01` kept each family's `temporalData` on this route as "a shape, not a baseline". With
+ * ONE scenario published that was arguable. With three certified packs it stopped being:
+ *
+ *   `SCN-CHILLED-SALMON-002` declares 47,040 units a week at an allocation of 1.02; the
+ *   `supplier_breach` family series declares 41,000 against a flat 40,000 capacity.
+ *   `SCN-BAKERY-SOURDOUGH-003` declares demand 11.2% ABOVE its base under the promotion;
+ *   the `fresh_perishable_waste` series has demand FALLING at Today.
+ *
+ * Those are not a scale that could be rescaled — they are a different model, disagreeing in
+ * direction as well as magnitude. Publishing them beside a certified record would put two
+ * demand numbers on one catalogue card, which is precisely what ADR-073 and ADR-075 exist to
+ * prevent, and nothing renders the field today.
+ *
+ * `SCI-03` therefore stops serving it rather than rescaling a series it did not model. A real
+ * per-scenario evidence series over `T-90 … T+30` is `SCI-05`'s: its Refresh contract already
+ * declares `ScenarioAsAtMarker` and `RefreshDelta` for exactly this, and a scenario's history
+ * should come from the same place its advance does. Recorded as R-30 rather than absorbed.
+ *
+ * A consumer that needs a demand, capacity or exposure figure reads the scenario's own record.
  *
  * Server-side selection between service / demo-fallback / local modes is controlled strictly by:
  * - COGNIX_WORLD_MODE ('service' | 'demo-fallback' | 'local')
@@ -20,20 +39,12 @@
  */
 
 import { NextRequest, NextResponse } from 'next/server';
-import { scenarioTemporalEvidence, platformReceiptNowIso } from '@/packages/contracts/src/index';
+import { platformReceiptNowIso } from '@/packages/contracts/src/index';
 // Through the scenario runtime: importing it installs the Scenario Certification Gate.
 import { scenarioCatalogue, getActiveScenarioId } from '@/lib/scenario-runtime';
 
 const WORLD_SERVICE_URL = process.env.COGNIX_WORLD_SERVICE_URL || 'http://localhost:8081';
 const WORLD_MODE = (process.env.COGNIX_WORLD_MODE as 'service' | 'demo-fallback' | 'local') || 'demo-fallback';
-
-/** The catalogue, each entry carrying its family's declared temporal evidence. */
-function catalogueWithEvidence() {
-  return scenarioCatalogue().map(entry => ({
-    ...entry,
-    temporal_evidence: scenarioTemporalEvidence(entry.taxonomy.family_id)
-  }));
-}
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
@@ -49,7 +60,7 @@ export async function GET(request: NextRequest) {
     count: scenarioCatalogue().length,
     // A server receipt. Each entry carries its own scenario clock (ADR-078 part 2).
     timestamp: platformReceiptNowIso(),
-    data: catalogueWithEvidence()
+    data: scenarioCatalogue()
   });
 
   // Mode 1: Explicit Server-side Local Mode

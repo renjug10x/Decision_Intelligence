@@ -6,7 +6,7 @@
  * Contracts frozen in docs/reports/COGNIX_CDI_05_DECISION_TIMELINE_DESIGN_GATE.md §8.
  */
 
-import { canonicalWeeklyPopulationUnits } from './canonical-scenario-model';
+import { inScopeWeeklyPopulationUnits } from './scenario-scope';
 import { CampaignIntent } from './campaign-intent-model';
 import {
   CampaignEvaluationResponse,
@@ -48,8 +48,16 @@ export type TimelinePointBasis =
   | 'NOT_MODELLED_BY_CDI02';
 export type TemporalAllocationProfile = 'FLAT_RATE_IDENTITY';
 
-/** CDI-02 weekly rate constant mirrored for lens rendering — not a second demand model. */
-export const CDI02_BASE_WEEKLY_UNITS = canonicalWeeklyPopulationUnits();
+/**
+ * CDI-02 weekly rate mirrored for lens rendering — not a second demand model.
+ *
+ * A function, not a constant: a constant is evaluated at import and pins every lens to whichever
+ * scenario was in scope then, which is how the campaign timeline came to plot the reference
+ * scenario's week for every scenario put in front of the certification gate (R-27).
+ */
+export function cdi02BaseWeeklyUnits(): number {
+  return inScopeWeeklyPopulationUnits();
+}
 
 export interface TimelineSeriesPoint {
   period_index: number;

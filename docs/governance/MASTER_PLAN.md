@@ -1138,7 +1138,7 @@ product, region and horizon the previous two screens had just established.
 | **Multi-currency** | GBP base, USD and EUR display; ECB rates through the platform's own cached endpoint, dated fallback, no credential. ADR-074 |
 | **Repeatability** | A *Restart scenario* control returns the demonstration to its opening position deterministically |
 | **Continuity** | A restrained scenario identity strip states the product, scope and horizon on every surface |
-| **Tests** | `tests/unit/run-canonical-scenario-tests.ts` — cross-surface and currency assertions that fail if two surfaces stop agreeing on the same quantity. **Recorded as 74 at `DEMO-HARD-01` closure; measured at `f9c5679c` as 243 passed / 0 failed** after `DEMO-HARD-02` and `-04` added to it. Corrected 2026-09-15 per residual `R-23`. **`SCI-01` took it to 260 passed / 0 failed**, adding the scenario-identity, clock and provenance assertions and the three source guards; the ADR-075 bounded-divergence assertion was replaced by exact agreement rather than relaxed. **`SCI-02` took it to 275**, adding the generalised catalogue run and the gate source guards, and added `run-sci02-certification-tests` at 53 assertions plus 84 executed checks per scenario in the certification harness |
+| **Tests** | `tests/unit/run-canonical-scenario-tests.ts` — cross-surface and currency assertions that fail if two surfaces stop agreeing on the same quantity. **Recorded as 74 at `DEMO-HARD-01` closure; measured at `f9c5679c` as 243 passed / 0 failed** after `DEMO-HARD-02` and `-04` added to it. Corrected 2026-09-15 per residual `R-23`. **`SCI-01` took it to 260 passed / 0 failed**, adding the scenario-identity, clock and provenance assertions and the three source guards; the ADR-075 bounded-divergence assertion was replaced by exact agreement rather than relaxed. **`SCI-02` took it to 275**, adding the generalised catalogue run and the gate source guards, and added `run-sci02-certification-tests` at 53 assertions plus 84 executed checks per scenario in the certification harness. **`SCI-03` added `run-sci03-scenario-pack-tests` at 96 assertions** and took the certification harness to 84 executed checks on each of THREE scenarios; `run-sci02-certification-tests` moved to 54 as one assertion that encoded `R-27` was repointed — not relaxed — onto a check that genuinely fails, with a new assertion added asserting the half `R-27`'s closure made true |
 
 **Evidence.** [`COGNIX_PRESENTATION_SYNC_DELTA.md`](../reports/COGNIX_PRESENTATION_SYNC_DELTA.md)
 states, value by value, what the live application now shows against the pre-hardening demonstration
@@ -1202,9 +1202,29 @@ Status: `[IN PROGRESS]` — **Wave 0 COMPLETE AND CONVERGED. GATE A PASSED 2026-
 `SCI-01` **[COMPLETED]** at `1a3b2d64`; `SCI-02` **[COMPLETED]** at `c1edf150`; converged on
 `feature/cognix-sci-wave0-convergence`. Five Wave-0 contracts are frozen and three `SCI-05`-owned
 Wave-2 contracts are declared and frozen AS DECLARATIONS — shape fixed, behaviour not built.
-**Wave 1 is authorised:** `SCI-03` and `SCI-04` may be cut from SHA-A. Condition-by-condition
-evidence and the freeze table are in
+**Wave 1 is authorised and IN PROGRESS:** `SCI-03` **[COMPLETED 2026-09-17]** on
+`feature/cognix-sci-03-curated-scenarios`; `SCI-04` still to land. **Gate B is NOT passed** — it needs
+both Wave-1 lanes. Condition-by-condition Gate-A evidence and the freeze table are in
 [`COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md`](COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md) §9.
+
+**`SCI-03` outcome.** The curated catalogue exists: **three certified scenarios** where there was
+one, each `CERTIFIED` on all twelve governed dimensions across 84 executed checks, with **zero**
+NOT_APPLICABLE. `SCN-CHILLED-SALMON-002` (Atlantic Salmon, Foodvest Fish) is a decision depth cannot
+answer — the committed 10% cut is already the best tier on its own curve and the binding constraint
+is a six-day import lead against an allocation index of 1.02. `SCN-BAKERY-SOURDOUGH-003` (White
+Sourdough, Allied Bakeries) is the scenario whose answer is **do not promote**: at 0.8pp of volume
+per point of depth against 10% supplier funding, every plotted depth destroys contribution, and the
+curve derives that rather than being told it — `is_cognix_recommended` is now computed from
+contribution and held there by `assertRecommendationIsDerived`.
+
+It opened by closing **`R-27`**, its declared precondition: the engines answered with the reference
+scenario's economics whatever they were asked about. A third derivation layer — `scenarioInScope()`
+beside `scenarioX(scenario, …)` and `canonicalX(…)` — makes every engine *engine + active certified
+scenario*, with a source guard asserting no engine names a pack or compares a scenario identity
+against a literal. **The protected journey is bit-for-bit unchanged**, verified by diffing a 385-line
+value probe at SHA-A and at the packet head, and confirmed in Chromium at 1440 / 1024 / 720.
+Registered `R-30` rather than absorbing it. Evidence:
+[`COGNIX_SCI_03_CURATED_SCENARIO_PACKS.md`](../reports/COGNIX_SCI_03_CURATED_SCENARIO_PACKS.md).
 
 **`SCI-02` outcome.** The Scenario Certification Gate exists and is enforced at the one activation
 seam `SCI-01` declared. `SCN-FRESH-DAIRY-CHEDDAR-001` is `CERTIFIED` on all twelve governed
@@ -1260,18 +1280,18 @@ redesign.
 
 ### Packets
 
-| ID | Title | Class | Tool | Wave |
-|---|---|---|---|---|
-| `SCI-01` | Scenario Contract, Clock, Registry & Provenance Foundation | FOUNDATION | Cursor | 0 |
-| `SCI-02` | Scenario Certification Gate & Reconciliation Generalisation | FOUNDATION | Cursor | 0 |
-| `SCI-03` | Curated Scenario Domain Packs | CURSOR | Cursor | 1 |
-| `SCI-04` | Scenario Selection Experience | ANTIGRAVITY | Antigravity | 1 |
-| `SCI-05` | Living Evidence — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 |
-| `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 |
-| `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 |
-| `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 |
-| `SCI-08` | Create Your Own Scenario Experience | POST-DEMO | Antigravity | 4 |
-| `SCI-10` | CSV Scenario Enrichment via Attested Admission | POST-DEMO | Cursor | 4 |
+| ID | Title | Class | Tool | Wave | Status |
+|---|---|---|---|---|---|
+| `SCI-01` | Scenario Contract, Clock, Registry & Provenance Foundation | FOUNDATION | Cursor | 0 | **[COMPLETED]** |
+| `SCI-02` | Scenario Certification Gate & Reconciliation Generalisation | FOUNDATION | Cursor | 0 | **[COMPLETED]** |
+| `SCI-03` | Curated Scenario Domain Packs | CURSOR | Cursor | 1 | **[COMPLETED 2026-09-17]** |
+| `SCI-04` | Scenario Selection Experience | ANTIGRAVITY | Antigravity | 1 | Not started |
+| `SCI-05` | Living Evidence — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 | Not started |
+| `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 | Not started |
+| `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | Not started |
+| `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | Not started |
+| `SCI-08` | Create Your Own Scenario Experience | POST-DEMO | Antigravity | 4 | Not started |
+| `SCI-10` | CSV Scenario Enrichment via Attested Admission | POST-DEMO | Cursor | 4 | Not started |
 
 ### Parallel execution
 

@@ -1,6 +1,5 @@
 import * as http from 'http';
 import {
-  scenarioTemporalEvidence,
   SignalSimulationRequest,
   ExternalSignalIngestRequest,
   requireScenarioId,
@@ -65,14 +64,13 @@ const server = http.createServer((req, res) => {
   // ── ROUTE 2: /api/v1/scenarios — the scenario registry ─────────────────────
   if (pathname === '/api/v1/scenarios') {
     /*
-     * The REGISTERED catalogue, not the six world families. The families survive as
-     * taxonomy and as each scenario's declared temporal evidence; their pre-hardening
-     * economics are retired and are not served from here (ADR-077 part 2).
+     * The REGISTERED catalogue, not the six world families. The families survive as TAXONOMY
+     * only: their pre-hardening economics were retired at `SCI-01` (ADR-077 part 2), and
+     * `SCI-03` stopped serving their temporal series with them (R-30) — with three certified
+     * packs published, two of the three family series contradicted their scenario's own record
+     * in direction as well as scale. The BFF route carries the reasoning in full.
      */
-    const catalogue = scenarioCatalogue().map(entry => ({
-      ...entry,
-      temporal_evidence: scenarioTemporalEvidence(entry.taxonomy.family_id)
-    }));
+    const catalogue = scenarioCatalogue();
 
     console.log(`[cognix-world] HTTP GET /api/v1/scenarios | tenant: ${tenantId} | active: ${getActiveScenarioId()} | count: ${catalogue.length} | corr: ${correlationId}`);
 

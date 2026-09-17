@@ -29,7 +29,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { TimelineChart } from '../../components/CampaignDecisionCanvas';
 import * as fs from 'fs';
 import * as path from 'path';
-import { CDI02_BASE_WEEKLY_UNITS } from '../../packages/contracts/src/campaign-timeline-model';
+import { cdi02BaseWeeklyUnits } from '../../packages/contracts/src/campaign-timeline-model';
 
 function runTests() {
   console.log('====================================================');
@@ -418,7 +418,7 @@ function runTests() {
   const cfCampPt = campCf[0];
   // The lens rebuilds units from the index and the CDI-02 weekly rate. Reading that rate from its
   // own constant keeps this a test of RECOMPUTABILITY; a literal 10,000 made it a test of scale.
-  const expectedVol = Math.round(CDI02_BASE_WEEKLY_UNITS * ((cfCampPt.index_pct as number) / 100));
+  const expectedVol = Math.round(cdi02BaseWeeklyUnits() * ((cfCampPt.index_pct as number) / 100));
   const demandVal = demand.values.find(v => v.period_index === cfCampPt.period_index)!;
   assert(
     demand.quantity_basis === 'cdi02_weekly_rate' && demandVal.counterfactual === expectedVol,
@@ -706,7 +706,7 @@ function runTests() {
       preIdxs.every((i: number) => {
         const v = conLens.values.find(x => x.period_index === i)!;
         return v.counterfactual === v.intervention &&
-          v.counterfactual === Number((CDI02_BASE_WEEKLY_UNITS * baselineUnit).toFixed(2));
+          v.counterfactual === Number((cdi02BaseWeeklyUnits() * baselineUnit).toFixed(2));
       }),
     'Test 25a: CONTRIBUTION lens shows no pre-campaign divergence (baseline unit contribution on both lines)'
   );

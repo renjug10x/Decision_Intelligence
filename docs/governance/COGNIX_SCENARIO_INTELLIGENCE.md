@@ -4,7 +4,9 @@
 Decision Intelligence laboratory.
 **Authorised:** 2026-09-15 against baseline `f9c5679c` on `feature/cognix-enterprise-demo-hardening`.
 **Implementation:** Wave 0 complete and converged — `SCI-01` and `SCI-02` (2026-09-16).
-**Gate A passed 2026-09-17; Wave 1 is authorised.** Programme `SCI`, defined in
+**Gate A passed 2026-09-17; Wave 1 is authorised. `SCI-03` delivered 2026-09-17 — §5 is now
+IMPLEMENTED: three certified scenarios. `SCI-04` (selection) is still to land, so Gate B is not
+passed.** Programme `SCI`, defined in
 [`COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md`](COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md) §9.
 **Decisions:** ADR-077 · ADR-078 · ADR-079 · ADR-080 · ADR-081 · ADR-082 · ADR-083 · ADR-084 ·
 ADR-044 Amendment B · ADR-051 Amendment A · ADR-073 Amendment A.
@@ -137,19 +139,39 @@ session on `SCN-PROMO-01` with constraint literals naming FreshDirect UK. Eviden
 8. **All three origins enter the same downstream contracts.** There is no curated engine, no
    user-scenario engine and no uploaded-data engine.
 
-## 5. Curated scenario catalogue
+## 5. Curated scenario catalogue — **IMPLEMENTED (`SCI-03`, 2026-09-17)**
 
-Initial target — three, promoted from archetypes that already exist and are already priced on the
+Three certified scenarios, promoted from archetypes that already exist and are already priced on the
 canonical framework. Additional archetypes remain future candidates and are not authorised here.
 
-| # | Scenario | Projection of | Why it earns its place |
-|---|---|---|---|
-| 1 | Fresh Dairy — committed national promotion under a supply ceiling (`SCN-FRESH-DAIRY-CHEDDAR-001`) | `ARCH-CHILLED-ELASTIC` | The protected journey and the reference every other scenario is certified against |
-| 2 | Supply-constrained demand surge | `ARCH-SUPPLY-CONSTRAINED` | A different *decision shape* — the binding constraint is capacity, not margin, so Decision Gap, Decision Window and the supplier flex clause become the dominant terms |
-| 3 | Premium low-elasticity margin trap | `ARCH-PREMIUM-ARTISAN` | A different *answer* — do not discount. `DEMO-HARD-04` established that five of seven archetypes reach this verdict under honest pricing and that it is a legitimate recommendation the platform has a posture for |
+| # | Scenario | Projection of | Why it earns its place | State |
+|---|---|---|---|---|
+| 1 | Fresh Dairy — committed national promotion under a supply ceiling (`SCN-FRESH-DAIRY-CHEDDAR-001`) | `ARCH-CHILLED-ELASTIC` | The protected journey and the reference every other scenario is certified against | **CERTIFIED · demo-active** |
+| 2 | Chilled Fish — a promoted import against a six-day lead time (`SCN-CHILLED-SALMON-002`) | `ARCH-SUPPLY-CONSTRAINED` | A different *decision shape* — the binding constraint is landed capacity, not margin, so Decision Gap, Decision Window and the supplier flex clause become the dominant terms | **CERTIFIED** |
+| 3 | Premium Bakery — an inelastic artisan line under promotional pressure (`SCN-BAKERY-SOURDOUGH-003`) | `ARCH-PREMIUM-ARTISAN` | A different *answer* — do not discount. `DEMO-HARD-04` established that five of seven archetypes reach this verdict under honest pricing and that it is a legitimate recommendation the platform has a posture for | **CERTIFIED** |
+
+**The three answers are DERIVED, and that is the point of the catalogue.** One engine, three declared
+records, three different recommendations — 14% (shallower than the committed plan), 10% (the
+committed depth already wins), and 0% (do not promote at all). Nothing marks a tier as recommended:
+`scenarioElasticityCurve` returns the tier with the most contribution and
+`assertRecommendationIsDerived` holds it there. The scenarios differ because they declare different
+supplier funding (35% / 60% / 10%), elasticity (2.4 / 2.2 / 0.8pp per point of depth), allocation
+headroom (1.10 / 1.02 / 1.06) and estate (1,450 / 980 / 620 stores) — not because anything is
+labelled differently.
+
+**Registered is not activated.** All three are in `scenarioCatalogue()` and resolvable by name;
+`SCN-FRESH-DAIRY-CHEDDAR-001` remains the one the estate runs. Choosing between them is `SCI-04`'s,
+behind the same ADR-080 gate.
+
+**What `SCI-03` had to close first.** `R-27` — the engines still answered with the reference
+scenario's economics whatever they were asked about, which is why no second scenario could certify.
+Resolved with a third derivation layer, `scenarioInScope()`, that every engine now reads. See the
+residual register and `COGNIX_SCI_03_CURATED_SCENARIO_PACKS.md`.
 
 **Future candidates, not authorised:** `ARCH-CLEARANCE-PRODUCE`, `ARCH-COMPETITOR-DEFENCE`,
-`ARCH-SEASONAL-WINDOW`, `ARCH-CANNIBALISATION`.
+`ARCH-SEASONAL-WINDOW`, `ARCH-CANNIBALISATION`. Each is now a DATA exercise rather than an
+engineering one: a fourth pack is a record plus a family signal timeline, because the same invariant
+set already runs for every registered scenario.
 
 ### 5.1 Online fulfilment / CFC remains explicit roadmap work
 
@@ -158,7 +180,9 @@ here so it is not mistaken for a scheduling choice. `CanonicalEconomics` carries
 capacity, centre throughput, pick rate or delivery-slot term. The signal taxonomy defines
 `CFC_THROUGHPUT_PRESSURE`, `PICK_RATE_DEGRADATION`, `FULFILMENT_QUEUE_GROWTH` and
 `DELIVERY_SLOT_SATURATION`, and no engine consumes any of them economically. The canonical record
-declares `online_demand_share_pct: 14` and nothing downstream varies with it.
+declares `online_demand_share_pct: 14` and nothing downstream varies with it. The `SCI-03` packs
+declare 21% and 6% for the same reason — the field is real and honest, and still nothing economic
+reads it. That remains true and remains roadmap.
 
 Building it means extending the economic model, which is a capability, not a pack. It is registered
 as **roadmap** and is the most commercially significant of the deferred items for online-first

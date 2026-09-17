@@ -48,7 +48,7 @@ import {
   FlightDaySupplementaryReading
 } from '../packages/contracts/src/campaign-continuous-timeline-model';
 import {
-  CDI02_BASE_WEEKLY_UNITS,
+  cdi02BaseWeeklyUnits,
   DecisionTimelineProjection,
   TimelineConfidenceEnvelope,
   TimelineConfidenceEnvelopePoint,
@@ -134,7 +134,7 @@ function strengthFor(horizonClass: CampaignHorizonClass, projected: EvidenceStre
  *
  * The CDI-05 envelope bounds the *attributable effect* in percentage points. Turning that into
  * a demand quantity is the arithmetic CDI-05 already performs on its central line: add the
- * ambient component back to get an index, then scale by `CDI02_BASE_WEEKLY_UNITS`. For
+ * ambient component back to get an index, then scale by `cdi02BaseWeeklyUnits()`. For
  * contribution the same bounds are carried across at the period's own realised unit rate,
  * derived as contribution ÷ demand at that period so that no second contribution rate exists.
  * Nothing is widened, narrowed or smoothed.
@@ -151,8 +151,8 @@ function bandFor(
   const ambient = point.ambient_component_pp;
   const lowerIndex = 100 + ambient + envelopePoint.lower_index_pct;
   const upperIndex = 100 + ambient + envelopePoint.upper_index_pct;
-  const lowerDemand = (CDI02_BASE_WEEKLY_UNITS * lowerIndex) / 100;
-  const upperDemand = (CDI02_BASE_WEEKLY_UNITS * upperIndex) / 100;
+  const lowerDemand = (cdi02BaseWeeklyUnits() * lowerIndex) / 100;
+  const upperDemand = (cdi02BaseWeeklyUnits() * upperIndex) / 100;
 
   if (lens === 'DEMAND') {
     return { lower: round(Math.min(lowerDemand, upperDemand), 2), upper: round(Math.max(lowerDemand, upperDemand), 2) };

@@ -570,19 +570,45 @@ function normaliseToken(value: string): string {
  * losing its binding — but nothing is guessed: an unrecognised value returns null and is
  * treated as an unclassified free-text declaration, never as a taxonomy member.
  */
-export function resolveCategory(value?: string | null): CampaignCategoryDefinition | null {
-  if (!value) return null;
-  const direct = CATEGORY_BY_ID.get(value as CampaignCategoryId);
-  if (direct) return direct;
-  const token = normaliseToken(value);
-  return (
-    CAMPAIGN_CATEGORIES.find(
-      c =>
-        normaliseToken(c.id) === token ||
-        normaliseToken(c.display_label) === token ||
-        normaliseToken(c.catalogue_key) === token
-    ) || null
+export function resolveCategory(
+  value?: string | null,
+  subcategoryHint?: string | null
+): CampaignCategoryDefinition | null {
+  const byName = (raw?: string | null): CampaignCategoryDefinition | null => {
+    if (!raw) return null;
+    const direct = CATEGORY_BY_ID.get(raw as CampaignCategoryId);
+    if (direct) return direct;
+    const token = normaliseToken(raw);
+    return (
+      CAMPAIGN_CATEGORIES.find(
+        c =>
+          normaliseToken(c.id) === token ||
+          normaliseToken(c.display_label) === token ||
+          normaliseToken(c.catalogue_key) === token
+      ) || null
+    );
+  };
+
+  const named = byName(value);
+  if (named) return named;
+
+  /*
+   * A scenario record names its category the way a merchant would — "Fresh Dairy" — and that
+   * matches no id, label or catalogue key. Its SUBCATEGORY does: "Cheese" appears in exactly
+   * one category's declared spread. Consulting it only after the primary value has failed is
+   * what lets a scenario be resolved to a taxonomy category without either side restating the
+   * other, and it is why the calibration anchor below can be a property of the scenario in
+   * scope rather than of the reference instance (R-27).
+   *
+   * Ordered after the primary deliberately: "Fish" belongs to both CHILLED and FROZEN, so a
+   * scenario that names its category resolves on that and never on an ambiguous subcategory.
+   */
+  if (!subcategoryHint) return null;
+  const subToken = normaliseToken(subcategoryHint);
+  const matches = CAMPAIGN_CATEGORIES.filter(c =>
+    c.subcategories.some(sub => normaliseToken(sub) === subToken)
   );
+  return matches.length === 1 ? matches[0] : null;
 }
 
 export function resolveSegment(value?: string | null): CampaignSegmentDefinition | null {

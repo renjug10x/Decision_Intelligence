@@ -12,7 +12,7 @@ import {
   assertNegativeContributionNeverGo,
   assertRecoveryLeverParity,
   READINESS_THRESHOLD_POLICY,
-  WP10C_RECOVERY_LEVER_HEADROOM,
+  wp10cRecoveryLeverHeadroom,
   deriveCommercialObjectiveClass,
   getThreshold,
   validateDecisionReadinessAssessment
@@ -328,7 +328,7 @@ function runTests() {
       promotion_method: '20_percent_off', campaign_scope: 'national', cannibalisation_factor: 0, event_boost: 'none' },
     []
   ).commitment_gap_units;
-  const expectedHeadroomUnits = Object.values(WP10C_RECOVERY_LEVER_HEADROOM).reduce((a, b) => a + b, 0);
+  const expectedHeadroomUnits = Object.values(wp10cRecoveryLeverHeadroom()).reduce((a, b) => a + b, 0);
   // Use VALUE_TRADE + shallow mechanic so Commercial does not V3a-veto the fixture.
   clearCampaignIntents();
   decisionStateStore.clearStore();
@@ -690,7 +690,7 @@ function runTests() {
   const parityBase = calculateDerivedImpacts(parityParams, []).supplier_capacity_units;
   assert(
     assertRecoveryLeverParity().ok &&
-      Object.entries(WP10C_RECOVERY_LEVER_HEADROOM).every(
+      Object.entries(wp10cRecoveryLeverHeadroom()).every(
         ([lever, headroom]) =>
           calculateDerivedImpacts(parityParams, [lever]).supplier_capacity_units - parityBase === headroom
       ),
@@ -739,7 +739,7 @@ function runTests() {
   } as any);
   const gapClosing = gapOps.feasibility!.closing_levers;
   const gapClosingHeadroom = gapClosing.reduce(
-    (sum, id) => sum + (WP10C_RECOVERY_LEVER_HEADROOM[id] || 0),
+    (sum, id) => sum + (wp10cRecoveryLeverHeadroom()[id] || 0),
     0
   );
   assert(

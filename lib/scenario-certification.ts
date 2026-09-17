@@ -21,23 +21,22 @@
  *
  * Why the engine probes look the way they do
  * ------------------------------------------
- * `SCI-01` parameterised the CONTRACT: `scenario*(scenario, …)` are pure functions of a
- * scenario, and `canonical*(…)` binds the reference instance. The ENGINES still read the
- * bound layer — `deriveUnitEconomics()` reads `canonicalRealisedRevenuePerUnitGbp()`,
- * `CDI02_BASE_WEEKLY_UNITS` is `canonicalWeeklyPopulationUnits()`, and the elasticity curve
- * is the canonical one.
+ * The probes are unchanged in intent: each one calls a REAL engine surface and compares what
+ * came back against what the scenario under test declares. Nothing here recomputes an engine's
+ * arithmetic, because a harness that reimplements what it is checking certifies itself.
  *
- * That is not a defect to paper over here, and it is not something this packet may quietly
- * fix: `SCI-02`'s non-scope is explicit that there is no engine change beyond what the
- * harness requires. What the harness does instead is PROBE those surfaces with the scenario
- * under test and compare what came back against what that scenario declares. For the
- * canonical scenario they agree, and it certifies. For any other scenario they do not, and
- * it fails C-5 through C-8 with the divergence named.
+ * What changed at `SCI-03` is which scenario those engines answer with. `SCI-01` parameterised
+ * the CONTRACT and left the ENGINES bound to the reference instance, so `deriveUnitEconomics()`
+ * returned Fresh Dairy's realised price whatever was being certified. `SCI-02` did not paper
+ * over that — its non-scope forbade the engine change — so it recorded the consequence honestly:
+ * a second scenario failed C-5 through C-8 with the divergence named, and the finding was
+ * carried as R-27.
  *
- * **That failure is the gate doing its job.** A catalogue is safe precisely because a second
- * scenario cannot reach a demonstration while the engines still answer with the first one's
- * economics. Whichever packet adds a second scenario must parameterise the engines to get it
- * certified, which is the work being made visible rather than discovered by a client.
+ * **That failure was the gate doing its job**, and R-27 is now closed rather than tolerated.
+ * The engines read layer C (`scenarioInScope()`), and this harness brings the scenario under
+ * test into scope for the duration of its run. Binding is NOT activation: ADR-080 still gates
+ * activation on certification, and a scenario that fails here still cannot be activated. All
+ * binding decides is which record the arithmetic reads while it is being measured.
  */
 
 import {
@@ -83,19 +82,20 @@ import {
   resolveScenario,
   requireScenarioId,
   getActiveScenarioId,
-  CDI02_BASE_WEEKLY_UNITS,
-  createDefaultCampaignIntentDraft
+  cdi02BaseWeeklyUnits,
+  createDefaultCampaignIntentDraft,
+  withScenarioInScope
 } from '@/packages/contracts/src/index';
 import { scenarioNowIso, scenarioPeriodInstantIso } from '@/packages/contracts/src/scenario-clock';
 import { generateSyntheticSignalSnapshot } from '@/services/world/src/enterprise-signal-generator';
 import {
   deriveUnitEconomics,
   deriveDemandBase,
-  DDF_GROSS_MARGIN_RATE_PCT,
-  DDF_FLEX_PREMIUM_RATE_PCT,
-  DDF_SLA_FLEX_UNITS_PER_WEEK
+  ddfGrossMarginRatePct,
+  ddfFlexPremiumRatePct,
+  ddfSlaFlexUnitsPerWeek
 } from './demand-decision-frontier/demand-frontier-engine';
-import { CANONICAL_ELASTICITY_CURVE, curvePoint } from './campaign-archetypes';
+import { elasticityCurveInScope, curvePoint } from './campaign-archetypes';
 import { evaluateCampaignDecision } from './campaign-causal-engine';
 import { clearCampaignIntents, registerCampaignIntent } from './campaign-intent-store';
 import { formatBaseMoney } from './currency/format';
@@ -551,21 +551,21 @@ function certifyDemand(scenario: CanonicalScenario): CertificationDimensionResul
   checks.push(closeCheck(
     'C-5.2',
     'The demand engine\'s margin rate is this scenario\'s declared rate',
-    DDF_GROSS_MARGIN_RATE_PCT,
+    ddfGrossMarginRatePct(),
     scenario.economics.gross_margin_rate_pct,
     0.0001
   ));
   checks.push(closeCheck(
     'C-5.3',
     'The demand engine\'s flex allowance is this scenario\'s declared flex rate',
-    DDF_SLA_FLEX_UNITS_PER_WEEK,
+    ddfSlaFlexUnitsPerWeek(),
     scenarioWeeklyPopulationUnits(scenario) * (scenario.supply.supplier_flex_rate_pct / 100),
     0.0001
   ));
   checks.push(closeCheck(
     'C-5.4',
     'The demand engine\'s flex premium is this scenario\'s declared premium',
-    DDF_FLEX_PREMIUM_RATE_PCT,
+    ddfFlexPremiumRatePct(),
     scenario.supply.flex_premium_rate_pct,
     0.0001
   ));
@@ -785,7 +785,7 @@ function certifyCampaignDecision(scenario: CanonicalScenario): CertificationDime
   checks.push(closeCheck(
     'C-7.5',
     'The campaign timeline population is this scenario\'s own weekly demand',
-    CDI02_BASE_WEEKLY_UNITS,
+    cdi02BaseWeeklyUnits(),
     scenarioWeeklyPopulationUnits(scenario),
     0.0001
   ));
@@ -1057,7 +1057,7 @@ function certifyCrossSurface(
     'C-12.1',
     'Shared Decision State and the campaign timeline publish the same weekly population',
     statePopulation,
-    CDI02_BASE_WEEKLY_UNITS,
+    cdi02BaseWeeklyUnits(),
     0.01
   ));
   checks.push(closeCheck(
@@ -1115,7 +1115,7 @@ function certifyCrossSurface(
       0.01
     ));
     // Every tier of the curve, not only the committed one.
-    const offCurve = CANONICAL_ELASTICITY_CURVE.filter(
+    const offCurve = elasticityCurveInScope().filter(
       p => !agrees(p.expected_demand_uplift_pct, scenarioDepthResponsePp(scenario, p.discount_pct), 0.01)
     );
     checks.push(check(
@@ -1159,6 +1159,18 @@ function certifyCrossSurface(
  * leaves no trace in a session's decision state.
  */
 export function certifyScenario(scenario: CanonicalScenario): ScenarioCertificationResult {
+  return withScenarioInScope(scenario, () => certifyBoundScenario(scenario));
+}
+
+/**
+ * The twelve dimensions, executed with `scenario` already in scope.
+ *
+ * Split out so the binding is established ONCE, around the whole run, rather than per probe.
+ * A probe that bound its own scenario would still be correct in isolation and would leave the
+ * cross-surface dimension comparing results taken under different bindings — reconciling two
+ * scenarios and calling it one.
+ */
+function certifyBoundScenario(scenario: CanonicalScenario): ScenarioCertificationResult {
   const ordered: CertificationDimensionResult[] = [
     certifyIdentity(scenario),
     certifyEconomics(scenario),

@@ -49,19 +49,30 @@ import {
 } from '@/packages/contracts/src/index';
 import { NarrativeStatement, moneyAmount, statementToBaseText } from '@/packages/contracts/src/currency-model';
 import {
-  CANONICAL_SCENARIO,
-  canonicalRealisedRevenuePerUnitGbp,
-  canonicalWeeklyPopulationUnits
-} from '@/packages/contracts/src/canonical-scenario-model';
+  scenarioInScope,
+  inScopeRealisedRevenuePerUnitGbp,
+  inScopeWeeklyPopulationUnits
+} from '@/packages/contracts/src/scenario-scope';
 
 // ── Declared modelled constants ──────────────────────────────────────────────
 // Each is a MODELLED_DEMO_ASSUMPTION and is published in the assumption inventory.
 
-/** Declared gross margin rate. The estate holds no cost data, so this is a modelled assumption. */
-export const DDF_GROSS_MARGIN_RATE_PCT = CANONICAL_SCENARIO.economics.gross_margin_rate_pct;
+/**
+ * Declared gross margin rate. The estate holds no cost data, so this is a modelled assumption.
+ *
+ * A FUNCTION rather than a module constant, and deliberately so: a constant is evaluated once at
+ * import and binds this surface to whichever scenario happened to be in scope then — which is
+ * how the demand engine came to answer with the reference scenario's margin for every scenario
+ * the certification gate put in front of it (R-27).
+ */
+export function ddfGrossMarginRatePct(): number {
+  return scenarioInScope().economics.gross_margin_rate_pct;
+}
 
 /** Flex premium charged on volume secured outside the standard order cycle, as a share of unit revenue. */
-export const DDF_FLEX_PREMIUM_RATE_PCT = CANONICAL_SCENARIO.supply.flex_premium_rate_pct;
+export function ddfFlexPremiumRatePct(): number {
+  return scenarioInScope().supply.flex_premium_rate_pct;
+}
 
 /**
  * Unit economics for the connected decision case.
@@ -80,7 +91,7 @@ export const DDF_FLEX_PREMIUM_RATE_PCT = CANONICAL_SCENARIO.supply.flex_premium_
 export const DDF_REVENUE_BASIS_TOLERANCE_PCT = 5;
 
 export function deriveUnitEconomics(revenuePerUnitGbp?: number | null): DemandUnitEconomics {
-  const canonical = canonicalRealisedRevenuePerUnitGbp();
+  const canonical = inScopeRealisedRevenuePerUnitGbp();
   const supplied = typeof revenuePerUnitGbp === 'number'
     && Number.isFinite(revenuePerUnitGbp)
     && revenuePerUnitGbp > 0
@@ -93,10 +104,11 @@ export function deriveUnitEconomics(revenuePerUnitGbp?: number | null): DemandUn
   const useSupplied = supplied !== null && divergencePct > DDF_REVENUE_BASIS_TOLERANCE_PCT;
 
   const revenue = useSupplied ? (supplied as number) : canonical;
+  const marginRatePct = ddfGrossMarginRatePct();
   return {
     revenue_per_unit_gbp: revenue,
-    gross_margin_per_unit_gbp: Number((revenue * (DDF_GROSS_MARGIN_RATE_PCT / 100)).toFixed(2)),
-    margin_rate_pct: DDF_GROSS_MARGIN_RATE_PCT,
+    gross_margin_per_unit_gbp: Number((revenue * (marginRatePct / 100)).toFixed(2)),
+    margin_rate_pct: marginRatePct,
     revenue_per_unit_basis: useSupplied ? 'DERIVED_FROM_PROJECTION' : 'MODELLED_DEMO_ASSUMPTION',
     basis: 'MODELLED_DEMO_ASSUMPTION'
   };
@@ -124,8 +136,10 @@ export const DDF_EVENT_DISPLAY_NAME: Record<string, string> = {
  * one population is exactly how this lever came to recover a different number of units on each
  * surface that named it.
  */
-export const DDF_SLA_FLEX_UNITS_PER_WEEK =
-  canonicalWeeklyPopulationUnits() * (CANONICAL_SCENARIO.supply.supplier_flex_rate_pct / 100);
+export function ddfSlaFlexUnitsPerWeek(): number {
+  const scenario = scenarioInScope();
+  return inScopeWeeklyPopulationUnits() * (scenario.supply.supplier_flex_rate_pct / 100);
+}
 
 /**
  * Below this separation between the best and second-best alternative, no winner is named.
@@ -533,7 +547,7 @@ export function evaluateDecisionGap(
   const contributing_constraints: ContributingConstraint[] = [
     {
       constraint_id: 'CST-SUP-01',
-      name: `${CANONICAL_SCENARIO.supply.supplier_name} Allocation Cap`,
+      name: `${scenarioInScope().supply.supplier_name} Allocation Cap`,
       description: `Committed supplier allocation is capped at +${scenarioParams.supplier_capacity_cap}% above base contract (${Math.round(derivedImpacts.supplier_capacity_units).toLocaleString()} units per week).`,
       impact_units: attributed[0].units,
       impact_pp: round1(exposed_demand_pp * CONSTRAINT_ATTRIBUTION[0].share),
@@ -615,7 +629,7 @@ function formatScenarioInstant(iso: string): string {
  * commitment point are all reading the same contract.
  */
 function nextSupplierCutOff(fromIso: string): string {
-  const { supplier_cut_off_weekday, supplier_cut_off_hour_utc } = CANONICAL_SCENARIO.calendar;
+  const { supplier_cut_off_weekday, supplier_cut_off_hour_utc } = scenarioInScope().calendar;
   const from = new Date(fromIso);
   const candidate = new Date(Date.UTC(
     from.getUTCFullYear(), from.getUTCMonth(), from.getUTCDate(), supplier_cut_off_hour_utc, 0, 0, 0
@@ -721,7 +735,7 @@ export function evaluateDecisionWindow(
 
   const declared_constraint_name =
     declaredDeadline?.declaredConstraintName
-    || `${CANONICAL_SCENARIO.supply.supplier_name} Order Confirmation Cut-Off`;
+    || `${scenarioInScope().supply.supplier_name} Order Confirmation Cut-Off`;
   const declared_by = declaredDeadline?.declaredBy || 'Commercial Supply Agreement (SLA Rule 4)';
   const deadline_display = declaredDeadline?.deadlineDisplay || formatScenarioInstant(deadlineIso);
 
@@ -734,7 +748,7 @@ export function evaluateDecisionWindow(
     remaining_hours,
     declared_constraint_name,
     declared_by,
-    timezone_note: timezoneNote(deadlineIso, CANONICAL_SCENARIO.calendar.supplier_cut_off_hour_utc),
+    timezone_note: timezoneNote(deadlineIso, scenarioInScope().calendar.supplier_cut_off_hour_utc),
     provenance_basis: isDeclared ? 'DECLARED_OPERATIONAL_CONSTRAINT' : 'MODELLED_DEMO_ASSUMPTION',
     explanation:
       window_state === 'RESTRICTED'
@@ -921,7 +935,7 @@ export function evaluateDecisionRegret(
 
 /**
  * Capacity the SLA flex lever adds across the horizon, expressed on the surface's own demand
- * base. WP10-C supplies `DDF_SLA_FLEX_UNITS_PER_WEEK` against its un-promoted weekly demand,
+ * base. WP10-C supplies `ddfSlaFlexUnitsPerWeek()` against its un-promoted weekly demand,
  * so the lever is carried across as the same PROPORTIONAL uplift rather than as a raw count
  * from a different population.
  */
@@ -934,7 +948,7 @@ export function deriveFlexCapacityUnits(
   const unpromotedWeeklyDemand = promoFactor > 0
     ? derivedImpacts.weekly_demand_units / promoFactor
     : derivedImpacts.weekly_demand_units;
-  const flexUplift = safeDiv(DDF_SLA_FLEX_UNITS_PER_WEEK, unpromotedWeeklyDemand);
+  const flexUplift = safeDiv(ddfSlaFlexUnitsPerWeek(), unpromotedWeeklyDemand);
   return Math.round(baseDemandUnits * flexUplift);
 }
 
@@ -953,7 +967,7 @@ export function evaluateInterventionRecommendation(
   const econ = decisionGap.unit_economics;
   // Cost scales with the volume actually secured outside the standard order cycle.
   const interventionCost = Math.round(
-    recovered * econ.revenue_per_unit_gbp * (DDF_FLEX_PREMIUM_RATE_PCT / 100)
+    recovered * econ.revenue_per_unit_gbp * (ddfFlexPremiumRatePct() / 100)
   );
 
   if (exposedUnits <= 0) {
@@ -981,7 +995,7 @@ export function evaluateInterventionRecommendation(
 
   return {
     intervention_id: 'SLA_FLEX_RULE_4',
-    intervention_name: `Serve the ${CANONICAL_SCENARIO.supply.supplier_name} ${CANONICAL_SCENARIO.supply.flex_clause_reference.toLowerCase()}`,
+    intervention_name: `Serve the ${scenarioInScope().supply.supplier_name} ${scenarioInScope().supply.flex_clause_reference.toLowerCase()}`,
     lever_type: 'SUPPLIER_CAPACITY_FLEX',
     description: `Serve the contractual volume flex notice to add ${flexUnits.toLocaleString()} units of executable capacity across the ${horizonDays}-day horizon.`,
     rationale: `Supplier allocation is the largest ranked contributor to the ${decisionGap.exposed_demand_pp}pp gap. The flex clause is the only lever that changes executable capacity inside the current lead time.`,
@@ -994,10 +1008,10 @@ export function evaluateInterventionRecommendation(
     risk_state_after: residualPp <= 2 ? 'LOW' : residualPp <= 8 ? 'MEDIUM' : 'HIGH',
     intervention_cost_gbp: interventionCost,
     evidence_basis: [
-      `${CANONICAL_SCENARIO.supply.supplier_name} Supply Agreement, Clause 4.2 volume flex notice — modelled demo assumption, not a countersigned contract.`,
+      `${scenarioInScope().supply.supplier_name} Supply Agreement, Clause 4.2 volume flex notice — modelled demo assumption, not a countersigned contract.`,
       `Supplier capacity of ${Math.round(derivedImpacts.supplier_capacity_units).toLocaleString()} units per week, read from the current scenario and unchanged by this briefing.`,
-      `Flex volume of ${DDF_SLA_FLEX_UNITS_PER_WEEK.toLocaleString()} units per week, carried across as the same proportional uplift used elsewhere in the scenario.`,
-      `Flex premium of ${DDF_FLEX_PREMIUM_RATE_PCT}% of unit revenue is a declared modelled assumption.`
+      `Flex volume of ${ddfSlaFlexUnitsPerWeek().toLocaleString()} units per week, carried across as the same proportional uplift used elsewhere in the scenario.`,
+      `Flex premium of ${ddfFlexPremiumRatePct()}% of unit revenue is a declared modelled assumption.`
     ],
     is_actionable: true
   };
@@ -1057,7 +1071,7 @@ function buildAssumptionInventory(
     {
       key: 'intervention_cost',
       label: 'Flex premium',
-      value: `${DDF_FLEX_PREMIUM_RATE_PCT}% of unit revenue (£${intervention.intervention_cost_gbp.toLocaleString()} at this volume)`,
+      value: `${ddfFlexPremiumRatePct()}% of unit revenue (£${intervention.intervention_cost_gbp.toLocaleString()} at this volume)`,
       provenance_class: 'MODELLED_DEMO_ASSUMPTION',
       source: 'DDF-01 declared unit economics'
     },
@@ -1070,14 +1084,14 @@ function buildAssumptionInventory(
        */
       key: 'supplier_promotional_funding',
       label: 'Supplier promotional funding',
-      value: `${CANONICAL_SCENARIO.economics.supplier_promotional_funding_pct}% of the price invested is funded by the supplier`,
+      value: `${scenarioInScope().economics.supplier_promotional_funding_pct}% of the price invested is funded by the supplier`,
       provenance_class: 'MODELLED_DEMO_ASSUMPTION',
       source: 'Canonical scenario economics — an illustrative trade agreement, not a supplier term on record'
     },
     {
       key: 'flex_volume',
       label: 'SLA flex volume',
-      value: `${DDF_SLA_FLEX_UNITS_PER_WEEK.toLocaleString()} units/week, carried across as a proportional uplift`,
+      value: `${ddfSlaFlexUnitsPerWeek().toLocaleString()} units/week, carried across as a proportional uplift`,
       provenance_class: 'MODELLED_DEMO_ASSUMPTION',
       source: 'WP10-C SLA_FLEX_RULE_4 intervention model'
     },
@@ -1197,7 +1211,7 @@ export function evaluateDemandDecisionFrontier(
     // intervention is selected. Shared Decision State itself is never written.
     const simulatedImpacts: DecisionDerivedImpacts = {
       ...derivedImpacts,
-      supplier_capacity_units: derivedImpacts.supplier_capacity_units + DDF_SLA_FLEX_UNITS_PER_WEEK
+      supplier_capacity_units: derivedImpacts.supplier_capacity_units + ddfSlaFlexUnitsPerWeek()
     };
 
     const recomputedFrontier = evaluateDemandFrontier(

@@ -17,7 +17,7 @@ import {
   DecisionChangeTrigger,
   SignalHypothesis,
   estimateInterventionEconomics,
-  REGION_STORE_COUNTS
+  regionStoreCounts
 } from '@/lib/campaign-archetypes';
 import { canonicalStoreCount } from '@/packages/contracts/src/canonical-scenario-model';
 import { useCurrency } from '@/context/CurrencyContext';

@@ -12,7 +12,7 @@ import { OpportunityDiscoveryResponse } from './campaign-opportunity-model';
 import { DecisionScenarioParameters, calculateDerivedImpacts,
   BUFFER_OPTIMISATION_RATE_PCT
 } from './decision-state-model';
-import { CANONICAL_SCENARIO, canonicalWeeklyPopulationUnits } from './canonical-scenario-model';
+import { scenarioInScope, inScopeWeeklyPopulationUnits } from './scenario-scope';
 
 export type ReadinessDimensionId =
   | 'COMMERCIAL'
@@ -109,12 +109,13 @@ export interface RecoveryLever {
  * the engine. Deriving both from the one declared population is what keeps that parity true by
  * construction rather than by vigilance.
  */
-export const WP10C_RECOVERY_LEVER_HEADROOM: Readonly<Record<string, number>> = {
-  SLA_FLEX_RULE_4: Math.round(
-    canonicalWeeklyPopulationUnits() * (CANONICAL_SCENARIO.supply.supplier_flex_rate_pct / 100)
-  ),
-  BUFFER_OPTIMISATION_R002: Math.round(canonicalWeeklyPopulationUnits() * (BUFFER_OPTIMISATION_RATE_PCT / 100))
-};
+export function wp10cRecoveryLeverHeadroom(): Readonly<Record<string, number>> {
+  const base = inScopeWeeklyPopulationUnits();
+  return {
+    SLA_FLEX_RULE_4: Math.round(base * (scenarioInScope().supply.supplier_flex_rate_pct / 100)),
+    BUFFER_OPTIMISATION_R002: Math.round(base * (BUFFER_OPTIMISATION_RATE_PCT / 100))
+  };
+}
 
 export interface OperationalFeasibility {
   commitment_gap_units: number;
@@ -768,7 +769,7 @@ export function assertRecoveryLeverParity(): { ok: boolean; violations: string[]
     event_boost: 'none'
   };
   const baseline = calculateDerivedImpacts(params, []).supplier_capacity_units;
-  for (const [leverId, mirrored] of Object.entries(WP10C_RECOVERY_LEVER_HEADROOM)) {
+  for (const [leverId, mirrored] of Object.entries(wp10cRecoveryLeverHeadroom())) {
     const actual = calculateDerivedImpacts(params, [leverId]).supplier_capacity_units - baseline;
     if (actual !== mirrored) {
       violations.push(

@@ -13,8 +13,9 @@
  *
  *   SURVIVES     `familyId` as TAXONOMY — what KIND of decision situation this is. It is
  *                declared on the canonical scenario record as `taxonomy.family_id`.
- *   SURVIVES     `temporalData` as a scenario's DECLARED EVIDENCE — a shape over
- *                `T-90 … T+30`, read through `scenarioTemporalEvidence()`.
+ *   RETIRED      `temporalData` as a scenario's declared evidence. `SCI-01` kept it on
+ *                `/api/v1/scenarios` as "a shape, not a baseline"; `SCI-03` stopped serving it
+ *                (R-30). See the note on `scenarioTemporalEvidence()` below.
  *   RETIRED      `baselineMetrics` as an economic authority. Nothing in the connected
  *                journey may read a demand, capacity or exposure figure from here. The
  *                scenario record answers those, once.
@@ -234,12 +235,21 @@ export function generateCanonicalScenario(familyId?: ScenarioFamilyId, tenantId:
 }
 
 /**
- * A scenario's declared temporal evidence: the shape of its family over `T-90 … T+30`.
+ * A family's seeded temporal series over `T-90 … T+30`. **NOT SERVED BY ANY ROUTE (R-30).**
  *
- * Evidence, not a baseline. It carries the SHAPE of how a situation of this kind develops;
- * it carries no economics, and the `baselineMetrics` beside it in the seed are deliberately
- * not returned. A consumer that needs a demand, capacity or exposure figure reads the
- * scenario's own record (ADR-077 part 2).
+ * `SCI-01` kept this on `/api/v1/scenarios` as "a shape, not a baseline", which held while one
+ * scenario was published. `SCI-03` published three certified packs and it stopped holding: the
+ * `supplier_breach` series declares 41,000 units against a flat 40,000 capacity while
+ * `SCN-CHILLED-SALMON-002` declares 47,040 at an allocation of 1.02, and the
+ * `fresh_perishable_waste` series has demand FALLING at Today while
+ * `SCN-BAKERY-SOURDOUGH-003` declares it 11.2% above its base under the promotion. Those
+ * disagree in DIRECTION, not only in scale, so no rescaling could reconcile them.
+ *
+ * It is left exported and unchanged rather than deleted: it is the historical shape the six
+ * families were seeded with, and deleting it would destroy the evidence for why it was retired.
+ * A real per-scenario evidence series belongs to `SCI-05`, whose Refresh contract already
+ * declares `ScenarioAsAtMarker` and `RefreshDelta` for it. Nothing in the connected journey may
+ * read a demand, capacity or exposure figure from here (ADR-077 part 2).
  */
 export function scenarioTemporalEvidence(familyId: ScenarioFamilyId): TemporalDataPoint[] {
   return ENTERPRISE_WORLD_SCENARIOS.find(s => s.familyId === familyId)?.temporalData ?? [];

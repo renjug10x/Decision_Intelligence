@@ -25,7 +25,7 @@ import {
   estimateInterventionEconomics,
   CAMPAIGN_DEMO_TENANT_ID,
   CAMPAIGN_DEMO_SESSION_ID,
-  REGION_STORE_COUNTS
+  regionStoreCounts
 } from '../../lib/campaign-archetypes';
 import {
   evaluateCampaignDecisionClient,
