@@ -3,8 +3,8 @@
 **Status:** Authoritative. Governs the evolution from a prepared demonstration to a scenario-driven
 Decision Intelligence laboratory.
 **Authorised:** 2026-09-15 against baseline `f9c5679c` on `feature/cognix-enterprise-demo-hardening`.
-**Implementation:** Wave 0 complete — `SCI-01` and `SCI-02` (2026-09-16). **Gate A has not passed**;
-Wave 1 is not authorised. Programme `SCI`, defined in
+**Implementation:** Wave 0 complete and converged — `SCI-01` and `SCI-02` (2026-09-16).
+**Gate A passed 2026-09-17; Wave 1 is authorised.** Programme `SCI`, defined in
 [`COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md`](COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md) §9.
 **Decisions:** ADR-077 · ADR-078 · ADR-079 · ADR-080 · ADR-081 · ADR-082 · ADR-083 · ADR-084 ·
 ADR-044 Amendment B · ADR-051 Amendment A · ADR-073 Amendment A.

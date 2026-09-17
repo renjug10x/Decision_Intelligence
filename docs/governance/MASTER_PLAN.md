@@ -1198,12 +1198,13 @@ this workstream hardens the demonstration of what Release 1.0 already contained.
 ## PROGRAMME `SCI` — SCENARIO INTELLIGENCE (THE SCENARIO LABORATORY)
 
 **Authorised 2026-09-15 against baseline `f9c5679c` on `feature/cognix-enterprise-demo-hardening`.
-Status: `[IN PROGRESS]` — Wave 0 implementation complete. `SCI-01` **[COMPLETED 2026-09-16]** at
-`1a3b2d64`; `SCI-02` **[COMPLETED 2026-09-16]** on `feature/cognix-sci-02-certification-gate`.
-**GATE A HAS NOT PASSED** — 3 of its 10 conditions are open (the convergence merge, the Wave-2
-contract declaration, and the SHA record that depends on both). No contract is frozen and Wave 1 is
-not authorised. Condition-by-condition evidence is in
-[`COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md`](COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md) §9.**
+Status: `[IN PROGRESS]` — **Wave 0 COMPLETE AND CONVERGED. GATE A PASSED 2026-09-17.**
+`SCI-01` **[COMPLETED]** at `1a3b2d64`; `SCI-02` **[COMPLETED]** at `c1edf150`; converged on
+`feature/cognix-sci-wave0-convergence`. Five Wave-0 contracts are frozen and three `SCI-05`-owned
+Wave-2 contracts are declared and frozen AS DECLARATIONS — shape fixed, behaviour not built.
+**Wave 1 is authorised:** `SCI-03` and `SCI-04` may be cut from SHA-A. Condition-by-condition
+evidence and the freeze table are in
+[`COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md`](COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md) §9.
 
 **`SCI-02` outcome.** The Scenario Certification Gate exists and is enforced at the one activation
 seam `SCI-01` declared. `SCN-FRESH-DAIRY-CHEDDAR-001` is `CERTIFIED` on all twelve governed

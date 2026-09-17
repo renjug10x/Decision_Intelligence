@@ -1,7 +1,8 @@
 # CogniX Scenario Intelligence — Work Packets (`SCI`)
 
-**Status:** Authorised for implementation. **Wave 0 implementation COMPLETE: `SCI-01` and `SCI-02`
-both delivered (2026-09-16). GATE A HAS NOT PASSED — see §9. Wave 1 is NOT authorised.**
+**Status:** Authorised for implementation. **Wave 0 COMPLETE and converged. `SCI-01` and `SCI-02`
+delivered (2026-09-16); GATE A PASSED (2026-09-17) — see §9. Wave 1 IS authorised: `SCI-03` and
+`SCI-04` may be cut from SHA-A.**
 **Authorised:** 2026-09-15 against baseline `f9c5679c` on `feature/cognix-enterprise-demo-hardening`.
 **Governs:** programme `SCI` — the Scenario Laboratory.
 **Execution model:** two agents, **Cursor** and **Antigravity**, concurrently where the dependency
@@ -863,10 +864,33 @@ Full table: [`COGNIX_BACKLOG_RECONCILIATION_2026_09.md`](COGNIX_BACKLOG_RECONCIL
 
 Recorded only against evidence.
 
-### Gate A — evaluated 2026-09-16 — **NOT PASSED**
+### Gate A — **PASSED**, closed 2026-09-17
 
-Both Wave-0 packets are implemented and their tests are green. The gate still does not pass, on
-three of its ten conditions, and a gate that fails does not become a warning.
+Re-evaluated from the CONVERGENCE STATE, not from either packet's claims. Every condition was
+measured again on `feature/cognix-sci-wave0-convergence`; conditions 1, 2 and 4 were additionally
+verified at each packet's own head using separate worktrees, because "green on its own branch" is
+what the condition asks and a convergence run does not establish it.
+
+| # | Condition | Verdict | Evidence |
+|---|---|---|---|
+| 1 | Both lane branches committed and pushed | **PASS** | Wave 0 is single-lane by design (§4: `SCI-01` and `SCI-02` may run concurrently with nothing). `SCI-01` `1a3b2d64` and `SCI-02` `c1edf150`, both pushed. `SCI-02`'s direct parent is `SCI-01` — linear, verified by `merge-base --is-ancestor` and by `rev-parse c1edf150^` |
+| 2 | Independent packet tests green on each branch separately | **PASS** | Run at each head in its own worktree. `SCI-01`: 42 runners, 41 green. `SCI-02`: 43 runners, 42 green. Only `run-atl06b-tests` non-zero in each, and only assertion `A6b` within it |
+| 3 | Deliberate merge or rebase against the declared base | **PASS** | `feature/cognix-sci-wave0-convergence` created deliberately at `c1edf150`. Because the two packets are a linear ancestry from the declared base, convergence is a fast-forward and **no merge commit was manufactured** — §5 requires the operation be deliberate and in one place, not that it produce an artificial commit. `git log b5bf1bd9..HEAD` shows exactly the two authorised packets and nothing else |
+| 4 | No unresolved contract drift | **PASS** | All four `SCI-01` contract files hash-identical across `SCI-01` → `SCI-02` → convergence. `SCI-02`'s certification contract hash-identical `SCI-02` → convergence. Verified by `hash-object`, not by inspection |
+| 5 | Full relevant regression | **PASS** | 44 runners from the convergence state, each captured individually: 43 fully green. `run-atl06b-tests` fails only `A6b` (`R-25`), unchanged from baseline. No `[FAIL]` line anywhere else in the estate |
+| 6 | Certification gate green for every registered scenario | **PASS** | Binds from Gate B; met early. `SCN-FRESH-DAIRY-CHEDDAR-001` is `CERTIFIED`, all twelve dimensions `PASS`, 84 executed checks, re-run from the convergence state in `run-gate-a-tests` §4 |
+| 7 | Protected journey reconciled to the digit | **PASS** | §1 and §2 read from the running surface at three widths: 900,125 / 769,996 / 130,129 / +28.6% / 18.6pp / 62h / £269.4K / £80.7K / £21.8K. Authoritative Promotion economics pinned in `run-gate-a-tests` §5: 20% → +44.16% / −£5,167; 14% → +33.65% / +£32,976. No hash-era value present on any surface |
+| 8 | Browser acceptance at 1440 / 1024 / 720 | **PASS, with a recorded limitation** | Production build served natively, driven in Chromium at all three widths. Demand, Promotion, Campaign Decision and Observability & Governance all resolve `SCN-FRESH-DAIRY-CHEDDAR-001`, Cheshire Cheese Co and the `2026-06-03` scenario clock; no `FreshDirect` or `SCN-PROMO-01` anywhere; no page errors or 5xx. **Docker is not claimed** — `docker compose … up -d --build` fails at image resolution, `production.cloudfront.docker.com` refused `403` by this environment's egress policy |
+| 9 | Next wave's cross-lane contracts declared and frozen | **PASS** | `packages/contracts/src/living-evidence-contracts.ts` declares Signal Materiality & Decision Relevance, the Refresh Operation and the Models & Methods register. **Declaration only** — no function, no arrow implementation, no `return`, no exported value, asserted by `run-gate-a-tests` §1. Ownership is singular: exactly one module defines each type, asserted per type in §3. `SCI-05` remains sole implementation owner |
+| 10 | Governance status updated only after evidence, and the convergence SHA recorded | **PASS** | This record is written from the evidence above. **SHA-A** is recorded below |
+
+**Consequence: Wave 1 is authorised.** `SCI-03` (Cursor) and `SCI-04` (Antigravity) may be cut from
+SHA-A, which is what §6's *"no wave starts before its predecessor's gate passes"* was waiting on.
+
+**One precondition Wave 1 must carry, recorded here so it is not rediscovered.** `R-27`: the engines
+still resolve against the reference scenario, so a second scenario cannot certify `C-5`, `C-7`, `C-8`
+or `C-12`. That is the gate working as designed, and it is `SCI-03`'s first task rather than a
+residual it inherits — a curated pack cannot be demo-active until it certifies.
 
 | # | Condition | Result |
 |---|---|---|
@@ -885,9 +909,32 @@ three of its ten conditions, and a gate that fails does not become a warning.
 `SCI-03` and `SCI-04` are not cut. The three open conditions are convergence actions and a
 contract declaration, not implementation defects — the Wave-0 code is complete and green.
 
+### Contract freeze at Gate A
+
+ADR-084 part 2: a contract is frozen at a declared convergence SHA. These are frozen at SHA-A.
+
+| Contract | Owner | State at Gate A |
+|---|---|---|
+| **Scenario Contract** | `SCI-01` | **FROZEN** — implemented and in use |
+| **Scenario Clock** | `SCI-01` | **FROZEN** — implemented and in use |
+| **Scenario Registry & Activation** | `SCI-01` | **FROZEN** — implemented; the activation seam is consumed by the certification gate |
+| **Provenance Vocabulary** | `SCI-01` | **FROZEN** — implemented and in use |
+| **Scenario Certification** | `SCI-02` | **FROZEN** — implemented and enforcing |
+| **Signal Materiality & Decision Relevance** | `SCI-05` | **DECLARED AND FROZEN AS A DECLARATION. NOT IMPLEMENTED.** |
+| **Refresh Operation** | `SCI-05` | **DECLARED AND FROZEN AS A DECLARATION. NOT IMPLEMENTED.** |
+| **Models & Methods** | `SCI-05` | **DECLARED AND FROZEN AS A DECLARATION. NOT IMPLEMENTED.** |
+
+**The distinction in the last three rows is load-bearing and must not be collapsed.** What is frozen
+is the SHAPE, so `SCI-06` can build against it in Wave 2 without inventing a second one. The
+BEHAVIOUR behind it does not exist and is `SCI-05`'s alone to build, in Wave 2. A reader who takes
+"frozen" to mean "working" would schedule `SCI-06` against an engine that is not there.
+
+`SCI-05` remains the sole owner and may change its own contract — but only as a convergence event at
+Gate B, not as a commit (ADR-084 part 2).
+
 | Gate | Wave | Required before | Convergence SHA |
 |---|---|---|---|
-| Gate A | 0 | Wave 1 | *not recorded — 3 of 10 conditions open (see above)* |
+| Gate A | 0 | Wave 1 | **SHA-A — recorded in the commit following the convergence commit; see [`COGNIX_WAVE0_CONVERGENCE_GATE_A_CLOSURE.md`](../reports/COGNIX_WAVE0_CONVERGENCE_GATE_A_CLOSURE.md) §9** |
 | Gate B | 1 | Wave 2 | *not yet recorded* |
 | Gate C | 2 | Wave 3 | *not yet recorded* |
 | Gate D | 3 | Wave 4 | *not yet recorded* |

@@ -3,6 +3,12 @@ export * from './scenario-clock';
 export * from './canonical-scenario-model';
 export * from './scenario-registry';
 export * from './scenario-certification-model';
+/*
+ * WAVE-2 CONTRACT DECLARATION, owned by `SCI-05`. Types and governed semantics only — no
+ * engine, no calculation, no data. Declared at Gate A so `SCI-06` can build against a fixed
+ * shape while `SCI-05` implements behind it (§0 of the work-packet record).
+ */
+export * from './living-evidence-contracts';
 export * from './currency-model';
 export * from './enterprise-world-model';
 export * from './enterprise-world-seed';

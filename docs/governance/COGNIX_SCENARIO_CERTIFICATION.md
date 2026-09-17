@@ -1,6 +1,7 @@
 # CogniX Scenario Certification Gate
 
-**Status:** Authoritative specification. **Implemented by `SCI-02` (2026-09-16).**
+**Status:** Authoritative specification. **Implemented by `SCI-02` (2026-09-16); the certification
+contract is FROZEN at SHA-A (Gate A, 2026-09-17).**
 **Authorised:** 2026-09-15 against baseline `f9c5679c`.
 **Decision:** ADR-080.
 **Owning packet:** `SCI-02`. It owns the certification contract; every other packet consumes it.
