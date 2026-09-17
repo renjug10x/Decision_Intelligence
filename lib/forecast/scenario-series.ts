@@ -166,6 +166,36 @@ export async function buildScenarioForecastDataset(params: {
   if (usable.length < 8) return observed;
 
   const count = usable.length;
+
+  /*
+   * DE-TREND the borrowed shape before applying the scenario's own.
+   *
+   * `SCI-05` (`R-36`). The category series carries its own drift, and multiplying the declared
+   * trend on top of it left the fitted forward trend as the SUM of the two: `Chilled` rises, so
+   * the salmon pack's declared −2.5pp was published as +6.4pp. The shape is borrowed for its
+   * WEEKDAY RHYTHM and its texture, not for its direction — the direction is the scenario's, and
+   * it is declared.
+   *
+   * The drift removed is the ordinary least-squares slope through the shape, divided out so the
+   * rhythm is preserved exactly and only the trend line is flattened. Deterministic, and derived
+   * from the shape itself rather than assumed.
+   */
+  const shapeValues = usable.map(o => Math.max(0, o.value));
+  const n = shapeValues.length;
+  const meanX = (n - 1) / 2;
+  const meanY = shapeValues.reduce((a, b) => a + b, 0) / n;
+  let sxy = 0;
+  let sxx = 0;
+  for (let i = 0; i < n; i++) {
+    sxy += (i - meanX) * (shapeValues[i] - meanY);
+    sxx += (i - meanX) * (i - meanX);
+  }
+  const slope = sxx > 0 ? sxy / sxx : 0;
+  const deTrended = shapeValues.map((v, i) => {
+    const fitted = meanY + slope * (i - meanX);
+    return fitted > 0 ? v * (meanY / fitted) : v;
+  });
+
   const trendPp = declaredTrendPp(scenario);
   const horizonDays = Math.max(1, scenario.calendar.forecast_horizon_days);
   /*
@@ -175,9 +205,9 @@ export async function buildScenarioForecastDataset(params: {
    */
   const trendPerDay = trendPp / 100 / horizonDays;
 
-  const shaped = usable.map((o, i) => {
+  const shaped = deTrended.map((v, i) => {
     const daysBeforeEnd = count - 1 - i;
-    return Math.max(0, o.value) * (1 - trendPerDay * daysBeforeEnd);
+    return v * (1 - trendPerDay * daysBeforeEnd);
   });
 
   // Anchor the LEVEL on the trailing seven days: the declared base is the weekly level at the clock.

@@ -45,7 +45,8 @@ import {
   DecisionScenarioParameters,
   DecisionDerivedImpacts,
   ContextualisedDecisionOutlook,
-  EnterpriseSignal
+  EnterpriseSignal,
+  inScopeCommercialIntentFactor
 } from '@/packages/contracts/src/index';
 import { NarrativeStatement, moneyAmount, statementToBaseText } from '@/packages/contracts/src/currency-model';
 import {
@@ -438,9 +439,18 @@ export function evaluateDemandFrontier(
   // cannibalisation, the event boost and the selected projection method.
   const contextualised_demand_units = forecastSales.reduce((sum, f) => sum + f.value, 0);
 
-  // Baseline forecast — the same projection with commercial promotion removed: the upstream
-  // statistical expectation before commercial intent is applied.
-  const promoFactor = 1 + scenarioParams.promotion_lift / 100;
+  /*
+   * Baseline forecast — the same projection with commercial promotion removed: the upstream
+   * statistical expectation before commercial intent is applied.
+   *
+   * `SCI-05` (`R-36`). This divided by `1 + promotion_lift / 100`, a SECOND reconstruction of the
+   * commercial-intent effect independent of the one the projection had applied. Both agreed with
+   * the reference scenario because both were calibrated against it; on any other scenario the
+   * difference between them surfaced as the promotion attribution. It now divides by the same
+   * governed factor the projection multiplied by, read from the scenario's own declared
+   * `movement_attribution`, so the two cannot disagree.
+   */
+  const promoFactor = inScopeCommercialIntentFactor(scenarioParams.promotion_lift);
   const baseline_demand_units = promoFactor > 0
     ? contextualised_demand_units / promoFactor
     : contextualised_demand_units;
@@ -627,8 +637,12 @@ function formatScenarioInstant(iso: string): string {
  * The first supplier order cut-off strictly after the scenario clock. Weekday and hour come from
  * the canonical scenario's calendar so the Decision Window, the promotion window and the supplier
  * commitment point are all reading the same contract.
+ *
+ * Exported for `SCI-05`: Living Evidence publishes `DECISION_WINDOW_HOURS` as a material quantity,
+ * and it must be the SAME derivation the Decision Window itself uses. A second one would be the
+ * defect R-36 closed, one quantity along.
  */
-function nextSupplierCutOff(fromIso: string): string {
+export function nextSupplierCutOff(fromIso: string): string {
   const { supplier_cut_off_weekday, supplier_cut_off_hour_utc } = scenarioInScope().calendar;
   const from = new Date(fromIso);
   const candidate = new Date(Date.UTC(

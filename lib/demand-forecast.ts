@@ -35,6 +35,11 @@ import {
 import { SeriesMeasure, SeriesScope } from './forecast/series';
 import { buildScenarioForecastDataset } from './forecast/scenario-series';
 import { scenarioInScope } from '../packages/contracts/src/scenario-scope';
+import { CanonicalScenario } from '../packages/contracts/src/canonical-scenario-model';
+import {
+  scenarioCommercialIntentPp,
+  scenarioCommercialIntentFactor
+} from '../packages/contracts/src/scenario-demand-attribution';
 import { executeForecast } from './forecast/forecast-engine';
 
 export type DemandMetric = 'revenue' | 'units' | 'waste';
@@ -100,13 +105,33 @@ export function declareScenarioAdjustment(params: {
   cannibalization: number;
   eventBoost: string;
   category?: string;
+  /**
+   * The scenario whose declared attribution prices this adjustment. Omitted, it is the scenario in
+   * scope — the same resolution every other engine uses (R-27).
+   */
+  scenario?: CanonicalScenario;
 }): DeclaredScenarioAdjustment {
-  const promotion = 1 + params.promoLift / 100;
+  const scenario = params.scenario ?? scenarioInScope();
+
+  /*
+   * THE governed attribution (`SCI-05`, R-36). This used to be `1 + promoLift / 100` — a second
+   * reconstruction of a quantity the scenario record already declares, agreeing with the reference
+   * scenario only because it had been calibrated against it. The frontier divides the SAME factor
+   * back out to recover the baseline, so both sides read one function and cannot disagree.
+   */
+  const commercialIntentPp = scenarioCommercialIntentPp(scenario, params.promoLift);
+  const promotion = scenarioCommercialIntentFactor(scenario, params.promoLift);
+
   const cannibalisation = 1 - params.cannibalization / 100;
   const event = eventFactor(params.eventBoost, params.category);
 
   const factors: ScenarioFactor[] = [
-    { key: 'promotion_depth', label: 'Promotion depth', setting: `+${params.promoLift}%`, factor: Number(promotion.toFixed(6)) },
+    {
+      key: 'promotion_depth',
+      label: 'Promotion depth',
+      setting: `${params.promoLift}% depth · ${commercialIntentPp >= 0 ? '+' : ''}${Number(commercialIntentPp.toFixed(2))}pp declared`,
+      factor: Number(promotion.toFixed(6))
+    },
     { key: 'cannibalisation', label: 'Cannibalisation', setting: `−${params.cannibalization}%`, factor: Number(cannibalisation.toFixed(6)) },
     {
       key: 'event',
@@ -217,6 +242,18 @@ export interface DemandProjectionRequest {
   backtest?: boolean;
   /** How much observed history the surface draws behind TODAY. Never what the model is fitted on. */
   historyDisplayDays?: number;
+  /**
+   * The scenario to project. Omitted, it is the scenario in scope — which is what a server route
+   * wants, because the estate is running one scenario and every other engine resolves it the same
+   * way.
+   *
+   * `SCI-05` passes it explicitly. Living Evidence has to evaluate a NAMED scenario to compare a
+   * before and an after, and `withScenarioInScope` refuses an async callback by contract — the
+   * binding would be released before the projection ran. Activating the scenario instead would
+   * change what the whole estate is running in order to answer a question about it, which is
+   * worse. An explicit argument is the honest third option.
+   */
+  scenario?: CanonicalScenario;
 }
 
 const DEFAULT_HISTORY_DISPLAY_DAYS = 21;
@@ -226,6 +263,7 @@ function round(v: number): number {
 }
 
 export async function projectDemand(request: DemandProjectionRequest): Promise<DemandProjectionOutcome> {
+  const projectedScenario = request.scenario ?? scenarioInScope();
   const scope: SeriesScope = {};
   if (request.storeId) scope.store_id = request.storeId;
   if (request.category) scope.category = request.category;
@@ -241,7 +279,7 @@ export async function projectDemand(request: DemandProjectionRequest): Promise<D
    * The statistical pipeline below is unchanged and unaware: it fits whatever history it is given,
    * which is the point. A hand-authored forecast output would have bypassed it.
    */
-  const dataset = await buildScenarioForecastDataset({ scenario: scenarioInScope(), scope, measure });
+  const dataset = await buildScenarioForecastDataset({ scenario: projectedScenario, scope, measure });
 
   const outcome: ForecastOutcome = executeForecast({
     model_id: request.modelId,
@@ -257,7 +295,8 @@ export async function projectDemand(request: DemandProjectionRequest): Promise<D
     promoLift: request.promoLift,
     cannibalization: request.cannibalization,
     eventBoost: request.eventBoost,
-    category: request.category
+    category: request.category,
+    scenario: projectedScenario
   });
   const k = scenario.combined_factor;
 

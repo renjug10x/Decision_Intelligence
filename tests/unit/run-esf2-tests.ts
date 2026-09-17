@@ -15,7 +15,7 @@ import {
   CANONICAL_SCENARIO_ID
 } from '../../packages/contracts/src/index';
 import { simulateEnterpriseSignalTimelines } from '../../services/world/src/dynamic-signal-simulator';
-import { canonicalWeeklyPopulationUnits } from '../../packages/contracts/src/canonical-scenario-model';
+import { canonicalWeeklyPopulationUnits, CANONICAL_SCENARIO } from '../../packages/contracts/src/canonical-scenario-model';
 import { registerSecondScenario } from '../fixtures/scenario/second-scenario';
 
 function runTests() {
@@ -129,9 +129,25 @@ function runTests() {
     unT3.observed_value === intT3.observed_value,
     'Test 7: Historical observation immutability (period T-3 <= T-2 effective_period remains unchanged)'
   );
+  /*
+   * REPOINTED, not relaxed (`SCI-05`, 2026-09-17). This asserted `flex_capacity === 7000`, a unit
+   * count from the 50-store estate `DEMO-HARD-01` retired — internally consistent with the `48000`
+   * weekly allocation beside it, and consistent with nothing the scenario record declares.
+   * `SCI-05` derives both from the record (`R-30`), because `supplier_flex_rate_pct` is declared as
+   * a SHARE of un-promoted demand precisely so it rescales with the scenario.
+   *
+   * The property is unchanged and is asserted more strongly: the flex clause releases capacity from
+   * the period the intervention becomes effective, and the amount released is the scenario's OWN
+   * declared share rather than a number that happened to be typed.
+   */
+  const expectedFlexUnits = Math.round(
+    CANONICAL_SCENARIO.demand.base_demand_units_per_week
+      * CANONICAL_SCENARIO.supply.supplier_flex_rate_pct / 100
+  );
   assert(
-    Boolean(intToday.provenance.intervention_refs?.includes('sla_flex_rule_4')) && intToday.provenance.drivers.flex_capacity === 7000,
-    'Test 6: Intervention future-only effect (period Today > T-2 reflects SLA Flex capacity flex)'
+    Boolean(intToday.provenance.intervention_refs?.includes('sla_flex_rule_4'))
+      && intToday.provenance.drivers.flex_capacity === expectedFlexUnits,
+    'Test 6: Intervention future-only effect (period Today > T-2 releases the scenario\'s DECLARED flex share)'
   );
 
   // TEST 8: Tenant Isolation
