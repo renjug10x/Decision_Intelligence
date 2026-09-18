@@ -1204,7 +1204,7 @@ Status: `[IN PROGRESS]` — **WAVES 0, 1 AND 2 COMPLETE AND CONVERGED.**
 |---|---|---|---|
 | 0 | `SCI-01`, `SCI-02` | **GATE A PASSED 2026-09-17** | SHA-A `8d6d960c` |
 | 1 | `SCI-03`, `SCI-04` (+ `SCI-03R`, the `R-35` repair) | **GATE B PASSED 2026-09-17** | SHA-B `e0a9c23d` |
-| 2 | `SCI-05`, `SCI-06` (+ the `R-37` and `R-38`/`R-39` repairs) | **GATE C PASSED 2026-09-18** | SHA-C — see the work-packet register §9 |
+| 2 | `SCI-05`, `SCI-06` (+ the `R-37` and `R-38`/`R-39` repairs) | **GATE C PASSED 2026-09-18** | SHA-C `c7c9f64f` |
 | 3 | `SCI-07`, `SCI-09` | **AUTHORISED, not started** | — |
 | 4 | `SCI-10`, `SCI-08` | post-demo, gated behind Gate D | — |
 

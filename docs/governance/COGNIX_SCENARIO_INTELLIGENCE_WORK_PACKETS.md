@@ -1357,6 +1357,19 @@ the sole owner and the sole implementer, asserted by `run-gate-a-tests.ts` §3 a
 
 ### SHA-C
 
-*Recorded in the commit that follows this one — a commit cannot contain its own SHA, and the
-convergence state is the thing being named. This is the same honest two-step used for SHA-A and
-SHA-B.*
+**SHA-C = `c7c9f64fd15cb9b767cf585f960a7018141a55cf`**
+
+That is the Wave-2 convergence state: the domain lane (`SCI-05`, the `R-37` carrier repair and the
+`R-38`/`R-39` demand-base repair) and `SCI-06`, merged deliberately from the declared base
+`cacbb5b364ad6dcab841f7e8bb96557a44054a49`, with the Observability & Governance experience wired to
+the Living Evidence engine, the isolation fixture removed, the Refresh consequence statement
+corrected, and the Gate-C evidence recorded. It is the state the six frozen contracts remain frozen
+at, and the state at which the three `SCI-05` contracts stop being declarations and become
+implemented behaviour (ADR-084 part 2 — a contract is frozen at a declared convergence SHA, not at a
+moment in time).
+
+**Wave 3 is cut from the head of `feature/cognix-sci-wave2-convergence`.** The head is one commit
+ahead of SHA-C — this record of the SHA itself, which a commit cannot contain about itself, and
+which changes no code. Cutting from SHA-C and cutting from the branch head therefore give an
+identical working tree; the branch head is the correct base because it carries the complete
+governance record. This is the same honest two-step used for SHA-A and SHA-B.

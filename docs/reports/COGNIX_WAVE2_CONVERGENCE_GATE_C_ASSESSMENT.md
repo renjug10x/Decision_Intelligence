@@ -1,6 +1,7 @@
 # CogniX Wave-2 Convergence — Gate-C Assessment
 
 **Status:** **GATE C PASSED**, closed 2026-09-18.
+**SHA-C:** `c7c9f64fd15cb9b767cf585f960a7018141a55cf`
 **Branch:** `feature/cognix-sci-wave2-convergence`, cut from the declared Wave-2 base
 `cacbb5b364ad6dcab841f7e8bb96557a44054a49` (which carries SHA-B and Gate B PASSED).
 **Lanes converged:** `SCI-05` + `R-37` + `R-38`/`R-39` (Cursor) and `SCI-06` (Antigravity).
