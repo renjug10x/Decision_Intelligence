@@ -52,7 +52,7 @@ and the lanes never touch.
 | `SCI-02` | Scenario Certification Gate & Reconciliation Generalisation | **FOUNDATION** | Cursor | 0 | **[COMPLETED 2026-09-16]** |
 | `SCI-03` | Curated Scenario Domain Packs | CURSOR | Cursor | 1 | **[COMPLETED 2026-09-17]** |
 | `SCI-04` | Scenario Selection Experience | ANTIGRAVITY | Antigravity | 1 | **[COMPLETED 2026-09-17]** |
-| `SCI-05` | Living Evidence Engine — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 | Not started |
+| `SCI-05` | Living Evidence Engine — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 | **[COMPLETED 2026-09-17]** |
 | `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 | Not started |
 | `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | Not started |
 | `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | Not started |
@@ -638,6 +638,140 @@ identifiers on a client-facing surface (ADR-067).
 deterministically. Materiality and relevance derived. Register published. Regression green.
 
 **Handoff artefact.** Three implemented contracts plus a worked Refresh delta for `SCI-06`.
+
+---
+
+### `SCI-05` outcome — **[COMPLETED 2026-09-17]**
+
+Cut from `cacbb5b364ad6dcab841f7e8bb96557a44054a49`, the Wave-2 base, which carries SHA-B and Gate B
+PASSED. Delivered on `feature/cognix-sci-05-living-evidence`. Not merged.
+
+| Definition-of-done clause | Result |
+|---|---|
+| Refresh advances, re-evaluates and states decision consequence deterministically | `POST /api/v1/evidence/refresh` advances the as-at marker one `SimulationPeriod` on the scenario clock and publishes the `RefreshDelta` with its mandatory consequence statement. Two runs after Restart hash identically; a Refresh is byte-identical under `UTC`, `America/New_York` and `Asia/Tokyo` |
+| Materiality and relevance derived | Materiality by leave-one-out over every published quantity; relevance by re-evaluating the decision artefacts under both bodies of evidence. No scenario record carries a field that could author either, asserted |
+| Register published | Nine entries per scenario from the forecast registry and the engines that genuinely run, in the ADR-082 vocabulary. GenAI appears only where a credential is configured; otherwise declared `undescribed` with its reason |
+| Regression green | **48 runners, 47 fully green, 3,633 assertions.** `R-25`'s `A6b` the only `[FAIL]` line |
+| Certification obligations — `C-4` green for every scenario | Three scenarios `CERTIFIED`, 12/12 dimensions, 84 checks, zero `NOT_APPLICABLE`, signals dimension `C-4` PASS |
+| No contract drift | All six frozen contracts byte-identical to the Wave-2 base. The three Living Evidence contracts are implemented, never redefined |
+| Non-scope held | No `SCI-06` UI, no new signal types, no external connectors, no third confidence score, no provider change |
+
+**`R-30` CLOSED.** Per-scenario evidence timelines from `ESF-2`'s simulator on each scenario's own
+clock — 4, 3 and 5 timelines respectively, every amplitude read from the record. Closing it required
+fixing the simulator, which still carried the literal ladder `SCI-03` had removed from the generator
+and which gave both curated packs the same timeline with the same numbers.
+
+**`R-36` CLOSED as scoped.** The commercial-intent effect was reconstructed as `1 + depth/100` in TWO
+places — the projection applied it and the frontier divided it back out. One governed module now
+serves both. Published contribution: 19.6pp / 20.9pp / 7.6pp against declared 19.6 / 20.9 / 7.7. The
+reference scenario's factor is exactly `1.200000`, unchanged by arithmetic rather than by exemption.
+
+**`R-37` OPENED.** Both curated packs declare an `OBSERVED_BEHAVIOUR` contribution and carry no
+signal type that `DDF-01` admits as revising a forecast, so their declared TOTAL still under-reports.
+Resolving it is scenario content (`SCI-03`'s) or `DDF-01`'s stability declaration — not `SCI-05`'s to
+take unilaterally, and this packet's non-scope forbids new signal types.
+
+**Gate C is NOT passed and convergence has NOT started.** `SCI-06` runs concurrently and owns all
+presentation; the domain and API behaviour it consumes is listed in
+[`COGNIX_SCI_05_LIVING_EVIDENCE_REPORT.md`](../reports/COGNIX_SCI_05_LIVING_EVIDENCE_REPORT.md) §11.
+
+---
+
+### `R-37` repair — Curated Scenario Observed-Behaviour Evidence Carrier — **[COMPLETED 2026-09-17]**
+
+| | |
+|---|---|
+| **Class** | Wave-2 pre-convergence repair |
+| **Base** | `5450fecf1a88da3431f2ca551a924fc717273adb` (`SCI-05` head) |
+| **Branch** | `feature/cognix-r37-observed-behaviour-carrier` |
+| **Scope** | The two curated packs' observed-behaviour evidence. Nothing else |
+
+**Objective.** Give Chilled Salmon and Premium Bakery truthful evidence carriers for the
+`OBSERVED_BEHAVIOUR` their records declare, so the flow *declared observed behaviour → scenario-specific
+evidence → `DDF-01` admitted → forecast revision → published contribution* is real for every certified
+scenario rather than only for the reference one.
+
+| Definition-of-done clause | Result |
+|---|---|
+| Declared observed behaviour arrives through admitted evidence | Published contribution **+10.9pp / +8.0pp / +5.1pp** against declared **10.9 / 8.0 / 5.1**, read off the running Demand surface at 1440, 1024 and 720 |
+| `DDF_STABILITY_SIGNAL_TYPES` not widened | Unchanged, and asserted shut against the Gate-A list. No new `CanonicalSignalType` |
+| No supply or commercial signal repurposed | The bakery pack's `COMPETITOR_CAMPAIGN_LAUNCH` stays `COMMERCIAL` and stays refused; the customer response is published beside it |
+| Nothing hand-written into Demand | No contribution appears as a literal on the path; withdrawing the carriers returns the outlook to `INDETERMINATE` |
+| Fresh Dairy untouched | Snapshot, timelines and protected figures byte-identical — base 699,996, expected 900,125, gap 130,129, total +28.59% |
+| Certification | Three scenarios `CERTIFIED`, 12/12 dimensions, 84 checks, zero `NOT_APPLICABLE`, byte-identical across runs |
+| Living Evidence participation | Carriers appear on the T-90…T+30 timeline, carry a leave-one-out materiality band, and move the Decision Gap. Refresh states honestly where the decision did not change |
+| Regression green | **49 runners, 48 fully green, 3,778 assertions.** `R-25`'s `A6b` the only `[FAIL]` line, byte-identical to the baseline |
+| No contract drift | All six frozen contracts byte-identical |
+
+**`R-37` CLOSED.** The carriers are `CATEGORY_DEMAND_ACCELERATION` + `ORDER_VELOCITY_ACCELERATION` for
+the salmon pack and `CATEGORY_DEMAND_ACCELERATION` + `REGIONAL_DEMAND_SHIFT` for the bakery pack, all
+four from types ADR-040 already admits, declared once in
+`services/world/src/observed-behaviour-carriers.ts` and read by both the snapshot generator and the
+timeline simulator.
+
+**`R-38`, `R-39` and `R-40` OPENED.** Proving `R-37` closed exposed why the declared TOTAL still falls
+short for both packs, and the cause is not the evidence: the demand base is measured over the chart's
+history window (`R-38`) and a declared `UNDERLYING_TREND` is realised at the forecast mean rather than
+over its horizon (`R-39`). They offset each other and must be corrected together — correcting either
+alone moves a certified scenario further from its record. `R-40` records that `services/world/dist` is
+a tracked build artefact three packets stale. All three are in
+[`COGNIX_ATLAS_RESIDUAL_REGISTER.md`](COGNIX_ATLAS_RESIDUAL_REGISTER.md) with the arithmetic.
+
+**Gate C is NOT passed.** This is a pre-convergence repair, not a gate evaluation, and `SCI-06`
+remains Antigravity's and unmerged.
+
+---
+
+### `R-38` + `R-39` repair — Demand Base and Trend Attribution Integrity — **[COMPLETED 2026-09-17]**
+
+| | |
+|---|---|
+| **Class** | Pre-Gate-C repair |
+| **Base** | `d2959e59368b5d9a37613de4545c83ddc8201284` (`R-37` head) |
+| **Branch** | `feature/cognix-r38-r39-demand-base-integrity` |
+| **Scope** | The Demand economic base and the declared trend leg. Nothing else |
+
+**Objective.** Remove the last two seams between a scenario's record and what the Demand surface
+publishes, so the estate holds *one scenario → one economic baseline → one declared attribution
+decomposition*, independent of how much history the interface chooses to show.
+
+| Definition-of-done clause | Result |
+|---|---|
+| A presentation control cannot move a decision quantity | Base, expected demand, executable frontier, exposed demand, Decision Gap, revenue and margin exposure and Decision Regret are **identical at 14 / 21 / 30 days of displayed history** on all three scenarios, measured through the governed API on the running topology. The reference scenario read 67,652 / 53,540 / 50,647 units exposed before |
+| One economic baseline per scenario | `deriveDemandBase` resolves `scenarioBaseDemandUnits` — the same quantity the gate reconciles `C-3.7` against and Living Evidence publishes on. The observed run rate is still measured and published as evidence, with its variance against the declaration named |
+| The declared trend is realised as declared | Published **−1.96 / −2.50 / −1.60pp** against declared **−2.0 / −2.5 / −1.6pp** |
+| The declared commercial intent is unchanged | Published **+19.61 / +20.90 / +7.70pp** against declared **19.6 / 20.9 / 7.7pp** |
+| Attribution reconciles to the published total | Within 0.05pp on every scenario, asserted |
+| No frozen contract changed | All six byte-identical |
+| No scenario-identity branching | Asserted by source guard over every file the repair touches |
+| Certification | 3/3 `CERTIFIED`, 12/12 dimensions, 84/84 checks, zero `NOT_APPLICABLE`, byte-identical across runs |
+| Living Evidence unaffected | Materiality, decision relevance, Refresh, the scenario clock and the `R-37` carriers all unchanged — Living Evidence was already resolving the record's base, which is what made `R-38` a second basis rather than a window bug |
+| Regression green | **50 runners, 49 fully green, 3,885 assertions.** `R-25`'s `A6b` the only `[FAIL]` line |
+| Browser acceptance | 1440 / 1024 / 720 — **150 checks, 0 failures**, including the history-window invariance probe and Promotion / Campaign Decision remaining scenario-specific |
+
+**`R-38` CLOSED.** It was not a window bug but a SECOND economic basis: the frontier derived its own
+denominator for a quantity the record already answers (ADR-073 Amendment A), and the two agreed for the
+reference scenario only because its real 21-day mean landed within four units of its declared base.
+ADR-041 Amendment A's ruling — one denominator, `emerging_pct − executable_pct ≡ exposed ÷ base` — is
+unchanged and still holds by construction.
+
+**`R-39` CLOSED.** A declared attribution cannot survive a round trip through an estimated model: the
+borrowed category shape contributed −0.17%/day of its own local drift and the fitted model damped
+−4.98pp of history slope to −1.60pp. The borrowed shape is now normalised week by week so it carries
+rhythm and no direction, and the declared trend is applied forward of the clock against the base by
+`scenarioUnderlyingTrendFactor`, the mirror of the factor `R-36` introduced for commercial intent.
+
+**`R-41` OPENED.** `R-37`'s carrier amplitudes were calibrated against the basis this repair corrected,
+so the observed-behaviour leg now realises +8.05pp and +5.20pp against declared 8.0 and 5.1 — inside
+`R-37`'s asserted tolerance, and deliberately not re-tuned. **`R-40` is untouched and still open.**
+
+**Fresh Dairy.** Base 699,996 → **700,000**, servable 769,996 → **770,000**, exposed 130,129 →
+**130,125**, and 46,130 → **46,125** after the intervention. Expected demand 900,125, +28.6%, 18.6pp,
+6.6pp, 62h, Forecast Stability 64, £269.4K and £80.7K are all unchanged. The three unit quantities move
+onto the record's own arithmetic; `COGNIX_PRESENTATION_SYNC_DELTA.md` §1a records it and no slide needs
+a change.
+
+**Gate C is NOT passed and has NOT been evaluated.** `SCI-06` is untouched and unmerged.
 
 ---
 

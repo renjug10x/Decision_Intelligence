@@ -7,6 +7,11 @@ export * from './scenario-registry';
  * current computation is for, never to the reference instance by name (R-27).
  */
 export * from './scenario-scope';
+/*
+ * THE governed demand attribution — what a scenario's declared movement_attribution means, read
+ * by the projection and by the frontier so the two cannot disagree (`SCI-05`, R-36).
+ */
+export * from './scenario-demand-attribution';
 export * from './scenario-certification-model';
 /*
  * The curated scenario catalogue. Importing it REGISTERS the packs; it neither certifies nor

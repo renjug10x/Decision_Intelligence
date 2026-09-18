@@ -45,13 +45,15 @@ import {
   DecisionScenarioParameters,
   DecisionDerivedImpacts,
   ContextualisedDecisionOutlook,
-  EnterpriseSignal
+  EnterpriseSignal,
+  inScopeCommercialIntentFactor
 } from '@/packages/contracts/src/index';
 import { NarrativeStatement, moneyAmount, statementToBaseText } from '@/packages/contracts/src/currency-model';
 import {
   scenarioInScope,
   inScopeRealisedRevenuePerUnitGbp,
-  inScopeWeeklyPopulationUnits
+  inScopeWeeklyPopulationUnits,
+  inScopeBaseDemandUnits
 } from '@/packages/contracts/src/scenario-scope';
 
 // ── Declared modelled constants ──────────────────────────────────────────────
@@ -216,13 +218,26 @@ export interface EvaluateDemandFrontierParams {
 // ── Shared demand base ───────────────────────────────────────────────────────
 
 export interface DemandBase {
-  /** Observed run-rate per day, from history. Invariant to every scenario control. */
+  /**
+   * Observed run-rate per day over the history the caller supplied.
+   *
+   * `R-38`. This is an OBSERVABILITY reading — what the series in view averages — and it is
+   * published in the assumption record so a reader can compare it against the declared base. It is
+   * no longer the economic denominator, because it moves with how much history the caller asked
+   * for, and a presentation parameter must not move a decision quantity.
+   */
   run_rate_units_per_day: number;
   /** Days that carry an actual observation. Days with no recorded demand are NOT counted as zero. */
   observed_days: number;
   horizon_days: number;
   horizon_weeks: number;
+  /**
+   * THE economic denominator: the scenario's own declared un-promoted base across the horizon.
+   * A property of the record and the horizon, and of nothing else.
+   */
   base_demand_units: number;
+  /** How far the observed run rate over the supplied history sits from the declared base. */
+  run_rate_variance_pct: number;
   /**
    * Executable capacity as a multiple of the demand base, read from Shared Decision State:
    * `supplier_capacity_units ÷ un-promoted weekly demand`. Scale-free, so it can be applied to
@@ -233,9 +248,34 @@ export interface DemandBase {
 }
 
 /**
- * Establishes the ONE denominator for the whole surface: the observed run rate scaled to the
- * horizon. Everything else on the frontier is expressed as a percentage above it, which is why
- * the percentages and the units can be reconciled to each other.
+ * Establishes the ONE denominator for the whole surface. Everything else on the frontier is
+ * expressed as a percentage above it, which is why the percentages and the units reconcile.
+ *
+ * `R-38` — why the denominator is the RECORD'S base and no longer the chart's run rate
+ * -------------------------------------------------------------------------------------
+ * ADR-041 Amendment A set the denominator as *"the observed run rate scaled to the horizon"*, and
+ * this function implemented that literally: the mean of whatever history the caller passed in. The
+ * caller is the Demand surface, and what it passes is `history_display_days` — **a presentation
+ * control**. For a scenario whose history carries any drift the window mean is not the current run
+ * rate: it sits behind the end of the series by half the window, so the base moved with the chart.
+ * Measured on the reference scenario, the same decision published 67,652 / 53,540 / 50,647 units of
+ * exposed demand at 14 / 21 / 30 days of displayed history.
+ *
+ * The estate already held the right answer in two other places. `scenarioBaseDemandUnits` is the
+ * record's own declared base and is what the Scenario Certification Gate reconciles `C-3.7` against
+ * and what Living Evidence publishes its quantities on. The frontier was deriving a SECOND economic
+ * basis for a quantity the record already answers — ADR-073 Amendment A — and the two agreed for the
+ * reference scenario only because its real 21-day mean happened to land within four units of its
+ * declared base. That coincidence is why the seam stayed invisible until a second scenario arrived.
+ *
+ * So the denominator is now the record's, the observed run rate is published beside it as evidence,
+ * and `run_rate_variance_pct` states how far apart they are rather than letting one silently become
+ * the other. ADR-041 Amendment A's actual ruling — ONE denominator, every quantity resolved against
+ * it, `emerging_pct − executable_pct ≡ exposed ÷ base` — is unchanged and still holds by
+ * construction.
+ *
+ * The censored-history rule is unchanged: a day the source holds no record for is excluded from the
+ * run-rate reading rather than averaged in as a zero.
  *
  * `capacity_index` is the only thing taken from `DecisionDerivedImpacts`, and it is taken as a
  * ratio precisely so no fourth supplier-capacity *quantity* is created (ADR-041, AC-DDF-13).
@@ -264,12 +304,19 @@ export function deriveDemandBase(
     ? derivedImpacts.supplier_capacity_units / unpromotedWeeklyDemand
     : 1;
 
+  // `R-38`. The record's declared un-promoted base across the horizon — the same quantity the
+  // certification gate and Living Evidence resolve, resolved once and read by everything.
+  const base_demand_units = inScopeBaseDemandUnits(horizon_days);
+
   return {
     run_rate_units_per_day,
     observed_days: observedDays.length,
     horizon_days,
     horizon_weeks: horizon_days / 7,
-    base_demand_units: run_rate_units_per_day * horizon_days,
+    base_demand_units,
+    run_rate_variance_pct: base_demand_units > 0
+      ? round1(((run_rate_units_per_day * horizon_days) / base_demand_units - 1) * 100)
+      : 0,
     capacity_index
   };
 }
@@ -438,9 +485,18 @@ export function evaluateDemandFrontier(
   // cannibalisation, the event boost and the selected projection method.
   const contextualised_demand_units = forecastSales.reduce((sum, f) => sum + f.value, 0);
 
-  // Baseline forecast — the same projection with commercial promotion removed: the upstream
-  // statistical expectation before commercial intent is applied.
-  const promoFactor = 1 + scenarioParams.promotion_lift / 100;
+  /*
+   * Baseline forecast — the same projection with commercial promotion removed: the upstream
+   * statistical expectation before commercial intent is applied.
+   *
+   * `SCI-05` (`R-36`). This divided by `1 + promotion_lift / 100`, a SECOND reconstruction of the
+   * commercial-intent effect independent of the one the projection had applied. Both agreed with
+   * the reference scenario because both were calibrated against it; on any other scenario the
+   * difference between them surfaced as the promotion attribution. It now divides by the same
+   * governed factor the projection multiplied by, read from the scenario's own declared
+   * `movement_attribution`, so the two cannot disagree.
+   */
+  const promoFactor = inScopeCommercialIntentFactor(scenarioParams.promotion_lift);
   const baseline_demand_units = promoFactor > 0
     ? contextualised_demand_units / promoFactor
     : contextualised_demand_units;
@@ -627,8 +683,12 @@ function formatScenarioInstant(iso: string): string {
  * The first supplier order cut-off strictly after the scenario clock. Weekday and hour come from
  * the canonical scenario's calendar so the Decision Window, the promotion window and the supplier
  * commitment point are all reading the same contract.
+ *
+ * Exported for `SCI-05`: Living Evidence publishes `DECISION_WINDOW_HOURS` as a material quantity,
+ * and it must be the SAME derivation the Decision Window itself uses. A second one would be the
+ * defect R-36 closed, one quantity along.
  */
-function nextSupplierCutOff(fromIso: string): string {
+export function nextSupplierCutOff(fromIso: string): string {
   const { supplier_cut_off_weekday, supplier_cut_off_hour_utc } = scenarioInScope().calendar;
   const from = new Date(fromIso);
   const candidate = new Date(Date.UTC(
@@ -1031,10 +1091,23 @@ function buildAssumptionInventory(
   const records: DemandAssumptionRecord[] = [
     {
       key: 'demand_base',
-      label: 'Demand base (observed run rate)',
-      value: `${Math.round(base.run_rate_units_per_day).toLocaleString()} units/day × ${base.horizon_days} days = ${Math.round(base.base_demand_units).toLocaleString()} units`,
+      label: 'Demand base (declared)',
+      value: `${Math.round(base.base_demand_units).toLocaleString()} units over ${base.horizon_days} days`,
+      provenance_class: 'MODELLED_DEMO_ASSUMPTION',
+      source:
+        'The scenario record\'s own un-promoted base across the horizon — the same quantity the '
+        + 'certification gate reconciles and Living Evidence publishes on. It does not move with how '
+        + 'much history the chart is showing (`R-38`)'
+    },
+    {
+      key: 'demand_run_rate',
+      label: 'Observed run rate (for comparison)',
+      value:
+        `${Math.round(base.run_rate_units_per_day).toLocaleString()} units/day × ${base.horizon_days} days `
+        + `= ${Math.round(base.run_rate_units_per_day * base.horizon_days).toLocaleString()} units `
+        + `(${base.run_rate_variance_pct >= 0 ? '+' : ''}${base.run_rate_variance_pct}% against the declared base)`,
       provenance_class: 'SYNTHETIC_OBSERVED',
-      source: `Mean of ${base.observed_days} observed day${base.observed_days === 1 ? '' : 's'} in the synthetic history; days with no record are excluded rather than counted as zero`
+      source: `Mean of ${base.observed_days} observed day${base.observed_days === 1 ? '' : 's'} in the history currently in view; days with no record are excluded rather than counted as zero. Published as evidence, not used as a denominator`
     },
     {
       key: 'capacity_index',

@@ -15,7 +15,7 @@ import {
   CANONICAL_SCENARIO_ID
 } from '../../packages/contracts/src/index';
 import { simulateEnterpriseSignalTimelines } from '../../services/world/src/dynamic-signal-simulator';
-import { canonicalWeeklyPopulationUnits } from '../../packages/contracts/src/canonical-scenario-model';
+import { canonicalWeeklyPopulationUnits, CANONICAL_SCENARIO } from '../../packages/contracts/src/canonical-scenario-model';
 import { registerSecondScenario } from '../fixtures/scenario/second-scenario';
 
 function runTests() {
@@ -91,9 +91,21 @@ function runTests() {
     }
   };
   const breachRes = simulateEnterpriseSignalTimelines(breachReq);
+  /*
+   * `R-37` repointed this. It read the FIRST timeline's type on each side, which was an ordering
+   * proxy for the property it names, and `R-37` legitimately changed the order: a scenario's
+   * observed-behaviour carriers are seen before its supply pressure and are listed where they were
+   * seen. The assertion now tests the differentiation itself — the two families publish different
+   * evidence SETS, each still carrying the signal its family exists to pose — which is strictly
+   * stronger than reading one element and is no longer order-dependent.
+   */
+  const surgeTypes = res1.timelines.map(t => t.signal_type).sort();
+  const breachTypes = breachRes.timelines.map(t => t.signal_type).sort();
   assert(
-    res1.timelines[0].signal_type === 'SEARCH_VELOCITY_ACCELERATION' &&
-    breachRes.timelines[0].signal_type === 'SUPPLIER_LEAD_TIME_DRIFT',
+    surgeTypes.includes('SEARCH_VELOCITY_ACCELERATION') &&
+    breachTypes.includes('SUPPLIER_LEAD_TIME_DRIFT') &&
+    !breachTypes.includes('SEARCH_VELOCITY_ACCELERATION') &&
+    surgeTypes.join('|') !== breachTypes.join('|'),
     'Test 4: Scenario differentiation (promotion_surge vs supplier_breach generate distinct timelines)'
   );
 
@@ -129,9 +141,25 @@ function runTests() {
     unT3.observed_value === intT3.observed_value,
     'Test 7: Historical observation immutability (period T-3 <= T-2 effective_period remains unchanged)'
   );
+  /*
+   * REPOINTED, not relaxed (`SCI-05`, 2026-09-17). This asserted `flex_capacity === 7000`, a unit
+   * count from the 50-store estate `DEMO-HARD-01` retired — internally consistent with the `48000`
+   * weekly allocation beside it, and consistent with nothing the scenario record declares.
+   * `SCI-05` derives both from the record (`R-30`), because `supplier_flex_rate_pct` is declared as
+   * a SHARE of un-promoted demand precisely so it rescales with the scenario.
+   *
+   * The property is unchanged and is asserted more strongly: the flex clause releases capacity from
+   * the period the intervention becomes effective, and the amount released is the scenario's OWN
+   * declared share rather than a number that happened to be typed.
+   */
+  const expectedFlexUnits = Math.round(
+    CANONICAL_SCENARIO.demand.base_demand_units_per_week
+      * CANONICAL_SCENARIO.supply.supplier_flex_rate_pct / 100
+  );
   assert(
-    Boolean(intToday.provenance.intervention_refs?.includes('sla_flex_rule_4')) && intToday.provenance.drivers.flex_capacity === 7000,
-    'Test 6: Intervention future-only effect (period Today > T-2 reflects SLA Flex capacity flex)'
+    Boolean(intToday.provenance.intervention_refs?.includes('sla_flex_rule_4'))
+      && intToday.provenance.drivers.flex_capacity === expectedFlexUnits,
+    'Test 6: Intervention future-only effect (period Today > T-2 releases the scenario\'s DECLARED flex share)'
   );
 
   // TEST 8: Tenant Isolation

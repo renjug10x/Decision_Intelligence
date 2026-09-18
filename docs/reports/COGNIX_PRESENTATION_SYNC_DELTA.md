@@ -31,6 +31,40 @@ scope whose name hashed to 1.06. Retiring the hash made the curve derive from th
 that the committed 20% plan now reads as value-destroying rather than mildly accretive, and that the
 14% recommendation is unchanged and its advantage is larger.**
 
+**Fourth pass, 2026-09-17 (`R-38` + `R-39`).** The Demand economic base was being read off the
+history window the CHART asked for, so the same decision published a different exposed demand at
+14 / 21 / 30 days of displayed history. It is now the scenario record's own declared base. **Three
+unit quantities move by four or five units and nothing else changes** — see §1a. Every percentage,
+every hour, every money figure at the precision a slide states it, and the whole of §2's conclusion
+row read exactly as recorded. A presenter needs no slide changed; the numbers below are here so a
+reviewer comparing the application to the deck to the unit can see why the last digit differs.
+
+---
+
+## 1a. `R-38` / `R-39` movement — NO SLIDE CHANGE REQUIRED
+
+| Value | Before | Now | Why |
+|---|---|---|---|
+| Base units | 699,996 | **700,000** | The reference scenario's declared base is 350,000 units a week over a 14-day horizon. 699,996 was the mean of its real 21-day observed history multiplied by the horizon — within four units of the declaration by coincidence, which is precisely why the seam survived review. The base is now the record's, and no longer moves with the chart |
+| Servable units | 769,996 | **770,000** | The declared allocation index of 1.10 applied to that base |
+| Units exposed | 130,129 | **130,125** | Expected demand less servable demand, on the corrected base |
+| Units exposed after the intervention | 46,130 | **46,125** | The same five units, carried through §2's conclusion |
+| Expected units | 900,125 | 900,125 | **Unchanged** |
+| +28.6% above the un-promoted base | +28.6% | +28.6% | **Unchanged** |
+| 18.6pp Decision Gap | 18.6pp | 18.6pp | **Unchanged** |
+| Decision Gap after the intervention | 6.6pp | 6.6pp | **Unchanged** |
+| £269.4K revenue exposed | £269.4K | £269.4K | **Unchanged** at the precision the slide states |
+| £80.7K gross margin exposed | £80.7K | £80.7K | **Unchanged** at the precision the slide states |
+| Forecast Stability 64 | 64 | 64 | **Unchanged** |
+| 62 hour Decision Window | 62h | 62h | **Unchanged** |
+
+**What a presenter can now claim that they could not before.** The demand economics of a decision no
+longer depend on how much history the chart happens to be showing, and each scenario's published
+attribution is the one its record declares: underlying trend, committed promotion and observed customer
+behaviour reconcile to the published total on all three scenarios. That is a stronger statement than any
+individual figure on the slide, and it is the one worth making if a client's analyst asks where the
+numbers come from.
+
 ---
 
 ## 1. Opening scenario — NO CHANGE REQUIRED

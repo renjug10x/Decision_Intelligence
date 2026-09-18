@@ -29,6 +29,7 @@ import {
   deriveDemandBase
 } from '../../lib/demand-decision-frontier/demand-frontier-engine';
 
+import { inScopeBaseDemandUnits } from '../../packages/contracts/src/scenario-scope';
 import { evaluateIntentFusion } from '../../lib/intent-fusion/intent-fusion-engine';
 import { projectDemand, isDemandRefusal } from '../../lib/demand-forecast';
 import {
@@ -128,8 +129,16 @@ const contractingSignals = [
   signal('sig_dn_003', 'CATEGORY_DEMAND_ACCELERATION', -20)
 ];
 
-/** Flat 100,000 units/day, so the demand base is exactly 1,400,000 over the horizon. */
-const RUN_RATE_PER_DAY = 100_000;
+/**
+ * The scenario's OWN declared daily base.
+ *
+ * `R-38` repointed this. It was a flat 100,000 units/day, chosen so the base would be a round
+ * 1,400,000 over the horizon — which worked while the base WAS the run rate of whatever history a
+ * caller passed in. It is now the scenario's declared base, so a fixture that wants a +20% outlook
+ * has to sit on the same denominator the engine resolves. Derived, not re-typed, so this fixture
+ * follows the scenario rather than pinning a second economic scale beside it.
+ */
+const RUN_RATE_PER_DAY = inScopeBaseDemandUnits(14) / 14;
 const flatHistory = Array.from({ length: 14 }, (_, i) => ({
   date: `2026-08-${String(i + 1).padStart(2, '0')}`,
   value: RUN_RATE_PER_DAY
@@ -290,12 +299,21 @@ async function runTests() {
     'G4: Revenue at risk and margin at risk are separate quantities in the declared margin ratio'
   );
 
-  // A flat 1,000/day history over 14 days is a 14,000-unit base; a flat 1,200/day forecast is +20%.
+  /*
+   * `R-38`. This read the base off the history the caller supplied, which is what let a PRESENTATION
+   * control move a decision quantity. The base is now the scenario's own declared base, so the
+   * assertion is that it does NOT move with the history — measured on two histories half an estate
+   * apart — and that the outlook is still measured against it. Strictly stronger than what it
+   * replaced, and it fails the moment the run rate leaks back into the denominator.
+   */
   const flatBase = deriveDemandBase(baseScenarioParams, baseDerivedImpacts, flatHistory, 14);
+  const halvedHistory = flatHistory.map(h => ({ ...h, value: h.value / 2 }));
+  const halvedBase = deriveDemandBase(baseScenarioParams, baseDerivedImpacts, halvedHistory, 14);
   assert(
-    flatBase.base_demand_units === RUN_RATE_PER_DAY * 14 &&
+    flatBase.base_demand_units === inScopeBaseDemandUnits(14) &&
+    halvedBase.base_demand_units === flatBase.base_demand_units &&
     Math.abs(chain.frontier.contextualised_outlook_pct - 20) < 0.2,
-    'G5: The demand base is the observed run rate and the contextualised outlook is measured against it',
+    'G5: The demand base is the scenario\'s declared base, is invariant to the history supplied, and the contextualised outlook is measured against it',
     `base=${flatBase.base_demand_units}, contextualised=${chain.frontier.contextualised_outlook_pct}`
   );
 

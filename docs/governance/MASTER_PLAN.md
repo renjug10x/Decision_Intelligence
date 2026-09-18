@@ -1285,13 +1285,20 @@ redesign.
 | `SCI-01` | Scenario Contract, Clock, Registry & Provenance Foundation | FOUNDATION | Cursor | 0 | **[COMPLETED]** |
 | `SCI-02` | Scenario Certification Gate & Reconciliation Generalisation | FOUNDATION | Cursor | 0 | **[COMPLETED]** |
 | `SCI-03` | Curated Scenario Domain Packs | CURSOR | Cursor | 1 | **[COMPLETED 2026-09-17]** |
-| `SCI-04` | Scenario Selection Experience | ANTIGRAVITY | Antigravity | 1 | Not started |
-| `SCI-05` | Living Evidence — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 | Not started |
+| `SCI-04` | Scenario Selection Experience | ANTIGRAVITY | Antigravity | 1 | **[COMPLETED 2026-09-17]** — converged with `SCI-03` at Gate B |
+| `SCI-05` | Living Evidence — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 | **[COMPLETED 2026-09-17]** |
 | `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 | Not started |
 | `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | Not started |
 | `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | Not started |
 | `SCI-08` | Create Your Own Scenario Experience | POST-DEMO | Antigravity | 4 | Not started |
 | `SCI-10` | CSV Scenario Enrichment via Attested Admission | POST-DEMO | Cursor | 4 | Not started |
+
+Three repairs were authorised between packets and are recorded with the packets they repair in
+[`COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md`](COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md):
+**`SCI-03R`** (Scenario Perspective Binding, the Gate-B blocker `R-35`), the **`R-37` repair**
+(Curated Scenario Observed-Behaviour Evidence Carrier) and the **`R-38` + `R-39` repair** (Demand Base
+and Trend Attribution Integrity), all **[COMPLETED 2026-09-17]**. None is a new packet; each closes a
+named residual against an existing one. Gate C has not been evaluated.
 
 ### Parallel execution
 

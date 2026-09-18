@@ -183,13 +183,23 @@ console.log('\n=== 2. CONTRACT OWNERSHIP IS SINGULAR ===========================
   );
 }
 
-console.log('\n=== 3. NO WAVE-2 IMPLEMENTATION HAS BEEN SMUGGLED IN ===============\n');
+console.log('\n=== 3. WAVE-2 IMPLEMENTATION IS SINGLY OWNED ========================\n');
 
 {
   /*
-   * Gate A closes Wave 0. Anything that computes materiality, decision relevance or a Refresh
-   * delta belongs to `SCI-05` in Wave 2, and its presence here would mean Wave 1 was being
-   * cut from a state that already contained work nobody had reviewed as a packet.
+   * Gate A closes Wave 0, and at Gate A this section asserted that NOTHING implemented materiality,
+   * decision relevance or a Refresh delta: their presence would have meant Wave 1 was being cut
+   * from a state containing work nobody had reviewed as a packet.
+   *
+   * REPOINTED at `SCI-05` (2026-09-17), because Gate B passed and Wave 2 authorised exactly this
+   * implementation. The property the section holds is unchanged in spirit and stronger in fact: it
+   * asserted "nobody implements this yet", and it now asserts "exactly one module implements it,
+   * and it is SCI-05's". A second implementer is the defect this was always guarding against —
+   * `SCI-06` computing its own materiality beside the engine would be two answers to one question,
+   * which is what the contract's singular ownership exists to prevent.
+   *
+   * The Gate-A record this suite backs is unchanged: at SHA-A nothing implemented these, and
+   * `git show 8d6d960` still shows that.
    */
   const engineDirs: string[] = [];
   const walk = (dir: string) => {
@@ -209,9 +219,10 @@ console.log('\n=== 3. NO WAVE-2 IMPLEMENTATION HAS BEEN SMUGGLED IN ============
     const code = stripComments(readFileSync(join(ROOT, rel), 'utf8'));
     return /function\s+(deriveMateriality|deriveDecisionRelevance|refreshScenario|buildMethodsRegister)/.test(code);
   });
+  const OWNER = 'lib/living-evidence-engine.ts';
   assert(
-    implementers.length === 0,
-    'No module implements materiality, decision relevance, Refresh or the register',
+    implementers.length === 1 && implementers[0] === OWNER,
+    `Exactly ONE module implements materiality, decision relevance, Refresh and the register, and it is SCI-05's (${OWNER})`,
     implementers.join(', ')
   );
 }

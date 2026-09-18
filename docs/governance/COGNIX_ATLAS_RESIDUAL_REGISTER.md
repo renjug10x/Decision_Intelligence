@@ -476,7 +476,36 @@ Recorded rather than corrected because `SCI-02`'s scope is certification and rec
 packet was directed not to perform cleanup outside it. One line, for whichever packet next touches
 the frontier engine.
 
-### R-30 — The family temporal series contradicts a certified scenario's own record · **OPEN — assigned `SCI-05`**
+### R-30 — The family temporal series contradicts a certified scenario's own record · **CLOSED by `SCI-05`**
+
+**Closed 2026-09-17**, through the governed signal/evidence architecture and not by restoring
+anything. The legacy world-family series is not reinstated, rescaled or consulted — asserted against
+both `/api/v1/scenarios` implementations.
+
+The successor is a per-scenario evidence timeline from `ESF-2`'s own simulator, on each scenario's
+own clock, with per-observation provenance naming the rule and drivers: 4 timelines for Fresh Dairy,
+3 for Chilled Salmon, 5 for Premium Bakery, three different signatures.
+
+**What closing it exposed.** The SIMULATOR still carried the defect `SCI-03` had removed from the
+signal GENERATOR, because nothing called the simulator until Refresh did: one branch for
+`promotion_surge`, and a fallback of literal lead times — `24, 28, 36, 42, 46, 48, 52, 60, 36, 24`
+against a baseline of `24` — belonging to no scenario. Both curated packs received the same single
+timeline with the same numbers, and its provenance declared `breach_family: 'supplier_breach'` over a
+bakery decision.
+
+The reference branch carried retired-estate literals of its own: `baselineCap = 48000`,
+`flexUnits = 7000` and `7.0` / `3.8` days of cover, from the 50-store estate `DEMO-HARD-01` retired,
+while the record declares 350,000 units a week at an allocation index of 1.10. The supplier NAME had
+been migrated at `R-20`; the quantity beside it had not. Every amplitude is now read from the record;
+only the shape a pressure signal follows is declared, once, in one constant.
+
+`SCI-03R`'s deterministic demand HISTORIES did not close this and were correctly not credited with
+doing so: a forecast history is what a statistical model is fitted to, not the evidence timeline a
+decision is revised by. Different artefact, different purpose.
+
+**The original record follows, unaltered.**
+
+### R-30 (as first recorded) — the contradictory family series · **superseded by the closure above**
 
 Found by publishing three certified scenarios through `/api/v1/scenarios` for the first time.
 
@@ -503,7 +532,317 @@ contract already declares `ScenarioAsAtMarker` and `RefreshDelta` for exactly th
 history should come from the same place its advance does, and inventing a second projection inside
 `SCI-03` would have created precisely the parallel model this workstream removes.
 
-### R-36 — The Demand promotion adjustment is a generic function of depth · **OPEN — unassigned**
+### R-37 — Two scenarios declare observed customer behaviour and carry no signal that can convey it · **CLOSED**
+
+**Closed 2026-09-17** by the `R-37` pre-convergence repair. The two curated packs now publish
+demand-side evidence that `DDF-01` admits, and the contribution each record declares arrives on the
+Demand surface through it. Measured on the running production topology at 1440 / 1024 / 720:
+
+| | declared `OBSERVED_BEHAVIOUR` | published by the surface | carriers |
+|---|---|---|---|
+| `SCN-FRESH-DAIRY-CHEDDAR-001` | 10.9pp | **+10.9pp** | search velocity 18%, basket adds 24% *(unchanged)* |
+| `SCN-CHILLED-SALMON-002` | 8.0pp | **+8.0pp** | category demand 18%, order velocity 20% |
+| `SCN-BAKERY-SOURDOUGH-003` | 5.1pp | **+5.1pp** | category demand 8%, regional shift 18% |
+
+**`DDF_STABILITY_SIGNAL_TYPES` was not widened.** Both packs were given carriers from the types
+ADR-040 already admits, and the contract is asserted shut: `run-r37-observed-behaviour-tests.ts` §1
+pins the admission list to the eight types declared at Gate A and re-checks that supply, inventory,
+commercial and cost signals are still refused.
+
+**No signal was repurposed.** The bakery pack already published its declared observed behaviour as
+`COMPETITOR_CAMPAIGN_LAUNCH` — a `COMMERCIAL` trigger. A competitor featuring the category is a
+CAUSE; what customers then do is the demand evidence. The trigger stays exactly where it was, out of
+the admission list, and the customer response is published beside it.
+
+**The amplitudes are seeded; nothing else is.** ADR-073 rule 4 — *behaviour may be seeded, economics
+must be derived*. How far a category moved is an observation about the modelled world and is not
+derivable from a record's economics; inventing a derivation for it would assert a customer-response
+model this platform does not have. So the divergence amplitudes are declared, exactly as the
+reference scenario's 18% and 24% always have been, and every identity and every quantity beside them
+is read from the record. **No percentage point of demand movement is written down anywhere on the
+path.** The carrier publishes an observed divergence, `evaluateForecastStability` converts it to an
+expected revision, and the frontier carries the outlook forward by that revision. §8 of the suite
+withdraws the carriers and asserts the outlook returns `INDETERMINATE` — nothing else supplies the
+number.
+
+The amplitudes were calibrated so that the governed path returns the contribution the record already
+declares, because the record is the authority and the evidence is the carrier. That is checked rather
+than asserted: the suite runs the live stability engine over them and fails if the contribution
+drifts, so a change to ADR-040's transfer function goes red instead of silently continuing to agree.
+
+**One source, two publishers.** `services/world/src/observed-behaviour-carriers.ts` is read by both
+the snapshot generator and the timeline simulator, so the evidence the Demand surface reads now and
+the evidence Living Evidence replays across `T-90 … T+30` are the same observations. This is `R-36`'s
+lesson applied before the divergence could happen rather than after.
+
+**The declared TOTAL still does not reconcile for both packs**, and the remaining difference is not
+`R-37`'s. It is recorded as `R-38` and `R-39` below, with the arithmetic.
+
+| | declared total | published | of which `R-38`/`R-39` |
+|---|---|---|---|
+| `SCN-FRESH-DAIRY-CHEDDAR-001` | 28.59% | **+28.59%** | — |
+| `SCN-CHILLED-SALMON-002` | 26.4% | +26.17% | −0.23pp |
+| `SCN-BAKERY-SOURDOUGH-003` | 11.2% | +9.35% | −1.85pp |
+
+**The original record follows, unaltered.**
+
+### R-37 (as first recorded) — a declared attribution with no carrier · **superseded by the closure above**
+
+Found while proving `R-36` closed.
+
+The commercial-intent seam is closed and each scenario's declared contribution now reaches the
+surface. The declared TOTAL still reconciles only for the reference scenario:
+
+| | declared total | published |
+|---|---|---|
+| `SCN-FRESH-DAIRY-CHEDDAR-001` | 28.59% | **+28.6%** |
+| `SCN-CHILLED-SALMON-002` | 26.4% | +18.1% |
+| `SCN-BAKERY-SOURDOUGH-003` | 11.2% | +4.2% |
+
+The gap is the `OBSERVED_BEHAVIOUR` component, and the cause is exact. That component reaches the
+surface through `forecast_stability.expected_revision_pct`, which `DDF-01` declares is driven by
+demand-side signal types only:
+
+| | declared `OBSERVED_BEHAVIOUR` | signal types that revise a forecast |
+|---|---|---|
+| Fresh Dairy | 10.9pp | search velocity, basket adds |
+| Chilled Salmon | 8.0pp | **none** |
+| Premium Bakery | 5.1pp | **none** |
+
+Both curated packs declare observed customer behaviour on their record and carry no evidence that can
+carry it. It is a declared attribution with no carrier, not a calculation defect.
+
+**Why `SCI-05` did not fix it.** The two routes are authoring a demand-side signal for those packs —
+scenario content, `SCI-03`'s, and `SCI-05`'s non-scope states plainly that it adds **no new signal
+types** — or widening `DDF_STABILITY_SIGNAL_TYPES`, which is `DDF-01`'s contract and not `SCI-05`'s to
+change unilaterally. Either is an owner's decision. Raised rather than absorbed.
+
+### R-38 — The demand base is measured over whatever history the chart is showing · **CLOSED**
+
+**Closed 2026-09-17** by the `R-38` + `R-39` repair. `deriveDemandBase` now resolves the scenario's
+own declared un-promoted base across the horizon — `scenarioBaseDemandUnits`, the same quantity the
+Scenario Certification Gate reconciles `C-3.7` against and the same one Living Evidence has always
+published on. The observed run rate is still measured, and is published beside it as evidence with
+`run_rate_variance_pct` naming how far the two are apart, so nothing was hidden: what changed is that
+one of them is no longer silently standing in for the other.
+
+**It was not a window bug, it was a second basis.** ADR-041 Amendment A rules ONE denominator, and the
+frontier was deriving its own for a quantity the record already answers — ADR-073 Amendment A. The two
+agreed for the reference scenario because its real 21-day mean happened to land within four units of
+its declared base, which is exactly why the seam stayed invisible until a second scenario arrived.
+ADR-041 Amendment A's actual ruling is unchanged and still holds by construction: one denominator,
+every quantity resolved against it, `emerging_pct − executable_pct ≡ exposed ÷ base`.
+
+Measured on the running production topology, for all three scenarios at 14 / 21 / 30 days of displayed
+history — economic base, expected demand, executable frontier, exposed demand, Decision Gap pp, revenue
+and margin exposure and Decision Regret are **identical at every window**. The reference scenario's
+exposed demand read 67,652 / 53,540 / 50,647 units before the repair and reads 130,125 at every window
+after it. `run-r38-r39-demand-base-tests.ts` §2 runs the whole pipeline three times and asserts it.
+
+The censored-history rule is untouched: a day the source holds no record for is still excluded from
+the run-rate reading rather than averaged in as a zero.
+
+**The original record follows, unaltered.**
+
+### R-38 (as first recorded) — the base that moved with the chart · **superseded by the closure above**
+
+Found while proving `R-37` closed, by asking why a reconciled `OBSERVED_BEHAVIOUR` component still
+left the declared total short.
+
+`deriveDemandBase` takes the mean of the history series **the display asked for** and multiplies it
+by the horizon. For a scenario whose history carries a declared trend, that window mean is not the
+current run rate: it sits roughly ten days behind the end of the history, so the base is inflated by
+the trend across those days, and every contributor percentage measured against it is deflated by the
+same ratio.
+
+| history window the chart is showing | Fresh Dairy base | Salmon base | Bakery base |
+|---|---|---|---|
+| 14 days | 687,167 | 94,014 | 26,133 |
+| **21 days (the estate's default)** | **699,996** | **95,168** | **26,479** |
+| 30 days | 702,626 | 95,541 | 26,591 |
+| the record's own declared base | 700,000 | 94,080 | 26,040 |
+
+The Decision Gap moves with it. Fresh Dairy's exposed demand reads **67,652 / 53,540 / 50,647 units**
+at those three windows — the same scenario, the same decision, three answers, differing by how many
+days of history happen to be on the chart.
+
+The trailing seven-day run rate reproduces each curated pack's declared base to the unit (Salmon
+94,082 against a declared 94,080; Bakery 26,040 against 26,040), which is unsurprising: it is what
+`buildScenarioForecastDataset` levels the modelled history on. That is the shape of the fix, and it
+is the reason this is raised rather than taken: changing the demand base moves the Decision Gap, the
+exposure, the regret and the executable frontier on every surface, and Fresh Dairy's protected
+figures are calibrated at the 21-day window. It needs its own packet, its own acceptance and its own
+owner decision — not a quiet correction inside an evidence repair.
+
+Measured: correcting this alone moves **Bakery from +9.35% to +11.20%**, which is its record to the
+digit, and **Salmon from +26.17% to +27.62%**, which is further from its record than where it
+started. Salmon needs `R-39` corrected with it — see below.
+
+### R-39 — A declared `UNDERLYING_TREND` is realised at the forecast mean, not over the declared horizon · **CLOSED**
+
+**Closed 2026-09-17** by the `R-38` + `R-39` repair.
+
+**The root cause, restated after measuring it.** `SCI-03R` injected the declared trend backwards into
+the modelled history as a linear drift so the statistical model would *pick it up*. A declared quantity
+cannot survive that round trip, for two reasons that were measured rather than assumed:
+
+| | |
+|---|---|
+| the borrowed shape carries its own drift | the `Chilled` category series retains **−0.17%/day** of local drift over the salmon pack's window after `SCI-05`'s global de-trend, against a declared **−0.179%/day**. The history carried roughly twice its declared trend, and how much depended on what the borrowed category happened to be doing |
+| an estimated model damps what it is given | extrapolating that history linearly gives **−4.98pp**; the fitted Holt-Winters returns **−1.60pp**. The damping is a property of the fit, not of the record |
+
+The two errors partly cancelled, which is why the published trend was neither the declaration nor
+anything predictable: −1.60pp against a declared −2.5pp for salmon, −1.69pp against −1.6pp for bakery.
+
+**The repair, in two parts.**
+
+1. The borrowed shape is now normalised **week by week** rather than by one global least-squares line,
+   so it contributes the weekday rhythm and the day-to-day texture it was borrowed for and contributes
+   no direction at all. A modelled history is trimmed to whole weeks, which also aligns it with the
+   cycles the Holt-Winters initialisation reads. Every week of a modelled history now carries the
+   record's declared weekly level, asserted.
+2. The declared trend is applied where the record states it — **forward of the clock, against the
+   base** — by `scenarioUnderlyingTrendFactor`, the exact mirror of the `scenarioCommercialIntentFactor`
+   `R-36` introduced. The record's own arithmetic spine states every driver that way, and the two
+   factors compose to the record's additive decomposition to the digit:
+   `base × (1 + trend/100) × (1 + (intent/100)/(1 + trend/100)) = base × (1 + trend/100 + intent/100)`.
+
+Nothing is calibrated and no multiplier is fitted. The forecast is still the fitted model's output
+carrying declared factors — the same mechanism `R-36` established — and it is still fitted to a
+legitimate scenario history with real weekday texture and empirically calibrated intervals.
+
+**Where it applies, and why that is not an inconsistency.** A trend is declared only where nothing
+observed one. Where the estate holds the scenario's own history the trend is IN that evidence, the
+fitted model measures it, and the record describes what was measured — the reference scenario realises
+−1.96pp against a declared −2.0pp on its own observed series, and applying a declared factor there
+would count one movement twice. The predicate is the dataset's own provenance basis, which is EVIDENCE
+COVERAGE and never scenario identity; `run-r38-r39-demand-base-tests.ts` §9 asserts that no file
+touched by this repair names a scenario at all.
+
+**Measured on the running production topology.**
+
+| | declared trend | published | declared intent | published | total | record |
+|---|---|---|---|---|---|---|
+| Fresh Dairy | −2.0pp | **−1.96pp** *(measured from its own observed history)* | 19.6pp | **+19.61pp** | **+28.59%** | 28.59% |
+| Chilled Salmon | −2.5pp | **−2.50pp** | 20.9pp | **+20.90pp** | **+26.45%** | 26.4% |
+| Premium Bakery | −1.6pp | **−1.60pp** | 7.7pp | **+7.70pp** | **+11.30%** | 11.2% |
+
+The residual on both packs is the `OBSERVED_BEHAVIOUR` leg, which realises +8.05pp and +5.20pp against
+declared 8.0 and 5.1. `R-37`'s carrier amplitudes were calibrated against the basis this repair
+corrected, and they were deliberately NOT re-tuned to close the last tenth of a point: both remain
+inside the ±0.25pp tolerance `R-37` asserts, and chasing a total by editing an evidence amplitude is
+the behaviour this workstream exists to remove. `R-41` records the optional re-derivation.
+
+**The original record follows, unaltered.**
+
+### R-39 (as first recorded) — the trend realised at the forecast mean · **superseded by the closure above**
+
+Found with `R-38`, and independent of it.
+
+`buildScenarioForecastDataset` sets `trendPerDay = trendPp / 100 / horizonDays` and the model
+extrapolates forward from the history anchor, so what the surface realises is the slope across
+*anchor → forecast mean* rather than the movement the record declares over its horizon. The error is
+therefore a function of the horizon:
+
+| | declared `UNDERLYING_TREND` | realised against the record's own base | horizon |
+|---|---|---|---|
+| `SCN-FRESH-DAIRY-CHEDDAR-001` | −2.0pp | −1.96pp | 14 days *(observed history, not modelled)* |
+| `SCN-BAKERY-SOURDOUGH-003` | −1.6pp | −1.69pp | 7 days |
+| `SCN-CHILLED-SALMON-002` | −2.5pp | **−1.60pp** | 14 days |
+
+The bakery pack realises its declared trend almost exactly; the salmon pack realises 64% of it. The
+reference scenario is unaffected because its history is observed rather than modelled.
+
+**These two must be corrected together, and that is the finding.** They currently offset each other,
+which is why the salmon pack lands only 0.23pp short of its record while carrying two errors of over
+a point each. Measured, holding everything else as built:
+
+| | Salmon published total |
+|---|---|
+| as built | +26.17% |
+| `R-38` corrected alone | +27.62% |
+| `R-39` corrected alone | +25.01% |
+| **both corrected** | **+26.45%**, decomposing as trend −2.50pp, promotion +20.90pp, observed behaviour +8.05pp — against a record that declares −2.5 / +20.9 / +8.0 and a total of 26.4% |
+
+Bakery needs only `R-38`: its declared trend is already realised to 0.09pp. A packet that takes one
+of these without the other will move a certified scenario **away** from its record while appearing
+to fix a defect, so they are recorded as one piece of work in two parts and should be evaluated
+together before Gate C.
+
+### R-41 — `R-37`'s carrier amplitudes are calibrated against a basis `R-38`/`R-39` corrected · **OPEN — optional**
+
+`R-37` authored each curated pack's observed-behaviour carriers so that ADR-040's transfer function
+would return the contribution the record declares, and measured them against the frontier as it then
+stood. `R-38` and `R-39` corrected that frontier's denominator and its trend leg, so the same
+amplitudes now return slightly more:
+
+| | declared | at `R-37` | after `R-38`/`R-39` |
+|---|---|---|---|
+| Chilled Salmon | 8.0pp | +8.03pp | **+8.05pp** |
+| Premium Bakery | 5.1pp | +5.11pp | **+5.20pp** |
+
+Both remain inside the ±0.25pp tolerance `run-r37-observed-behaviour-tests.ts` §8 asserts, so nothing
+is failing. The consequence is visible only in the published total, which reads +26.45% and +11.30%
+against records of 26.4% and 11.2%.
+
+**Salmon cannot be improved.** ADR-040's expected revision is `probability × mid-magnitude` over
+integers, so it lands on a coarse lattice; the reachable totals either side of the record are 26.45%
+and 26.33%, and the current carriers already take the nearer one. **Bakery could reach 11.2%** with a
+carrier pair returning a 4.8% revision rather than 4.9%.
+
+Left open rather than taken, deliberately. Re-deriving one pack's evidence amplitude to move one
+displayed total by a tenth of a point, inside a packet scoped to the demand base and the trend, is
+number-chasing however it is documented. It belongs to whoever next owns the curated packs, with the
+carrier rule re-derived for both packs together rather than for the one that happens to move.
+
+### R-40 — `services/world/dist` is a tracked build artefact three packets stale · **OPEN — GOVERNED**
+
+Noticed while standing the production topology up for `R-37` acceptance.
+
+Fourteen compiled files under `services/world/dist` are tracked in the repository, and the tracked
+copies predate `SCI-03` and `SCI-05`: they carry neither `PRESSURE_PROFILE` nor
+`scenarioContributionAtDepthGbp`. The established convention across `SCI-03`, `SCI-05` and this
+repair has been to rebuild locally for acceptance and revert the artefact before commit, so the
+staleness is consistent rather than newly introduced.
+
+It is safe while the estate runs `COGNIX_WORLD_MODE` in-process. A deployment that runs the world
+service from the tracked `dist` would serve pre-`SCI-03` signals beside post-`SCI-05` surfaces. The
+decision — build the service in CI and stop tracking `dist`, or track it and keep it current — is an
+owner's, and is recorded rather than taken.
+
+### R-36 — The Demand promotion adjustment is a generic function of depth · **CLOSED by `SCI-05`**
+
+**Closed 2026-09-17.** It was TWO seams, not one: `lib/demand-forecast.ts` applied
+`1 + promotion_depth / 100` to the model's forward expectation, and
+`lib/demand-decision-frontier/demand-frontier-engine.ts` **divided the same reconstruction back out**
+to recover the baseline. Neither read the scenario.
+
+Fixing only the first would have been worse than fixing neither — the projection would have applied
+the declared contribution while the frontier divided out a generic one, and the difference between
+two wrong halves would have surfaced as the promotion attribution. That is why the fix is a module,
+`packages/contracts/src/scenario-demand-attribution.ts`, that both sides call.
+
+It reads `demand.movement_attribution`, the declaration the certification gate reconciles `C-5`
+against. Measured on the running surface:
+
+| | declared | before | after |
+|---|---|---|---|
+| Fresh Dairy | 19.6pp | 19.6pp | **+19.6pp** |
+| Chilled Salmon | 20.9pp | 9.6pp | **+20.9pp** |
+| Premium Bakery | 7.7pp | 9.6pp | **+7.6pp** |
+
+Away from the committed depth it scales by the scenario's own declared depth-response curve, the one
+the gate evaluates `C-6` with; at zero depth it is zero. The reference scenario's factor is exactly
+`1.200000` — the retired generic value, reproduced by arithmetic and not by exemption, because
+19.6pp against its declared −2.0pp trend is 0.2 exactly.
+
+`SCI-03R`'s modelled histories also needed de-trending: the borrowed category shape carried the
+category's own drift on top of the declared trend, publishing the salmon pack's −2.5pp as +6.4pp.
+The rhythm is borrowed; the direction is the scenario's.
+
+**The original record follows, unaltered.**
+
+### R-36 (as first recorded) — the generic depth function · **superseded by the closure above**
 
 Found while proving `R-35` closed, and recorded rather than absorbed.
 
