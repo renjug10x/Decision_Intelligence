@@ -1198,14 +1198,31 @@ this workstream hardens the demonstration of what Release 1.0 already contained.
 ## PROGRAMME `SCI` — SCENARIO INTELLIGENCE (THE SCENARIO LABORATORY)
 
 **Authorised 2026-09-15 against baseline `f9c5679c` on `feature/cognix-enterprise-demo-hardening`.
-Status: `[IN PROGRESS]` — **Wave 0 COMPLETE AND CONVERGED. GATE A PASSED 2026-09-17.**
-`SCI-01` **[COMPLETED]** at `1a3b2d64`; `SCI-02` **[COMPLETED]** at `c1edf150`; converged on
-`feature/cognix-sci-wave0-convergence`. Five Wave-0 contracts are frozen and three `SCI-05`-owned
-Wave-2 contracts are declared and frozen AS DECLARATIONS — shape fixed, behaviour not built.
-**Wave 1 is authorised and IN PROGRESS:** `SCI-03` **[COMPLETED 2026-09-17]** on
-`feature/cognix-sci-03-curated-scenarios`; `SCI-04` still to land. **Gate B is NOT passed** — it needs
-both Wave-1 lanes. Condition-by-condition Gate-A evidence and the freeze table are in
-[`COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md`](COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md) §9.
+Status: `[IN PROGRESS]` — **WAVES 0, 1 AND 2 COMPLETE AND CONVERGED.**
+
+| Wave | Packets | Gate | Convergence SHA |
+|---|---|---|---|
+| 0 | `SCI-01`, `SCI-02` | **GATE A PASSED 2026-09-17** | SHA-A `8d6d960c` |
+| 1 | `SCI-03`, `SCI-04` (+ `SCI-03R`, the `R-35` repair) | **GATE B PASSED 2026-09-17** | SHA-B `e0a9c23d` |
+| 2 | `SCI-05`, `SCI-06` (+ the `R-37` and `R-38`/`R-39` repairs) | **GATE C PASSED 2026-09-18** | SHA-C — see the work-packet register §9 |
+| 3 | `SCI-07`, `SCI-09` | **AUTHORISED, not started** | — |
+| 4 | `SCI-10`, `SCI-08` | post-demo, gated behind Gate D | — |
+
+All six governed contracts are frozen. The three `SCI-05`-owned Wave-2 contracts — Signal
+Materiality & Decision Relevance, the Refresh Operation and the Models & Methods register — are no
+longer declarations: they are **frozen AND implemented**, singly owned by
+`lib/living-evidence-engine.ts`, which makes `SCI-09` the first Antigravity packet to build against
+a working engine rather than a shape. Condition-by-condition gate evidence and the freeze tables are
+in [`COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md`](COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md) §9,
+with Gate C's full evidence in
+[`COGNIX_WAVE2_CONVERGENCE_GATE_C_ASSESSMENT.md`](../reports/COGNIX_WAVE2_CONVERGENCE_GATE_C_ASSESSMENT.md).
+
+**What Wave 2 delivered, in business terms.** The weakest surface became the most persuasive one: a
+client can now open Observability & Governance, see the evidence behind a recommendation with its
+source, its freshness on that scenario's own clock, what it moved and whether it changed the
+decision — and press Refresh to watch the scenario advance a period and say, in a sentence, what
+that did to the decision. It is the same answer on every surface because there is one engine behind
+it, and the surface computes nothing of its own.
 
 **`SCI-03` outcome.** The curated catalogue exists: **three certified scenarios** where there was
 one, each `CERTIFIED` on all twelve governed dimensions across 84 executed checks, with **zero**
@@ -1287,7 +1304,7 @@ redesign.
 | `SCI-03` | Curated Scenario Domain Packs | CURSOR | Cursor | 1 | **[COMPLETED 2026-09-17]** |
 | `SCI-04` | Scenario Selection Experience | ANTIGRAVITY | Antigravity | 1 | **[COMPLETED 2026-09-17]** — converged with `SCI-03` at Gate B |
 | `SCI-05` | Living Evidence — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 | **[COMPLETED 2026-09-17]** |
-| `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 | Not started |
+| `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 | **[COMPLETED 2026-09-17 · CONVERGED 2026-09-18]** |
 | `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | Not started |
 | `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | Not started |
 | `SCI-08` | Create Your Own Scenario Experience | POST-DEMO | Antigravity | 4 | Not started |
@@ -1298,7 +1315,9 @@ Three repairs were authorised between packets and are recorded with the packets 
 **`SCI-03R`** (Scenario Perspective Binding, the Gate-B blocker `R-35`), the **`R-37` repair**
 (Curated Scenario Observed-Behaviour Evidence Carrier) and the **`R-38` + `R-39` repair** (Demand Base
 and Trend Attribution Integrity), all **[COMPLETED 2026-09-17]**. None is a new packet; each closes a
-named residual against an existing one. Gate C has not been evaluated.
+named residual against an existing one. **Gate C was evaluated on 2026-09-18 and PASSED**; the
+convergence additionally closed `R-42` (a `SCI-06` completion record that omitted the one runner its
+isolation fixture broke) and retained `R-41` as a documented non-blocking residual.
 
 ### Parallel execution
 

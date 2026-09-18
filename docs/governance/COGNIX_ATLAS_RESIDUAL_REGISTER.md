@@ -769,7 +769,27 @@ of these without the other will move a certified scenario **away** from its reco
 to fix a defect, so they are recorded as one piece of work in two parts and should be evaluated
 together before Gate C.
 
-### R-41 — `R-37`'s carrier amplitudes are calibrated against a basis `R-38`/`R-39` corrected · **OPEN — optional**
+### R-42 — `SCI-06`'s completion record cited the suites it passed and not the one it failed · **CLOSED at Gate C**
+
+**Opened and closed 2026-09-18, at the Wave-2 convergence.**
+
+`SCI-06`'s completion record lists eight green runners and `npm run build`. Measured at its own head
+in a separate worktree, the estate was **48 runners, 46 green**: `run-atl06b-tests` (`R-25`, accepted)
+and **`run-sci03-scenario-pack-tests`**, which failed §7's guard — *"no engine, route or surface names
+a curated pack — a pack is data, never a branch"* — because
+`lib/fixtures/living-evidence-fixtures.ts` named `SCN-CHILLED-SALMON-002` and
+`SCN-BAKERY-SOURDOUGH-003` as literals. That runner is not in the record.
+
+**Closed by the convergence**, which deleted the fixture: the guard is green from the convergence
+state and a source guard now asserts no runtime file imports a Living Evidence fixture at all.
+
+It is recorded rather than quietly fixed because ADR-084 part 5 is that governance status follows
+evidence, never intent. A completion record that enumerates the suites a packet passed and omits the
+one it broke reads as complete and is not, and a reader deciding whether to converge would have been
+deciding on it. **The rule this generalises to:** a lane's completion record states the result of the
+WHOLE estate, individually accounted, or it states nothing about regression.
+
+### R-41 — `R-37`'s carrier amplitudes are calibrated against a basis `R-38`/`R-39` corrected · **OPEN — non-blocking, RETAINED at Gate C**
 
 `R-37` authored each curated pack's observed-behaviour carriers so that ADR-040's transfer function
 would return the contribution the record declares, and measured them against the frontier as it then
@@ -795,6 +815,21 @@ displayed total by a tenth of a point, inside a packet scoped to the demand base
 number-chasing however it is documented. It belongs to whoever next owns the curated packs, with the
 carrier rule re-derived for both packs together rather than for the one that happens to move.
 
+**Gate-C disposition (2026-09-18): RETAINED, non-blocking.** Re-measured from the convergence state
+and unchanged — Salmon declares 26.4% and publishes **+26.45%**, Bakery declares 11.2% and publishes
+**+11.30%**. Both legs remain inside the ±0.25pp tolerance `run-r37-observed-behaviour-tests.ts` §8
+asserts, no certification dimension is affected, and **no Gate-C condition is expressed on the
+published total** — condition 7 reconciles the protected Fresh Dairy journey, which is untouched by
+this residual. Governance therefore does not put it in conflict with Gate C, and no conflict was
+reported.
+
+**No carrier amplitude was altered during convergence**, and that is now enforced rather than
+promised: `run-wave2-convergence-tests.ts` §G hashes
+`services/world/src/observed-behaviour-carriers.ts` and fails if it moves. A later packet that
+genuinely owns the curated packs can close `R-41` by re-deriving the carrier rule for both packs
+together and updating that hash deliberately; a convergence cannot close it by quietly re-tuning one
+amplitude to make a displayed total round the other way.
+
 ### R-40 — `services/world/dist` is a tracked build artefact three packets stale · **OPEN — GOVERNED**
 
 Noticed while standing the production topology up for `R-37` acceptance.
@@ -809,6 +844,12 @@ It is safe while the estate runs `COGNIX_WORLD_MODE` in-process. A deployment th
 service from the tracked `dist` would serve pre-`SCI-03` signals beside post-`SCI-05` surfaces. The
 decision — build the service in CI and stop tracking `dist`, or track it and keep it current — is an
 owner's, and is recorded rather than taken.
+
+**Gate-C note (2026-09-18): untouched, and now FOUR packets stale.** `services/world/dist` and
+`services/learning/dist` were rebuilt locally to stand the three-process service topology up for
+browser acceptance, and reverted before commit, exactly as `SCI-03`, `SCI-05`, `R-37` and the
+`R-38`/`R-39` repair did. Each wave that passes without taking this decision widens the gap between
+the tracked artefact and the source.
 
 ### R-36 — The Demand promotion adjustment is a generic function of depth · **CLOSED by `SCI-05`**
 

@@ -39,6 +39,17 @@ every hour, every money figure at the precision a slide states it, and the whole
 row read exactly as recorded. A presenter needs no slide changed; the numbers below are here so a
 reviewer comparing the application to the deck to the unit can see why the last digit differs.
 
+**Fifth pass, 2026-09-18 (Wave-2 convergence, Gate C) — a CORRECTION to this record, not to the
+application.** `R-38` added §1a and left §1, §2 and §3's closing narrative stating 699,996 / 769,996
+/ 130,129 / 46,130 in the **Live application** column. Those are the values the application
+published BEFORE `R-38`, and that column is supposed to say what it publishes NOW, so for a day this
+record contradicted its own §1a. The Live application column is corrected below and re-measured from
+the running Wave-2 convergence topology; the **Slide value** column is unchanged, because a slide
+baseline is a historical fact and rewriting it would destroy the delta this document exists to
+state. **No slide value changed and none needs to.** The governing ruling from §1a stands: the
+corrected quantities are the record's own arithmetic, and the superseded ones must not be restored
+to preserve presentation copy.
+
 ---
 
 ## 1a. `R-38` / `R-39` movement — NO SLIDE CHANGE REQUIRED
@@ -72,10 +83,10 @@ numbers come from.
 | Slide value | Live application | Status |
 |---|---|---|
 | 900,125 expected units | 900,125 | **Unchanged** |
-| 769,996 servable units | 769,996 | **Unchanged** |
-| 130,129 units exposed | 130,129 | **Unchanged** |
+| 769,996 servable units | **770,000** | **Corrected by `R-38`** — the declared allocation index of 1.10 on the record's own base. Four units; no slide change (§1a) |
+| 130,129 units exposed | **130,125** | **Corrected by `R-38`** — expected demand less servable demand, on the corrected base. Four units; no slide change (§1a) |
 | +28.6% above the un-promoted base | +28.6% | **Unchanged** |
-| 699,996 base units | 699,996 | **Unchanged** |
+| 699,996 base units | **700,000** | **Corrected by `R-38`** — 350,000 units a week over the declared 14-day horizon, no longer the mean of the displayed history window. Four units; no slide change (§1a) |
 | £269.4K revenue exposed | £269.4K | **Unchanged** |
 | £80.7K gross margin exposed | £80.7K | **Unchanged** |
 | Forecast Stability 64 | 64 | **Unchanged** |
@@ -99,7 +110,7 @@ Read from the application after simulating the recommended intervention.
 | Slide value | Live application | Status |
 |---|---|---|
 | Decision Gap 18.6pp → 6.6pp | 18.6pp → 6.6pp | **Unchanged** |
-| Units exposed 130,129 → 46,130 | 130,129 → 46,130 | **Unchanged** |
+| Units exposed 130,129 → 46,130 | **130,125 → 46,125** | **Corrected by `R-38`** — the same five units carried through the conclusion. The 84,000 units recovered and every money figure are unchanged (§1a) |
 | Gross margin exposed £80.7K → £28.6K | £80.7K → £28.6K | **Unchanged** |
 | Revenue exposed £269.4K → £95.5K | £269.4K → £95.5K | **Unchanged** |
 | Cost of waiting £21.8K → £12.0K | £21.8K → £12.0K | **Unchanged** |
@@ -135,8 +146,8 @@ from the scenario's list price, implied unit cost and supplier funding agreement
 | **"National (50 Stores)"** in the scope selector | **"National — whole estate"** / **"North West — regional cluster"** | Scope semantics rather than an asserted estate size. |
 
 **The narrative, as it stands after `SCI-01`.** The story is now *"the committed 20% cut destroys
-£5.2K of contribution, 14% adds £33.0K — a £38.2K swing — AND the committed depth creates 130,129
-units of demand the estate cannot serve."* Both halves of the commercial argument are available: the
+£5.2K of contribution, 14% adds £33.0K — a £38.2K swing — AND the committed depth creates 130,125
+units of demand the estate cannot serve."* (Read 130,129 before `R-38`; see §1a.) Both halves of the commercial argument are available: the
 plan is value-destroying on its own terms, and it strands demand. Slides may use either or both.
 
 A presenter should be ready for one question, because it is the obvious one: *why did this number
