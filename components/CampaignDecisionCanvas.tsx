@@ -14,7 +14,8 @@ import {
   Layers,
   Lock,
   RotateCcw,
-  Sparkles
+  Sparkles,
+  Activity
 } from 'lucide-react';
 import {
   AudienceMarket,
@@ -70,6 +71,7 @@ import {
 import { ExperimentHistoryDrawer } from '@/components/campaign/ExperimentHistoryDrawer';
 import { ExperimentComparisonModal } from '@/components/campaign/ExperimentComparisonModal';
 import { ExecutionBriefModal } from '@/components/campaign/ExecutionBriefModal';
+import DecisionTraceModal from '@/components/observability/DecisionTraceModal';
 import {
   fetchCurrentCampaignIntent,
   registerCampaignIntentClient,
@@ -532,6 +534,7 @@ export default function CampaignDecisionCanvas({
   const [reviewedExperiment, setReviewedExperiment] = useState<CampaignDecisionExperiment | null>(null);
   const [comparisonModalData, setComparisonModalData] = useState<ExperimentComparison | null>(null);
   const [executionBriefData, setExecutionBriefData] = useState<ExecutionBrief | null>(null);
+  const [isTraceModalOpen, setIsTraceModalOpen] = useState(false);
 
   /**
    * The experiment identity the decision currently on screen owns, or null while a new decision
@@ -1912,6 +1915,29 @@ export default function CampaignDecisionCanvas({
               <span>Execution Brief</span>
             </button>
           )}
+
+          <button
+            type="button"
+            id="btn-trace-decision-canvas"
+            onClick={() => setIsTraceModalOpen(true)}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+              padding: '8px 14px',
+              borderRadius: 8,
+              border: '1px solid var(--border)',
+              background: '#FFFFFF',
+              color: 'var(--text)',
+              fontWeight: 650,
+              fontSize: '0.8125rem',
+              cursor: 'pointer'
+            }}
+            title="Inspect contextual Decision Trace (SCI-06)"
+          >
+            <Activity size={14} color="var(--g10x-orange)" />
+            <span>Decision Trace</span>
+          </button>
         </div>
       </header>
 
@@ -5004,6 +5030,13 @@ export default function CampaignDecisionCanvas({
           onClose={() => setExecutionBriefData(null)}
         />
       )}
+
+      {/* Contextual Decision Trace Modal (SCI-06) */}
+      <DecisionTraceModal
+        isOpen={isTraceModalOpen}
+        onClose={() => setIsTraceModalOpen(false)}
+        scenarioId={scenarioInScope().identity.scenario_id}
+      />
     </div>
   );
 }
