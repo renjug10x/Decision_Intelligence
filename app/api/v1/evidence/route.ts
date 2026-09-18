@@ -5,9 +5,9 @@ import { platformReceiptNowIso } from '@/packages/contracts/src/index';
 import { resolveScenario } from '@/packages/contracts/src/scenario-registry';
 import {
   scenarioEvidenceTimelines,
-  observedEvidenceAt,
-  currentAsAtMarker,
-  previewRefresh
+  previewRefresh,
+  assessedEvidenceAt,
+  scenarioDecisionPosition
 } from '@/lib/living-evidence-engine';
 
 /**
@@ -26,9 +26,15 @@ export async function GET(request: NextRequest) {
   try {
     const scenario = requireScenarioId(searchParams.get('scenario_id') ?? undefined, 'GET /api/v1/evidence');
     const scenarioId = scenario.identity.scenario_id;
-    const marker = currentAsAtMarker(scenarioId);
     const timelines = scenarioEvidenceTimelines(scenario);
-    const observed = observedEvidenceAt(scenario, marker.period, timelines);
+    /*
+     * The Gate-C convergence seam. `observed` carries each observation WITH its materiality and
+     * decision relevance, assessed by the engine above — the single owner. Before convergence this
+     * route published the timelines and a count, and the Observability surface had nowhere to read
+     * an assessment from except a fixture. ADR-084 part 2: a field a consumer needs and does not
+     * find is a convergence event raised at the gate, and this is it.
+     */
+    const assessed = assessedEvidenceAt(scenarioId);
 
     return NextResponse.json({
       status: 'success',
@@ -36,10 +42,15 @@ export async function GET(request: NextRequest) {
       domain: 'living-evidence',
       correlation_id: correlationId,
       scenario_id: scenarioId,
-      as_at: marker,
+      scenario_name: scenario.identity.scenario_name,
+      as_at: assessed.as_at,
       data: {
         timelines,
-        observed_signal_count: observed.length,
+        /* Every observation visible at the marker, with what it moved and whether it changed the decision. */
+        observed: assessed.observations,
+        observed_signal_count: assessed.observations.length,
+        /* Where the decision stands right now, from the same derivation the relevance assessment compares. */
+        decision_position: scenarioDecisionPosition(scenarioId),
         /*
          * What the NEXT advance would publish, without taking it. A reader deciding whether to
          * refresh is entitled to know whether anything would change — and computing it here rather

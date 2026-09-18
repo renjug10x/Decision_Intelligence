@@ -556,9 +556,22 @@ export function assessDecisionRelevance(
   evidenceBefore: EnterpriseSignal[],
   evidenceAfter: EnterpriseSignal[],
   marker: SimulationPeriod,
-  params: DecisionScenarioParameters
+  params: DecisionScenarioParameters,
+  /*
+   * The marker the BEFORE side is evaluated at. It defaults to `marker`, which is what every
+   * leave-one-out assessment wants: both bodies of evidence at the same instant, so the only thing
+   * that differs between them is the evidence, and a signal is never credited with the passage of
+   * time.
+   *
+   * Refresh passes the OLD marker for one question only — *"did the decision change across this
+   * advance?"* — because that question is about the scenario, not about a signal. Answering it with
+   * both sides at the new marker made the estate state that the Decision Window was unchanged while
+   * the scenario's own window had moved from `OPEN` to `CLOSING_SOON`, which is the one thing a
+   * Refresh must never do (ADR-081 part 2).
+   */
+  markerBefore: SimulationPeriod = marker
 ): DecisionRelevance {
-  const before = decisionArtefactsAt(scenario, marker, evidenceBefore, params);
+  const before = decisionArtefactsAt(scenario, markerBefore, evidenceBefore, params);
   const after = decisionArtefactsAt(scenario, marker, evidenceAfter, params);
 
   let changed: DecisionChangeKind = 'NONE';
@@ -636,11 +649,27 @@ export function refreshScenario(scenarioId: string): RefreshDelta {
   const beforeIds = new Set(evidenceBefore.map(s => s.signal_id));
   const newSignals = evidenceAfter.filter(s => !beforeIds.has(s.signal_id));
 
-  // Did the DECISION change across the advance? Asked once, of the whole advance.
-  const decisionAcrossAdvance = assessDecisionRelevance(
+  /*
+   * TWO questions, deliberately kept apart, because they have different right answers.
+   *
+   * `decisionFromEvidence` — did the EVIDENCE change the decision? Both bodies at the same marker,
+   * so time is held still. This is what bands an observation's materiality, and banding a new
+   * observation `DECISIVE` because a day passed would be the fabricated significance ADR-081 part 3
+   * forbids.
+   *
+   * `decisionAcrossAdvance` — did the decision change across this advance, as the scenario really
+   * stood on each side of it? Evidence AND clock both move, because that is what a reader who
+   * pressed Refresh is asking. This is the one the consequence statement reads out.
+   */
+  const decisionFromEvidence = assessDecisionRelevance(
     scenario, `advance::${fromPeriod}->${toPeriod}`, evidenceBefore, evidenceAfter, toPeriod, params
   );
-  const decisionChanged = decisionAcrossAdvance.changed !== 'NONE';
+  const decisionChanged = decisionFromEvidence.changed !== 'NONE';
+
+  const decisionAcrossAdvance = assessDecisionRelevance(
+    scenario, `advance::${fromPeriod}->${toPeriod}`, evidenceBefore, evidenceAfter, toPeriod, params,
+    fromPeriod
+  );
 
   const toIso = scenarioPeriodInstantIso(scenario, toPeriod);
   const observations: RefreshedObservation[] = evidenceAfter.map(signal => {
@@ -708,7 +737,8 @@ export function refreshScenario(scenarioId: string): RefreshDelta {
     to: toPeriod,
     newCount: newSignals.length,
     movements: material_movements,
-    decision: decisionAcrossAdvance
+    decision: decisionAcrossAdvance,
+    attributableToEvidence: decisionChanged
   });
 
   if (next !== null) asAtMarkers.set(scenarioId, toPeriod);
@@ -738,6 +768,8 @@ function buildConsequenceStatement(input: {
   newCount: number;
   movements: MaterialQuantityMovement[];
   decision: DecisionRelevance;
+  /** Whether the evidence moved the decision, or only the clock did. */
+  attributableToEvidence: boolean;
 }): string {
   if (input.exhausted) {
     return `The scenario's evidence is already at ${input.from}, the end of its declared timeline. `
@@ -748,7 +780,17 @@ function buildConsequenceStatement(input: {
     + `${input.newCount} new observation${input.newCount === 1 ? '' : 's'}`;
 
   if (input.decision.changed !== 'NONE') {
-    return `${lead}. ${input.decision.statement}`;
+    /*
+     * A decision that moved is reported, and WHY it moved is reported with it. A window that closed
+     * because a day passed is a real thing a presenter must say out loud, and it is a different
+     * statement from evidence changing the recommendation — collapsing the two would let the clock
+     * borrow the evidence's credit.
+     */
+    const cause = input.attributableToEvidence
+      ? 'The evidence moved it.'
+      : 'The evidence did not move it — the advance of the scenario clock did, and the decision now '
+        + 'stands differently because time has passed rather than because anything was observed.';
+    return `${lead}. ${input.decision.statement} ${cause}`;
   }
 
   if (input.movements.length === 0) {
@@ -987,6 +1029,142 @@ export function scenarioMethodsRegister(scenarioId: string): MethodsRegister {
     scenario_id: scenario.identity.scenario_id,
     entries,
     undescribed,
+    provenance: DERIVED_BY_RULE
+  };
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// The Gate-C convergence seam — what `SCI-06` reads
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/*
+ * ADR-084 part 2, recorded rather than performed quietly.
+ *
+ * `SCI-06` was built in Wave 2 against the Gate-A declaration, and the declaration gives it
+ * `SignalMateriality` and `DecisionRelevance` per observation. `SCI-05` implemented both — but
+ * published them only INSIDE a `RefreshDelta`, so the surface that wants to show a reader what
+ * today's evidence moved, before advancing anything, had nowhere to read it from. That is a field a
+ * consumer needs and does not find, which the declaration names a convergence event raised at
+ * Gate C — never a local addition.
+ *
+ * It is taken here, in the owning module, and it adds NO shape the contract does not already
+ * declare: the assessments below are the frozen `SignalMateriality` and `DecisionRelevance`,
+ * produced by the same two functions `refreshScenario` calls. There is exactly one materiality
+ * computation in this estate and it is the one above. A surface that computed its own would be two
+ * answers to one question, which `run-gate-a-tests.ts` §3 asserts against.
+ */
+
+/**
+ * One piece of observed evidence, with what it moved and whether it changed the decision.
+ *
+ * The composition `SCI-06`'s Evidence & Signals section renders. Every field is either the
+ * `EnterpriseSignal` as `ESF-1` declares it or a frozen Living Evidence contract type — nothing
+ * here is a new vocabulary.
+ */
+export interface AssessedObservation {
+  signal: EnterpriseSignal;
+  /** Scenario days between the observation and the as-at marker. Measured on the scenario clock. */
+  age_scenario_days: number;
+  materiality: SignalMateriality;
+  decision_relevance: DecisionRelevance;
+}
+
+/**
+ * Where a scenario's decision currently stands, at its as-at marker.
+ *
+ * The Decision Trace reads this. It is not a second decision engine and must never become one: the
+ * recommendation and window below are `decisionArtefactsAt`'s, the same derivation
+ * `assessDecisionRelevance` compares two bodies of evidence with, and the quantities are
+ * `publishedQuantitiesAt`'s. A trace that recomputed either would be explaining a decision the
+ * estate did not take.
+ */
+export interface ScenarioDecisionPosition {
+  scenario_id: string;
+  as_at: ScenarioAsAtMarker;
+  recommendation: string;
+  decision_window: string;
+  quantities: MaterialQuantityMovement[];
+  observed_signal_count: number;
+  provenance: ProvenanceDescriptor;
+}
+
+/**
+ * The observed evidence at a scenario's current marker, each observation assessed.
+ *
+ * Leave-one-out, exactly as `assessSignalMateriality` documents: the quantities are evaluated with
+ * the whole body of evidence and again with the observation removed, and the difference IS the
+ * materiality. Nothing is read from a seed, and no scenario record carries a field that could
+ * author one.
+ */
+export function assessedEvidenceAt(scenarioId: string): {
+  as_at: ScenarioAsAtMarker;
+  observations: AssessedObservation[];
+} {
+  const scenario = resolveScenario(scenarioId);
+  const params = withScenarioInScope(scenario, () => scenarioOpeningDecisionParameters(scenario));
+  const marker = currentAsAtMarker(scenarioId);
+  const timelines = scenarioEvidenceTimelines(scenario, params);
+  const evidence = observedEvidenceAt(scenario, marker.period, timelines);
+  const markerMs = Date.parse(marker.period_instant_iso);
+
+  const observations = evidence.map(signal => {
+    const relevance = assessDecisionRelevance(
+      scenario,
+      signal.signal_id,
+      evidence.filter(s => s.signal_id !== signal.signal_id),
+      evidence,
+      marker.period,
+      params
+    );
+    return {
+      signal,
+      age_scenario_days: Math.max(
+        0,
+        Math.round((markerMs - Date.parse(signal.observed_at)) / 86_400_000)
+      ),
+      materiality: assessSignalMateriality(
+        scenario, signal, evidence, marker.period, params, relevance.changed !== 'NONE'
+      ),
+      decision_relevance: relevance
+    };
+  });
+
+  return { as_at: marker, observations };
+}
+
+/**
+ * The decision as it stands for a scenario, at its current marker.
+ *
+ * `quantities` are published as `MaterialQuantityMovement`s with `before === after` and a zero
+ * delta, because the contract already carries endpoints and a unit on every published quantity and
+ * inventing a second shape for "a quantity standing still" would give the estate two ways to say
+ * one thing.
+ */
+export function scenarioDecisionPosition(scenarioId: string): ScenarioDecisionPosition {
+  const scenario = resolveScenario(scenarioId);
+  const params = withScenarioInScope(scenario, () => scenarioOpeningDecisionParameters(scenario));
+  const marker = currentAsAtMarker(scenarioId);
+  const evidence = observedEvidenceAt(scenario, marker.period);
+  const artefacts = decisionArtefactsAt(scenario, marker.period, evidence, params);
+  const published = publishedQuantitiesAt(scenario, marker.period, evidence, params);
+
+  const quantities = (Object.keys(published) as MaterialQuantityId[]).map(id => ({
+    quantity: id,
+    display_label: published[id].label,
+    before: published[id].value,
+    after: published[id].value,
+    delta: 0,
+    delta_pct: null,
+    unit: published[id].unit
+  }));
+
+  return {
+    scenario_id: scenario.identity.scenario_id,
+    as_at: marker,
+    recommendation: artefacts.recommendation,
+    decision_window: artefacts.window,
+    quantities,
+    observed_signal_count: evidence.length,
     provenance: DERIVED_BY_RULE
   };
 }

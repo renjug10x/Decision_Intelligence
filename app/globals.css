@@ -2592,7 +2592,6 @@ button.atlas-origin--open:focus-visible { outline: 2px solid var(--accent); outl
   font-size: 0.6875rem; color: var(--text-muted); cursor: pointer; transition: all 0.15s ease;
 }
 .og-btn-subtle:hover:not(:disabled) { border-color: var(--border-strong); color: var(--text-primary); }
-.og-refresh-modes { display: flex; gap: 6px; }
 
 /* Refresh Result */
 .og-refresh-result {
@@ -2635,6 +2634,38 @@ button.atlas-origin--open:focus-visible { outline: 2px solid var(--accent); outl
 .og-refresh-error {
   display: flex; align-items: center; gap: 8px; color: #b91c1c; font-size: 0.8125rem; margin: 6px 0 0;
 }
+
+/* Gate-C convergence: the preview of the next advance, the honest "nothing moved" answer,
+   the generating-rule provenance badge, and the Decision Trace's real quantities. */
+.og-refresh-preview {
+  display: flex; align-items: flex-start; gap: 8px; margin: 12px 0 0;
+  font-size: 0.75rem; color: var(--text-secondary); line-height: 1.5;
+}
+.og-refresh-preview svg { color: var(--g10x-orange); flex-shrink: 0; margin-top: 2px; }
+.og-delta-none {
+  margin: 8px 0 0; padding: 10px 12px; border-radius: var(--radius-sm);
+  background: #eff6ff; border: 1px solid #bfdbfe; color: #1e40af;
+  font-size: 0.75rem; line-height: 1.5;
+}
+.og-prov-badge--rule { font-family: var(--font-mono, ui-monospace, monospace); text-transform: none; }
+.og-trace-quantities {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 8px 18px; margin: 10px 0 14px;
+}
+.og-trace-movers { margin: 6px 0 0; padding-left: 18px; font-size: 0.75rem; color: var(--text-secondary); line-height: 1.7; }
+.og-trace-movers strong { color: var(--text-primary); }
+.og-trace-movers em { color: var(--text-muted); font-style: normal; font-weight: 600; font-size: 0.6875rem; }
+.og-trace-mech-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.og-trace-mech {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px;
+  border: 1px solid var(--border); border-radius: 999px; background: #ffffff;
+  font-size: 0.6875rem; color: var(--text-secondary);
+}
+.og-trace-mech svg { color: var(--g10x-orange); }
+.og-trace-mech strong { color: var(--text-primary); font-weight: 700; }
+.og-trace-mech em { font-style: normal; color: var(--text-muted); font-size: 0.625rem; }
+.og-trace-mech--none { opacity: 0.6; }
+.og-trace-mech--none svg { color: var(--text-muted); }
 
 /* Signal Filter Bar */
 .og-signals-filter-bar {

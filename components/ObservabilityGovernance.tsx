@@ -28,7 +28,6 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import ArchitectureExplorer from '@/components/ArchitectureExplorer';
-import AtlasHealth from '@/components/AtlasHealth';
 import EvidenceSignalsSection from '@/components/observability/EvidenceSignalsSection';
 import ModelsMethodsSection from '@/components/observability/ModelsMethodsSection';
 import PlatformHealthSection from '@/components/observability/PlatformHealthSection';
@@ -192,22 +191,23 @@ export default function ObservabilityGovernance() {
       {/* SECTION 3: Platform Health */}
       {section === 'health' && (
         <section className="og-section" aria-label="Platform health">
-          {/* Direct embed ensures backwards-compatibility for existing tests */}
+          {/*
+            Atlas Health is a SECTION of Observability & Governance, never a separate destination
+            (`ATL-FINAL` B6/B7). It is mounted once, inside Platform Health, and reachable there —
+            a second hidden mount would double every health fetch and duplicate its element ids.
+          */}
           <PlatformHealthSection />
-          <div style={{ display: 'none' }}>
-            <AtlasHealth />
-          </div>
         </section>
       )}
 
       {/* SECTION 4: Decision Trace */}
       {section === 'trace' && (
         <section className="og-section" aria-label="Decision trace">
-          <div style={{ display: 'none' }}>
-            <span>Shared decision state</span>
-            <span>Journey telemetry</span>
-            <span>signal</span>
-          </div>
+          {/*
+            Shared decision state and Journey telemetry — the live diagnostics `ATL-04R` moved out
+            of About — are rendered by `DecisionTraceView` below, with the only controls in the
+            product that refresh and reset decision state passed to it here.
+          */}
           <DecisionTraceView
             scenarioId={activeScenarioId}
             refreshState={refreshState}

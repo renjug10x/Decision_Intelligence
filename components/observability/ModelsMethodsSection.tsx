@@ -28,17 +28,24 @@ interface ModelsMethodsSectionProps {
 export default function ModelsMethodsSection({ scenarioId }: ModelsMethodsSectionProps) {
   const [register, setRegister] = useState<MethodsRegister | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [mechanismFilter, setMechanismFilter] = useState<string>('ALL');
 
   useEffect(() => {
     let mounted = true;
     setLoading(true);
+    setMechanismFilter('ALL');
     getMethodsRegister(scenarioId)
       .then(res => {
-        if (mounted) setRegister(res);
+        if (!mounted) return;
+        setRegister(res);
+        setLoadError(null);
       })
-      .catch(() => {
-        if (mounted) setRegister(null);
+      .catch((err: any) => {
+        /* A register that could not be read is SAID to be unreadable, never shown as an empty one. */
+        if (!mounted) return;
+        setRegister(null);
+        setLoadError(err?.message || 'The Models & Methods register could not be read for this scenario.');
       })
       .finally(() => {
         if (mounted) setLoading(false);
@@ -157,7 +164,13 @@ export default function ModelsMethodsSection({ scenarioId }: ModelsMethodsSectio
             <span className="og-mech-card-title">Drafted</span>
             <strong className="og-mech-card-count">{draftedCount}</strong>
           </div>
-          <p className="og-mech-card-text">Governed Google GenAI drafts, response-validated and non-authoritative.</p>
+          <p className="og-mech-card-text">
+            {draftedCount > 0
+              ? 'Governed Google GenAI drafts, response-validated and never authoritative.'
+              : 'Google GenAI contributed nothing to this scenario\u2019s published values. It is '
+                + 'declared below rather than listed as active — a mechanism that did not run is '
+                + 'not reported as one that did.'}
+          </p>
         </div>
 
         <div
@@ -188,8 +201,13 @@ export default function ModelsMethodsSection({ scenarioId }: ModelsMethodsSectio
       {/* Method Entries List */}
       {loading ? (
         <div className="og-loading-state">
-          <p>Loading method register…</p>
+          <p>Reading the register of what genuinely ran for this scenario…</p>
         </div>
+      ) : loadError ? (
+        <p className="og-refresh-error">
+          <ShieldAlert size={14} />
+          <span>{loadError}</span>
+        </p>
       ) : filteredEntries.length === 0 ? (
         <p className="og-empty">No method entries matching filter.</p>
       ) : (
@@ -257,18 +275,33 @@ export default function ModelsMethodsSection({ scenarioId }: ModelsMethodsSectio
                           {method.measured_error.metric}: {method.measured_error.value}{method.measured_error.unit}
                         </strong>
                       ) : (
-                        <em className="og-unmeasured">Unmeasured — deterministic calculation or drafting</em>
+                        <em className="og-unmeasured">
+                          Unmeasured — no backtest is published for this method
+                        </em>
                       )}
                     </span>
                   </div>
 
                   <div className="og-meta-col">
-                    <span className="og-meta-label">Applicability:</span>
+                    <span className="og-meta-label">Applies to:</span>
                     <span className="og-meta-val">
-                      {method.applies_to_scenario_ids.length > 0 ? (
-                        `${method.applies_to_scenario_ids.length} scenarios`
+                      {/*
+                        The contract is explicit that an empty list means the method applies to NO
+                        scenario and says so. Reading it as "global" would invert the statement.
+                      */}
+                      {method.applies_to_scenario_ids.length === 0 ? (
+                        <em className="og-unmeasured">No scenario — declared, not inferred</em>
+                      ) : method.applies_to_scenario_ids.includes(scenarioId) ? (
+                        <strong>
+                          This scenario
+                          {method.applies_to_scenario_ids.length > 1
+                            ? ` and ${method.applies_to_scenario_ids.length - 1} other`
+                              + `${method.applies_to_scenario_ids.length === 2 ? '' : 's'}`
+                            : ' only'}
+                        </strong>
                       ) : (
-                        'Global method'
+                        `${method.applies_to_scenario_ids.length} other `
+                        + `scenario${method.applies_to_scenario_ids.length === 1 ? '' : 's'}`
                       )}
                     </span>
                   </div>

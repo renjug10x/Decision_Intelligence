@@ -429,7 +429,22 @@ async function run() {
     'H7: The fabricated integration surfaces were not migrated — nothing was connected');
   assert(/simulated/i.test(og) && /not enforced authorisation|not.*enforced authorisation/i.test(og),
     'H8: Access scoping is stated to be a simulation rather than enforced authorisation');
-  assert(/Journey telemetry/i.test(og) && /Shared decision state/i.test(og) && /signal/i.test(og),
+  /*
+   * REPOINTED at the Wave-2 convergence (2026-09-18). `SCI-06` moved the section bodies out of
+   * `ObservabilityGovernance.tsx` into components, so the diagnostics are rendered by
+   * `DecisionTraceView` and the signals by `EvidenceSignalsSection`. The property — they survived
+   * the move out of About and are still reachable inside Observability & Governance — is asserted
+   * over the composition that actually renders them. Before this, the literal passed only because
+   * three hidden `<span>`s were rendered beside the real content to satisfy it.
+   */
+  const ogComposition = og
+    + readFileSync(join(ROOT, 'components', 'observability', 'DecisionTraceView.tsx'), 'utf8')
+    + readFileSync(join(ROOT, 'components', 'observability', 'EvidenceSignalsSection.tsx'), 'utf8');
+  assert(
+    /Journey telemetry/i.test(ogComposition)
+      && /Shared decision state/i.test(ogComposition)
+      && /signal/i.test(ogComposition)
+      && /DecisionTraceView/.test(og),
     'H9: The live diagnostics that lived behind About survived the move');
   assert(/refreshState/.test(og) && /resetScenario/.test(og),
     'H10: …including the only controls in the product that reset and refresh decision state');

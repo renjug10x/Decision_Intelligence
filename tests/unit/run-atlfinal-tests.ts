@@ -99,7 +99,19 @@ async function main() {
   assert(!/setHealth|fetch\(/.test(read('components', 'ObservabilityGovernance.tsx').split('AtlasHealth')[0].slice(-4000)) || true,
     'B6: Atlas Health is a section of Observability & Governance, not a separate destination');
   const og = read('components', 'ObservabilityGovernance.tsx');
-  assert(/id: 'health'/.test(og) && /<AtlasHealth \/>/.test(og),
+  /*
+   * REPOINTED at the Wave-2 convergence (2026-09-18). The property is unchanged — Atlas Health is
+   * wired into Observability & Governance's own section list and is not a sidebar destination — but
+   * `SCI-06` moved the section bodies into components, so asserting the literal `<AtlasHealth />`
+   * in this one file stopped measuring the property and started measuring where the JSX happens to
+   * sit. It is asserted across the composition instead, which is strictly stronger: the health
+   * section must exist here, must render Platform Health, and Platform Health must mount Atlas
+   * Health. The literal previously passed only because a hidden duplicate mount was kept beside the
+   * real one to satisfy it.
+   */
+  const health = read('components', 'observability', 'PlatformHealthSection.tsx');
+  assert(
+    /id: 'health'/.test(og) && /<PlatformHealthSection\s*\/>/.test(og) && /<AtlasHealth\s*\/>/.test(health),
     'B7: …wired into the existing section list rather than added to the sidebar');
   assert(!/admin|dashboard/i.test(og.split("id: 'health'")[1].slice(0, 400)),
     'B8: …and is not framed as an admin console');

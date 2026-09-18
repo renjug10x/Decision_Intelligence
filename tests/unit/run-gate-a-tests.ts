@@ -302,8 +302,10 @@ console.log('\n=== 6. THE DECLARED SHAPES ARE USABLE BY A CONSUMER =============
   const movement: MaterialQuantityMovement = {
     quantity: 'EXPOSED_DEMAND_UNITS',
     display_label: 'Units exposed',
-    before: 130130,
-    after: 46130,
+    // The published pair, on the base R-38 corrected. Illustrative here, and measured for real in
+    // `run-wave2-convergence-tests.ts` §F, but a stale pair should not survive even as a literal.
+    before: 130125,
+    after: 46125,
     delta: -84000,
     delta_pct: -64.55,
     unit: 'units'
