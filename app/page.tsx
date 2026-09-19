@@ -165,6 +165,7 @@ export default function App() {
             onBackToPortfolio={() => setCurrentPage('atlas')}
           />
         );
+      case 'architecture':   return <ObservabilityGovernance initialSection="architecture" />;
       case 'settings':       return <ObservabilityGovernance />;
       default:
         return (

@@ -63,7 +63,7 @@ and the lanes never touch.
 | `SCI-05` | Living Evidence Engine — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 | **[COMPLETED 2026-09-17]** |
 | `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 | **[COMPLETED 2026-09-17 · CONVERGED 2026-09-18]** |
 | `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | **[DELIVERED 2026-09-19]** |
-| `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | Not started |
+| `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | **[COMPLETED 2026-09-19]** |
 | `SCI-08` | Create Your Own Scenario Experience | **POST-DEMO** | Antigravity | 4 | Not started |
 | `SCI-10` | CSV Scenario Enrichment via Attested Admission | **POST-DEMO** | Cursor | 4 | Not started |
 
@@ -1060,6 +1060,38 @@ under 90 seconds without presenter help.
 Storyboard retired **only** at 6 of 6, otherwise retained and labelled.
 
 **Handoff artefact.** The page, and the updated `SB-GATE` condition state.
+
+**Completion record (2026-09-19).**
+- **Authoritative base:** Verified exact HEAD of `feature/cognix-sci-wave2-convergence` at `9036330ec4c65cb894b6b3bf42a000e71ceed5cb` (Gate C PASS recorded).
+- **Lane execution:** Wave 3 Antigravity lane strictly respecting concurrency boundaries. Did not touch `SCI-07` scenario authoring domain, contracts, or draft APIs; did not touch `SCI-08` or any frozen contract (`packages/contracts/src/*`).
+- **One Truthful Architecture Surface:** Created `components/observability/CognixArchitectureSurface.tsx` delivering the 60–90 second executive explanation of how CogniX connects evidence and intelligence to retail decisions.
+- **7 Governed Layers:**
+  1. *Business & External Evidence:* Seeded Demand History (measured), Supplier Terms & Capacity (measured), Operating Calendar & Events (measured).
+  2. *Signal Intelligence:* Signal / Intent Fusion (calculated, IFI-01), Forecast Stability (calculated, ADR-040 evidence stream property), Materiality & Freshness (calculated, ADR-081).
+  3. *Intelligence Methods:* Deterministic Calculation (calculated), Statistical Forecasting / ML (fitted, Holt-Winters Additive), Google GenAI Interpretation (drafted, non-authoritative context drafting, ADR-044/ADR-067), Rules & Certification Gate (rule, ADR-080).
+  4. *Decision Intelligence:* Decision Gap (calculated, ADR-041), Decision Window (rule / operational constraint, ADR-042), Decision Regret (calculated, ADR-043), Multi-Objective Trade-offs (calculated).
+  5. *Retail Decisions:* Promotion Depth Recommendation (calculated), Servable Volume Allocation (calculated), Decision Ripple (calculated, WP5).
+  6. *Human Decision:* Commercial Leadership Review (human judgement), Decision Contract Commitment (human judgement).
+  7. *Outcomes & Learning:* Realised vs Commitment Variance (calculated / measured), Enterprise Memory & Learning Patterns (calculated).
+- **Truthful Mechanisms:** Calculated (deterministic / measured, 12 nodes), Fitted (statistical ML, 1 node), Drafted (GenAI interpretation, 1 node), Business Rules / Constraints (3 nodes), Human Judgement (2 nodes), Continuous Learning (2 nodes).
+- **Governed Construct Placement:** Forecast Stability placed in Layer 2 (Signal Intelligence, ADR-040); Decision Window placed in Layer 4 as operational constraint (ADR-042); Decision Gap (ADR-041), Regret (ADR-043), Ripple (WP5) all rigorously anchored.
+- **Dynamic Scenario Grounding (Zero Hardcoded Business Constants):** Architecture surface dynamically resolves role, SKU, supplier, demand metrics, and recommendations from canonical scenario contracts (`scenarioBaseDemandUnits`, `scenarioExpectedDemandUnits`, `scenarioServableDemandUnits`, `scenarioExposedDemandUnits`, `scenarioFlexCapacityUnits`), `scenarioElasticityCurve()`, and live `livingEvidence`/`methodsRegister`:
+  - Fresh Dairy: derived recommendation 14% discount (challenging committed 20% plan); exposed gap 130,130 units.
+  - Premium Bakery: certified recommendation 0% / do not promote (committed 10% plan); exposed gap 1,354 units.
+  - Chilled Salmon: derived recommendation 10% discount (aligned with committed 10% plan); exposed gap 22,956 units.
+- **Tightened Architectural Language:** Used precise, factually grounded terminology ("Dynamic Signal Simulation" instead of unverified real-time external claims; "Derived promotion recommendation"; zero "0% hallucination" assertions).
+- **Live Models & Methods Integration:** Node inspect drawer reads real registered methods from `scenarioMethodsRegister(scenario_id)`, displaying genuine `last_run_scenario_iso` timestamps or honest unmeasured indicators without creating duplicate truth models.
+- **Quiet SB-GATE Governance & Storyboard Disposition:**
+  - Evaluated all 6 conditions: SB-GATE-1 (MET), SB-GATE-2 (MET), SB-GATE-3 (MET), SB-GATE-4 (OPEN, 2 orphaned units mapped to Layer 7 learning patterns), SB-GATE-5 (OPEN, 60 historical prose units unmigrated), SB-GATE-6 (MET, direct navigation and host surface provided).
+  - Outcome: 3 of 6 conditions met. Preserved ADR-051 requirement of 6/6 for retirement; storyboard is **RETAINED**.
+  - Client-facing experience remains 100% focused on explaining CogniX (60–90 seconds). The SB-GATE retirement notice is presented as a quiet, secondary footer card with subtle toggle controls to inspect the 6-condition checklist and the retained historical storyboard on demand.
+- **Test Verification:**
+  - `tests/unit/run-sci09-architecture-tests.ts`: **ALL PASSED** (flow, mechanisms, placements, no legacy claims, GenAI boundaries, models/methods reuse, dynamic scenario awareness, inspect drawer, SB-GATE evaluation, CSS breakpoints, concurrency guards).
+  - `tests/unit/run-wave2-convergence-tests.ts`: **58/58 PASSED**.
+  - `tests/unit/run-sci06-observability-tests.ts`: **182/182 PASSED**.
+  - `tests/unit/run-atl04r-tests.ts`: **124/124 PASSED**.
+  - `tests/unit/run-atlfinal-tests.ts`: **57/57 PASSED**.
+  - `npm run build`: Compiled successfully in 2.2s, TypeScript checked in 7.8s, 78/78 static pages generated with 0 errors.
 
 ---
 

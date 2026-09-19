@@ -72,11 +72,14 @@ export default function ScenarioSelectorModal({
   if (!isOpen) return null;
 
   const handleActivate = async (scenario: ScenarioCatalogueEntry) => {
+    const scenarioId = scenario.scenario_id || (scenario as any).scenarioId;
+    if (!scenarioId) return;
+
     // Under ADR-080, an uncertified scenario must never be activated
     const isCertified =
       scenario.certification_state === 'CERTIFIED' ||
       scenario.demo_active ||
-      (scenario.certification_state === undefined && scenario.scenario_id === activeScenarioId);
+      (scenario.certification_state === undefined && scenarioId === activeScenarioId);
 
     if (!isCertified) {
       setErrorMessage(
@@ -85,17 +88,17 @@ export default function ScenarioSelectorModal({
       return;
     }
 
-    if (scenario.scenario_id === activeScenarioId) {
+    if (scenarioId === activeScenarioId) {
       onClose();
       return;
     }
 
-    setActivatingId(scenario.scenario_id);
+    setActivatingId(scenarioId);
     setErrorMessage(null);
 
     try {
       const sessionId = getOrCreateSessionId();
-      const res = await activateScenarioOnServer(scenario.scenario_id, sessionId);
+      const res = await activateScenarioOnServer(scenarioId, sessionId);
 
       if (!res.success) {
         setErrorMessage(res.error || 'Scenario activation was refused by the domain.');
@@ -109,9 +112,9 @@ export default function ScenarioSelectorModal({
        * selection could succeed on the server while every surface kept computing the previous
        * scenario (R-33). The shared mirror reports a disagreement instead of hiding it.
        */
-      clientSyncActiveScenario(scenario.scenario_id);
+      clientSyncActiveScenario(scenarioId);
 
-      onScenarioActivated?.(scenario.scenario_id);
+      onScenarioActivated?.(scenarioId);
       onClose();
     } catch (err: any) {
       setErrorMessage(err.message || 'Unexpected failure during scenario activation.');
@@ -275,17 +278,18 @@ export default function ScenarioSelectorModal({
             </div>
           ) : (
             <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-              {catalogue.map(entry => {
-                const isCurrentlyActive = entry.scenario_id === activeScenarioId;
+              {catalogue.map((entry, idx) => {
+                const scenarioId = entry.scenario_id || (entry as any).scenarioId || `scenario-${idx}`;
+                const isCurrentlyActive = scenarioId === activeScenarioId;
                 const isCertified =
                   entry.certification_state === 'CERTIFIED' ||
                   entry.demo_active ||
                   (entry.certification_state === undefined && isCurrentlyActive);
-                const isActivatingThis = activatingId === entry.scenario_id;
+                const isActivatingThis = activatingId === scenarioId;
 
                 return (
                   <div
-                    key={entry.scenario_id}
+                    key={scenarioId}
                     style={{
                       border: isCurrentlyActive
                         ? '1px solid var(--g10x-orange)'

@@ -91,15 +91,39 @@ function certificationBadges(): Map<string, CertificationBadge> {
 }
 
 /** Add the gate's verdict to whatever catalogue entries the route is about to serve. */
-function withCertification<T extends { scenario_id: string }>(entries: T[]): (T & CertificationBadge)[] {
+function withCertification<T extends { scenario_id?: string; scenarioId?: string }>(entries: T[]): (T & { scenario_id: string } & CertificationBadge)[] {
   const badges = certificationBadges();
-  return entries.map(entry => ({
-    ...entry,
-    ...(badges.get(entry.scenario_id) ?? {
-      certification_state: 'UNCERTIFIED' as const,
-      certification_summary: `${entry.scenario_id} was not returned by the Scenario Certification Gate in this process; it is reported uncertified rather than assumed.`
-    })
-  }));
+  const seenIds = new Set<string>();
+  const results: (T & { scenario_id: string } & CertificationBadge)[] = [];
+
+  for (const rawEntry of entries) {
+    const id = rawEntry.scenario_id || rawEntry.scenarioId;
+    if (!id || typeof id !== 'string' || id.trim() === '') {
+      console.warn('[withCertification] Skipping catalogue entry with invalid or missing scenario_id');
+      continue;
+    }
+    const cleanId = id.trim();
+    if (seenIds.has(cleanId)) {
+      console.warn(`[withCertification] Deduplicating scenario catalogue entry with id: ${cleanId}`);
+      continue;
+    }
+    seenIds.add(cleanId);
+
+    const normalizedEntry = {
+      ...rawEntry,
+      scenario_id: cleanId
+    };
+
+    results.push({
+      ...normalizedEntry,
+      ...(badges.get(cleanId) ?? {
+        certification_state: 'UNCERTIFIED' as const,
+        certification_summary: `${cleanId} was not returned by the Scenario Certification Gate in this process; it is reported uncertified rather than assumed.`
+      })
+    });
+  }
+
+  return results;
 }
 
 /** The in-process catalogue, certified. */
