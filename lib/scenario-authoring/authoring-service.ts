@@ -47,7 +47,7 @@ import {
   type ScenarioSituationId
 } from '@/packages/contracts/src/scenario-draft-model';
 import { CanonicalScenario } from '@/packages/contracts/src/canonical-scenario-model';
-import { registerScenario } from '@/packages/contracts/src/scenario-registry';
+import { isScenarioRegistered, registerScenario, resolveScenario } from '@/packages/contracts/src/scenario-registry';
 import { certifyScenario } from '@/lib/scenario-certification';
 import {
   certificationStateOf,
@@ -373,6 +373,14 @@ export interface ConfirmDraftResult {
   activation_note: string;
 }
 
+/*
+ * The only checks that can fail purely because a candidate is not yet registered: `C-1.2`, which
+ * asks the registry to resolve the identity, and `C-12.8`, which reports that an earlier dimension
+ * failed. Measured against the gate rather than assumed, and asserted in
+ * `run-sci07-scenario-authoring-tests.ts`.
+ */
+const REGISTRATION_ONLY_CHECKS = new Set(['C-1.2', 'C-12.8']);
+
 export const CONFIRMED_NOT_ACTIVE_NOTE =
   'This scenario is confirmed and certified. It is registered and can be chosen; it does not become the '
   + 'scenario the estate is running until someone activates it.';
@@ -414,7 +422,69 @@ export function confirmDraft(request: ConfirmDraftRequest): ConfirmDraftResult {
 
   const resolved = resolveScenarioDraft(draft.inputs, draft.scenario_id);
 
-  // Registration, so the gate can resolve the identity it is certifying (`C-1.2`).
+  /*
+   * ── R-SCI07-5, closed at Wave-3 convergence without touching a frozen contract ────────────
+   *
+   * The order used to be REGISTER → CERTIFY → leave a failed registration behind, because `C-1.2`
+   * asks that the identity resolve through the registry to the record being certified, so the
+   * candidate has to be registered for the gate to pass. The consequence was that a confirmation
+   * that FAILED certification left an uncertified scenario in the catalogue, and `SCI-01`'s
+   * registry — a frozen contract this packet does not own — has no deregistration seam to take it
+   * back out. The residual named a convergence event as the only way to correct it.
+   *
+   * It does not need one. Certification of an UNREGISTERED candidate is a complete discriminator:
+   * measured against the gate, the only checks that can fail for the absence of registration alone
+   * are `C-1.2` itself and `C-12.8`, the cascade check that exists to say an earlier dimension
+   * failed. Every other dimension is a property of the record, and the record is the same object
+   * before and after it is put in the registry.
+   *
+   * So the gate is run first, on the candidate, while it is registered nowhere. If anything fails
+   * that registration would not have fixed, the confirmation is refused HERE — and nothing has been
+   * registered to leave behind. The authoritative certification below is unchanged and is still the
+   * one that binds: this is a pre-flight, not a second gate, and it evaluates no dimension of its
+   * own.
+   */
+  const preflight = certifyScenario(resolved.scenario);
+  const preflightFailures = preflight.dimensions
+    .flatMap(d => d.checks)
+    .filter(c => c.applicable && !c.passed)
+    .map(c => c.id)
+    .filter(id => !REGISTRATION_ONLY_CHECKS.has(id));
+
+  if (preflightFailures.length > 0) {
+    const preSummary = summariseCertification(preflight);
+    const stillDraft: ScenarioDraft = {
+      ...draft,
+      updated_at: nowIso(),
+      last_certification: {
+        state: certificationStateOf(preflight),
+        summary: preSummary,
+        failed_dimensions: preflight.failed_dimensions.map(String),
+        assertion_count: preflight.assertion_count,
+        evaluated_at_scenario_clock: preflight.evaluated_at_scenario_clock
+      }
+    };
+    scenarioDraftStore.put(stillDraft);
+    throw new ScenarioAuthoringError(
+      `This scenario does not certify, so it has not been confirmed and nothing was registered. ${preSummary}`,
+      'certification',
+      preflight.failed_dimensions
+        .filter(d => d !== 'C-1' || preflightFailures.some(id => id.startsWith('C-1.')))
+        .map(d => ({
+          field: 'certification',
+          severity: 'ERROR' as const,
+          message: `${d}: ${preflight.dimensions.find(x => x.dimension === d)?.reason ?? 'failed'}`
+        }))
+    );
+  }
+
+  /*
+   * The candidate has passed everything the gate can evaluate unregistered. Registration is what
+   * lets `C-1.2` resolve the identity to this record, and the certification below is authoritative.
+   */
+  const priorRecord = isScenarioRegistered(resolved.scenario.identity.scenario_id)
+    ? resolveScenario(resolved.scenario.identity.scenario_id)
+    : null;
   registerScenario(resolved.scenario);
   const result = certifyScenario(resolved.scenario);
   const state = certificationStateOf(result);
@@ -430,9 +500,18 @@ export function confirmDraft(request: ConfirmDraftRequest): ConfirmDraftResult {
 
   if (state !== 'CERTIFIED') {
     /*
+     * Unreachable in practice, and kept because "unreachable" is a claim a lifecycle should not
+     * rest on: the pre-flight above has already evaluated every dimension of this record and found
+     * it clean, so a failure here would mean registration itself changed a verdict. If it ever
+     * does, the previous record for this identity is put back — a re-confirmation of a corrected
+     * draft does not damage what was already certified — and a FIRST confirmation is the one case
+     * the registry cannot be returned to, because there is nothing to return it to. That last
+     * sliver is all that remains of `R-SCI07-5`.
+     *
      * The draft stays DRAFT. "Confirmed but not certified" is not a state this lifecycle can
      * reach, because it is the state a demonstration would eventually be run from.
      */
+    if (priorRecord) registerScenario(priorRecord);
     const stillDraft: ScenarioDraft = {
       ...draft,
       updated_at: nowIso(),

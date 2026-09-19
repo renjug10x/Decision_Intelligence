@@ -175,6 +175,37 @@ console.log('\n=== 3. CATALOGUE RENDERED FROM FROZEN CONTRACT DATA =============
     catalogue.every(entry => Boolean(entry.scenario_id)),
     'Every catalogue entry has a defined canonical scenario_id'
   );
+
+  /*
+   * Wave-3 convergence, §7 of the Gate-D conditions.
+   *
+   * `SCI-09` added a defensive `scenario-${idx}` key so a malformed entry could not collapse two
+   * rows onto one React key. Defensive rendering is worth keeping — but a fallback nobody can
+   * prove is unreachable is a fallback that quietly becomes the behaviour. These three assertions
+   * state the property for the REAL catalogue: every entry carries a canonical id, the ids are
+   * unique, and the keys the selector renders are therefore the ids themselves, with the index
+   * fallback never exercised.
+   */
+  const canonicalIds = catalogue.map(entry => entry.scenario_id);
+  assert(
+    canonicalIds.every(id => typeof id === 'string' && id.trim().length > 0),
+    'No production catalogue entry is missing a scenario_id'
+  );
+  assert(
+    new Set(canonicalIds).size === canonicalIds.length,
+    'No production catalogue entry duplicates a scenario_id',
+    canonicalIds.join(', ')
+  );
+  assert(
+    renderedKeys.length === canonicalIds.length
+      && renderedKeys.every((k, i) => k === canonicalIds[i]),
+    'The selector\'s scenario-${idx} fallback is unreachable for the real catalogue — every rendered key IS the canonical id',
+    `${renderedKeys.join(', ')} vs ${canonicalIds.join(', ')}`
+  );
+  assert(
+    !renderedKeys.some(k => /^scenario-\d+$/.test(k)),
+    'No rendered key is an index fallback'
+  );
 }
 
 console.log('\n=== 4. CERTIFIED SCENARIO SELECTABLE VIA GOVERNED PATH ============\n');

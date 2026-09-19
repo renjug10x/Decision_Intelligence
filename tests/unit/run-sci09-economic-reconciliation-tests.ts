@@ -34,10 +34,17 @@ import {
   AuthoritativeScenarioDecision
 } from '../../lib/canonical-decision-evaluator';
 import {
-  getAuthoritativeScenarioDecision,
-  AUTHORITATIVE_CANONICAL_DECISIONS
+  authoritativeScenarioDecision,
+  primeAuthoritativeScenarioDecision,
+  resetAuthoritativeDecisionCache
 } from '../../lib/canonical-decision-reconciliation';
-import { ARCH_LAYERS, ArchNode } from '../../components/observability/CognixArchitectureSurface';
+import {
+  ARCH_LAYERS,
+  ArchNode,
+  type DynamicScenarioContext
+} from '../../components/observability/CognixArchitectureSurface';
+import { readFileSync } from 'fs';
+import { join } from 'path';
 
 let passed = 0;
 let failed = 0;
@@ -193,20 +200,21 @@ async function main() {
       `Got ${evaluated.windowState}`
     );
 
-    // Assert that the canonical decision module matches the evaluated engine result exactly
-    const reconciled = getAuthoritativeScenarioDecision(s.id);
+    /*
+     * The reconciliation module is a CARRIER. Before the domain answer has been read it holds
+     * nothing, and after it has been read it holds exactly what was read — no rounding of its own,
+     * no per-scenario literal, no branch on which scenario it is.
+     */
     assert(
-      reconciled.exposedGap === evaluated.exposedGap &&
-      reconciled.expectedDemand === evaluated.expectedDemand &&
-      reconciled.baseDemand === evaluated.baseDemand &&
-      reconciled.servableDemand === evaluated.servableDemand &&
-      reconciled.gapPct === evaluated.gapPct &&
-      reconciled.recommendedDepth === evaluated.recommendedDepth &&
-      reconciled.recoveredUnits === evaluated.recoveredUnits &&
-      reconciled.residualGapUnits === evaluated.residualGapUnits &&
-      reconciled.revenueExposureGbp === evaluated.revenueExposureGbp &&
-      reconciled.marginExposureGbp === evaluated.marginExposureGbp,
-      `${s.label}: getAuthoritativeScenarioDecision matches evaluateAuthoritativeScenarioDecision byte-for-byte`
+      authoritativeScenarioDecision(s.id) === null,
+      `${s.label}: the reconciliation carrier holds nothing before the domain evaluation is read`
+    );
+    primeAuthoritativeScenarioDecision(evaluated);
+    const carried = authoritativeScenarioDecision(s.id);
+    assert(
+      JSON.stringify(carried) === JSON.stringify(evaluated),
+      `${s.label}: the reconciliation carrier returns the evaluated decision byte-for-byte`,
+      JSON.stringify(carried)
     );
   }
 
@@ -222,9 +230,20 @@ async function main() {
 
   for (const s of scenarios) {
     const scenario = resolveScenario(s.id);
+    /*
+     * Every node below is driven with the decision the DOMAIN EVALUATOR produced, carried in on the
+     * inspect context. That is the whole property: the surface RENDERS the authoritative answer, it
+     * does not arrive at one. §3 asserts the other half — that it cannot.
+     */
+    const ctx = {
+      scenario,
+      methodsRegister: null,
+      livingEvidence: null,
+      decision: await evaluateAuthoritativeScenarioDecision(s.id)
+    } as unknown as DynamicScenarioContext;
 
     // 1. Decision Gap Inspect Role
-    const gapRole = decisionGapNode.resolveScenarioRole(scenario, null);
+    const gapRole = decisionGapNode.resolveScenarioRole(scenario, null, ctx);
     assert(
       gapRole.details.includes(`${s.expectedExposed.toLocaleString()} exposed units`),
       `${s.label}: Decision Gap inspect details display authoritative exposed units (${s.expectedExposed.toLocaleString()})`,
@@ -250,7 +269,7 @@ async function main() {
     );
 
     // 2. Deterministic Calculation Node
-    const detRole = deterministicNode.resolveScenarioRole(scenario, null);
+    const detRole = deterministicNode.resolveScenarioRole(scenario, null, ctx);
     assert(
       detRole.details.includes(`${s.expectedBase.toLocaleString()} units`),
       `${s.label}: Deterministic Engine inspect details display base demand (${s.expectedBase.toLocaleString()} units)`
@@ -261,7 +280,7 @@ async function main() {
     );
 
     // 3. Promotion Recommendation Node
-    const promoRole = promoNode.resolveScenarioRole(scenario, null);
+    const promoRole = promoNode.resolveScenarioRole(scenario, null, ctx);
     assert(
       promoRole.action.includes(`${s.expectedRecPromo}%`),
       `${s.label}: Promotion Recommendation action includes certified ${s.expectedRecPromo}%`
@@ -274,14 +293,14 @@ async function main() {
     }
 
     // 4. Volume Allocation & Recovery Quantities Node
-    const allocRole = allocNode.resolveScenarioRole(scenario, null);
+    const allocRole = allocNode.resolveScenarioRole(scenario, null, ctx);
     assert(
       allocRole.details.includes(`${s.expectedRecovered.toLocaleString()} additional units`),
       `${s.label}: Volume Allocation inspect details display contractual flex recovered volume (${s.expectedRecovered.toLocaleString()} units)`
     );
 
     // 5. Decision Regret & Financial Exposure Node
-    const regretRole = regretNode.resolveScenarioRole(scenario, null);
+    const regretRole = regretNode.resolveScenarioRole(scenario, null, ctx);
     assert(
       regretRole.quantities?.some(q => q.label === 'Revenue at Risk' && q.value.includes(s.expectedRevExposure.toLocaleString())) ?? false,
       `${s.label}: Decision Regret inspect badge shows Revenue at Risk £${s.expectedRevExposure.toLocaleString()}`
@@ -292,11 +311,85 @@ async function main() {
     );
 
     // 6. Decision Window Node
-    const winRole = windowNode.resolveScenarioRole(scenario, null);
+    const winRole = windowNode.resolveScenarioRole(scenario, null, ctx);
     assert(
       winRole.quantities?.some(q => q.label === 'Window Status' && q.value.includes(String(s.expectedWindow))) ?? false,
       `${s.label}: Decision Window inspect badge shows ${s.expectedWindow} hrs (${s.expectedWindowState})`
     );
+  }
+
+  // ── 3. THE SURFACE CANNOT PRODUCE AN ECONOMIC QUANTITY OF ITS OWN ─────────
+  console.log('\n=== 3. NO SECOND ECONOMIC MODEL ON THE PRESENTATION PATH =========');
+
+  /*
+   * An earlier revision of `canonical-decision-reconciliation.ts` computed the quantities itself
+   * when the server answer had not arrived, branching on scenario identity and carrying a
+   * per-scenario expected demand, window and stability index inline. Those literals agreed with the
+   * engines on the day they were written and disagreed with the contract's own closed-form
+   * derivation by five units on the reference scenario — two economic models for one scenario,
+   * which ADR-073 rule 1 forbids. These are the properties that keep it a carrier.
+   */
+  const carrierSource = readFileSync(
+    join(process.cwd(), 'lib', 'canonical-decision-reconciliation.ts'),
+    'utf8'
+  ).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  assert(
+    !/[0-9]{4,}/.test(carrierSource),
+    'The reconciliation carrier holds no economic literal',
+    (carrierSource.match(/[0-9]{4,}/g) ?? []).join(', ')
+  );
+  assert(
+    !/SCN-[A-Z]/.test(carrierSource) && !/SCENARIO_ID\b/.test(carrierSource),
+    'The reconciliation carrier names no scenario and branches on no scenario identity'
+  );
+  assert(
+    !/[-+*/]\s*100\b|Math\.round|toFixed/.test(carrierSource),
+    'The reconciliation carrier performs no arithmetic on a published quantity'
+  );
+
+  /*
+   * And the surface itself. The property is about EVALUATED quantities, not declared ones: a node
+   * may legitimately publish the scenario's contractual list price or its store count, because
+   * those are terms of the frozen `SCI-01` record and there is exactly one of them. What it may
+   * not do is publish a figure only the domain pipeline can produce when the pipeline has not been
+   * read. Asserted per scenario, against that scenario's own evaluated figures.
+   */
+  resetAuthoritativeDecisionCache();
+  const evaluatedNodes = [
+    decisionGapNode,
+    deterministicNode,
+    promoNode,
+    allocNode,
+    regretNode,
+    windowNode,
+    findNode('forecast-stability'),
+    findNode('human-review-override')
+  ];
+
+  for (const s of scenarios) {
+    const scenario = resolveScenario(s.id);
+    const evaluatedFigures = [
+      s.expectedDemand.toLocaleString(),
+      s.expectedExposed.toLocaleString(),
+      s.expectedRevExposure.toLocaleString(),
+      s.expectedMarginExposure.toLocaleString(),
+      s.expectedRecovered.toLocaleString(),
+      /* Matched as the surface renders it: a bare "40" also occurs inside "ADR-040". */
+      `${s.expectedWindow} hrs`,
+      s.expectedWindowState
+    ];
+
+    for (const node of evaluatedNodes) {
+      const role = node.resolveScenarioRole(scenario, null, null);
+      const rendered = [role.action, role.details, ...(role.quantities ?? []).map(q => q.value)].join(' | ');
+      const leaked = evaluatedFigures.filter(f => rendered.includes(f));
+      assert(
+        leaked.length === 0,
+        `${s.label}: node "${node.name}" publishes no evaluated quantity without an authoritative evaluation`,
+        `leaked ${leaked.join(', ')} in ${rendered}`
+      );
+    }
   }
 
   console.log('\n=================================================================');

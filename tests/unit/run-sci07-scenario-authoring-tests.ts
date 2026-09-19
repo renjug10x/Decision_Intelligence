@@ -567,6 +567,83 @@ async function run() {
   }
   assert(withdrawnRefused, 'D13: A withdrawn draft cannot be confirmed');
 
+  /*
+   * ── R-SCI07-5 — a failed confirmation must not pollute the registered catalogue ──────────
+   *
+   * The residual `SCI-07` recorded: confirmation registered the candidate BEFORE certifying it,
+   * because `C-1.2` asks the registry to resolve the identity, so a confirmation that failed the
+   * gate left an uncertified scenario in the catalogue with no deregistration seam to take it out.
+   *
+   * D14 measures the property the correction rests on rather than assuming it: run the gate on a
+   * candidate that is registered NOWHERE and the only checks that fail for that reason are `C-1.2`
+   * and the cascade check `C-12.8`. That makes an unregistered pre-flight a complete discriminator,
+   * so the refusal can happen before anything is registered — no frozen contract changed.
+   */
+  const registrationProbe = JSON.parse(JSON.stringify(
+    resolveScenarioDraft(FULLY_STATED, 'SCN-AUTHORED-D14-REGISTRATION-PROBE').scenario
+  ));
+  const probeResult = certifyScenario(registrationProbe);
+  const probeFailedCheckIds = probeResult.dimensions
+    .flatMap(d => d.checks)
+    .filter(c => c.applicable && !c.passed)
+    .map(c => c.id)
+    .sort();
+  assert(
+    probeFailedCheckIds.join(',') === 'C-1.2,C-12.8',
+    'D14: An otherwise-certifiable candidate fails ONLY the two registration-dependent checks while unregistered',
+    probeFailedCheckIds.join(', ')
+  );
+
+  /*
+   * The fixture has to be a draft the authoring domain's own coherence rules PASS and the
+   * certification gate REFUSES — otherwise the refusal happens before resolution and the
+   * registration path is never reached, which would make D18 pass without proving anything.
+   * A one-percent promotional participation is exactly that: a coherent decision case whose
+   * economics the gate rejects at `C-2.6`.
+   */
+  const pollutionDraft = createDraft({
+    tenant_id: TENANT,
+    situation: 'PROMOTION_DEMAND_SURGE',
+    inputs: { ...FULLY_STATED, promotion_participation_pct: 1 }
+  });
+  const pollutionId = pollutionDraft.draft.scenario_id;
+  assert(
+    pollutionDraft.issues.every(i => i.severity !== 'ERROR'),
+    'D15a: The fixture passes the authoring domain\'s own coherence rules, so the gate is what refuses it',
+    pollutionDraft.issues.map(i => i.message).join(' | ')
+  );
+  const { isScenarioRegistered: probeRegistered, scenarioCatalogue: probeCatalogue } =
+    await import('../../packages/contracts/src/scenario-registry');
+  assert(
+    !probeRegistered(pollutionId),
+    'D15: A draft is not in the registered catalogue merely by being created'
+  );
+
+  let pollutionRefused = false;
+  let pollutionNamesDimensions = false;
+  try {
+    confirmDraft({ tenant_id: TENANT, draft_id: pollutionDraft.draft.draft_id, confirmed_by: 'Renju Nair', confirm: true });
+  } catch (error) {
+    pollutionRefused = error instanceof ScenarioAuthoringError;
+    pollutionNamesDimensions = /C-\d+/.test((error as Error).message)
+      || ((error as ScenarioAuthoringError).issues ?? []).some(i => /C-\d+/.test(i.message));
+  }
+  assert(pollutionRefused, 'D16: A confirmation whose scenario cannot certify is refused');
+  assert(pollutionNamesDimensions, 'D17: …with the failed dimensions named rather than a bare refusal');
+  assert(
+    !probeRegistered(pollutionId),
+    'D18: …and R-SCI07-5 is closed — the refused scenario is NOT left in the registry',
+    `${pollutionId} is registered`
+  );
+  assert(
+    !probeCatalogue().some(e => e.scenario_id === pollutionId),
+    'D19: …so it never reaches the catalogue a selector renders'
+  );
+  assert(
+    scenarioDraftStore.get(TENANT, pollutionDraft.draft.draft_id)?.state === 'DRAFT',
+    'D20: …and the draft stays DRAFT, carrying the certification verdict for its author to correct'
+  );
+
   // ═══════════════════════════════════════════════════════════════════════════
   console.log('\n=== E. CERTIFICATION STILL GATES ACTIVATION =======================\n');
 
@@ -964,7 +1041,25 @@ async function run() {
     !AUTHORING_RUNTIME.some(rel => /NEXT_PUBLIC_[A-Z_]*GEMINI|GEMINI[A-Z_]*_PUBLIC/i.test(codeOf(rel))),
     'I2: …never through a NEXT_PUBLIC_* name, which the build would inline into the browser'
   );
-  const clientSurfaces = filesUnder('components').filter(rel => /scenario-authoring|scenario-draft|scenarioDraft/i.test(codeOf(rel)));
+  /*
+   * Restated at Wave-3 convergence.
+   *
+   * Through the wave this matched any occurrence of `scenario-authoring` / `scenario-draft` in a
+   * component, which did its job while `SCI-07` and `SCI-09` ran concurrently. Converged, the
+   * literal form asserts the wrong property: the Architecture Surface consumes the Models & Methods
+   * register, whose `SCI-05`-owned entry for this capability is keyed `genai::scenario-draft`, and
+   * naming a register key is not consuming a domain. What the guard protects — that `SCI-08` owns
+   * the experience and no component reaches into the authoring runtime — is asserted structurally,
+   * which is stronger than the substring was.
+   */
+  const clientSurfaces = filesUnder('components').filter(rel => {
+    const code = codeOf(rel);
+    return /from\s+['"][^'"]*\/scenario-authoring(\/|['"])/.test(code)
+      || /from\s+['"][^'"]*scenario-draft-model['"]/.test(code)
+      || /\bScenarioDraft[A-Za-z]*\b/.test(code)
+      || /\/api\/v1\/scenarios\/drafts/.test(code)
+      || /\b(createDraft|updateDraft|confirmDraft|resolveScenarioDraft|assessDraft)\b/.test(code);
+  });
   assert(
     clientSurfaces.length === 0,
     'I2a: No client component consumes the authoring domain yet — SCI-08 owns the experience',

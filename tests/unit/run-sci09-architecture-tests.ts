@@ -21,7 +21,8 @@ import { join } from 'path';
 import {
   ARCH_LAYERS,
   type ArchLayer,
-  type ArchNode
+  type ArchNode,
+  type DynamicScenarioContext
 } from '@/components/observability/CognixArchitectureSurface';
 import {
   STORYBOARD_GATE,
@@ -32,7 +33,7 @@ import {
 } from '@/config/atlas-storyboard-gate';
 import { resolveScenario, isScenarioRegistered } from '@/lib/scenario-client-registry';
 import { scenarioMethodsRegister } from '@/lib/living-evidence-engine';
-import { getAuthoritativeScenarioDecision } from '@/lib/canonical-decision-reconciliation';
+import { evaluateAuthoritativeScenarioDecision } from '@/lib/canonical-decision-evaluator';
 
 const ROOT = process.cwd();
 
@@ -215,11 +216,35 @@ async function main() {
     const scn = resolveScenario(scnId);
     assert(scn.identity.scenario_id === scnId, `${scnId} resolves its own identity`);
 
-    // Evaluate Decision Gap resolution
-    const gapRole = decisionGapNode!.resolveScenarioRole(scn, null);
+    /*
+     * The node is driven with the decision the DOMAIN EVALUATOR published, because that is the only
+     * place the surface may get an economic quantity from. Driving it with a fixture — or with a
+     * second derivation kept alongside the engines — would assert that two numbers agree rather
+     * than that the surface consumes the authoritative one.
+     */
+    const authDecision = await evaluateAuthoritativeScenarioDecision(scnId);
+    const ctx = {
+      scenario: scn,
+      methodsRegister: null,
+      livingEvidence: null,
+      decision: authDecision
+    } as unknown as DynamicScenarioContext;
+
+    const gapRole = decisionGapNode!.resolveScenarioRole(scn, null, ctx);
     assert(gapRole.quantities !== undefined && gapRole.quantities.length > 0, `${scnId}: Decision Gap resolves quantities`);
-    const authDecision = getAuthoritativeScenarioDecision(scnId);
     assert(gapRole.details.includes(authDecision.exposedGap.toLocaleString()), `${scnId}: Decision Gap contains dynamic ${authDecision.exposedGap.toLocaleString()} units`);
+
+    /*
+     * And the property that makes the first assertion mean something: with NO authoritative
+     * decision in scope the surface publishes no economic quantity at all, rather than a number
+     * it worked out for itself.
+     */
+    const unmeasuredRole = decisionGapNode!.resolveScenarioRole(scn, null, null);
+    assert(
+      !/[0-9]{1,3}(,[0-9]{3})+/.test(unmeasuredRole.details),
+      `${scnId}: Decision Gap publishes no economic quantity without an authoritative evaluation`,
+      unmeasuredRole.details
+    );
 
     // Fresh Dairy specific assertions
     if (scnId === 'SCN-FRESH-DAIRY-CHEDDAR-001') {
@@ -246,9 +271,20 @@ async function main() {
   const promoNode = retailDecisionsLayer.nodes.find(n => n.id === 'retail-promo-recommendation')!;
   assert(promoNode !== undefined, 'Promotion Depth Recommendation node is present in Retail Decisions (Layer 5)');
 
+  /*
+   * Each recommendation below is read from the surface while it is being fed the decision the
+   * domain evaluator produced for that scenario. The surface holds no recommendation of its own.
+   */
+  const inspectContext = async (scn: ReturnType<typeof resolveScenario>) => ({
+    scenario: scn,
+    methodsRegister: null,
+    livingEvidence: null,
+    decision: await evaluateAuthoritativeScenarioDecision(scn.identity.scenario_id)
+  } as unknown as DynamicScenarioContext);
+
   // Fresh Dairy: 14% recommended discount, challenging committed 20%
   const freshDairyScn = resolveScenario('SCN-FRESH-DAIRY-CHEDDAR-001');
-  const freshDairyPromo = promoNode.resolveScenarioRole(freshDairyScn, null);
+  const freshDairyPromo = promoNode.resolveScenarioRole(freshDairyScn, null, await inspectContext(freshDairyScn));
   assert(
     freshDairyPromo.action.includes('14%') && freshDairyPromo.action.includes('20%'),
     `Fresh Dairy derived recommendation is 14% challenging committed 20% (action: "${freshDairyPromo.action}")`
@@ -256,7 +292,7 @@ async function main() {
 
   // Premium Bakery: 0% / do not promote certified recommendation
   const bakeryScn = resolveScenario('SCN-BAKERY-SOURDOUGH-003');
-  const bakeryPromo = promoNode.resolveScenarioRole(bakeryScn, null);
+  const bakeryPromo = promoNode.resolveScenarioRole(bakeryScn, null, await inspectContext(bakeryScn));
   assert(
     bakeryPromo.details.includes('do not promote') || bakeryPromo.action.includes('0%'),
     `Premium Bakery certified recommendation is 0% / do not promote (details: "${bakeryPromo.details}")`
@@ -264,7 +300,7 @@ async function main() {
 
   // Chilled Salmon: 10% recommended discount, aligned with committed 10%
   const salmonScn = resolveScenario('SCN-CHILLED-SALMON-002');
-  const salmonPromo = promoNode.resolveScenarioRole(salmonScn, null);
+  const salmonPromo = promoNode.resolveScenarioRole(salmonScn, null, await inspectContext(salmonScn));
   assert(
     salmonPromo.action.includes('10%'),
     `Chilled Salmon recommendation is 10% (action: "${salmonPromo.action}")`
@@ -277,7 +313,7 @@ async function main() {
   for (const node of allNodes) {
     assert(node.whatItIs.length > 20, `Node "${node.name}" has descriptive "What It Is"`);
     assert(node.summary.length > 10, `Node "${node.name}" has concise summary`);
-    const testRole = node.resolveScenarioRole(resolveScenario('SCN-FRESH-DAIRY-CHEDDAR-001'), null);
+    const testRole = node.resolveScenarioRole(freshDairyScn, null, await inspectContext(freshDairyScn));
     assert(testRole.action.length > 10, `Node "${node.name}" resolves action in active scenario`);
     assert(testRole.details.length > 15, `Node "${node.name}" resolves details in active scenario`);
   }
@@ -338,9 +374,78 @@ async function main() {
     assert(existsSync(join(ROOT, contract)), `Frozen contract exists: ${contract}`);
   }
 
-  // Verify SCI-07 boundaries: no scenario authoring files touched
-  assert(!archSurfaceSource.includes('ScenarioDraft'), 'No ScenarioDraft import in Architecture Surface');
-  assert(!archSurfaceSource.includes('authoring'), 'No authoring domain logic in Architecture Surface');
+  /*
+   * `SCI-07` boundary, restated at Wave-3 convergence.
+   *
+   * Through the wave this read `!archSurfaceSource.includes('authoring')` — a lane-isolation guard
+   * that did its job while the two lanes ran concurrently. Converged, the literal form asserts the
+   * wrong property: the Architecture Surface is the one place the estate explains itself to a
+   * client, scenario authoring is now implemented, and a surface forbidden from saying the word
+   * would have to be silent about a capability that exists. That is the untruthfulness `SCI-09`
+   * was commissioned to remove, arriving through a test.
+   *
+   * What the guard actually protects is ownership: the surface may DESCRIBE the capability and may
+   * read the Models & Methods register, and may not import the domain, hold its types, or drive its
+   * lifecycle. That is asserted structurally below, which is stronger than the substring was.
+   */
+  const archSurfaceCode = cleanArchSource;
+
+  assert(
+    !/from\s+['"][^'"]*scenario-draft-model['"]/.test(archSurfaceCode)
+      && !/from\s+['"][^'"]*\/scenario-authoring(\/|['"])/.test(archSurfaceCode),
+    'Architecture Surface imports no module of the SCI-07 authoring domain'
+  );
+  assert(
+    !/\bScenarioDraft[A-Za-z]*\b/.test(archSurfaceCode),
+    'Architecture Surface holds no Scenario Draft type'
+  );
+  assert(
+    !/\b(createDraft|updateDraft|confirmDraft|resolveDraft|assessDraftReadiness|draftScenario)\b/.test(archSurfaceCode),
+    'Architecture Surface drives no authoring lifecycle operation'
+  );
+  assert(
+    !/\/api\/v1\/scenarios\/drafts/.test(archSurfaceCode),
+    'Architecture Surface calls no authoring API'
+  );
+  assert(
+    !/GEMINI_API_KEY\s*[^\s)]/.test(archSurfaceCode.replace(/'[^']*'/g, '').replace(/`[^`]*`/g, '')),
+    'Architecture Surface reads no provider credential — it may only name one in prose'
+  );
+
+  /*
+   * And the positive half of the same property: the surface DOES represent the capability, and it
+   * does so against the register rather than against a second copy of SCI-07's authority model.
+   */
+  const scenarioDraftNode = allNodes.find(n => n.methodRefId === 'genai::scenario-draft');
+  assert(
+    scenarioDraftNode !== undefined,
+    'Architecture Surface represents governed scenario drafting, bound to the Models & Methods register'
+  );
+  assert(
+    scenarioDraftNode!.mechanism === 'drafted',
+    'Governed scenario drafting is presented as drafted, never as calculated or fitted'
+  );
+  const draftClaim = `${scenarioDraftNode!.whatItIs} ${scenarioDraftNode!.summary}`;
+  for (const [needle, property] of [
+    [/GEMINI_API_KEY/, 'names the server-side credential'],
+    [/non-authoritative/i, 'states the capability is non-authoritative'],
+    [/structur/i, 'states it proposes structure'],
+    [/confirm/i, 'states a person confirms'],
+    [/certif/i, 'states the model cannot certify'],
+    [/switched off|provider (absent|unavailable)/i, 'states a confirmed scenario reproduces without the provider']
+  ] as [RegExp, string][]) {
+    assert(needle.test(draftClaim), `Governed scenario drafting ${property}`);
+  }
+  for (const [needle, prohibition] of [
+    [/\bcalculates? demand\b/i, 'calculating demand'],
+    [/\bcalculates? (revenue|margin)\b/i, 'calculating revenue or margin'],
+    [/\b(produces|calculates) (the )?Decision (Gap|Window|Regret)\b/i, 'producing Decision Gap, Window or Regret'],
+    [/\bcertifies (a )?scenario/i, 'certifying a scenario'],
+    [/\bactivates (a )?scenario/i, 'activating a scenario'],
+    [/\breplaces human\b/i, 'replacing human confirmation']
+  ] as [RegExp, string][]) {
+    assert(!needle.test(draftClaim), `Governed scenario drafting is never described as ${prohibition}`);
+  }
 
   console.log('\n====================================================');
   console.log('SCI-09 ARCHITECTURE & SB-GATE TEST SUITE: ALL PASSED');

@@ -28,7 +28,7 @@ import {
 } from 'lucide-react';
 import { useDecisionState } from '@/context/DecisionStateContext';
 import { scenarioInScopeId } from '@/packages/contracts/src/scenario-scope';
-import { resolveScenario, isScenarioRegistered } from '@/lib/scenario-client-registry';
+import { resolveScenario, isScenarioRegistered, scenarioCatalogue } from '@/lib/scenario-client-registry';
 import { getMethodsRegister, getLivingEvidence } from '@/lib/observability-client';
 import type { LivingEvidenceScenarioData } from '@/lib/observability-client';
 import {
@@ -36,16 +36,9 @@ import {
   type MethodRegisterEntry,
   type MethodMechanism
 } from '@/packages/contracts/src/living-evidence-contracts';
+import { type CanonicalScenario } from '@/packages/contracts/src/canonical-scenario-model';
 import {
-  scenarioBaseDemandUnits,
-  scenarioExpectedDemandUnits,
-  scenarioServableDemandUnits,
-  scenarioExposedDemandUnits,
-  scenarioFlexCapacityUnits,
-  type CanonicalScenario
-} from '@/packages/contracts/src/canonical-scenario-model';
-import {
-  getAuthoritativeScenarioDecision,
+  authoritativeScenarioDecision,
   fetchAuthoritativeScenarioDecision,
   type AuthoritativeScenarioDecision
 } from '@/lib/canonical-decision-reconciliation';
@@ -68,25 +61,19 @@ export {
 
 export type ArchMechanismType = 'calculated' | 'fitted' | 'drafted' | 'rule' | 'human';
 
+/*
+ * What a node resolver is given.
+ *
+ * Every EVALUATED quantity arrives on `decision`, exactly as the server-side domain pipeline
+ * published it, or not at all. The surface holds no arithmetic of its own: ADR-073 rule 1 allows
+ * one economic source, and a second one that agrees today is still a second one.
+ */
 export interface DynamicScenarioContext {
   scenario: CanonicalScenario;
   methodsRegister: MethodsRegister | null;
   livingEvidence: LivingEvidenceScenarioData | null;
-  baseDemand: number;
-  expectedDemand: number;
-  servableDemand: number;
-  exposedGap: number;
-  flexCapacity: number;
-  gapPct: string;
-  recommendedDepth: number;
-  committedDepth: number;
-  recoveredUnits?: number;
-  residualGapUnits?: number;
-  revenueExposureGbp?: number;
-  marginExposureGbp?: number;
-  windowRemainingHours?: number;
-  windowState?: string;
-  stabilityScore?: number;
+  /** The authoritative decision read back from `GET /api/v1/scenarios/decision`, or null. */
+  decision: AuthoritativeScenarioDecision | null;
 }
 
 export interface ArchNode {
@@ -120,12 +107,28 @@ export interface ArchLayer {
   nodes: ArchNode[];
 }
 
-// ── Helper to resolve dynamic metrics cleanly from scenario and live context ───
-function resolveMetrics(scenario: any, context?: DynamicScenarioContext | null) {
-  const auth = getAuthoritativeScenarioDecision(scenario, context);
+/**
+ * The authoritative quantities a node may publish, formatted for display.
+ *
+ * `UNMEASURED` is the honest answer before the domain evaluation has been read — the `ATL-FINAL`
+ * discipline of declaring unmeasured rather than reporting a figure that was not earned. There is
+ * deliberately no local fallback arithmetic here to fill the gap.
+ */
+const UNMEASURED = 'not yet evaluated';
+
+function resolveMetrics(_scenario: any, context?: DynamicScenarioContext | null) {
+  const d = context?.decision ?? null;
+  const num = (v: number | null | undefined) => (typeof v === 'number' ? v.toLocaleString() : UNMEASURED);
   return {
-    ...auth,
-    flexCapacity: auth.recoveredUnits
+    measured: d !== null,
+    decision: d,
+    /** `123,456 units`, or the unmeasured marker. */
+    units: (v: number | null | undefined) => (typeof v === 'number' ? `${v.toLocaleString()} units` : UNMEASURED),
+    /** `£123,456`, or the unmeasured marker. */
+    gbp: (v: number | null | undefined) => (typeof v === 'number' ? `£${v.toLocaleString()}` : UNMEASURED),
+    /** `14%`, or the unmeasured marker. */
+    pct: (v: number | string | null | undefined) => (v === null || v === undefined ? UNMEASURED : `${v}%`),
+    num
   };
 }
 
@@ -235,14 +238,15 @@ export const ARCH_LAYERS: ArchLayer[] = [
         summary: 'Quantified stability of incoming evidence streams over time — not an artificial model confidence score.',
         whatItIs: 'ADR-040 explicitly defines Forecast Stability as an inherent property of the evidence stream itself: the degree of volatility, trajectory drift, and noise in incoming observations over the decision horizon. It is never a model accuracy metric or confidence percentage.',
         resolveScenarioRole: (scenario, _methods, ctx) => {
-          const { stabilityScore } = resolveMetrics(scenario, ctx);
-          const stab = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'FORECAST_STABILITY')?.after ?? stabilityScore;
+          const { decision, num } = resolveMetrics(scenario, ctx);
+          const liveStability = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'FORECAST_STABILITY')?.after;
+          const stab = liveStability !== undefined ? String(liveStability) : num(decision?.stabilityScore);
           return {
             action: `Tracks evidence-stream trajectory stability for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
             details: `Evaluates signal trajectory consistency across consecutive trading days per ADR-040. An inherent property of the evidence stream itself, not an ML model confidence score.`,
             quantities: [
               { label: 'Construct Authority', value: 'ADR-040 (Evidence Property)' },
-              { label: 'Stability Index', value: `${stab} / 100` }
+              { label: 'Stability Index', value: stab === UNMEASURED ? UNMEASURED : `${stab} / 100` }
             ]
           };
         }
@@ -289,14 +293,14 @@ export const ARCH_LAYERS: ArchLayer[] = [
         summary: 'Exact business arithmetic: revenues, margins, exposures, and volumetric balances.',
         whatItIs: 'Precise financial and inventory mathematics. Calculates exposure, expected and servable quantities, and unit margins directly from declared scenario formulas without synthetic extrapolation.',
         resolveScenarioRole: (scenario, _methods, ctx) => {
-          const { baseDemand, expectedDemand } = resolveMetrics(scenario, ctx);
+          const { decision, units } = resolveMetrics(scenario, ctx);
           const movement = scenario?.demand?.total_demand_movement_pct ?? 0;
           return {
             action: `Calculates exact commercial quantities for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
-            details: `Computes base demand (${baseDemand.toLocaleString()} units), expected demand (${expectedDemand.toLocaleString()} units), and unit margin revenues directly from declared scenario formulas.`,
+            details: `Computes base demand (${units(decision?.baseDemand)}), expected demand (${units(decision?.expectedDemand)}), and unit margin revenues directly from declared scenario formulas.`,
             quantities: [
               { label: 'Calculation Basis', value: 'Deterministic Formulas' },
-              { label: 'Base Horizon Units', value: `${baseDemand.toLocaleString()} units` },
+              { label: 'Base Horizon Units', value: units(decision?.baseDemand) },
               { label: 'Movement Rate', value: `+${movement.toFixed(1)}%` }
             ]
           };
@@ -339,6 +343,49 @@ export const ARCH_LAYERS: ArchLayer[] = [
         })
       },
       {
+        /*
+         * Wave-3 convergence. The estate gained a SECOND governed use of Google GenAI when the
+         * scenario-drafting domain landed, and a surface that describes the platform truthfully has
+         * to say so. The authority model below is NOT restated here — it is the register's, read at
+         * `genai::scenario-draft`, whose limitations are the boundary this node reports.
+         */
+        id: 'method-genai-scenario-draft',
+        name: 'Google GenAI Scenario Drafting',
+        shortLabel: 'GenAI Scenario Drafting',
+        mechanism: 'drafted',
+        methodRefId: 'genai::scenario-draft',
+        governingAuthority: 'ADR-083 · ADR-067 (Strictly non-authoritative)',
+        summary: 'Server-side Gemini proposing the shape of a scenario someone is describing — non-authoritative structure and qualitative context only, confirmed by a person before anything is computed.',
+        whatItIs:
+          'When someone builds their own scenario, they can describe the situation in their own words and have Google GenAI propose how it should be STRUCTURED: which governed situation it is, what posture to take on supplier flex or promotional intent, what to call it. '
+          + 'Governed by ADR-083 and ADR-067: the credential is a server-side GEMINI_API_KEY read at call time and never reaches a browser, and every quantitative field is prohibited at the allowlist, so the model cannot propose a demand figure, a revenue or margin number, a discount depth, an elasticity, or a Decision Gap, Window or Regret. '
+          + 'It proposes; it does not decide. Nothing is materialised until a named person confirms it, and confirmation is what triggers deterministic resolution and then certification — the model can neither confirm, certify nor activate. '
+          + 'Once a scenario is confirmed, every published quantity is recomputed by CogniX engines from the confirmed inputs, so the scenario resolves, certifies and runs identically with the provider switched off.',
+        resolveScenarioRole: (_scenario, methods) => {
+          /* Read from Models & Methods, never asserted here. */
+          const entry = methods?.entries.find(e => e.method_id === 'genai::scenario-draft');
+          const notRun = methods?.undescribed.find(u => u.method_id === 'genai::scenario-draft');
+          return {
+            action: 'Proposes the structure and qualitative context of a scenario someone is describing',
+            details:
+              (entry?.purpose
+                ?? 'Proposes the structure and qualitative context of a scenario a person is authoring, for that person to keep, edit or reject.')
+              + ' A person confirms before anything is materialised; CogniX then recomputes every quantity deterministically, and the confirmed scenario reproduces with the provider switched off.',
+            quantities: [
+              { label: 'Authority', value: 'Non-authoritative (ADR-083)' },
+              { label: 'May Propose', value: 'Structure and qualitative context only' },
+              { label: 'May Never Produce', value: 'Demand, revenue, margin, depth, Gap / Window / Regret' },
+              { label: 'Confirmation', value: 'A named person, never the model' },
+              { label: 'Credential', value: 'Server-side GEMINI_API_KEY (never in a browser)' },
+              {
+                label: 'Observed Activity',
+                value: notRun ? 'Implemented; has not run in this environment' : 'Registered and available'
+              }
+            ]
+          };
+        }
+      },
+      {
         id: 'method-certification',
         name: 'Rules & Certification Gate',
         shortLabel: 'Certification Gate',
@@ -376,14 +423,22 @@ export const ARCH_LAYERS: ArchLayer[] = [
         summary: 'Demand opportunity minus executable capacity, derived from deterministic engines.',
         whatItIs: 'ADR-041 defines Decision Gap as the explicit difference between unconstrained market demand and servable retail capacity. It represents the unserved revenue or inventory exposure that requires commercial intervention.',
         resolveScenarioRole: (scenario, _methods, ctx) => {
-          const { expectedDemand, servableDemand, exposedGap, gapPct } = resolveMetrics(scenario, ctx);
+          const { decision, units, pct } = resolveMetrics(scenario, ctx);
+          const exposed = typeof decision?.exposedGap === 'number'
+            ? `${decision.exposedGap.toLocaleString()} exposed units (${decision.gapPct}% of base demand)`
+            : `an ${UNMEASURED} exposed volume`;
           return {
             action: `Quantifies exposed unservable demand under promotional surge`,
-            details: `Identified ${exposedGap.toLocaleString()} exposed units (${gapPct}% of expected demand) between expected demand (${expectedDemand.toLocaleString()} units) and executable allocation (${servableDemand.toLocaleString()} units).`,
+            details: `Identified ${exposed} between expected demand (${units(decision?.expectedDemand)}) and executable allocation (${units(decision?.servableDemand)}).`,
             quantities: [
-              { label: 'Expected Demand', value: `${expectedDemand.toLocaleString()} units` },
-              { label: 'Servable Allocation', value: `${servableDemand.toLocaleString()} units` },
-              { label: 'Exposed Decision Gap', value: `${exposedGap.toLocaleString()} units (${gapPct}%)` }
+              { label: 'Expected Demand', value: units(decision?.expectedDemand) },
+              { label: 'Servable Allocation', value: units(decision?.servableDemand) },
+              {
+                label: 'Exposed Decision Gap',
+                value: typeof decision?.exposedGap === 'number'
+                  ? `${decision.exposedGap.toLocaleString()} units (${pct(decision.gapPct)})`
+                  : UNMEASURED
+              }
             ]
           };
         }
@@ -397,17 +452,22 @@ export const ARCH_LAYERS: ArchLayer[] = [
         summary: 'Operational deadline constraint derived from supplier lead times and warehouse cutoffs.',
         whatItIs: 'ADR-042 explicitly rules that the Decision Window is a hard operational constraint, not an artificial algorithmic confidence decay curve. It is calculated directly from supplier production lead times, logistics scheduling, and store replenishment cutoffs.',
         resolveScenarioRole: (scenario, _methods, ctx) => {
-          const { windowRemainingHours, windowState } = resolveMetrics(scenario, ctx);
+          const { decision } = resolveMetrics(scenario, ctx);
           const liveHours = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'DECISION_WINDOW_HOURS')?.after;
           const liveState = ctx?.livingEvidence?.decision_position?.decision_window;
-          const winHours = liveHours ?? windowRemainingHours;
-          const winState = liveState ?? windowState;
+          const winHours = liveHours ?? decision?.windowRemainingHours;
+          const winState = liveState ?? decision?.windowState;
           return {
             action: `Enforces operational cutoff constraint with ${scenario?.supply?.supplier_name ?? 'supplier'}`,
             details: `Hard operational deadline constraint (ADR-042) derived from supplier lead time (${scenario?.calendar?.supplier_lead_time_days ?? '—'} days) and contractual cut-off schedule, before supplier production locks and transport cannot be flexed.`,
             quantities: [
               { label: 'Supplier Lead Time', value: `${scenario?.calendar?.supplier_lead_time_days ?? '—'} days` },
-              { label: 'Window Status', value: `${winState} (${winHours} hrs)` }
+              {
+                label: 'Window Status',
+                value: winState === undefined || winHours === undefined
+                  ? UNMEASURED
+                  : `${winState} (${winHours} hrs)`
+              }
             ]
           };
         }
@@ -421,18 +481,18 @@ export const ARCH_LAYERS: ArchLayer[] = [
         summary: 'Comparative expected value between taking action versus doing nothing.',
         whatItIs: 'ADR-043 defines Decision Regret as the comparative loss incurred by pursuing a suboptimal intervention (or doing nothing) versus committing to the optimal recommendation, evaluated over margin, revenue, and waste.',
         resolveScenarioRole: (scenario, _methods, ctx) => {
-          const { revenueExposureGbp, marginExposureGbp } = resolveMetrics(scenario, ctx);
+          const { decision, gbp } = resolveMetrics(scenario, ctx);
           const liveMargin = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'MARGIN_EXPOSURE_GBP')?.after;
           const liveRev = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'REVENUE_EXPOSURE_GBP')?.after;
-          const marginVal = liveMargin !== undefined ? Number(liveMargin) : marginExposureGbp;
-          const revVal = liveRev !== undefined ? Number(liveRev) : revenueExposureGbp;
+          const marginVal = liveMargin !== undefined ? Number(liveMargin) : decision?.marginExposureGbp;
+          const revVal = liveRev !== undefined ? Number(liveRev) : decision?.revenueExposureGbp;
           return {
             action: `Calculates commercial penalty of non-intervention for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
             details: `Quantifies comparative expected loss under ADR-043 across margin, unserved demand, and customer loyalty if the Decision Gap is left unaddressed versus committing to the recommended intervention.`,
             quantities: [
               { label: 'Evaluation Basis', value: 'Do Nothing vs Governed Intervention' },
-              { label: 'Margin at Risk', value: `£${marginVal.toLocaleString()}` },
-              { label: 'Revenue at Risk', value: `£${revVal.toLocaleString()}` }
+              { label: 'Margin at Risk', value: gbp(marginVal) },
+              { label: 'Revenue at Risk', value: gbp(revVal) }
             ]
           };
         }
@@ -475,13 +535,25 @@ export const ARCH_LAYERS: ArchLayer[] = [
         summary: 'Calculates derived promotion recommendation maximising contribution on the price elasticity curve.',
         whatItIs: 'Evaluates promotional elasticity curves across depth tiers with supplier funding participation, selecting the exact depth tier that maximises net contribution.',
         resolveScenarioRole: (scenario, _methods, ctx) => {
-          const { recommendedDepth, committedDepth } = resolveMetrics(scenario, ctx);
-          const isDoNotPromote = recommendedDepth === 0;
+          const { decision, pct } = resolveMetrics(scenario, ctx);
+          /* The committed depth is a DECLARED term of the scenario; only the recommendation is evaluated. */
+          const committedDepth = scenario?.economics?.promotion_depth_pct ?? 0;
+          const recommended = decision?.recommendedDepth;
+          const isDoNotPromote = recommended === 0;
+          const recLabel = pct(recommended);
           return {
-            action: `Derived promotion recommendation: ${recommendedDepth}% discount (Challenging committed ${committedDepth}%)`,
-            details: `Evaluates price elasticity curve (${scenario?.economics?.promotional_response_pp_per_depth_point ?? 0} pp/depth pt) and supplier funding (${scenario?.economics?.supplier_promotional_funding_pct ?? 0}%). CogniX derives ${recommendedDepth}% depth (${isDoNotPromote ? 'do not promote' : `${recommendedDepth}% promotional discount`}) against the committed ${committedDepth}% plan.`,
+            action: recommended === undefined
+              ? `Derived promotion recommendation ${UNMEASURED} (committed plan ${committedDepth}%)`
+              : `Derived promotion recommendation: ${recLabel} discount (Challenging committed ${committedDepth}%)`,
+            details: `Evaluates price elasticity curve (${scenario?.economics?.promotional_response_pp_per_depth_point ?? 0} pp/depth pt) and supplier funding (${scenario?.economics?.supplier_promotional_funding_pct ?? 0}%). `
+              + (recommended === undefined
+                ? `The depth CogniX derives is ${UNMEASURED} on this surface until the domain evaluation is read; the committed plan is ${committedDepth}%.`
+                : `CogniX derives ${recLabel} depth (${isDoNotPromote ? 'do not promote' : `${recLabel} promotional discount`}) against the committed ${committedDepth}% plan.`),
             quantities: [
-              { label: 'Derived Recommendation', value: `${recommendedDepth}% ${isDoNotPromote ? '(Do not promote)' : 'Discount'}` },
+              {
+                label: 'Derived Recommendation',
+                value: recommended === undefined ? UNMEASURED : `${recLabel} ${isDoNotPromote ? '(Do not promote)' : 'Discount'}`
+              },
               { label: 'Committed Plan', value: `${committedDepth}% Discount` }
             ]
           };
@@ -497,14 +569,22 @@ export const ARCH_LAYERS: ArchLayer[] = [
         summary: 'Allocates available inventory and supplier production to regional depots and stores.',
         whatItIs: 'Calculates recoverable volume and allocates available stock to distribution depots, prioritizing high-velocity stores and mitigating stockout risks.',
         resolveScenarioRole: (scenario, _methods, ctx) => {
-          const { servableDemand, flexCapacity } = resolveMetrics(scenario, ctx);
+          const { decision, units } = resolveMetrics(scenario, ctx);
           const clause = scenario?.supply?.flex_clause_reference ?? 'Volume Flex Notice';
+          const recovered = decision?.recoveredUnits;
           return {
             action: `Allocates servable volume and contractual flex capacity`,
-            details: `Standing allocation covers ${servableDemand.toLocaleString()} units (capacity index ${scenario?.supply?.supplier_capacity_index?.toFixed(2) ?? '1.0'}). Contractual flex clause "${clause}" can release up to ${flexCapacity.toLocaleString()} additional units.`,
+            details: `Standing allocation covers ${units(decision?.servableDemand)} (capacity index ${scenario?.supply?.supplier_capacity_index?.toFixed(2) ?? '1.0'}). `
+              + `Contractual flex clause "${clause}" can release up to `
+              + (typeof recovered === 'number' ? `${recovered.toLocaleString()} additional units.` : `an ${UNMEASURED} additional volume.`),
             quantities: [
-              { label: 'Standing Allocation', value: `${servableDemand.toLocaleString()} units` },
-              { label: 'Contractual Flex', value: `Up to ${flexCapacity.toLocaleString()} units (${scenario?.supply?.supplier_flex_rate_pct ?? 0}%)` }
+              { label: 'Standing Allocation', value: units(decision?.servableDemand) },
+              {
+                label: 'Contractual Flex',
+                value: typeof recovered === 'number'
+                  ? `Up to ${recovered.toLocaleString()} units (${scenario?.supply?.supplier_flex_rate_pct ?? 0}%)`
+                  : UNMEASURED
+              }
             ]
           };
         }
@@ -550,9 +630,9 @@ export const ARCH_LAYERS: ArchLayer[] = [
         summary: 'Category Lead reviews evidence, evaluates trade-offs, and adjusts operational levers.',
         whatItIs: 'Retail leaders review the derived recommendation, inspect the Decision Trace, and apply commercial intuition, strategic supplier relationship context, or market nuance before approving.',
         resolveScenarioRole: (scenario, _methods, ctx) => {
-          const { recommendedDepth } = resolveMetrics(scenario, ctx);
+          const { decision, pct } = resolveMetrics(scenario, ctx);
           return {
-            action: `Commercial leadership reviews derived ${recommendedDepth}% recommendation for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
+            action: `Commercial leadership reviews the derived ${pct(decision?.recommendedDepth)} recommendation for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
             details: `Commercial leaders evaluate derived recommendation against supplier context and retain full authority to accept, adjust, or decline the intervention per Principle 13.`,
             quantities: [
               { label: 'Governance Role', value: 'Category Director / Commercial Lead' },
@@ -671,6 +751,23 @@ export default function CognixArchitectureSurface() {
     };
   }, [activeScenarioId]);
 
+  /*
+   * The scenarios this surface can switch to come from the REGISTRY, never from a list written
+   * here. `SCI-03`'s guard states the property the hard way: a pack is data, never a branch, and
+   * a surface that names the curated packs holds a second catalogue that a fourth scenario would
+   * silently fall out of.
+   */
+  const switchableScenarios = useMemo(() => {
+    try {
+      return scenarioCatalogue().map((entry) => ({
+        scenario_id: entry.scenario_id,
+        scenario_name: entry.scenario_name
+      }));
+    } catch {
+      return [];
+    }
+  }, []);
+
   // Resolve active Canonical Scenario
   const scenario = useMemo(() => {
     try {
@@ -686,17 +783,16 @@ export default function CognixArchitectureSurface() {
   // Build mechanically grounded dynamic context
   const dynamicContext = useMemo((): DynamicScenarioContext | null => {
     if (!scenario) return null;
-    const auth = serverDecision?.scenarioId === activeScenarioId
+    /*
+     * The decision is whatever the domain evaluator published for THIS scenario, or null.
+     * Never a decision belonging to the scenario that was active a moment ago, and never one
+     * this surface worked out for itself.
+     */
+    const decision = serverDecision?.scenarioId === activeScenarioId
       ? serverDecision
-      : getAuthoritativeScenarioDecision(scenario);
+      : authoritativeScenarioDecision(activeScenarioId);
 
-    return {
-      scenario,
-      methodsRegister,
-      livingEvidence,
-      ...auth,
-      flexCapacity: auth.recoveredUnits
-    };
+    return { scenario, methodsRegister, livingEvidence, decision };
   }, [scenario, methodsRegister, livingEvidence, serverDecision, activeScenarioId]);
 
   // Find currently selected node
@@ -794,9 +890,11 @@ export default function CognixArchitectureSurface() {
               value={activeScenarioId}
               onChange={(e) => setActiveScenarioId(e.target.value)}
             >
-              <option value="SCN-FRESH-DAIRY-CHEDDAR-001">Fresh Dairy &middot; Cheshire Cheese Co</option>
-              <option value="SCN-CHILLED-SALMON-002">Chilled Fish &middot; Foodvest Fish</option>
-              <option value="SCN-BAKERY-SOURDOUGH-003">Premium Bakery &middot; Allied Bakeries</option>
+              {switchableScenarios.map((entry) => (
+                <option key={entry.scenario_id} value={entry.scenario_id}>
+                  {entry.scenario_name}
+                </option>
+              ))}
             </select>
           </div>
         </div>

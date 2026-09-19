@@ -1013,17 +1013,63 @@ export function scenarioMethodsRegister(scenarioId: string): MethodsRegister {
         'Not used to produce any published economic quantity.'
       ]
     });
+    /*
+     * Wave-3 convergence event (ADR-084 part 2), taken in the owning module.
+     *
+     * `SCI-07` implemented a SECOND governed GenAI capability — scenario drafting under ADR-083 —
+     * and this register is the one place the estate says what its mechanisms are. `SCI-09` renders
+     * it and holds no second copy, so a register that still described only decision-context
+     * drafting made the Architecture Surface untruthful about GenAI the moment the two lanes
+     * converged. The entry adds no shape the contract does not already declare.
+     *
+     * The authority model below is `SCI-07`'s, quoted rather than restated: every quantitative
+     * field is prohibited at the allowlist, confirmation requires a named person, and a confirmed
+     * scenario resolves with the provider absent.
+     */
+    entries.push({
+      method_id: 'genai::scenario-draft',
+      display_name: 'Governed scenario drafting',
+      mechanism: 'llm',
+      purpose:
+        'Proposes the STRUCTURE and qualitative context of a scenario a person is authoring — a '
+        + 'situation, a posture, a name — for that person to keep, edit or reject. It proposes no '
+        + 'quantity and confirms nothing.',
+      inputs: ['A person\'s description of their own situation, fenced as data', 'The governed field register'],
+      output: 'Non-authoritative draft proposals, each validated against the field allowlist before it is shown',
+      implementation_ref: 'app/api/v1/scenarios/drafts/[id]/assist/route.ts',
+      last_run_scenario_iso: null,
+      applies_to_scenario_ids: allScenarioIds,
+      measured_error: null,
+      limitations: [
+        'Non-authoritative by contract (ADR-083): a proposal is never evidence and never a decision.',
+        'Server-side only, on `GEMINI_API_KEY` read at call time. No provider credential reaches a browser.',
+        'Every quantitative field is prohibited at the allowlist, so it cannot propose demand, '
+          + 'revenue, margin, a discount depth, an elasticity or a Decision Gap, Window or Regret.',
+        'It cannot confirm, certify or activate a scenario — confirmation requires a named person.',
+        'Once confirmed, a scenario resolves, certifies and runs identically with the provider absent: '
+          + 'nothing on the resolution path reads a drafting envelope.'
+      ]
+    });
   }
 
   const undescribed = genAiConfigured
     ? []
-    : [{
-        method_id: 'genai::decision-context-draft',
-        reason:
-          'The governed GenAI drafting capability is implemented but no provider credential is '
-          + 'configured in this environment, so it has not run. Reporting it as active would be the '
-          + 'fake model activity this register exists to prevent.'
-      }];
+    : [
+        {
+          method_id: 'genai::decision-context-draft',
+          reason:
+            'The governed GenAI drafting capability is implemented but no provider credential is '
+            + 'configured in this environment, so it has not run. Reporting it as active would be the '
+            + 'fake model activity this register exists to prevent.'
+        },
+        {
+          method_id: 'genai::scenario-draft',
+          reason:
+            'Governed scenario drafting is implemented and reachable, but no provider credential is '
+            + 'configured in this environment, so it has not run. Scenario authoring itself remains '
+            + 'fully available by hand — drafting is an assist, never a dependency.'
+        }
+      ];
 
   return {
     scenario_id: scenario.identity.scenario_id,
