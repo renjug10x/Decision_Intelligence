@@ -28,6 +28,7 @@ import {
   AlertTriangle
 } from 'lucide-react';
 import ArchitectureExplorer from '@/components/ArchitectureExplorer';
+import CognixArchitectureSurface from '@/components/observability/CognixArchitectureSurface';
 import EvidenceSignalsSection from '@/components/observability/EvidenceSignalsSection';
 import ModelsMethodsSection from '@/components/observability/ModelsMethodsSection';
 import PlatformHealthSection from '@/components/observability/PlatformHealthSection';
@@ -37,6 +38,10 @@ import { useDecisionState } from '@/context/DecisionStateContext';
 import { scenarioInScopeId } from '@/packages/contracts/src';
 
 type SectionId = 'evidence' | 'methods' | 'health' | 'trace' | 'architecture' | 'configuration';
+
+interface ObservabilityGovernanceProps {
+  initialSection?: SectionId;
+}
 
 interface SectionDefinition {
   id: SectionId;
@@ -129,7 +134,7 @@ function Slider({
   );
 }
 
-export default function ObservabilityGovernance() {
+export default function ObservabilityGovernance({ initialSection }: ObservabilityGovernanceProps = {}) {
   const {
     wowDeclineThreshold, setWowDeclineThreshold,
     wasteSpikeThreshold, setWasteSpikeThreshold,
@@ -142,7 +147,7 @@ export default function ObservabilityGovernance() {
   } = useApp();
 
   const { decisionState, refreshState, resetScenario } = useDecisionState();
-  const [section, setSection] = useState<SectionId>('evidence');
+  const [section, setSection] = useState<SectionId>(initialSection ?? 'evidence');
 
   const activeScenarioId = decisionState?.scenario_id ?? scenarioInScopeId();
 
@@ -216,28 +221,11 @@ export default function ObservabilityGovernance() {
         </section>
       )}
 
-      {/* RETAINED SECTION: Architectural Storyboard (Under ADR-051 / SB-GATE) */}
+      {/* SECTION 5: Architecture Surface (SCI-09 & ADR-051 / SB-GATE) */}
+      {/* Architectural Storyboard is Retained pending retirement under ADR-051 / SB-GATE and accessible via ArchitectureExplorer in CognixArchitectureSurface */}
       {section === 'architecture' && (
         <section className="og-section" aria-label="Architecture">
-          <h2>How is the platform architected?</h2>
-          <p className="og-lead">
-            The authoritative account of how a CogniX capability works lives with the capability in the
-            Capability Atlas. The storyboard below is retained until the SB-GATE retirement gate passes.
-          </p>
-
-          <div className="og-storyboard">
-            <div className="og-storyboard-notice">
-              <AlertTriangle size={13} strokeWidth={2} />
-              <span>
-                <strong>Retained pending retirement.</strong> This storyboard is recorded as{' '}
-                <em>Retired</em> in the capability registry and its implementation is simulated. It is
-                kept reachable because the storyboard retirement gate is not yet satisfied — several
-                units of its knowledge do not yet exist at their destinations. Figures shown on its
-                slides are illustrative and are not supported by measurement.
-              </span>
-            </div>
-            <ArchitectureExplorer />
-          </div>
+          <CognixArchitectureSurface />
         </section>
       )}
 

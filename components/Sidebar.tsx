@@ -218,9 +218,16 @@ export default function Sidebar({ currentPage, onNavigate, open = false, onDismi
 
         <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
           <button
+            onClick={() => go('architecture')}
+            title="CogniX Architecture"
+            style={{ flex: 1, padding: '6px 6px', fontSize: '0.75rem', borderRadius: 4, background: currentPage === 'architecture' ? 'var(--curiosity-light)' : '#FFFFFF', border: currentPage === 'architecture' ? '1px solid var(--g10x-orange)' : '1px solid var(--border)', color: currentPage === 'architecture' ? 'var(--g10x-orange)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
+          >
+            <Compass size={12} /> Architecture
+          </button>
+          <button
             onClick={() => go('settings')}
             title="Observability & Governance"
-            style={{ flex: 1, padding: '6px 8px', fontSize: '0.75rem', borderRadius: 4, background: '#FFFFFF', border: '1px solid var(--border)', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5 }}
+            style={{ flex: 1, padding: '6px 6px', fontSize: '0.75rem', borderRadius: 4, background: currentPage === 'settings' ? 'var(--curiosity-light)' : '#FFFFFF', border: currentPage === 'settings' ? '1px solid var(--g10x-orange)' : '1px solid var(--border)', color: currentPage === 'settings' ? 'var(--g10x-orange)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
           >
             <SettingsIcon size={12} /> Observability &amp; Governance
           </button>
