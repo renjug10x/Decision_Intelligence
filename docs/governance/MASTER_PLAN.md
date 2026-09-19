@@ -1205,7 +1205,7 @@ Status: `[IN PROGRESS]` — **WAVES 0, 1 AND 2 COMPLETE AND CONVERGED.**
 | 0 | `SCI-01`, `SCI-02` | **GATE A PASSED 2026-09-17** | SHA-A `8d6d960c` |
 | 1 | `SCI-03`, `SCI-04` (+ `SCI-03R`, the `R-35` repair) | **GATE B PASSED 2026-09-17** | SHA-B `e0a9c23d` |
 | 2 | `SCI-05`, `SCI-06` (+ the `R-37` and `R-38`/`R-39` repairs) | **GATE C PASSED 2026-09-18** | SHA-C `c7c9f64f` |
-| 3 | `SCI-07`, `SCI-09` | **AUTHORISED, not started** | — |
+| 3 | `SCI-07`, `SCI-09` | **IN FLIGHT** — `SCI-07` DELIVERED 2026-09-19; `SCI-09` is the concurrent lane. **GATE D NOT CLAIMED** | — |
 | 4 | `SCI-10`, `SCI-08` | post-demo, gated behind Gate D | — |
 
 All six governed contracts are frozen. The three `SCI-05`-owned Wave-2 contracts — Signal
@@ -1305,7 +1305,7 @@ redesign.
 | `SCI-04` | Scenario Selection Experience | ANTIGRAVITY | Antigravity | 1 | **[COMPLETED 2026-09-17]** — converged with `SCI-03` at Gate B |
 | `SCI-05` | Living Evidence — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 | **[COMPLETED 2026-09-17]** |
 | `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 | **[COMPLETED 2026-09-17 · CONVERGED 2026-09-18]** |
-| `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | Not started |
+| `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | **[DELIVERED 2026-09-19]** — `feature/cognix-sci-07-scenario-authoring` |
 | `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | Not started |
 | `SCI-08` | Create Your Own Scenario Experience | POST-DEMO | Antigravity | 4 | Not started |
 | `SCI-10` | CSV Scenario Enrichment via Attested Admission | POST-DEMO | Cursor | 4 | Not started |
@@ -1345,6 +1345,15 @@ structure, proposes semantic mappings and qualitative assumptions, and explains 
 source of demand, economics, margin, promotion calculations, Decision Gap, Decision Window,
 reconciliation or any published quantitative outcome. A confirmed scenario must reproduce identically
 with the provider unavailable (ADR-083). The legacy client-key path at `R-15` is **not** extended.
+
+**Implemented for scenario authoring by `SCI-07` (2026-09-19), and the enforcement is structural.**
+The fields GenAI may propose are derived from the Scenario Draft field register, in which every
+quantitative field is prohibited, so a proposal naming one is refused before its value is read —
+which is what stops a model writing an elasticity as `'two point four'`. ADR-044's figure detector
+runs as the second line, reused rather than copied. Reproduction with `GEMINI_API_KEY` unset is
+asserted byte for byte, and no module on the resolution path can reach a provider at all. **Live
+provider acceptance is not claimed** — no credential and no egress in the delivery environment
+(`R-SCI07-1`).
 
 ### What this programme does not authorise
 

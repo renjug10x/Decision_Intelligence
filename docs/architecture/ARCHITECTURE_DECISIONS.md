@@ -550,9 +550,17 @@ and nothing else.
 
 #### ADR-044 Amendment B — the authority semantics extend to scenario drafting (`SCI-07`, 2026-09-15)
 
-**Approved, not yet implemented.** `ADR-083` extends this ruling from the Decision Context input
-boundary to scenario authoring. The semantics are carried over unchanged and are restated here so
-the original ruling is not read as narrower than it now is.
+**Approved and implemented (`SCI-07`, 2026-09-19).** `ADR-083` extends this ruling from the Decision
+Context input boundary to scenario authoring. The semantics are carried over unchanged and are
+restated here so the original ruling is not read as narrower than it now is.
+
+**One thing the implementation added that this table did not anticipate, and it is the load-bearing
+difference.** At the Decision Context boundary the enforcement is entirely on the RESPONSE TEXT,
+because a suggestion is free prose and a figure in it is the only signal available. A scenario draft
+has FIELDS, so the first line of enforcement is the field itself: a proposal naming a quantitative
+field is refused before a character of its value is read. That is strictly stronger, and it is what
+stops a model writing `'two point four'` into the elasticity — a claim ADR-044's figure detector,
+reused unchanged as the second line, would have admitted.
 
 | | Decision Context drafting (`CDI-01`, implemented) | Scenario drafting (`SCI-07`, authorised) |
 |---|---|---|
@@ -1272,7 +1280,7 @@ any number of scenarios, and does it by test rather than by scarcity.
 ---
 
 ### ADR-083: A Drafted Scenario Is Not a Scenario Until It Is Confirmed, and a Confirmed Scenario Reproduces Without GenAI (`SCI-07`)
-- **Status:** Approved, **not yet implemented**. Authorised 2026-09-15. Implementation is `SCI-07`. Extends `ADR-044`; see `ADR-044` Amendment B.
+- **Status:** Approved and **implemented** (`SCI-07`, 2026-09-19). Authorised 2026-09-15. Extends `ADR-044`; see `ADR-044` Amendment B. The contract is `packages/contracts/src/scenario-draft-model.ts`; the domain is `lib/scenario-authoring/`; the routes are under `app/api/v1/scenarios/`. **Part 1 is enforced structurally rather than textually:** the GenAI allowlist is DERIVED from the field register, in which every `QUANTITY` is prohibited, so a proposal naming a prohibited field is refused before its value is read — which is why a quantity written as a word (`'two point four'`) cannot get through a guard that only reads figures. ADR-044's figure detector runs as the second line, reused rather than reimplemented. **Part 2 is proven twice:** a GenAI-assisted scenario confirmed with the credential present reproduces byte-identically with `GEMINI_API_KEY` deleted, to the same certification verdict and the same Decision Gap; and no module on the resolution path imports a provider, reads an environment variable or calls out at all. **Part 3 holds:** the credential is read in exactly one server-side module, `lib/gemini.ts` is neither modified nor imported, and `R-15` is not extended — asserted by source guard. **Part 4 holds, with one addition:** proposals are validated against closed allowlists and anything outside them is rejected rather than coerced; a value shaped like a credential is now also rejected, after the suite found that a token pasted into a description could survive the figure check. Live provider acceptance is NOT claimed — see `R-SCI07-1`. Evidence: [`COGNIX_SCI_07_SCENARIO_AUTHORING_REPORT.md`](../reports/COGNIX_SCI_07_SCENARIO_AUTHORING_REPORT.md).
 - **Context:** *Create Your Own Scenario* asks Google GenAI to interpret a business-language description, propose scenario structure, map uploaded columns semantically and suggest qualitative assumptions. `ADR-044` already governs this exact shape of problem at the Decision Context boundary and its ruling is the one to extend, not to re-derive: a draft is stamped `source: GENAI_DRAFT`, `authority: NON_AUTHORITATIVE_DRAFT`; the prompt's rules are enforced **on the response**, so any item carrying a percentage, a currency symbol, a decimal quantity or a thousands-separated figure is rejected outright because that route has no data with which to support a measured claim; the provider refuses rather than fabricates, returning `503` naming the missing variable and `502` on provider or validation failure, with no canned fallback on any path.
 - **Decision, part 1 — the same authority semantics apply, with the same enforcement.** GenAI may propose that supplier flex is *limited*, that the category is chilled, that the horizon is a fortnight, that a column called `qty_wk` is probably weekly units. It may not propose that flex is 12%. Every quantitative field is set by the user or defaulted by a declared scenario model, and is recomputed deterministically by CogniX engines once confirmed.
 - **Decision, part 2 — the reproduction test is the acceptance condition, not a nice-to-have.** A scenario confirmed with GenAI assistance must resolve, certify and run identically with `GEMINI_API_KEY` unset. Because what the model produced was structure, and the structure was saved. A scenario that cannot be reproduced without the provider is not admissible to the catalogue.
