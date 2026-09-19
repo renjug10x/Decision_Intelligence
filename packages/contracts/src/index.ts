@@ -14,6 +14,13 @@ export * from './scenario-scope';
 export * from './scenario-demand-attribution';
 export * from './scenario-certification-model';
 /*
+ * THE Scenario Draft contract, owned by `SCI-07` — declared at Gate B, implemented in Wave 3.
+ * Shapes, closed vocabularies and the GenAI allowlist only. The resolver, the readiness engine
+ * and the provider live in `lib/scenario-authoring/`, because a contract that imported the
+ * product master or a provider would invert the dependency the estate is built on.
+ */
+export * from './scenario-draft-model';
+/*
  * The curated scenario catalogue. Importing it REGISTERS the packs; it neither certifies nor
  * activates them, which stays with the gate (`SCI-03`).
  */
