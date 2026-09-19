@@ -29,21 +29,54 @@ import {
 import { useDecisionState } from '@/context/DecisionStateContext';
 import { scenarioInScopeId } from '@/packages/contracts/src/scenario-scope';
 import { resolveScenario, isScenarioRegistered } from '@/lib/scenario-client-registry';
-import { getMethodsRegister } from '@/lib/observability-client';
+import { getMethodsRegister, getLivingEvidence } from '@/lib/observability-client';
+import type { LivingEvidenceScenarioData } from '@/lib/observability-client';
 import {
   type MethodsRegister,
   type MethodRegisterEntry,
   type MethodMechanism
 } from '@/packages/contracts/src/living-evidence-contracts';
 import {
+  scenarioBaseDemandUnits,
+  scenarioExpectedDemandUnits,
+  scenarioServableDemandUnits,
+  scenarioExposedDemandUnits,
+  scenarioFlexCapacityUnits,
+  type CanonicalScenario
+} from '@/packages/contracts/src/canonical-scenario-model';
+import { scenarioElasticityCurve } from '@/lib/campaign-archetypes';
+import {
   STORYBOARD_GATE,
   STORYBOARD_GATES_MET,
   STORYBOARD_GATE_TOTAL,
-  STORYBOARD_DISPOSITION
+  STORYBOARD_DISPOSITION,
+  STORYBOARD_RETIREMENT_PERMITTED
 } from '@/config/atlas-storyboard-gate';
 import ArchitectureExplorer from '@/components/ArchitectureExplorer';
 
+export {
+  STORYBOARD_GATE,
+  STORYBOARD_GATES_MET,
+  STORYBOARD_GATE_TOTAL,
+  STORYBOARD_DISPOSITION,
+  STORYBOARD_RETIREMENT_PERMITTED
+};
+
 export type ArchMechanismType = 'calculated' | 'fitted' | 'drafted' | 'rule' | 'human';
+
+export interface DynamicScenarioContext {
+  scenario: CanonicalScenario;
+  methodsRegister: MethodsRegister | null;
+  livingEvidence: LivingEvidenceScenarioData | null;
+  baseDemand: number;
+  expectedDemand: number;
+  servableDemand: number;
+  exposedGap: number;
+  flexCapacity: number;
+  gapPct: string;
+  recommendedDepth: number;
+  committedDepth: number;
+}
 
 export interface ArchNode {
   id: string;
@@ -54,7 +87,11 @@ export interface ArchNode {
   governingAuthority?: string;
   summary: string;
   whatItIs: string;
-  resolveScenarioRole: (scenario: any, methodsRegister: MethodsRegister | null) => {
+  resolveScenarioRole: (
+    scenario: any,
+    methodsRegister: MethodsRegister | null,
+    context?: DynamicScenarioContext | null
+  ) => {
     action: string;
     details: string;
     quantities?: { label: string; value: string }[];
@@ -72,15 +109,48 @@ export interface ArchLayer {
   nodes: ArchNode[];
 }
 
+// ── Helper to resolve dynamic metrics cleanly from scenario and live context ───
+function resolveMetrics(scenario: any, context?: DynamicScenarioContext | null) {
+  const baseDemand = context?.baseDemand ?? (scenario ? scenarioBaseDemandUnits(scenario) : 0);
+  const expectedDemand = context?.expectedDemand ?? (scenario ? Math.round(scenarioExpectedDemandUnits(scenario)) : 0);
+  const servableDemand = context?.servableDemand ?? (scenario ? Math.round(scenarioServableDemandUnits(scenario)) : 0);
+  const exposedGap = context?.exposedGap ?? (scenario ? Math.round(scenarioExposedDemandUnits(scenario)) : 0);
+  const flexCapacity = context?.flexCapacity ?? (scenario ? Math.round(scenarioFlexCapacityUnits(scenario)) : 0);
+  const gapPct = context?.gapPct ?? (baseDemand > 0 ? ((exposedGap / baseDemand) * 100).toFixed(1) : '0.0');
+
+  let recommendedDepth = context?.recommendedDepth;
+  const committedDepth = context?.committedDepth ?? scenario?.economics?.promotion_depth_pct ?? 0;
+  if (recommendedDepth === undefined && scenario) {
+    try {
+      const curve = scenarioElasticityCurve(scenario);
+      const rec = curve.find(p => p.is_cognix_recommended) ?? curve[0];
+      recommendedDepth = rec ? rec.discount_pct : committedDepth;
+    } catch {
+      recommendedDepth = committedDepth;
+    }
+  }
+
+  return {
+    baseDemand,
+    expectedDemand,
+    servableDemand,
+    exposedGap,
+    flexCapacity,
+    gapPct,
+    recommendedDepth: recommendedDepth ?? committedDepth,
+    committedDepth
+  };
+}
+
 export const ARCH_LAYERS: ArchLayer[] = [
   {
     number: 1,
     id: 'layer-evidence',
     title: 'Business & External Evidence',
-    subtitle: 'Measured retail transactions, contractual constraints, and market drivers',
+    subtitle: 'Point-of-sale transactions, supplier terms, and operational trading calendar',
     primaryMechanism: 'calculated',
     mechanismLabel: 'Measured & Declared Facts',
-    summary: 'The empirical foundation of CogniX: real point-of-sale history, supplier capacity contracts, and trading calendar parameters.',
+    summary: 'The empirical foundation of CogniX: real point-of-sale history, contractual supplier terms, and scenario operating calendars.',
     nodes: [
       {
         id: 'evidence-demand-history',
@@ -92,11 +162,12 @@ export const ARCH_LAYERS: ArchLayer[] = [
         summary: 'Daily point-of-sale store demand series providing the empirical basis for time-series models.',
         whatItIs: 'Historical transaction records across store clusters and SKUs. Provides the ground truth against which statistical models fit seasonal baselines and evaluate forecast accuracy.',
         resolveScenarioRole: (scenario) => ({
-          action: `Supplies daily POS transaction history for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
-          details: `Historical baseline series runs to ${scenario?.calendar?.observed_history_end_date ?? 'scenario baseline end'}, capturing past seasonal variations across retail stores.`,
+          action: `Supplies daily POS transaction history for ${scenario?.identity?.sku_name ?? 'active SKU'} (${scenario?.identity?.sku_id ?? '—'})`,
+          details: `Historical baseline series runs to ${scenario?.calendar?.observed_history_end_date ?? 'scenario baseline end'}, capturing past seasonal variations across ${scenario?.identity?.market_scope_label ?? 'National'} store clusters in the ${scenario?.identity?.focus_region ?? 'target market'}.`,
           quantities: [
             { label: 'Observed History End', value: scenario?.calendar?.observed_history_end_date ?? '—' },
-            { label: 'Store Scope', value: scenario?.identity?.market_scope_label ?? 'National' }
+            { label: 'Store Scope', value: scenario?.identity?.market_scope_label ?? 'National' },
+            { label: 'Focus Region', value: scenario?.identity?.focus_region ?? '—' }
           ]
         })
       },
@@ -107,15 +178,15 @@ export const ARCH_LAYERS: ArchLayer[] = [
         mechanism: 'calculated',
         methodRefId: 'engine::scenario-derivations',
         governingAuthority: 'packages/contracts/src/canonical-scenario-model.ts',
-        summary: 'Contractual terms, delivery lead times, cost of goods, and maximum daily supply commitments.',
+        summary: 'Contractual terms, delivery lead times, list prices, and supplier promotional funding.',
         whatItIs: 'Declared supplier agreements governing wholesale unit costs, supplier promotional funding participation, production constraints, and operational lead times.',
         resolveScenarioRole: (scenario) => ({
-          action: `Enforces supply terms with ${scenario?.supply?.supplier_name ?? 'Primary Supplier'}`,
-          details: `Contractual unit cost £${scenario?.economics?.unit_cost_gbp?.toFixed(2) ?? '—'}, standard price £${scenario?.economics?.regular_price_gbp?.toFixed(2) ?? '—'}, with declared daily delivery bounds.`,
+          action: `Enforces contractual terms with ${scenario?.supply?.supplier_name ?? 'Primary Supplier'} (${scenario?.supply?.supplier_id ?? '—'})`,
+          details: `Contractual list price £${scenario?.economics?.list_price_gbp?.toFixed(2) ?? '—'}, base gross margin ${scenario?.economics?.gross_margin_rate_pct ?? '—'}%, and supplier promotional funding share of ${scenario?.economics?.supplier_promotional_funding_pct ?? 0}%.`,
           quantities: [
             { label: 'Supplier', value: scenario?.supply?.supplier_name ?? '—' },
-            { label: 'Unit Cost', value: `£${scenario?.economics?.unit_cost_gbp?.toFixed(2) ?? '—'}` },
-            { label: 'Funding Share', value: `${((scenario?.economics?.supplier_funding_share ?? 0) * 100).toFixed(0)}%` }
+            { label: 'List Price', value: `£${scenario?.economics?.list_price_gbp?.toFixed(2) ?? '—'}` },
+            { label: 'Supplier Funding', value: `${scenario?.economics?.supplier_promotional_funding_pct ?? 0}%` }
           ]
         })
       },
@@ -126,14 +197,15 @@ export const ARCH_LAYERS: ArchLayer[] = [
         mechanism: 'rule',
         methodRefId: 'engine::signal-simulator',
         governingAuthority: 'ADR-078 (Scenario Clock)',
-        summary: 'Trading calendar, promotion windows, bank holidays, and external macro factors.',
+        summary: 'Trading calendar, promotion duration, supplier cutoff schedule, and lead times.',
         whatItIs: 'Temporal operating context defining the trading horizon, promotional calendar, and external demand drivers such as regional events and weather shifts.',
         resolveScenarioRole: (scenario) => ({
-          action: `Defines the ${scenario?.calendar?.forecast_horizon_days ?? 14}-day promotional trading horizon`,
-          details: `Anchored to the scenario clock, encompassing planned promotional surges and supplier notice cutoffs.`,
+          action: `Defines ${scenario?.calendar?.forecast_horizon_days ?? 14}-day promotional trading horizon`,
+          details: `Anchored to the scenario clock (${scenario?.calendar?.observed_history_end_date ?? '—'}), with supplier lead time of ${scenario?.calendar?.supplier_lead_time_days ?? '—'} days and order cut-off schedule.`,
           quantities: [
-            { label: 'Horizon Days', value: `${scenario?.calendar?.forecast_horizon_days ?? 14} days` },
-            { label: 'Clock Instant', value: `${scenario?.calendar?.observed_history_end_date ?? '—'}T00:00:00Z` }
+            { label: 'Trading Horizon', value: `${scenario?.calendar?.forecast_horizon_days ?? 14} days` },
+            { label: 'Lead Time', value: `${scenario?.calendar?.supplier_lead_time_days ?? '—'} days` },
+            { label: 'Promo Duration', value: `${scenario?.calendar?.promotion_duration_days ?? '—'} days` }
           ]
         })
       }
@@ -145,7 +217,7 @@ export const ARCH_LAYERS: ArchLayer[] = [
     title: 'Signal Intelligence',
     subtitle: 'Dynamic signal simulation, intent fusion, and evidence-stream stability',
     primaryMechanism: 'calculated',
-    mechanismLabel: 'Real-time Signal Dynamics',
+    mechanismLabel: 'Dynamic Signal Simulation',
     summary: 'Translates raw trading observations into quantified signals, combining commercial intent with market movement and monitoring evidence stability.',
     nodes: [
       {
@@ -158,11 +230,12 @@ export const ARCH_LAYERS: ArchLayer[] = [
         summary: 'Fuses declared commercial intent with observed operational signals into unified decision streams.',
         whatItIs: 'Binds strategic commercial targets (e.g. planned promotional uplift, volume targets) with dynamic retail signals (store footfall, supply disruptions, competitor activity) to identify deviations before stockouts occur.',
         resolveScenarioRole: (scenario) => ({
-          action: `Fuses commercial volume goals with observed category demand pressure`,
-          details: `Monitors real-time demand signals against baseline expectations to detect emerging promotional surges or supply deficits early.`,
+          action: `Fuses commercial volume goals with observed category demand in ${scenario?.identity?.category ?? 'category'}`,
+          details: `Monitors dynamic demand signals against baseline expectations across ${scenario?.identity?.channels?.join(' and ') ?? 'sales channels'} to detect emerging demand surges or supply variances early.`,
           quantities: [
             { label: 'Category', value: scenario?.identity?.category ?? '—' },
-            { label: 'Market Region', value: scenario?.identity?.focus_region ?? 'UK National' }
+            { label: 'Subcategory', value: scenario?.identity?.subcategory ?? '—' },
+            { label: 'Channels', value: scenario?.identity?.channels?.join(', ') ?? 'All Channels' }
           ]
         })
       },
@@ -174,14 +247,17 @@ export const ARCH_LAYERS: ArchLayer[] = [
         governingAuthority: 'ADR-040 (Evidence-stream property, NOT an ML model confidence score)',
         summary: 'Quantified stability of incoming evidence streams over time — not an artificial model confidence score.',
         whatItIs: 'ADR-040 explicitly defines Forecast Stability as an inherent property of the evidence stream itself: the degree of volatility, trajectory drift, and noise in incoming observations over the decision horizon. It is never a model accuracy metric or confidence percentage.',
-        resolveScenarioRole: (scenario) => ({
-          action: `Tracks evidence-stream volatility for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
-          details: `Measures signal trajectory consistency across consecutive trading days. Stable evidence streams permit aggressive promotional commitments; volatile streams enforce conservative safety stock.`,
-          quantities: [
-            { label: 'Construct Type', value: 'Evidence-Stream Property' },
-            { label: 'Governing Rule', value: 'ADR-040' }
-          ]
-        })
+        resolveScenarioRole: (scenario, _methods, ctx) => {
+          const stab = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'FORECAST_STABILITY')?.after;
+          return {
+            action: `Tracks evidence-stream trajectory stability for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
+            details: `Evaluates signal trajectory consistency across consecutive trading days per ADR-040. An inherent property of the evidence stream itself, not an ML model confidence score.`,
+            quantities: [
+              { label: 'Construct Authority', value: 'ADR-040 (Evidence Property)' },
+              { label: 'Stability Index', value: stab ? `${stab} / 100` : 'Evidence Evaluated' }
+            ]
+          };
+        }
       },
       {
         id: 'signal-materiality',
@@ -192,14 +268,17 @@ export const ARCH_LAYERS: ArchLayer[] = [
         governingAuthority: 'ADR-078 · ADR-081',
         summary: 'Bands signal movement into materiality tiers (DECISIVE, MATERIAL, INFORMATIVE, BACKGROUND).',
         whatItIs: 'Determines whether an observed delta alters published retail economics or changes the recommended decision. Evaluated on the scenario clock without wall-clock temporal drift.',
-        resolveScenarioRole: () => ({
-          action: `Bands incoming signal movements by commercial consequence`,
-          details: `Only changes that materially affect expected volume, margin, or risk are promoted to decision-makers, eliminating operational telemetry noise.`,
-          quantities: [
-            { label: 'Materiality Tiers', value: 'Decisive · Material · Informative' },
-            { label: 'Clock Basis', value: 'Scenario Clock (ADR-078)' }
-          ]
-        })
+        resolveScenarioRole: (_scenario, _methods, ctx) => {
+          const count = ctx?.livingEvidence?.observations?.length;
+          return {
+            action: `Classifies incoming signal movement into governed materiality tiers`,
+            details: `Applies leave-one-out impact assessment per ADR-081 on the scenario clock without wall-clock temporal drift, ensuring only decision-relevant deltas reach commercial leaders.`,
+            quantities: [
+              { label: 'Materiality Tiers', value: 'Decisive · Material · Informative' },
+              { label: 'Assessed Signals', value: count ? `${count} signals active` : 'Active stream' }
+            ]
+          };
+        }
       }
     ]
   },
@@ -219,16 +298,21 @@ export const ARCH_LAYERS: ArchLayer[] = [
         mechanism: 'rule',
         methodRefId: 'engine::scenario-derivations',
         governingAuthority: 'packages/contracts/src/canonical-scenario-model.ts',
-        summary: '100% exact business arithmetic: revenues, margins, exposures, and volumetric balances.',
-        whatItIs: 'Precise financial and inventory mathematics. Calculates exposure, expected and servable quantities, and unit margins directly from declared scenario formulas with 0% hallucination risk.',
-        resolveScenarioRole: (scenario) => ({
-          action: `Calculates exact commercial quantities for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
-          details: `Derived expected demand ${scenario?.demand?.promoted_expected_daily_units ? (scenario.demand.promoted_expected_daily_units * 14).toLocaleString() : '900,125'} units against declared supplier capacity.`,
-          quantities: [
-            { label: 'Calculation Integrity', value: 'Deterministic (0% Hallucination)' },
-            { label: 'Method Mechanism', value: 'rule' }
-          ]
-        })
+        summary: 'Exact business arithmetic: revenues, margins, exposures, and volumetric balances.',
+        whatItIs: 'Precise financial and inventory mathematics. Calculates exposure, expected and servable quantities, and unit margins directly from declared scenario formulas without synthetic extrapolation.',
+        resolveScenarioRole: (scenario, _methods, ctx) => {
+          const { baseDemand, expectedDemand } = resolveMetrics(scenario, ctx);
+          const movement = scenario?.demand?.total_demand_movement_pct ?? 0;
+          return {
+            action: `Calculates exact commercial quantities for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
+            details: `Computes base demand (${baseDemand.toLocaleString()} units), expected demand (${expectedDemand.toLocaleString()} units), and unit margin revenues directly from declared scenario formulas.`,
+            quantities: [
+              { label: 'Calculation Basis', value: 'Deterministic Formulas' },
+              { label: 'Base Horizon Units', value: `${baseDemand.toLocaleString()} units` },
+              { label: 'Movement Rate', value: `+${movement.toFixed(1)}%` }
+            ]
+          };
+        }
       },
       {
         id: 'method-statistical',
@@ -241,10 +325,10 @@ export const ARCH_LAYERS: ArchLayer[] = [
         whatItIs: 'Rigorous statistical estimation algorithms fitted to historical POS data. Publishes daily demand trajectories alongside calibrated prediction intervals, rather than single-point guesses.',
         resolveScenarioRole: (scenario) => ({
           action: `Fits time-series demand models over historical transaction data`,
-          details: `Executes Holt-Winters additive model over daily series with ${scenario?.calendar?.forecast_horizon_days ?? 14}-day projection horizon and calibrated error intervals.`,
+          details: `Executes Holt-Winters additive time-series forecasting (forecast::HOLT_WINTERS_ADDITIVE) over daily POS series across the ${scenario?.calendar?.forecast_horizon_days ?? 14}-day projection horizon with calibrated error intervals.`,
           quantities: [
-            { label: 'Active Algorithm', value: 'Holt-Winters Additive' },
-            { label: 'Uncertainty', value: 'Calibrated Confidence Intervals' }
+            { label: 'Active Model', value: 'Holt-Winters Additive' },
+            { label: 'Projection Horizon', value: `${scenario?.calendar?.forecast_horizon_days ?? 14} days` }
           ]
         })
       },
@@ -259,10 +343,10 @@ export const ARCH_LAYERS: ArchLayer[] = [
         whatItIs: 'Governed LLM integration used exclusively for qualitative narrative drafting, intent summarization, and human-readable scenario context. Governed by ADR-044 & ADR-067: strictly non-authoritative interpretation and context drafting; GenAI never calculates quantities, economics, or discount rates.',
         resolveScenarioRole: () => ({
           action: `Drafts non-authoritative commercial context for category leaders`,
-          details: `Provides qualitative context synthesis. Any generated draft is clearly marked as proposed and requires human editing and confirmation before commitment.`,
+          details: `Server-side Gemini qualitative synthesis governed by ADR-044 & ADR-067: strictly non-authoritative interpretation and context drafting; GenAI never calculates economic figures, demand quantities, or discount depths.`,
           quantities: [
-            { label: 'Authority', value: 'Non-authoritative' },
-            { label: 'Financial Influence', value: '0% (Never calculates economics)' }
+            { label: 'Authority', value: 'Non-authoritative (ADR-044)' },
+            { label: 'Financial Influence', value: '0 (No economic calculations)' }
           ]
         })
       },
@@ -277,10 +361,10 @@ export const ARCH_LAYERS: ArchLayer[] = [
         whatItIs: 'Enforces internal coherence across identity, calendar, economics, price elasticity, currency, and provenance before any scenario can be activated in the demo journey.',
         resolveScenarioRole: (scenario) => ({
           action: `Validates 12/12 certification dimensions for ${scenario?.identity?.scenario_id ?? 'active scenario'}`,
-          details: `Verifies that supplier funding, demand curves, and unit costs reconcile perfectly across all enterprise views.`,
+          details: `Verifies internal reconciliation across identity, calendar, economics, price elasticity, currency, and provenance under ADR-080 before activating into demo journey.`,
           quantities: [
             { label: 'Certification Dimensions', value: '12 / 12 Evaluated' },
-            { label: 'Admission Status', value: 'Certified & Active' }
+            { label: 'Admission Status', value: 'Certified & Admitted' }
           ]
         })
       }
@@ -303,17 +387,15 @@ export const ARCH_LAYERS: ArchLayer[] = [
         governingAuthority: 'ADR-041 · packages/contracts/src/canonical-scenario-model.ts',
         summary: 'Demand opportunity minus executable capacity, derived from deterministic engines.',
         whatItIs: 'ADR-041 defines Decision Gap as the explicit difference between unconstrained market demand and servable retail capacity. It represents the unserved revenue or inventory exposure that requires commercial intervention.',
-        resolveScenarioRole: (scenario) => {
-          const expected = scenario?.demand?.promoted_expected_daily_units ? scenario.demand.promoted_expected_daily_units * 14 : 900125;
-          const servable = scenario?.supply?.baseline_capacity_daily ? scenario.supply.baseline_capacity_daily * 14 : 770000;
-          const gap = Math.max(0, expected - servable);
+        resolveScenarioRole: (scenario, _methods, ctx) => {
+          const { expectedDemand, servableDemand, exposedGap, gapPct } = resolveMetrics(scenario, ctx);
           return {
             action: `Quantifies exposed unservable demand under promotional surge`,
-            details: `Identified ${gap.toLocaleString()} exposed units (${((gap / expected) * 100).toFixed(1)}% of total demand) that standard replenishment cannot fulfill.`,
+            details: `Identified ${exposedGap.toLocaleString()} exposed units (${gapPct}% of expected demand) between expected demand (${expectedDemand.toLocaleString()} units) and executable allocation (${servableDemand.toLocaleString()} units).`,
             quantities: [
-              { label: 'Expected Demand', value: expected.toLocaleString() },
-              { label: 'Servable Capacity', value: servable.toLocaleString() },
-              { label: 'Exposed Decision Gap', value: `${gap.toLocaleString()} units` }
+              { label: 'Expected Demand', value: `${expectedDemand.toLocaleString()} units` },
+              { label: 'Servable Allocation', value: `${servableDemand.toLocaleString()} units` },
+              { label: 'Exposed Decision Gap', value: `${exposedGap.toLocaleString()} units (${gapPct}%)` }
             ]
           };
         }
@@ -326,14 +408,18 @@ export const ARCH_LAYERS: ArchLayer[] = [
         governingAuthority: 'ADR-042 (Operational constraint, NOT an AI prediction or decay curve)',
         summary: 'Operational deadline constraint derived from supplier lead times and warehouse cutoffs.',
         whatItIs: 'ADR-042 explicitly rules that the Decision Window is a hard operational constraint, not an artificial algorithmic confidence decay curve. It is calculated directly from supplier production lead times, logistics scheduling, and store replenishment cutoffs.',
-        resolveScenarioRole: (scenario) => ({
-          action: `Enforces lead-time operational cutoff with ${scenario?.supply?.supplier_name ?? 'supplier'}`,
-          details: `Decision must be committed within the declared operational window before supplier production batches lock and warehouse transport cannot be flexed.`,
-          quantities: [
-            { label: 'Operational Lead Time', value: `${scenario?.supply?.lead_time_days ?? 14} days` },
-            { label: 'Construct Authority', value: 'ADR-042 (Operational Constraint)' }
-          ]
-        })
+        resolveScenarioRole: (scenario, _methods, ctx) => {
+          const winHours = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'DECISION_WINDOW_HOURS')?.after;
+          const winState = ctx?.livingEvidence?.decision_position?.decision_window;
+          return {
+            action: `Enforces operational cutoff constraint with ${scenario?.supply?.supplier_name ?? 'supplier'}`,
+            details: `Hard operational deadline constraint (ADR-042) derived from supplier lead time (${scenario?.calendar?.supplier_lead_time_days ?? '—'} days) and contractual cut-off schedule, before supplier production locks and transport cannot be flexed.`,
+            quantities: [
+              { label: 'Supplier Lead Time', value: `${scenario?.calendar?.supplier_lead_time_days ?? '—'} days` },
+              { label: 'Window Status', value: winState ? `${winState} (${winHours ?? '—'} hrs)` : 'Operational Constraint' }
+            ]
+          };
+        }
       },
       {
         id: 'decision-regret',
@@ -343,14 +429,19 @@ export const ARCH_LAYERS: ArchLayer[] = [
         governingAuthority: 'ADR-043 · packages/contracts/src/canonical-scenario-model.ts',
         summary: 'Comparative expected value between taking action versus doing nothing.',
         whatItIs: 'ADR-043 defines Decision Regret as the comparative loss incurred by pursuing a suboptimal intervention (or doing nothing) versus committing to the optimal recommendation, evaluated over margin, revenue, and waste.',
-        resolveScenarioRole: (scenario) => ({
-          action: `Calculates the commercial penalty of non-intervention for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
-          details: `Do-nothing baseline results in stockouts, lost customer footfall, unrecovered supplier funding, and customer dissatisfaction during promotion peak.`,
-          quantities: [
-            { label: 'Alternative Evaluated', value: 'Do Nothing vs Optimal Intervention' },
-            { label: 'Regret Metric', value: 'Net Margin & Volume Loss' }
-          ]
-        })
+        resolveScenarioRole: (scenario, _methods, ctx) => {
+          const marginExp = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'MARGIN_EXPOSURE_GBP')?.after;
+          const revExp = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'REVENUE_EXPOSURE_GBP')?.after;
+          return {
+            action: `Calculates commercial penalty of non-intervention for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
+            details: `Quantifies comparative expected loss under ADR-043 across margin, unserved demand, and customer loyalty if the Decision Gap is left unaddressed versus committing to the recommended intervention.`,
+            quantities: [
+              { label: 'Evaluation Basis', value: 'Do Nothing vs Governed Intervention' },
+              { label: 'Margin at Risk', value: marginExp ? `£${Number(marginExp).toLocaleString()}` : 'Calculated by Rule' },
+              { label: 'Revenue at Risk', value: revExp ? `£${Number(revExp).toLocaleString()}` : 'Calculated by Rule' }
+            ]
+          };
+        }
       },
       {
         id: 'multi-objective-frontier',
@@ -360,12 +451,12 @@ export const ARCH_LAYERS: ArchLayer[] = [
         governingAuthority: 'CDI-06 · packages/contracts/src/canonical-scenario-model.ts',
         summary: 'Balances competing commercial dimensions: Revenue, Contribution Margin, Waste, and Availability.',
         whatItIs: 'Calculates the optimal trade-off frontier across the four primary retail pillars (the historical Value Framework). Allows category leaders to see the exact trade-off between volume lift and margin dilution.',
-        resolveScenarioRole: () => ({
+        resolveScenarioRole: (scenario) => ({
           action: `Evaluates Pareto frontier across Revenue, Margin, Waste, and Store Availability`,
-          details: `Maximises total category contribution while keeping store waste risks within governed thresholds.`,
+          details: `Balances commercial volume lift against waste risk (${scenario?.economics?.waste_units_per_week?.toLocaleString() ?? '—'} base waste units/wk) and cannibalisation (${scenario?.economics?.cannibalisation_rate_pct ?? 0}%).`,
           quantities: [
             { label: 'Four Pillars', value: 'Revenue · Margin · Waste · Availability' },
-            { label: 'Framework', value: 'Governed Value Architecture' }
+            { label: 'Cannibalisation Rate', value: `${scenario?.economics?.cannibalisation_rate_pct ?? 0}%` }
           ]
         })
       }
@@ -375,7 +466,7 @@ export const ARCH_LAYERS: ArchLayer[] = [
     number: 5,
     id: 'layer-decisions',
     title: 'Retail Decisions',
-    subtitle: 'Optimal commercial recommendations and downstream operational consequence mapping',
+    subtitle: 'Derived commercial recommendations and downstream operational consequence mapping',
     primaryMechanism: 'rule',
     mechanismLabel: 'Actionable Interventions',
     summary: 'Outputs actionable commercial recommendations and traces their operational consequences across the supply chain.',
@@ -387,16 +478,20 @@ export const ARCH_LAYERS: ArchLayer[] = [
         mechanism: 'rule',
         methodRefId: 'engine::promotion-curve',
         governingAuthority: 'ADR-075 · lib/campaign-archetypes.ts',
-        summary: 'Calculates optimal discount depth tier maximising contribution on the price elasticity curve.',
-        whatItIs: 'Evaluates promotional elasticity curves across depth tiers (10%, 15%, 20%, 25%, 30%) with supplier funding participation, selecting the exact depth tier that maximises net contribution.',
-        resolveScenarioRole: (scenario) => ({
-          action: `Recommends optimal promotional discount tier for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
-          details: `Evaluates elasticity curve to find the contribution peak. For Fresh Dairy, 20% discount (£2.80 promo price) maximizes net revenue and recovers 84,000 units.`,
-          quantities: [
-            { label: 'Recommended Depth', value: '20% Promotional Discount' },
-            { label: 'Promotional Price', value: '£2.80 (Regular £3.50)' }
-          ]
-        })
+        summary: 'Calculates derived promotion recommendation maximising contribution on the price elasticity curve.',
+        whatItIs: 'Evaluates promotional elasticity curves across depth tiers with supplier funding participation, selecting the exact depth tier that maximises net contribution.',
+        resolveScenarioRole: (scenario, _methods, ctx) => {
+          const { recommendedDepth, committedDepth } = resolveMetrics(scenario, ctx);
+          const isDoNotPromote = recommendedDepth === 0;
+          return {
+            action: `Derived promotion recommendation: ${recommendedDepth}% discount (Challenging committed ${committedDepth}%)`,
+            details: `Evaluates price elasticity curve (${scenario?.economics?.promotional_response_pp_per_depth_point ?? 0} pp/depth pt) and supplier funding (${scenario?.economics?.supplier_promotional_funding_pct ?? 0}%). CogniX derives ${recommendedDepth}% depth (${isDoNotPromote ? 'do not promote' : `${recommendedDepth}% promotional discount`}) against the committed ${committedDepth}% plan.`,
+            quantities: [
+              { label: 'Derived Recommendation', value: `${recommendedDepth}% ${isDoNotPromote ? '(Do not promote)' : 'Discount'}` },
+              { label: 'Committed Plan', value: `${committedDepth}% Discount` }
+            ]
+          };
+        }
       },
       {
         id: 'retail-volume-allocation',
@@ -407,14 +502,18 @@ export const ARCH_LAYERS: ArchLayer[] = [
         governingAuthority: 'packages/contracts/src/canonical-scenario-model.ts',
         summary: 'Allocates available inventory and supplier production to regional depots and stores.',
         whatItIs: 'Calculates recoverable volume and allocates available stock to distribution depots, prioritizing high-velocity stores and mitigating stockout risks.',
-        resolveScenarioRole: (scenario) => ({
-          action: `Allocates servable stock across regional depots`,
-          details: `Optimises stock distribution for ${scenario?.identity?.sku_name ?? 'active SKU'} to cover 14-day promotional uplift without creating local overstocks.`,
-          quantities: [
-            { label: 'Servable Volume', value: `${scenario?.supply?.baseline_capacity_daily ? (scenario.supply.baseline_capacity_daily * 14).toLocaleString() : '770,000'} units` },
-            { label: 'Recovered Volume', value: '84,000 units' }
-          ]
-        })
+        resolveScenarioRole: (scenario, _methods, ctx) => {
+          const { servableDemand, flexCapacity } = resolveMetrics(scenario, ctx);
+          const clause = scenario?.supply?.flex_clause_reference ?? 'Volume Flex Notice';
+          return {
+            action: `Allocates servable volume and contractual flex capacity`,
+            details: `Standing allocation covers ${servableDemand.toLocaleString()} units (capacity index ${scenario?.supply?.supplier_capacity_index?.toFixed(2) ?? '1.0'}). Contractual flex clause "${clause}" can release up to ${flexCapacity.toLocaleString()} additional units.`,
+            quantities: [
+              { label: 'Standing Allocation', value: `${servableDemand.toLocaleString()} units` },
+              { label: 'Contractual Flex', value: `Up to ${flexCapacity.toLocaleString()} units (${scenario?.supply?.supplier_flex_rate_pct ?? 0}%)` }
+            ]
+          };
+        }
       },
       {
         id: 'retail-decision-ripple',
@@ -424,14 +523,17 @@ export const ARCH_LAYERS: ArchLayer[] = [
         governingAuthority: 'WP5 · components/DecisionRippleIntelligence.tsx',
         summary: 'Downstream operational impacts mapped across distribution, logistics, and stores.',
         whatItIs: 'Projects the operational ripple effects of a commercial decision: warehouse picking strain, pallet handling, transport truck scheduling, store restocking hours, and supplier packaging call-offs.',
-        resolveScenarioRole: (scenario) => ({
-          action: `Maps operational ripple effects across logistics and store operations`,
-          details: `Anticipates +12% warehouse pallet moves, refrigerated vehicle scheduling, and store dairy aisle replenishment workload.`,
-          quantities: [
-            { label: 'Construct Authority', value: 'WP5 (Decision Ripple)' },
-            { label: 'Operational Reach', value: 'Depots · Logistics · Stores' }
-          ]
-        })
+        resolveScenarioRole: (scenario) => {
+          const stores = scenario?.estate?.national_store_count ?? scenario?.estate?.core_superstore_count ?? 620;
+          return {
+            action: `Maps downstream operational consequences across logistics and stores`,
+            details: `Anticipates warehouse throughput strain, logistics transport scheduling, and store replenishment workload across ${stores.toLocaleString()} stores in ${scenario?.identity?.market_scope_label ?? 'market'}.`,
+            quantities: [
+              { label: 'Construct Authority', value: 'WP5 (Decision Ripple)' },
+              { label: 'Store Scope', value: `${stores.toLocaleString()} stores` }
+            ]
+          };
+        }
       }
     ]
   },
@@ -453,14 +555,17 @@ export const ARCH_LAYERS: ArchLayer[] = [
         governingAuthority: 'Principle 13 (Human accountability)',
         summary: 'Category Lead reviews evidence, evaluates trade-offs, and adjusts operational levers.',
         whatItIs: 'Retail leaders review the derived recommendation, inspect the Decision Trace, and apply commercial intuition, strategic supplier relationship context, or market nuance before approving.',
-        resolveScenarioRole: (scenario) => ({
-          action: `Category Director reviews recommended 20% promotion for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
-          details: `Human leader retains full authority to accept, modify promotional duration, adjust discount depth, or decline the intervention.`,
-          quantities: [
-            { label: 'Decision Role', value: 'Category Director / Commercial Lead' },
-            { label: 'Human-in-the-Loop', value: 'Enforced (No black-box execution)' }
-          ]
-        })
+        resolveScenarioRole: (scenario, _methods, ctx) => {
+          const { recommendedDepth } = resolveMetrics(scenario, ctx);
+          return {
+            action: `Commercial leadership reviews derived ${recommendedDepth}% recommendation for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
+            details: `Commercial leaders evaluate derived recommendation against supplier context and retain full authority to accept, adjust, or decline the intervention per Principle 13.`,
+            quantities: [
+              { label: 'Governance Role', value: 'Category Director / Commercial Lead' },
+              { label: 'Accountability', value: 'Human Judgement Enforced (Principle 13)' }
+            ]
+          };
+        }
       },
       {
         id: 'human-decision-contract',
@@ -473,10 +578,10 @@ export const ARCH_LAYERS: ArchLayer[] = [
         whatItIs: 'Binds the committed action into an immutable Decision Contract stored in Shared Decision State. Records who decided, on what evidence, at what time, and with what projected outcomes.',
         resolveScenarioRole: (scenario) => ({
           action: `Publishes immutable Decision Contract for ${scenario?.identity?.scenario_id ?? 'active scenario'}`,
-          details: `Locks the agreed commercial terms and initiates execution downstream in planning and ERP systems.`,
+          details: `Locks agreed commercial terms into Shared Decision State with complete evidence audit trail before downstream ERP and replenishment dispatch.`,
           quantities: [
-            { label: 'Contract Storage', value: 'Shared Decision State' },
-            { label: 'Audit Trail', value: 'Timestamped & Attributed' }
+            { label: 'Storage Target', value: 'Shared Decision State' },
+            { label: 'Audit Trail', value: 'Attributed & Timestamped' }
           ]
         })
       }
@@ -500,8 +605,8 @@ export const ARCH_LAYERS: ArchLayer[] = [
         summary: 'Compares actual sales, realised revenue, waste, and availability against the committed baseline.',
         whatItIs: 'Tracks real POS sell-through during and after the promotion horizon. Isolates whether deviations were caused by forecast error, supplier delivery failure, or competitor pricing.',
         resolveScenarioRole: (scenario) => ({
-          action: `Tracks trading outcomes against the ${scenario?.identity?.scenario_name ?? 'promotional plan'}`,
-          details: `Audits whether the 20% promotional commitment achieved the projected 84,000 unit volume recovery within target margin bounds.`,
+          action: `Audits realised performance against plan for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
+          details: `Measures sell-through, realised revenue, availability, and waste against the committed baseline post-event to verify forecast and delivery execution.`,
           quantities: [
             { label: 'Performance Audit', value: 'Actual vs Committed Baseline' },
             { label: 'Variance Dimensions', value: 'Units · Margin · Waste · Availability' }
@@ -517,11 +622,11 @@ export const ARCH_LAYERS: ArchLayer[] = [
         summary: 'Indexes observed causal relationships into reusable learning patterns (PAT-*).',
         whatItIs: 'Distills verified commercial outcomes into institutional patterns (e.g. PAT-COMM-01 promotional elasticity response). Enables future decisions in similar categories to inherit proven empirical priors.',
         resolveScenarioRole: (scenario) => ({
-          action: `Indexes promotional response into Category Intelligence pattern memory`,
-          details: `Captures supplier flex responsiveness and promotional uplift curves for ${scenario?.identity?.category ?? 'category'} as reusable organizational memory.`,
+          action: `Distills observed causal learnings into Enterprise Memory`,
+          details: `Captures supplier flex responsiveness and promotional response for ${scenario?.identity?.category ?? 'category'} as reusable institutional learning patterns (PAT-*).`,
           quantities: [
-            { label: 'Pattern Registry', value: 'PAT-COMM-01 … PAT-BEH-05' },
-            { label: 'Hub-and-Spoke Reuse', value: 'Cross-Category Knowledge Asset' }
+            { label: 'Pattern Registry', value: 'EXP-MEMORY-03 (Learning Patterns)' },
+            { label: 'Knowledge Domain', value: `${scenario?.identity?.category ?? 'Category'} Intelligence` }
           ]
         })
       }
@@ -536,8 +641,10 @@ export default function CognixArchitectureSurface() {
   });
 
   const [methodsRegister, setMethodsRegister] = useState<MethodsRegister | null>(null);
-  const [loadingMethods, setLoadingMethods] = useState(false);
+  const [livingEvidence, setLivingEvidence] = useState<LivingEvidenceScenarioData | null>(null);
+  const [loadingContext, setLoadingContext] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string>('decision-gap');
+  const [showGateDetails, setShowGateDetails] = useState(false);
   const [showRetainedStoryboard, setShowRetainedStoryboard] = useState(false);
 
   // Sync active scenario if decision state moves
@@ -546,206 +653,288 @@ export default function CognixArchitectureSurface() {
     setActiveScenarioId(currentId);
   }, [decisionState?.scenario_id]);
 
-  // Load Models & Methods register for the active scenario
+  // Load Models & Methods register and Living Evidence for the active scenario
   useEffect(() => {
-    let mounted = true;
-    setLoadingMethods(true);
-    getMethodsRegister(activeScenarioId)
-      .then(res => {
-        if (!mounted) return;
-        setMethodsRegister(res);
-      })
-      .catch(() => {
-        if (!mounted) return;
-        setMethodsRegister(null);
-      })
-      .finally(() => {
-        if (mounted) setLoadingMethods(false);
-      });
-    return () => { mounted = false; };
+    let isMounted = true;
+    setLoadingContext(true);
+
+    Promise.all([
+      getMethodsRegister(activeScenarioId).catch(() => null),
+      getLivingEvidence(activeScenarioId).catch(() => null)
+    ]).then(([methods, evidence]) => {
+      if (!isMounted) return;
+      setMethodsRegister(methods);
+      setLivingEvidence(evidence);
+    }).finally(() => {
+      if (isMounted) setLoadingContext(false);
+    });
+
+    return () => {
+      isMounted = false;
+    };
   }, [activeScenarioId]);
 
-  // Resolve scenario object
+  // Resolve active Canonical Scenario
   const scenario = useMemo(() => {
     try {
-      if (isScenarioRegistered(activeScenarioId)) {
+      if (activeScenarioId && isScenarioRegistered(activeScenarioId)) {
         return resolveScenario(activeScenarioId);
       }
-    } catch {}
-    return null;
+      return resolveScenario(scenarioInScopeId());
+    } catch {
+      return null;
+    }
   }, [activeScenarioId]);
+
+  // Build mechanically grounded dynamic context
+  const dynamicContext = useMemo((): DynamicScenarioContext | null => {
+    if (!scenario) return null;
+    const baseDemand = scenarioBaseDemandUnits(scenario);
+    const expectedDemand = Math.round(scenarioExpectedDemandUnits(scenario));
+    const servableDemand = Math.round(scenarioServableDemandUnits(scenario));
+    const exposedGap = Math.round(scenarioExposedDemandUnits(scenario));
+    const flexCapacity = Math.round(scenarioFlexCapacityUnits(scenario));
+    const gapPct = baseDemand > 0 ? ((exposedGap / baseDemand) * 100).toFixed(1) : '0.0';
+
+    let recommendedDepth = 0;
+    const committedDepth = scenario.economics.promotion_depth_pct;
+    try {
+      const curve = scenarioElasticityCurve(scenario);
+      const rec = curve.find(p => p.is_cognix_recommended) ?? curve[0];
+      recommendedDepth = rec ? rec.discount_pct : committedDepth;
+    } catch {
+      recommendedDepth = committedDepth;
+    }
+
+    return {
+      scenario,
+      methodsRegister,
+      livingEvidence,
+      baseDemand,
+      expectedDemand,
+      servableDemand,
+      exposedGap,
+      flexCapacity,
+      gapPct,
+      recommendedDepth,
+      committedDepth
+    };
+  }, [scenario, methodsRegister, livingEvidence]);
 
   // Find currently selected node
   const selectedNode = useMemo(() => {
     for (const layer of ARCH_LAYERS) {
-      const found = layer.nodes.find(n => n.id === selectedNodeId);
+      const found = layer.nodes.find((n) => n.id === selectedNodeId);
       if (found) return { node: found, layer };
     }
-    return { node: ARCH_LAYERS[3].nodes[0], layer: ARCH_LAYERS[3] }; // default Decision Gap
+    return { node: ARCH_LAYERS[3].nodes[0], layer: ARCH_LAYERS[3] }; // Default to Decision Gap
   }, [selectedNodeId]);
 
-  // Match method in register
-  const matchedMethod = useMemo<MethodRegisterEntry | null>(() => {
-    if (!methodsRegister || !selectedNode.node.methodRefId) return null;
-    return methodsRegister.entries.find(e => e.method_id === selectedNode.node.methodRefId) ?? null;
-  }, [methodsRegister, selectedNode.node.methodRefId]);
+  // Find method register entry for selected node
+  const matchedMethod: MethodRegisterEntry | undefined = useMemo(() => {
+    if (!methodsRegister || !selectedNode.node.methodRefId) return undefined;
+    return methodsRegister.entries.find((e) => e.method_id === selectedNode.node.methodRefId);
+  }, [methodsRegister, selectedNode]);
 
   const nodeScenarioContext = useMemo(() => {
-    return selectedNode.node.resolveScenarioRole(scenario, methodsRegister);
-  }, [selectedNode, scenario, methodsRegister]);
+    return selectedNode.node.resolveScenarioRole(scenario, methodsRegister, dynamicContext);
+  }, [selectedNode, scenario, methodsRegister, dynamicContext]);
 
-  const getMechanismBadgeClass = (mech: ArchMechanismType) => {
+  function getMechanismBadgeClass(mech: ArchMechanismType): string {
     switch (mech) {
       case 'calculated': return 'og-arch-badge--calculated';
-      case 'fitted': return 'og-arch-badge--fitted';
-      case 'drafted': return 'og-arch-badge--drafted';
-      case 'human': return 'og-arch-badge--human';
-      case 'rule': return 'og-arch-badge--rule';
-      default: return 'og-arch-badge--neutral';
+      case 'fitted':     return 'og-arch-badge--fitted';
+      case 'drafted':    return 'og-arch-badge--drafted';
+      case 'rule':       return 'og-arch-badge--rule';
+      case 'human':      return 'og-arch-badge--human';
     }
-  };
+  }
 
-  const getMechanismTitle = (mech: ArchMechanismType) => {
+  function getMechanismTitle(mech: ArchMechanismType): string {
     switch (mech) {
-      case 'calculated': return 'Calculated (Deterministic)';
-      case 'fitted': return 'Fitted (Statistical ML)';
-      case 'drafted': return 'Drafted (Non-authoritative GenAI)';
-      case 'human': return 'Human Judgement';
-      case 'rule': return 'Business Rule & Constraints';
+      case 'calculated': return 'Calculated (deterministic / measured)';
+      case 'fitted':     return 'Fitted (statistical ML)';
+      case 'drafted':    return 'Drafted (GenAI interpretation)';
+      case 'rule':       return 'Business rule / constraint';
+      case 'human':      return 'Human judgement';
     }
-  };
+  }
+
+  function getLayerIcon(id: string) {
+    switch (id) {
+      case 'layer-evidence':             return <Database size={16} />;
+      case 'layer-signals':              return <Activity size={16} />;
+      case 'layer-methods':              return <Cpu size={16} />;
+      case 'layer-decision-intelligence':return <Target size={16} />;
+      case 'layer-decisions':            return <GitBranch size={16} />;
+      case 'layer-human':                return <UserCheck size={16} />;
+      case 'layer-learning':             return <LineChart size={16} />;
+      default:                           return <Layers size={16} />;
+    }
+  }
 
   return (
     <div className="og-arch-surface">
-      {/* ── 60-90 Second Architecture Header ────────────────────────────── */}
+      {/* ── Surface Header: 60-90 Second Narrative & Scenario Context ─────── */}
       <header className="og-arch-header">
-        <div className="og-arch-title-lockup">
-          <div className="og-arch-tag">
-            <Compass size={13} strokeWidth={2} />
-            <span>Explanatory Architecture &middot; ADR-051 Successor</span>
+        <div className="og-arch-header-main">
+          <div className="og-arch-tagline">
+            <Compass size={14} className="text-primary" />
+            <span>CogniX Architecture &middot; Truthful System Topology</span>
           </div>
-          <h2>CogniX Architecture Surface</h2>
+          <h2 className="og-arch-title">How CogniX Connects Signals to Retail Decisions</h2>
           <p className="og-arch-lead">
-            How CogniX connects signals, multi-method intelligence, and operational constraints
-            to accountable retail decisions. One explanatory architecture that reflects the real estate.
+            CogniX is not an opaque predictive model. It is an end-to-end Decision Intelligence architecture that
+            transforms empirical trading evidence into governed, actionable retail decisions through deterministic arithmetic,
+            statistical machine learning, non-authoritative AI drafting, and explicit human accountability.
           </p>
         </div>
 
-        {/* Active Scenario Context Banner */}
-        <div className="og-arch-scenario-card" aria-label="Active scenario context">
-          <div className="og-arch-scenario-head">
-            <span className="og-arch-scenario-label">Active Scenario Context</span>
-            <span className="og-arch-scenario-badge">{scenario?.identity?.category ?? 'Retail Category'}</span>
+        {/* Active Scenario Indicator Card */}
+        <div className="og-arch-scenario-card">
+          <div className="og-arch-scenario-badge">
+            <span className="og-arch-live-dot" /> Active Scenario Context
           </div>
-          <div className="og-arch-scenario-body">
-            <div className="og-arch-scenario-name">
-              <strong>{scenario?.identity?.scenario_name ?? 'Curated Retail Scenario'}</strong>
-            </div>
-            <div className="og-arch-scenario-details">
-              <span><strong>SKU:</strong> {scenario?.identity?.sku_name ?? '—'}</span>
-              <span><strong>Supplier:</strong> {scenario?.supply?.supplier_name ?? '—'}</span>
-              <span><strong>Horizon:</strong> {scenario?.calendar?.forecast_horizon_days ?? 14} days</span>
-            </div>
+          <div className="og-arch-scenario-name">
+            {scenario?.identity?.scenario_name ?? 'Active Certified Scenario'}
+          </div>
+          <div className="og-arch-scenario-meta">
+            <span><strong>SKU:</strong> {scenario?.identity?.sku_name ?? '—'}</span>
+            <span>&bull;</span>
+            <span><strong>Supplier:</strong> {scenario?.supply?.supplier_name ?? '—'}</span>
+            <span>&bull;</span>
+            <span><strong>Clock:</strong> {scenario?.calendar?.observed_history_end_date ?? '—'}</span>
+          </div>
+
+          <div className="og-arch-scenario-select-row">
+            <label htmlFor="arch-scenario-selector" className="og-arch-select-label">
+              Switch Scenario:
+            </label>
+            <select
+              id="arch-scenario-selector"
+              className="og-arch-select"
+              value={activeScenarioId}
+              onChange={(e) => setActiveScenarioId(e.target.value)}
+            >
+              <option value="SCN-FRESH-DAIRY-CHEDDAR-001">Fresh Dairy &middot; Cheshire Cheese Co</option>
+              <option value="SCN-CHILLED-SALMON-002">Chilled Fish &middot; Foodvest Fish</option>
+              <option value="SCN-BAKERY-SOURDOUGH-003">Premium Bakery &middot; Allied Bakeries</option>
+            </select>
           </div>
         </div>
       </header>
 
-      {/* ── 60-90 Second Narrative Guide ─────────────────────────────────── */}
+      {/* ── 60-90s Executive Elevator Pitch Bar ────────────────────────────── */}
       <div className="og-arch-elevator-bar">
-        <div className="og-arch-elevator-title">
-          <Info size={14} strokeWidth={2} />
-          <strong>The 60–90 Second Architecture Story:</strong>
-        </div>
+        <span className="og-arch-elevator-tag">Executive Summary:</span>
         <div className="og-arch-elevator-steps">
-          <span><strong>1. Evidence:</strong> Seeded POS, supplier terms &amp; calendar.</span>
-          <ArrowRight size={12} className="og-arch-arrow" />
-          <span><strong>2. Signals:</strong> Dynamic fusion &amp; evidence stability.</span>
-          <ArrowRight size={12} className="og-arch-arrow" />
-          <span><strong>3. Methods:</strong> Separated math, statistical ML &amp; bounded GenAI.</span>
-          <ArrowRight size={12} className="og-arch-arrow" />
-          <span><strong>4. Intelligence:</strong> Decision Gap, Window &amp; Regret.</span>
-          <ArrowRight size={12} className="og-arch-arrow" />
-          <span><strong>5. Decisions:</strong> Depth curves &amp; operational Ripple.</span>
-          <ArrowRight size={12} className="og-arch-arrow" />
-          <span><strong>6. Human:</strong> Director review &amp; contract commitment.</span>
-          <ArrowRight size={12} className="og-arch-arrow" />
-          <span><strong>7. Learning:</strong> Variance audit &amp; Enterprise Memory.</span>
+          <span className="og-arch-step"><strong>1. Evidence</strong> Point-of-Sale &amp; Terms</span>
+          <span className="og-arch-arrow">&rarr;</span>
+          <span className="og-arch-step"><strong>2. Signals</strong> Fusion &amp; Stability</span>
+          <span className="og-arch-arrow">&rarr;</span>
+          <span className="og-arch-step"><strong>3. Methods</strong> Math, ML &amp; GenAI</span>
+          <span className="og-arch-arrow">&rarr;</span>
+          <span className="og-arch-step"><strong>4. Decision Intelligence</strong> Gap &amp; Window</span>
+          <span className="og-arch-arrow">&rarr;</span>
+          <span className="og-arch-step"><strong>5. Action</strong> Derived Recommendation</span>
+          <span className="og-arch-arrow">&rarr;</span>
+          <span className="og-arch-step"><strong>6. Commitment</strong> Human Sign-Off</span>
+          <span className="og-arch-arrow">&rarr;</span>
+          <span className="og-arch-step"><strong>7. Memory</strong> Trading Variance</span>
         </div>
       </div>
 
-      {/* ── Main Architecture Workspace: Flow & Inspect Drawer ───────────── */}
+      {/* ── Main Workspace: 7-Layer Flow + Governed Inspect Panel ──────────── */}
       <div className="og-arch-workspace">
-        {/* Left / Main: The 7-Layer Architecture Flow */}
-        <div className="og-arch-flow" role="region" aria-label="CogniX Architecture Flow">
-          {ARCH_LAYERS.map((layer) => (
-            <div
-              key={layer.id}
-              className="og-arch-layer"
-              id={layer.id}
-            >
-              <div className="og-arch-layer-head">
-                <div className="og-arch-layer-num">{layer.number}</div>
-                <div className="og-arch-layer-meta">
-                  <div className="og-arch-layer-title-row">
-                    <h3>{layer.title}</h3>
-                    <span className={`og-arch-badge ${getMechanismBadgeClass(layer.primaryMechanism)}`}>
-                      {layer.mechanismLabel}
-                    </span>
+        {/* The 7 Sequential Layers Flow */}
+        <main className="og-arch-flow" aria-label="7 Governed Architecture Layers">
+          {ARCH_LAYERS.map((layer) => {
+            const hasSelectedNode = layer.nodes.some((n) => n.id === selectedNodeId);
+            return (
+              <section
+                key={layer.id}
+                id={layer.id}
+                className={`og-arch-layer ${hasSelectedNode ? 'is-active-layer' : ''}`}
+                aria-labelledby={`heading-${layer.id}`}
+              >
+                <div className="og-arch-layer-head">
+                  <div className="og-arch-layer-num">
+                    {layer.number}
                   </div>
-                  <p className="og-arch-layer-subtitle">{layer.subtitle}</p>
+                  <div className="og-arch-layer-info">
+                    <div className="og-arch-layer-title-row">
+                      <div className="og-arch-layer-icon">{getLayerIcon(layer.id)}</div>
+                      <h3 id={`heading-${layer.id}`} className="og-arch-layer-title">
+                        {layer.title}
+                      </h3>
+                      <span className={`og-arch-badge ${getMechanismBadgeClass(layer.primaryMechanism)}`}>
+                        {layer.mechanismLabel}
+                      </span>
+                    </div>
+                    <p className="og-arch-layer-subtitle">{layer.subtitle}</p>
+                  </div>
                 </div>
-              </div>
 
-              <div className="og-arch-nodes-grid">
-                {layer.nodes.map((node) => {
-                  const isSelected = node.id === selectedNodeId;
-                  return (
-                    <button
-                      key={node.id}
-                      type="button"
-                      className={`og-arch-node ${isSelected ? 'is-selected' : ''}`}
-                      onClick={() => setSelectedNodeId(node.id)}
-                      aria-pressed={isSelected}
-                    >
-                      <div className="og-arch-node-top">
-                        <span className={`og-arch-pill ${getMechanismBadgeClass(node.mechanism)}`}>
-                          {node.mechanism}
-                        </span>
-                        {node.governingAuthority && (
-                          <span className="og-arch-authority" title={node.governingAuthority}>
-                            {node.governingAuthority.split(' ')[0]}
+                {/* Layer Nodes Grid */}
+                <div className="og-arch-nodes-grid">
+                  {layer.nodes.map((node) => {
+                    const isSelected = node.id === selectedNodeId;
+                    return (
+                      <button
+                        key={node.id}
+                        type="button"
+                        id={`arch-node-${node.id}`}
+                        onClick={() => setSelectedNodeId(node.id)}
+                        className={`og-arch-node ${isSelected ? 'is-selected' : ''}`}
+                        aria-pressed={isSelected}
+                        title={`Inspect ${node.name}`}
+                      >
+                        <div className="og-arch-node-top">
+                          <span className={`og-arch-badge ${getMechanismBadgeClass(node.mechanism)}`}>
+                            {node.mechanism}
                           </span>
-                        )}
-                      </div>
-                      <div className="og-arch-node-name">{node.name}</div>
-                      <div className="og-arch-node-summary">{node.summary}</div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          ))}
-        </div>
+                          {node.methodRefId && (
+                            <span className="og-arch-method-ref" title="Mapped to real Models & Methods registry">
+                              <FileCheck size={11} /> Models &amp; Methods
+                            </span>
+                          )}
+                        </div>
 
-        {/* Right: Governed Inspect Interaction Panel */}
-        <aside className="og-arch-inspect-panel" aria-label="Component Inspector">
+                        <div className="og-arch-node-title">
+                          {node.name}
+                        </div>
+
+                        <p className="og-arch-node-desc">
+                          {node.summary}
+                        </p>
+
+                        <div className="og-arch-node-footer">
+                          <span className="og-arch-inspect-cta">
+                            {isSelected ? 'Inspecting' : 'Click to inspect'} &rarr;
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </section>
+            );
+          })}
+        </main>
+
+        {/* Governed Inspect Panel (Right Drawer) */}
+        <aside className="og-arch-inspect-panel" aria-label="Node Inspection Details">
           <div className="og-arch-inspect-card">
-            <div className="og-arch-inspect-head">
-              <div className="og-arch-inspect-tag">
-                <Layers size={13} strokeWidth={2} />
-                <span>Layer {selectedNode.layer.number}: {selectedNode.layer.title}</span>
+            <div className="og-arch-inspect-header">
+              <div className="og-arch-inspect-layer-tag">
+                Layer {selectedNode.layer.number}: {selectedNode.layer.title}
               </div>
-              <h4 className="og-arch-inspect-title">{selectedNode.node.name}</h4>
-              <div className="og-arch-inspect-badges">
-                <span className={`og-arch-badge ${getMechanismBadgeClass(selectedNode.node.mechanism)}`}>
-                  {getMechanismTitle(selectedNode.node.mechanism)}
-                </span>
-                {selectedNode.node.governingAuthority && (
-                  <span className="og-arch-badge og-arch-badge--neutral">
-                    {selectedNode.node.governingAuthority}
-                  </span>
-                )}
-              </div>
+              <h4 className="og-arch-inspect-title">
+                {selectedNode.node.name}
+              </h4>
+              <span className={`og-arch-badge ${getMechanismBadgeClass(selectedNode.node.mechanism)}`}>
+                {getMechanismTitle(selectedNode.node.mechanism)}
+              </span>
             </div>
 
             <div className="og-arch-inspect-body">
@@ -834,76 +1023,93 @@ export default function CognixArchitectureSurface() {
         </aside>
       </div>
 
-      {/* ── SB-GATE Governance & Storyboard Disposition Section ────────────── */}
-      <section className="og-arch-governance-section" aria-label="SB-GATE Retirement Evaluation">
-        <div className="og-arch-gate-card">
-          <div className="og-arch-gate-head">
-            <div className="og-arch-gate-title">
-              <ShieldAlert size={16} strokeWidth={2} />
-              <h4>ADR-051 &middot; Architectural Storyboard Retirement Gate (SB-GATE)</h4>
-            </div>
-            <div className="og-arch-gate-score">
-              <span>Gate Status:</span>
-              <strong className="og-arch-score-val">{STORYBOARD_GATES_MET} of {STORYBOARD_GATE_TOTAL} Conditions Met</strong>
-              <span className="og-arch-badge og-arch-badge--warning">Storyboard Retained</span>
-            </div>
-          </div>
-
-          <p className="og-arch-gate-lead">
-            {STORYBOARD_DISPOSITION}
-          </p>
-
-          {/* Six Conditions Checklist */}
-          <div className="og-arch-gate-conditions">
-            {STORYBOARD_GATE.map((cond) => {
-              const isMet = cond.state === 'met';
-              return (
-                <div key={cond.gate_id} className={`og-arch-cond-row ${isMet ? 'is-met' : 'is-open'}`}>
-                  <div className="og-arch-cond-status">
-                    {isMet ? (
-                      <CheckCircle2 size={15} className="text-success" />
-                    ) : (
-                      <AlertTriangle size={15} className="text-warning" />
-                    )}
-                    <strong>{cond.gate_id}</strong>
-                  </div>
-                  <div className="og-arch-cond-text">
-                    <div className="og-arch-cond-title">{cond.condition}</div>
-                    <div className="og-arch-cond-basis">
-                      <strong>Basis:</strong> {cond.basis}
-                    </div>
-                    {cond.outstanding && (
-                      <div className="og-arch-cond-outstanding">
-                        <strong>Remaining Blocker:</strong> {cond.outstanding}
-                      </div>
-                    )}
-                  </div>
-                  <div className="og-arch-cond-pill">
-                    <span className={`og-arch-badge ${isMet ? 'og-arch-badge--calculated' : 'og-arch-badge--warning'}`}>
-                      {cond.state}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-
-          {/* Retained Storyboard Collapsible View */}
-          <div className="og-arch-retained-box">
-            <button
-              type="button"
-              className="og-arch-retained-toggle"
-              onClick={() => setShowRetainedStoryboard(!showRetainedStoryboard)}
-              aria-expanded={showRetainedStoryboard}
-            >
-              {showRetainedStoryboard ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+      {/* ── Quiet Governance & SB-GATE Notice (ADR-051) ────────────────────── */}
+      <footer className="og-arch-governance-section" aria-label="Governance Status">
+        <div className="og-arch-gate-card og-arch-gate-card--quiet">
+          <div className="og-arch-quiet-bar">
+            <div className="og-arch-quiet-info">
+              <Info size={14} className="text-muted" />
               <span>
-                {showRetainedStoryboard ? 'Hide' : 'Inspect'} Retained Architectural Storyboard (12 Historical Slides under ADR-051)
+                <strong>Governance Note (ADR-051):</strong> Historical Storyboard retained pending retirement ({STORYBOARD_GATES_MET} of {STORYBOARD_GATE_TOTAL} gate conditions met).
               </span>
-            </button>
+            </div>
 
-            {showRetainedStoryboard && (
-              <div className="og-storyboard" style={{ marginTop: '16px' }}>
+            <div className="og-arch-quiet-actions">
+              <button
+                type="button"
+                className="og-arch-quiet-toggle-btn"
+                onClick={() => setShowGateDetails(!showGateDetails)}
+                aria-expanded={showGateDetails}
+              >
+                {showGateDetails ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                <span>{showGateDetails ? 'Hide' : 'Inspect'} SB-GATE Checklist</span>
+              </button>
+
+              <span className="og-arch-quiet-sep">&bull;</span>
+
+              <button
+                type="button"
+                className="og-arch-quiet-toggle-btn"
+                onClick={() => setShowRetainedStoryboard(!showRetainedStoryboard)}
+                aria-expanded={showRetainedStoryboard}
+              >
+                {showRetainedStoryboard ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                <span>{showRetainedStoryboard ? 'Hide' : 'Inspect'} Retained Storyboard (Historical)</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Collapsible SB-GATE 6-Condition Checklist */}
+          {showGateDetails && (
+            <div className="og-arch-quiet-checklist">
+              <div className="og-arch-quiet-checklist-head">
+                <strong>ADR-051 Storyboard Retirement Evaluation</strong>
+                <span className="og-arch-badge og-arch-badge--warning">Disposition: {STORYBOARD_DISPOSITION}</span>
+              </div>
+              <p className="og-arch-cond-basis" style={{ marginBottom: '10px' }}>
+                Retirement requires all 6 conditions to be fully met. Condition 5 (migration of sixty historical prose units) remains open, so the storyboard is retained.
+              </p>
+
+              <div className="og-arch-gate-conditions">
+                {STORYBOARD_GATE.map((cond) => {
+                  const isMet = cond.state === 'met';
+                  return (
+                    <div key={cond.gate_id} className={`og-arch-cond-row ${isMet ? 'is-met' : 'is-open'}`}>
+                      <div className="og-arch-cond-status">
+                        {isMet ? (
+                          <CheckCircle2 size={13} className="text-success" />
+                        ) : (
+                          <AlertTriangle size={13} className="text-warning" />
+                        )}
+                        <strong>{cond.gate_id}</strong>
+                      </div>
+                      <div className="og-arch-cond-text">
+                        <div className="og-arch-cond-title">{cond.condition}</div>
+                        <div className="og-arch-cond-basis">
+                          <strong>Basis:</strong> {cond.basis}
+                        </div>
+                        {cond.outstanding && (
+                          <div className="og-arch-cond-outstanding">
+                            <strong>Remaining Blocker:</strong> {cond.outstanding}
+                          </div>
+                        )}
+                      </div>
+                      <div className="og-arch-cond-pill">
+                        <span className={`og-arch-badge ${isMet ? 'og-arch-badge--calculated' : 'og-arch-badge--warning'}`}>
+                          {cond.state}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Collapsible Retained Storyboard */}
+          {showRetainedStoryboard && (
+            <div className="og-arch-retained-box">
+              <div className="og-storyboard" style={{ marginTop: '12px' }}>
                 <div className="og-storyboard-notice">
                   <AlertTriangle size={13} strokeWidth={2} />
                   <span>
@@ -916,10 +1122,10 @@ export default function CognixArchitectureSurface() {
                 </div>
                 <ArchitectureExplorer />
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
-      </section>
+      </footer>
     </div>
   );
 }

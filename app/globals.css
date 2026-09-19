@@ -3462,6 +3462,86 @@ button.atlas-origin--open:focus-visible { outline: 2px solid var(--accent); outl
   gap: 16px;
 }
 
+/* Quiet SB-GATE Governance Card (ADR-051 Secondary Notice) */
+.og-arch-gate-card--quiet {
+  padding: 12px 18px;
+  background: var(--bg-surface-subtle, #fafafa);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 8px);
+  gap: 0;
+  transition: all 0.2s ease;
+}
+
+.og-arch-quiet-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.8125rem;
+}
+
+.og-arch-quiet-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.og-arch-quiet-info strong {
+  color: var(--text-primary);
+}
+
+.og-arch-quiet-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.og-arch-quiet-toggle-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 4px);
+  padding: 4px 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.og-arch-quiet-toggle-btn:hover {
+  background: var(--bg-surface, #ffffff);
+  color: var(--g10x-orange, #ea580c);
+  border-color: var(--g10x-orange, #ea580c);
+}
+
+.og-arch-quiet-sep {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+}
+
+.og-arch-quiet-checklist {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.og-arch-quiet-checklist-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875rem;
+  color: var(--text-primary);
+}
+
 .og-arch-gate-head {
   display: flex;
   justify-content: space-between;

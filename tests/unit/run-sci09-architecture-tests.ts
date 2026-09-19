@@ -32,6 +32,7 @@ import {
 } from '@/config/atlas-storyboard-gate';
 import { resolveScenario, isScenarioRegistered } from '@/lib/scenario-client-registry';
 import { scenarioMethodsRegister } from '@/lib/living-evidence-engine';
+import { scenarioExposedDemandUnits } from '@/packages/contracts/src/canonical-scenario-model';
 
 const ROOT = process.cwd();
 
@@ -217,12 +218,13 @@ async function main() {
     // Evaluate Decision Gap resolution
     const gapRole = decisionGapNode!.resolveScenarioRole(scn, null);
     assert(gapRole.quantities !== undefined && gapRole.quantities.length > 0, `${scnId}: Decision Gap resolves quantities`);
+    const expectedExposed = Math.round(scenarioExposedDemandUnits(scn));
+    assert(gapRole.details.includes(expectedExposed.toLocaleString()), `${scnId}: Decision Gap contains dynamic ${expectedExposed.toLocaleString()} units`);
 
     // Fresh Dairy specific assertions
     if (scnId === 'SCN-FRESH-DAIRY-CHEDDAR-001') {
       assert(scn.supply.supplier_name === 'Cheshire Cheese Co', 'Fresh Dairy supplier is Cheshire Cheese Co');
       assert(scn.identity.category === 'Fresh Dairy', 'Fresh Dairy category is Fresh Dairy');
-      assert(gapRole.details.includes('130,125'), 'Fresh Dairy Decision Gap contains 130,125 units');
     }
 
     // Chilled Salmon specific assertions
@@ -237,6 +239,34 @@ async function main() {
       assert(scn.identity.category === 'Bakery', 'Premium Bakery category is Bakery');
     }
   }
+
+  // Promotion Depth Recommendation dynamically grounded verification
+  const promoNode = retailDecisionsLayer.nodes.find(n => n.id === 'retail-promo-recommendation')!;
+  assert(promoNode !== undefined, 'Promotion Depth Recommendation node is present in Retail Decisions (Layer 5)');
+
+  // Fresh Dairy: 14% recommended discount, challenging committed 20%
+  const freshDairyScn = resolveScenario('SCN-FRESH-DAIRY-CHEDDAR-001');
+  const freshDairyPromo = promoNode.resolveScenarioRole(freshDairyScn, null);
+  assert(
+    freshDairyPromo.action.includes('14%') && freshDairyPromo.action.includes('20%'),
+    `Fresh Dairy derived recommendation is 14% challenging committed 20% (action: "${freshDairyPromo.action}")`
+  );
+
+  // Premium Bakery: 0% / do not promote certified recommendation
+  const bakeryScn = resolveScenario('SCN-BAKERY-SOURDOUGH-003');
+  const bakeryPromo = promoNode.resolveScenarioRole(bakeryScn, null);
+  assert(
+    bakeryPromo.details.includes('do not promote') || bakeryPromo.action.includes('0%'),
+    `Premium Bakery certified recommendation is 0% / do not promote (details: "${bakeryPromo.details}")`
+  );
+
+  // Chilled Salmon: 10% recommended discount, aligned with committed 10%
+  const salmonScn = resolveScenario('SCN-CHILLED-SALMON-002');
+  const salmonPromo = promoNode.resolveScenarioRole(salmonScn, null);
+  assert(
+    salmonPromo.action.includes('10%'),
+    `Chilled Salmon recommendation is 10% (action: "${salmonPromo.action}")`
+  );
 
   // ── 8. GOVERNED INSPECT INTERACTION ──────────────────────────────────────
   console.log('\n=== 8. GOVERNED INSPECT INTERACTION ===============================');
