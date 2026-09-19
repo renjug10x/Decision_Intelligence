@@ -32,7 +32,7 @@ import {
 } from '@/config/atlas-storyboard-gate';
 import { resolveScenario, isScenarioRegistered } from '@/lib/scenario-client-registry';
 import { scenarioMethodsRegister } from '@/lib/living-evidence-engine';
-import { scenarioExposedDemandUnits } from '@/packages/contracts/src/canonical-scenario-model';
+import { getAuthoritativeScenarioDecision } from '@/lib/canonical-decision-reconciliation';
 
 const ROOT = process.cwd();
 
@@ -218,11 +218,13 @@ async function main() {
     // Evaluate Decision Gap resolution
     const gapRole = decisionGapNode!.resolveScenarioRole(scn, null);
     assert(gapRole.quantities !== undefined && gapRole.quantities.length > 0, `${scnId}: Decision Gap resolves quantities`);
-    const expectedExposed = Math.round(scenarioExposedDemandUnits(scn));
-    assert(gapRole.details.includes(expectedExposed.toLocaleString()), `${scnId}: Decision Gap contains dynamic ${expectedExposed.toLocaleString()} units`);
+    const authDecision = getAuthoritativeScenarioDecision(scnId);
+    assert(gapRole.details.includes(authDecision.exposedGap.toLocaleString()), `${scnId}: Decision Gap contains dynamic ${authDecision.exposedGap.toLocaleString()} units`);
 
     // Fresh Dairy specific assertions
     if (scnId === 'SCN-FRESH-DAIRY-CHEDDAR-001') {
+      assert(authDecision.exposedGap === 130125, 'Fresh Dairy exposed demand is authoritative 130,125 units');
+      assert(!gapRole.details.includes('130,130'), 'Fresh Dairy does not contain stale 130,130 units');
       assert(scn.supply.supplier_name === 'Cheshire Cheese Co', 'Fresh Dairy supplier is Cheshire Cheese Co');
       assert(scn.identity.category === 'Fresh Dairy', 'Fresh Dairy category is Fresh Dairy');
     }

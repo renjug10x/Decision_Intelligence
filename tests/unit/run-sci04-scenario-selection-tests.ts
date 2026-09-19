@@ -160,6 +160,21 @@ console.log('\n=== 3. CATALOGUE RENDERED FROM FROZEN CONTRACT DATA =============
     Boolean(ref?.provenance?.descriptor),
     'Catalogue entry carries ADR-082 provenance descriptor'
   );
+
+  // Regression assertion: Scenario catalogue produces unique stable keys for every rendered scenario
+  const renderedKeys = catalogue.map((entry, idx) => entry.scenario_id || (entry as any).scenarioId || `scenario-${idx}`);
+  assert(
+    renderedKeys.every(k => typeof k === 'string' && k.length > 0 && !k.includes('undefined')),
+    'Every rendered scenario key is a defined, non-empty string'
+  );
+  assert(
+    new Set(renderedKeys).size === renderedKeys.length,
+    `Scenario catalogue produces unique stable keys for every rendered scenario (${renderedKeys.length} unique keys: ${renderedKeys.join(', ')})`
+  );
+  assert(
+    catalogue.every(entry => Boolean(entry.scenario_id)),
+    'Every catalogue entry has a defined canonical scenario_id'
+  );
 }
 
 console.log('\n=== 4. CERTIFIED SCENARIO SELECTABLE VIA GOVERNED PATH ============\n');

@@ -44,7 +44,11 @@ import {
   scenarioFlexCapacityUnits,
   type CanonicalScenario
 } from '@/packages/contracts/src/canonical-scenario-model';
-import { scenarioElasticityCurve } from '@/lib/campaign-archetypes';
+import {
+  getAuthoritativeScenarioDecision,
+  fetchAuthoritativeScenarioDecision,
+  type AuthoritativeScenarioDecision
+} from '@/lib/canonical-decision-reconciliation';
 import {
   STORYBOARD_GATE,
   STORYBOARD_GATES_MET,
@@ -76,6 +80,13 @@ export interface DynamicScenarioContext {
   gapPct: string;
   recommendedDepth: number;
   committedDepth: number;
+  recoveredUnits?: number;
+  residualGapUnits?: number;
+  revenueExposureGbp?: number;
+  marginExposureGbp?: number;
+  windowRemainingHours?: number;
+  windowState?: string;
+  stabilityScore?: number;
 }
 
 export interface ArchNode {
@@ -111,34 +122,10 @@ export interface ArchLayer {
 
 // ── Helper to resolve dynamic metrics cleanly from scenario and live context ───
 function resolveMetrics(scenario: any, context?: DynamicScenarioContext | null) {
-  const baseDemand = context?.baseDemand ?? (scenario ? scenarioBaseDemandUnits(scenario) : 0);
-  const expectedDemand = context?.expectedDemand ?? (scenario ? Math.round(scenarioExpectedDemandUnits(scenario)) : 0);
-  const servableDemand = context?.servableDemand ?? (scenario ? Math.round(scenarioServableDemandUnits(scenario)) : 0);
-  const exposedGap = context?.exposedGap ?? (scenario ? Math.round(scenarioExposedDemandUnits(scenario)) : 0);
-  const flexCapacity = context?.flexCapacity ?? (scenario ? Math.round(scenarioFlexCapacityUnits(scenario)) : 0);
-  const gapPct = context?.gapPct ?? (baseDemand > 0 ? ((exposedGap / baseDemand) * 100).toFixed(1) : '0.0');
-
-  let recommendedDepth = context?.recommendedDepth;
-  const committedDepth = context?.committedDepth ?? scenario?.economics?.promotion_depth_pct ?? 0;
-  if (recommendedDepth === undefined && scenario) {
-    try {
-      const curve = scenarioElasticityCurve(scenario);
-      const rec = curve.find(p => p.is_cognix_recommended) ?? curve[0];
-      recommendedDepth = rec ? rec.discount_pct : committedDepth;
-    } catch {
-      recommendedDepth = committedDepth;
-    }
-  }
-
+  const auth = getAuthoritativeScenarioDecision(scenario, context);
   return {
-    baseDemand,
-    expectedDemand,
-    servableDemand,
-    exposedGap,
-    flexCapacity,
-    gapPct,
-    recommendedDepth: recommendedDepth ?? committedDepth,
-    committedDepth
+    ...auth,
+    flexCapacity: auth.recoveredUnits
   };
 }
 
@@ -248,13 +235,14 @@ export const ARCH_LAYERS: ArchLayer[] = [
         summary: 'Quantified stability of incoming evidence streams over time — not an artificial model confidence score.',
         whatItIs: 'ADR-040 explicitly defines Forecast Stability as an inherent property of the evidence stream itself: the degree of volatility, trajectory drift, and noise in incoming observations over the decision horizon. It is never a model accuracy metric or confidence percentage.',
         resolveScenarioRole: (scenario, _methods, ctx) => {
-          const stab = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'FORECAST_STABILITY')?.after;
+          const { stabilityScore } = resolveMetrics(scenario, ctx);
+          const stab = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'FORECAST_STABILITY')?.after ?? stabilityScore;
           return {
             action: `Tracks evidence-stream trajectory stability for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
             details: `Evaluates signal trajectory consistency across consecutive trading days per ADR-040. An inherent property of the evidence stream itself, not an ML model confidence score.`,
             quantities: [
               { label: 'Construct Authority', value: 'ADR-040 (Evidence Property)' },
-              { label: 'Stability Index', value: stab ? `${stab} / 100` : 'Evidence Evaluated' }
+              { label: 'Stability Index', value: `${stab} / 100` }
             ]
           };
         }
@@ -409,14 +397,17 @@ export const ARCH_LAYERS: ArchLayer[] = [
         summary: 'Operational deadline constraint derived from supplier lead times and warehouse cutoffs.',
         whatItIs: 'ADR-042 explicitly rules that the Decision Window is a hard operational constraint, not an artificial algorithmic confidence decay curve. It is calculated directly from supplier production lead times, logistics scheduling, and store replenishment cutoffs.',
         resolveScenarioRole: (scenario, _methods, ctx) => {
-          const winHours = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'DECISION_WINDOW_HOURS')?.after;
-          const winState = ctx?.livingEvidence?.decision_position?.decision_window;
+          const { windowRemainingHours, windowState } = resolveMetrics(scenario, ctx);
+          const liveHours = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'DECISION_WINDOW_HOURS')?.after;
+          const liveState = ctx?.livingEvidence?.decision_position?.decision_window;
+          const winHours = liveHours ?? windowRemainingHours;
+          const winState = liveState ?? windowState;
           return {
             action: `Enforces operational cutoff constraint with ${scenario?.supply?.supplier_name ?? 'supplier'}`,
             details: `Hard operational deadline constraint (ADR-042) derived from supplier lead time (${scenario?.calendar?.supplier_lead_time_days ?? '—'} days) and contractual cut-off schedule, before supplier production locks and transport cannot be flexed.`,
             quantities: [
               { label: 'Supplier Lead Time', value: `${scenario?.calendar?.supplier_lead_time_days ?? '—'} days` },
-              { label: 'Window Status', value: winState ? `${winState} (${winHours ?? '—'} hrs)` : 'Operational Constraint' }
+              { label: 'Window Status', value: `${winState} (${winHours} hrs)` }
             ]
           };
         }
@@ -430,15 +421,18 @@ export const ARCH_LAYERS: ArchLayer[] = [
         summary: 'Comparative expected value between taking action versus doing nothing.',
         whatItIs: 'ADR-043 defines Decision Regret as the comparative loss incurred by pursuing a suboptimal intervention (or doing nothing) versus committing to the optimal recommendation, evaluated over margin, revenue, and waste.',
         resolveScenarioRole: (scenario, _methods, ctx) => {
-          const marginExp = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'MARGIN_EXPOSURE_GBP')?.after;
-          const revExp = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'REVENUE_EXPOSURE_GBP')?.after;
+          const { revenueExposureGbp, marginExposureGbp } = resolveMetrics(scenario, ctx);
+          const liveMargin = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'MARGIN_EXPOSURE_GBP')?.after;
+          const liveRev = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'REVENUE_EXPOSURE_GBP')?.after;
+          const marginVal = liveMargin !== undefined ? Number(liveMargin) : marginExposureGbp;
+          const revVal = liveRev !== undefined ? Number(liveRev) : revenueExposureGbp;
           return {
             action: `Calculates commercial penalty of non-intervention for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
             details: `Quantifies comparative expected loss under ADR-043 across margin, unserved demand, and customer loyalty if the Decision Gap is left unaddressed versus committing to the recommended intervention.`,
             quantities: [
               { label: 'Evaluation Basis', value: 'Do Nothing vs Governed Intervention' },
-              { label: 'Margin at Risk', value: marginExp ? `£${Number(marginExp).toLocaleString()}` : 'Calculated by Rule' },
-              { label: 'Revenue at Risk', value: revExp ? `£${Number(revExp).toLocaleString()}` : 'Calculated by Rule' }
+              { label: 'Margin at Risk', value: `£${marginVal.toLocaleString()}` },
+              { label: 'Revenue at Risk', value: `£${revVal.toLocaleString()}` }
             ]
           };
         }
@@ -642,6 +636,7 @@ export default function CognixArchitectureSurface() {
 
   const [methodsRegister, setMethodsRegister] = useState<MethodsRegister | null>(null);
   const [livingEvidence, setLivingEvidence] = useState<LivingEvidenceScenarioData | null>(null);
+  const [serverDecision, setServerDecision] = useState<AuthoritativeScenarioDecision | null>(null);
   const [loadingContext, setLoadingContext] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string>('decision-gap');
   const [showGateDetails, setShowGateDetails] = useState(false);
@@ -653,18 +648,20 @@ export default function CognixArchitectureSurface() {
     setActiveScenarioId(currentId);
   }, [decisionState?.scenario_id]);
 
-  // Load Models & Methods register and Living Evidence for the active scenario
+  // Load Models & Methods register, Living Evidence, and authoritative decision for active scenario
   useEffect(() => {
     let isMounted = true;
     setLoadingContext(true);
 
     Promise.all([
       getMethodsRegister(activeScenarioId).catch(() => null),
-      getLivingEvidence(activeScenarioId).catch(() => null)
-    ]).then(([methods, evidence]) => {
+      getLivingEvidence(activeScenarioId).catch(() => null),
+      fetchAuthoritativeScenarioDecision(activeScenarioId).catch(() => null)
+    ]).then(([methods, evidence, decision]) => {
       if (!isMounted) return;
       setMethodsRegister(methods);
       setLivingEvidence(evidence);
+      if (decision) setServerDecision(decision);
     }).finally(() => {
       if (isMounted) setLoadingContext(false);
     });
@@ -689,37 +686,18 @@ export default function CognixArchitectureSurface() {
   // Build mechanically grounded dynamic context
   const dynamicContext = useMemo((): DynamicScenarioContext | null => {
     if (!scenario) return null;
-    const baseDemand = scenarioBaseDemandUnits(scenario);
-    const expectedDemand = Math.round(scenarioExpectedDemandUnits(scenario));
-    const servableDemand = Math.round(scenarioServableDemandUnits(scenario));
-    const exposedGap = Math.round(scenarioExposedDemandUnits(scenario));
-    const flexCapacity = Math.round(scenarioFlexCapacityUnits(scenario));
-    const gapPct = baseDemand > 0 ? ((exposedGap / baseDemand) * 100).toFixed(1) : '0.0';
-
-    let recommendedDepth = 0;
-    const committedDepth = scenario.economics.promotion_depth_pct;
-    try {
-      const curve = scenarioElasticityCurve(scenario);
-      const rec = curve.find(p => p.is_cognix_recommended) ?? curve[0];
-      recommendedDepth = rec ? rec.discount_pct : committedDepth;
-    } catch {
-      recommendedDepth = committedDepth;
-    }
+    const auth = serverDecision?.scenarioId === activeScenarioId
+      ? serverDecision
+      : getAuthoritativeScenarioDecision(scenario);
 
     return {
       scenario,
       methodsRegister,
       livingEvidence,
-      baseDemand,
-      expectedDemand,
-      servableDemand,
-      exposedGap,
-      flexCapacity,
-      gapPct,
-      recommendedDepth,
-      committedDepth
+      ...auth,
+      flexCapacity: auth.recoveredUnits
     };
-  }, [scenario, methodsRegister, livingEvidence]);
+  }, [scenario, methodsRegister, livingEvidence, serverDecision, activeScenarioId]);
 
   // Find currently selected node
   const selectedNode = useMemo(() => {
