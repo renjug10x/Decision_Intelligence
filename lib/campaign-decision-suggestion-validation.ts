@@ -184,7 +184,14 @@ function decimalScriptZero(ch: string): number | null {
  */
 const NON_ASCII_NUMERAL = /\p{No}/u;
 
-function statesAFigure(text: string): boolean {
+/**
+ * Whether a piece of model output states a measured or monetary quantity.
+ *
+ * Exported because ADR-083 extends this EXACT rule from Decision Context drafting to scenario
+ * drafting (`SCI-07`), and two copies of "what counts as a fabricated figure" would drift —
+ * which is the `R-36` failure in miniature. One definition, two callers.
+ */
+export function statesAFigure(text: string): boolean {
   if (NON_ASCII_NUMERAL.test(text)) return true;
   const folded = foldFiguresToAscii(text);
   return FABRICATED_FIGURE_PATTERNS.some(pattern => pattern.test(folded));

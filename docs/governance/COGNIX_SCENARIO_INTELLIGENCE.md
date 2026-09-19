@@ -135,7 +135,9 @@ session on `SCN-PROMO-01` with constraint literals naming FreshDirect UK. Eviden
 5. **Refresh advances evidence and reports decision consequence.** (ADR-081)
 6. **One provenance vocabulary**, mapped from the five the estate already carries. (ADR-082)
 7. **GenAI drafts structure; engines compute economics**, and a confirmed scenario reproduces with
-   the provider unavailable. (ADR-083)
+   the provider unavailable. (ADR-083) — **implemented by `SCI-07`.** The allowlist is derived from
+   the field register, so a proposal naming a quantitative field is refused before its value is read;
+   reproduction with `GEMINI_API_KEY` unset is asserted byte for byte.
 8. **All three origins enter the same downstream contracts.** There is no curated engine, no
    user-scenario engine and no uploaded-data engine.
 
@@ -199,7 +201,20 @@ relabelled results, which is the unsupported-claim pattern Principle 12 and the 
 exist to prevent. Operating-model difference is instead declared per scenario as part of its estate
 and framing, which is where it belongs and costs nothing.
 
-## 6. Create Your Own Scenario
+## 6. Create Your Own Scenario — **DOMAIN IMPLEMENTED (`SCI-07`, 2026-09-19)**
+
+Structured scenario authoring and governed GenAI drafting are implemented as a DOMAIN, with governed
+APIs and no user-facing authoring experience: `SCI-08` owns the experience and has not started.
+Evidence: [`COGNIX_SCI_07_SCENARIO_AUTHORING_REPORT.md`](../reports/COGNIX_SCI_07_SCENARIO_AUTHORING_REPORT.md).
+
+**What exists.** The Scenario Draft contract (`packages/contracts/src/scenario-draft-model.ts`), the
+authoring domain (`lib/scenario-authoring/`), five routes under `/api/v1/scenarios/`, and three
+governed situations — a promotion demand surge, a supplier lead-time risk and a short-life waste
+exposure — each of which authors a scenario that certifies on all twelve dimensions. What CogniX
+cannot model is published beside what it can, with reasons.
+
+**What is not built:** CSV enrichment (`SCI-10`), the authoring experience (`SCI-08`), and scenario
+persistence beyond export/import, which those two packets should decide with the UX in front of them.
 
 **Progression, in this order:** structured scenario authoring → governed GenAI assistance → CSV
 enrichment → richer persistence later.
@@ -213,7 +228,7 @@ language is a drafting accelerator that removes no guarantee — which is exactl
 *enrichment*, admitted through `ESF-6`, and the product concept is the scenario. Where the user
 supplies nothing, the scenario still runs on declared modelled values.
 
-### 6.1 Capability readiness vocabulary
+### 6.1 Capability readiness vocabulary — **IMPLEMENTED (`SCI-07`)**
 
 Reuses what the estate already says rather than inventing a parallel scale. The demand frontier
 already publishes `INDETERMINATE` where evidence is absent (ADR-040); `ESF-6` already separates
@@ -229,6 +244,15 @@ already publishes `INDETERMINATE` where evidence is absent (ADR-040); `ESF-6` al
 *Modelled* is preferred over *synthetic* in reader-facing language: the canonical record already uses
 `MODELLED_DEMONSTRATION_ASSUMPTION`, and it reads as engineering rigour rather than fabrication.
 `synthetic_demo` remains the machine-level flag and remains server-derived under `ESF-6`.
+
+**Two rules `SCI-07` had to settle to make the vocabulary computable, recorded here because a later
+packet will need them.** First, severity order: `Unavailable` > `Modelled` > `Limited` > `Ready`, so
+`Modelled` ranks BELOW `Limited` — `Limited` has partial evidence for the input and `Modelled` has
+none. Second, a value a person STATES is not automatically evidence: an input is a MEASUREMENT or a
+DECLARATION, and only a DECLARATION stated by a person earns `Ready`. A committed promotion depth is
+a decision and the person stating it IS the evidence; a weekly demand figure they assert is an
+estimate standing in for a reading, which is `Limited` until `SCI-10` admits a file. That is also the
+honest answer to *what would make this Ready?*
 
 ## 7. Signals, materiality and Refresh
 

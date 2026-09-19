@@ -1,6 +1,8 @@
 # CogniX Scenario Intelligence — Work Packets (`SCI`)
 
-**Status:** Authorised for implementation. **WAVE 2 COMPLETE AND CONVERGED. `SCI-05` (with the
+**Status:** Authorised for implementation. **WAVE 3 IN FLIGHT: `SCI-07` DELIVERED 2026-09-19 on
+`feature/cognix-sci-07-scenario-authoring`; `SCI-09` is the concurrent Antigravity lane. GATE D IS
+NOT CLAIMED and Wave 4 is NOT authorised. WAVE 2 COMPLETE AND CONVERGED. `SCI-05` (with the
 `R-37` and `R-38`/`R-39` pre-convergence repairs) and `SCI-06` were both committed independently
 from SHA-B and converged deliberately onto `feature/cognix-sci-wave2-convergence` on 2026-09-18.
 GATE C PASSED (2026-09-18) — see §9 — and WAVE 3 IS AUTHORISED: `SCI-07` and `SCI-09` may be cut
@@ -60,7 +62,7 @@ and the lanes never touch.
 | `SCI-04` | Scenario Selection Experience | ANTIGRAVITY | Antigravity | 1 | **[COMPLETED 2026-09-17]** |
 | `SCI-05` | Living Evidence Engine — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 | **[COMPLETED 2026-09-17]** |
 | `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 | **[COMPLETED 2026-09-17 · CONVERGED 2026-09-18]** |
-| `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | Not started |
+| `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | **[DELIVERED 2026-09-19]** |
 | `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | Not started |
 | `SCI-08` | Create Your Own Scenario Experience | **POST-DEMO** | Antigravity | 4 | Not started |
 | `SCI-10` | CSV Scenario Enrichment via Attested Admission | **POST-DEMO** | Cursor | 4 | Not started |
@@ -168,7 +170,7 @@ and `→ SCI-09`).
 | **Signal Materiality & Decision Relevance** | `SCI-05` | **declared at Gate A**, implemented in Wave 2 | 06 |
 | **Refresh Operation** — advance, delta shape, decision-consequence statement | `SCI-05` | **declared at Gate A**, implemented in Wave 2 | 06 |
 | **Models & Methods** — the register's published shape | `SCI-05` | **declared at Gate A**, implemented in Wave 2 | 06, 09 |
-| **Scenario Draft** — `GENAI_DRAFT` envelope, allowlist, validation verdicts | `SCI-07` | **declared at Gate B**, implemented in Wave 3 | 08, 10 |
+| **Scenario Draft** — `GENAI_DRAFT` envelope, allowlist, validation verdicts | `SCI-07` | **declared at Gate B, IMPLEMENTED 2026-09-19** in `packages/contracts/src/scenario-draft-model.ts` | 08, 10 |
 | **Attested Upload** — CSV source registration and admission mapping over `ESF-6` | `SCI-10` | Gate C | 08 |
 
 No packet may alter a contract it does not own. A required change is raised at the convergence gate
@@ -946,6 +948,60 @@ condition.
 reproduces with the provider unavailable. Regression green.
 
 **Handoff artefact.** The Scenario Draft contract and a worked authored scenario.
+
+---
+
+### `SCI-07` outcome — **[DELIVERED 2026-09-19]**
+
+Cut from `9036330ec4c65cb894b6b3bf42a000e71ceed5cb`, the head of
+`feature/cognix-sci-wave2-convergence`, which contains SHA-C. Branch
+`feature/cognix-sci-07-scenario-authoring`. Evidence:
+[`COGNIX_SCI_07_SCENARIO_AUTHORING_REPORT.md`](../reports/COGNIX_SCI_07_SCENARIO_AUTHORING_REPORT.md).
+
+| Definition-of-done clause | Result |
+|---|---|
+| A scenario authored from a description resolves | **PASS** — `resolveScenarioDraft` is a pure function of the draft inputs and the product/supplier masters. 46 authorable fields across the ten governed dimensions; no derived quantity is authorable |
+| …certifies | **PASS** — all three governed situations certify on **12/12 dimensions, 84 checks, zero declared non-applicabilities**, through the same gate every curated scenario passes |
+| …runs | **PASS** — exercised over HTTP against a production build: options → draft → readiness → confirm → certification → catalogue. The authored scenario appears `CERTIFIED` beside the three curated ones and is **not** demo-active |
+| …and reproduces with the provider unavailable | **PASS** — the acceptance condition, asserted twice. Behaviourally: a GenAI-assisted scenario confirmed with a key present reproduces **byte-identically** with `GEMINI_API_KEY` deleted, to the same certification verdict and the same Decision Gap, revenue exposure and margin exposure. Structurally: no module on the resolution path imports a provider, reads an environment variable or calls out |
+| Regression green | **PASS** — **53 runners individually accounted, 52 fully green, 3,823 assertions passed.** `R-25`'s `A6b` is the only `[FAIL]` line in the estate and is byte-identical to the base measurement (132 passed, 1 failed at both). No runner regressed |
+
+**The AI authority boundary is structural, not textual.** The GenAI allowlist is DERIVED from the
+field register, in which every `QUANTITY` is prohibited, so a proposal naming a prohibited field is
+refused before a character of its value is read. Measured: eight prohibited-field proposals rejected,
+all eight on the FIELD — including values written as words (`'twenty'`, `'two point four'`) that a
+content check alone would have admitted. ADR-044's figure detector then runs as the second line and
+catches a percentage or a currency figure smuggled into a permitted text field, including one hidden
+in a rationale.
+
+**Three governed situations, not six, and it is measured rather than chosen.** The signal fabric
+implements three families and `C-4.1` requires a timeline to exist, so a fourth situation would author
+a scenario that cannot certify. What CogniX cannot model — online fulfilment, competitor price
+response, multi-SKU reallocation — is published beside what it can, with reasons. This is §5.1's
+ruling applied to authoring.
+
+**Readiness cannot be earned by filling blanks.** A value the declared model supplied is `modelled`
+and says so. `stated` earns `Ready` only where the input is a DECLARATION (a committed depth IS the
+evidence) and `Limited` where it stands in for a MEASUREMENT — which is also the honest answer to
+*what would make this Ready?*: an admitted file, which is `SCI-10`'s.
+
+**One security finding the suite produced against itself.** A credential-shaped token pasted into a
+description could survive into a proposal for a free-text field, because `AIzaSy…0000000` carries no
+word boundary before its digits. Nothing puts the server's key into a prompt, so a model cannot learn
+it — but a key the PERSON pasted could be written into a draft that is later exported. Closed with
+`looksLikeACredential` and the rejection reason `CREDENTIAL_SHAPED_VALUE`.
+
+**Two files outside `SCI-07`'s ownership were touched, both additively and neither frozen:** one
+`export *` line in `packages/contracts/src/index.ts`, and `statesAFigure` changed from module-private
+to exported in `lib/campaign-decision-suggestion-validation.ts` with no logic change — ADR-083 extends
+that exact rule to scenario drafting, and two copies of it would drift, which is `R-36` in miniature.
+All six frozen contracts are **byte-identical to SHA-C**, git-blob-hashed in the suite.
+
+**Live Google acceptance is NOT claimed.** `GEMINI_API_KEY` is unset in this environment and the
+sanctioned egress proxy answers `HTTP 403` for `generativelanguage.googleapis.com`. No live round trip
+was attempted. Recorded as `R-SCI07-1`.
+
+**Gate D is not claimed.** `SCI-09` is the concurrent lane; Wave-3 convergence is a separate act.
 
 ---
 
