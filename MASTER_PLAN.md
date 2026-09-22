@@ -74,10 +74,17 @@ PROGRAMME    SCI — Scenario Intelligence (the Scenario Laboratory)
              SCI-04 Scenario selection experience                   [Wave 1]
              SCI-05 Living evidence, materiality, Refresh (ESF-4)   [Wave 2]
              SCI-06 Observability & Governance experience           [Wave 2]
-             SCI-07 Scenario authoring + governed Google GenAI      [Wave 3]
-             SCI-09 CogniX Architecture surface / SB-GATE closure   [Wave 3]
-             SCI-08 Create Your Own Scenario experience             [Wave 4]
-             SCI-10 CSV enrichment via ESF-6 attested admission     [Wave 4]
+             SCI-07 Scenario authoring + governed Google GenAI      [CONVERGED]
+             SCI-09 CogniX Architecture surface / SB-GATE closure   [CONVERGED]
+             Gates A-D PASSED.  SHA-D 2f8d7ed8, Wave 3 converged
+             2026-09-22.  SB-GATE stays 3 of 6 and the storyboard
+             stays RETAINED - Gate D did not move it.
+             SCI-08 Create Your Own Scenario experience         [NOT AUTHORISED]
+                    Blocked by R-SCI07-6: in the service topology an
+                    authored, certified scenario is invisible to the
+                    selector, because the BFF registers it and
+                    cognix-world serves the catalogue
+             SCI-10 CSV enrichment via ESF-6 attested admission     [DEFERRED]
 
 PHASE 11     IP and Innovation Governance
 PHASE 12     Industry Demonstration Packs
@@ -89,6 +96,8 @@ For complete work packages, user stories, test requirements, and exit gates, see
 **Capability Atlas governance:** [`docs/governance/COGNIX_CAPABILITY_ATLAS.md`](docs/governance/COGNIX_CAPABILITY_ATLAS.md) · [`docs/governance/CAPABILITY_KNOWLEDGE_MODEL.md`](docs/governance/CAPABILITY_KNOWLEDGE_MODEL.md) · [`docs/architecture/CAPABILITY_ATLAS_ARCHITECTURE.md`](docs/architecture/CAPABILITY_ATLAS_ARCHITECTURE.md) · ADR-045 … ADR-051.
 
 **Demand capability governance:** [`docs/governance/DEMAND_OBSERVABILITY_MODEL.md`](docs/governance/DEMAND_OBSERVABILITY_MODEL.md) · [`docs/reports/COGNIX_DEMAND_DECISION_FRONTIER_PLANNING_REPORT.md`](docs/reports/COGNIX_DEMAND_DECISION_FRONTIER_PLANNING_REPORT.md) · ADR-040 … ADR-043.
+
+**Wave-3 convergence and Gate D:** [`docs/reports/COGNIX_WAVE3_CONVERGENCE_GATE_D_ASSESSMENT.md`](docs/reports/COGNIX_WAVE3_CONVERGENCE_GATE_D_ASSESSMENT.md) — condition-by-condition evidence, the five convergence events the gate found, the `R-SCI07-5` closure and the recommendation to FREEZE rather than start `SCI-08`.
 
 **Scenario Intelligence governance:** [`docs/governance/COGNIX_SCENARIO_INTELLIGENCE.md`](docs/governance/COGNIX_SCENARIO_INTELLIGENCE.md) — the target Scenario Laboratory architecture · [`docs/governance/COGNIX_SCENARIO_CERTIFICATION.md`](docs/governance/COGNIX_SCENARIO_CERTIFICATION.md) — no scenario is demo-active until certified · [`docs/governance/COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md`](docs/governance/COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md) — packets, dependency DAG, frozen contracts, waves and branching · [`docs/governance/COGNIX_BACKLOG_RECONCILIATION_2026_09.md`](docs/governance/COGNIX_BACKLOG_RECONCILIATION_2026_09.md) — the September 2026 backlog reconciliation · ADR-077 … ADR-084.
 

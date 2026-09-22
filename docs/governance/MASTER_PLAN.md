@@ -1198,21 +1198,23 @@ this workstream hardens the demonstration of what Release 1.0 already contained.
 ## PROGRAMME `SCI` — SCENARIO INTELLIGENCE (THE SCENARIO LABORATORY)
 
 **Authorised 2026-09-15 against baseline `f9c5679c` on `feature/cognix-enterprise-demo-hardening`.
-Status: `[IN PROGRESS]` — **WAVES 0, 1 AND 2 COMPLETE AND CONVERGED.**
+Status: `[IN PROGRESS]` — **WAVES 0, 1, 2 AND 3 COMPLETE AND CONVERGED.**
 
 | Wave | Packets | Gate | Convergence SHA |
 |---|---|---|---|
 | 0 | `SCI-01`, `SCI-02` | **GATE A PASSED 2026-09-17** | SHA-A `8d6d960c` |
 | 1 | `SCI-03`, `SCI-04` (+ `SCI-03R`, the `R-35` repair) | **GATE B PASSED 2026-09-17** | SHA-B `e0a9c23d` |
 | 2 | `SCI-05`, `SCI-06` (+ the `R-37` and `R-38`/`R-39` repairs) | **GATE C PASSED 2026-09-18** | SHA-C `c7c9f64f` |
-| 3 | `SCI-07`, `SCI-09` | **IN FLIGHT** — `SCI-07` DELIVERED 2026-09-19; `SCI-09` is the concurrent lane. **GATE D NOT CLAIMED** | — |
-| 4 | `SCI-10`, `SCI-08` | post-demo, gated behind Gate D | — |
+| 3 | `SCI-07`, `SCI-09` | **GATE D PASSED 2026-09-22** | SHA-D `2f8d7ed8` |
+| 4 | `SCI-10`, `SCI-08` | **NOT AUTHORISED.** Gate D passed, and Wave 4 is still not cut — `SCI-08` is blocked by `R-SCI07-6` and `SCI-10` remains deferred | — |
 
 All six governed contracts are frozen. The three `SCI-05`-owned Wave-2 contracts — Signal
 Materiality & Decision Relevance, the Refresh Operation and the Models & Methods register — are no
 longer declarations: they are **frozen AND implemented**, singly owned by
 `lib/living-evidence-engine.ts`, which makes `SCI-09` the first Antigravity packet to build against
-a working engine rather than a shape. Condition-by-condition gate evidence and the freeze tables are
+a working engine rather than a shape. The **Scenario Draft** contract made the same transition at
+Gate D: declared at Gate B, implemented by `SCI-07`, and frozen at SHA-D for `SCI-08` and `SCI-10` to
+consume. Condition-by-condition gate evidence and the freeze tables are
 in [`COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md`](COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md) §9,
 with Gate C's full evidence in
 [`COGNIX_WAVE2_CONVERGENCE_GATE_C_ASSESSMENT.md`](../reports/COGNIX_WAVE2_CONVERGENCE_GATE_C_ASSESSMENT.md).
@@ -1305,8 +1307,8 @@ redesign.
 | `SCI-04` | Scenario Selection Experience | ANTIGRAVITY | Antigravity | 1 | **[COMPLETED 2026-09-17]** — converged with `SCI-03` at Gate B |
 | `SCI-05` | Living Evidence — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 | **[COMPLETED 2026-09-17]** |
 | `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 | **[COMPLETED 2026-09-17 · CONVERGED 2026-09-18]** |
-| `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | **[DELIVERED 2026-09-19]** — `feature/cognix-sci-07-scenario-authoring` |
-| `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | Not started |
+| `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | **[DELIVERED 2026-09-19 · CONVERGED 2026-09-22]** — `feature/cognix-sci-07-scenario-authoring` |
+| `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | **[COMPLETED 2026-09-19 · CONVERGED 2026-09-22]** — `Feature/cognix-sci-09-architecture-surface` (note the capital `F`; the lower-case branch of the same name is stale at the packet's first commit — `R-SCI09-2`) |
 | `SCI-08` | Create Your Own Scenario Experience | POST-DEMO | Antigravity | 4 | Not started |
 | `SCI-10` | CSV Scenario Enrichment via Attested Admission | POST-DEMO | Cursor | 4 | Not started |
 

@@ -62,8 +62,8 @@ and the lanes never touch.
 | `SCI-04` | Scenario Selection Experience | ANTIGRAVITY | Antigravity | 1 | **[COMPLETED 2026-09-17]** |
 | `SCI-05` | Living Evidence Engine — Materiality, Decision Relevance, Refresh (`ESF-4`) | CURSOR | Cursor | 2 | **[COMPLETED 2026-09-17]** |
 | `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 | **[COMPLETED 2026-09-17 · CONVERGED 2026-09-18]** |
-| `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | **[DELIVERED 2026-09-19]** |
-| `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | **[COMPLETED 2026-09-19]** |
+| `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | **[DELIVERED 2026-09-19 · CONVERGED 2026-09-22]** |
+| `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | **[COMPLETED 2026-09-19 · CONVERGED 2026-09-22]** |
 | `SCI-08` | Create Your Own Scenario Experience | **POST-DEMO** | Antigravity | 4 | Not started |
 | `SCI-10` | CSV Scenario Enrichment via Attested Admission | **POST-DEMO** | Cursor | 4 | Not started |
 
@@ -1208,6 +1208,79 @@ Full table: [`COGNIX_BACKLOG_RECONCILIATION_2026_09.md`](COGNIX_BACKLOG_RECONCIL
 
 Recorded only against evidence.
 
+### Gate D — **PASSED**, closed 2026-09-22
+
+Converged deliberately on `feature/cognix-sci-wave3-convergence` from `SCI-07`
+`6b825a79ed245c9cd901a027c5d2e23fb6aea75b` and `SCI-09`
+`77cfe5350fdec91750bf3f88e593dbed574403fa`. `git merge-base` of the two heads is EXACTLY the
+declared Wave-3 base `9036330ec4c65cb894b6b3bf42a000e71ceed5cb`, which carries SHA-C; neither lane
+drifted or rebased, and neither is an ancestor of the other. Changed-file overlap was exactly ONE
+file — this register — and it conflicted because each lane had recorded only itself. Resolved by
+taking both truths rather than a side, as at Gate C.
+
+| # | Condition | Verdict |
+|---|---|---|
+| 1 | Both lane branches committed and pushed | **PASS** — single-parent chains from one base, both on `origin` |
+| 2 | Independent packet tests green on each branch separately | **PASS, with a finding.** `SCI-07` head 53 runners / 52 green, `R-25` only. `SCI-09` head 54 / **51** — `run-canonical-scenario-tests` and `run-sci03-scenario-pack-tests` were genuinely red at its own head, and its completion record claimed green from five runners rather than the estate. Recorded as `R-SCI09-1` and CLOSED by this convergence |
+| 3 | Deliberate merge against the declared base | **PASS** — branch cut at the base, each lane merged `--no-ff` explicitly, one operator, one place |
+| 4 | No unresolved contract drift | **PASS** — all six frozen contracts byte-identical to the base by blob hash across base / `SCI-07` / `SCI-09` / converged. Scenario Draft is NEW, singly owned by `SCI-07`, and unchanged from its owner's head. `SCI-09` added nothing under `packages/contracts/` |
+| 5 | Full relevant regression | **PASS** — **55 runners individually accounted, 54 fully green, 4,196 assertions.** `R-25`'s `A6b` the only `[FAIL]` line in the estate |
+| 6 | Certification gate green for every registered scenario | **PASS** — three scenarios `CERTIFIED`, 12/12 dimensions, 84 checks each, zero `NOT_APPLICABLE`; an authored scenario certifies on the same twelve |
+| 7 | Protected journey reconciled | **PASS** — 700,000 / 900,125 / 770,000 / 130,125 / 18.6pp / £269.4K / £80.7K, 14% recommended against a committed 20% |
+| 8 | Browser acceptance at 1440 / 1024 / 720 | **PASS** — 171 checks, 0 failures. Three-process production topology: standalone build + `cognix-world` + `cognix-learning`. **Docker NOT claimed** — no daemon in this environment, as at Gates A, B and C |
+| 9 | Next wave's contracts declared and frozen | **PASS** — Scenario Draft is implemented and singly owned; `SCI-08` and `SCI-10` consume it frozen at SHA-D. Attested Upload remains `SCI-10`'s |
+| 10 | Governance updated on evidence; convergence SHA recorded | **PASS** — **SHA-D recorded below** |
+
+**What the gate exists to catch, and caught five times.** Every defect below sat in a file only ONE
+lane touched, and four of them were invisible from inside that lane.
+
+1. **A literal scenario default on a new route.** `SCI-09`'s authoritative decision route resolved a
+   missing `scenario_id` to `'SCN-FRESH-DAIRY-CHEDDAR-001'`, which `SCI-01`'s own source guard fails
+   a test over. It now refuses with `HTTP 400` through the shared resolver.
+2. **A second economic model wearing the word "reconciliation".**
+   `lib/canonical-decision-reconciliation.ts` opened by declaring it introduced no second economic
+   engine and was one — branching on scenario identity, carrying a per-scenario expected demand,
+   window and stability index inline, with its own revenue and margin arithmetic. Those literals
+   agreed with the engines and disagreed with the CONTRACT's own derivation by five units on the
+   reference scenario. It is now a carrier with no arithmetic and no scenario name, asserted from
+   its own source, and its suite was rewritten to prove the surface CONSUMES the evaluator rather
+   than that two constants agree — 82 assertions to 122.
+3. **The Architecture Surface was untruthful about GenAI the moment the lanes met.** `SCI-07`
+   implemented a SECOND governed use of Google GenAI and the Models & Methods register — the one
+   place this estate says what its mechanisms are — still described only `CDI-01` decision-context
+   drafting. Taken in the owning module: the register gained `genai::scenario-draft`, and the
+   surface renders it rather than restating `SCI-07`'s authority model.
+4. **Two decision positions on one surface.** The page took the Decision Gap from the domain
+   evaluation and the money at risk from the Living Evidence position, publishing an exposed gap of
+   130,125 units beside the £375,575 and £112,491 that belong to an exposure of 181,437. The
+   Decision Window agreed at 62 hours, which is why it survived three lane suites: it agrees until
+   it does not. One source now, asserted.
+5. **A capability that has not run, wearing the label of one that runs every time.** An
+   `undescribed` register entry was given the synchronous engines' provenance line. It now reports
+   that it has not run, quoting the register's own reason.
+
+**`R-SCI07-5` is CLOSED, with evidence and with no contract change.** Certification of an
+UNREGISTERED candidate is a complete discriminator — measured, the only checks that fail for the
+absence of registration are `C-1.2` and the cascade check `C-12.8`. The lifecycle now certifies the
+candidate before registering it, so a confirmation that cannot certify registers nothing. Proven on
+a fixture the authoring domain's own coherence rules PASS and the gate REFUSES, because a fixture
+caught earlier would never reach the registration path at all.
+
+**Consequence: Wave 4 is NOT authorised, and the DAG is not the reason.** `SCI-08` is blocked by
+`R-SCI07-6`, measured at this gate: in the `service` topology the demo runs on, an authored and
+certified scenario is invisible to the selector, because the BFF registers it and `cognix-world`
+serves the catalogue. `SCI-08` is the experience that lets a prospect create a scenario and run it;
+on this topology it would create scenarios nobody can choose. See §14 of the assessment for the
+FREEZE recommendation and what the days after the demo should close instead.
+
+**`SB-GATE` is untouched.** `config/atlas-storyboard-gate.ts` is byte-identical to the base: 3 of 6,
+storyboard RETAINED, `ArchitectureExplorer` still mounted. No historical prose was migrated to close
+Gate D, and `SB-GATE` remains independent of it.
+
+Full evidence: [`COGNIX_WAVE3_CONVERGENCE_GATE_D_ASSESSMENT.md`](../reports/COGNIX_WAVE3_CONVERGENCE_GATE_D_ASSESSMENT.md).
+
+---
+
 ### Gate C — **PASSED**, closed 2026-09-18
 
 Converged deliberately on `feature/cognix-sci-wave2-convergence` from the domain lane
@@ -1400,7 +1473,7 @@ Gate B, not as a commit (ADR-084 part 2).
 | Gate A | 0 | Wave 1 | **`8d6d960cd7d1a24ea41737da2d04bd4e47765a86`** — Wave 1 is cut from the head of `feature/cognix-sci-wave0-convergence`, one governance-only commit ahead |
 | Gate B | 1 | Wave 2 | **SHA-B recorded below**, on `feature/cognix-sci-03r-scenario-perspective-binding` |
 | Gate C | 2 | Wave 3 | **SHA-C recorded below**, on `feature/cognix-sci-wave2-convergence` |
-| Gate D | 3 | Wave 4 | *not yet recorded* |
+| Gate D | 3 | Wave 4 | **SHA-D recorded below**, on `feature/cognix-sci-wave3-convergence` |
 | Gate E | 4 | — | *not yet recorded* |
 
 ### SHA-B
@@ -1419,6 +1492,28 @@ is one commit ahead of SHA-B — this record of the SHA itself, which a commit c
 itself, and which changes no code. Cutting from SHA-B and cutting from the branch head therefore
 give an identical working tree; the branch head is the correct base because it carries the complete
 governance record. This is the same honest two-step used for SHA-A.
+
+### Contract freeze at Gate D
+
+ADR-084 part 2: a contract is frozen at a declared convergence SHA. These are frozen at SHA-D.
+
+| Contract | Owner | State at Gate D |
+|---|---|---|
+| **Scenario Contract** | `SCI-01` | **FROZEN** — byte-identical to the Wave-3 base, and so to SHA-C |
+| **Scenario Clock** | `SCI-01` | **FROZEN** — byte-identical |
+| **Scenario Registry & Activation** | `SCI-01` | **FROZEN** — byte-identical. `R-SCI07-5` was closed WITHOUT the deregistration seam it appeared to need |
+| **Provenance Vocabulary** | `SCI-01` | **FROZEN** — byte-identical |
+| **Scenario Certification** | `SCI-02` | **FROZEN** — byte-identical |
+| **Signal Materiality & Decision Relevance** | `SCI-05` | **FROZEN AND IMPLEMENTED** — declaration byte-identical |
+| **Refresh Operation** | `SCI-05` | **FROZEN AND IMPLEMENTED** — same module, same ownership |
+| **Models & Methods** | `SCI-05` | **FROZEN AND IMPLEMENTED.** The declaration is byte-identical. Its CONTENT gained one entry at this convergence — `genai::scenario-draft` — taken in the owning module because the register is where this estate says what its mechanisms are, and `SCI-07` added one. An entry is data, not shape |
+| **Scenario Draft** | `SCI-07` | **FROZEN AND NOW IMPLEMENTED.** Declared at Gate B as a declaration; implemented here. `packages/contracts/src/scenario-draft-model.ts`, unchanged from its owner's head. `SCI-08` and `SCI-10` consume it frozen |
+| **Attested Upload** | `SCI-10` | **NOT DECLARED.** `SCI-10` owns it and Wave 4 is not authorised — see `R-SCI07-6` |
+
+**What changed in the last row but one, and why it is not drift.** The Scenario Draft contract stops
+being a shape `SCI-08` would build against and becomes behaviour it can call. That is the same
+transition the three `SCI-05` contracts made at Gate C, and it is the reason `SCI-08`'s blocker is a
+TOPOLOGY question rather than a contract one.
 
 ### Contract freeze at Gate C
 
@@ -1442,6 +1537,28 @@ Antigravity packet in the programme that builds against a working engine rather 
 it renders the register rather than imagining it. The ownership rule is unchanged: `SCI-05` remains
 the sole owner and the sole implementer, asserted by `run-gate-a-tests.ts` §3 and again by
 `run-wave2-convergence-tests.ts` §C.
+
+### SHA-D
+
+**SHA-D = `2f8d7ed8b479452a804c61e4202c87697b62e4de`**
+
+That is the Wave-3 convergence state: `SCI-07`'s scenario-authoring domain and governed GenAI
+drafting boundary, and `SCI-09`'s Architecture Surface and `SB-GATE` disposition, merged deliberately
+from the declared base `9036330ec4c65cb894b6b3bf42a000e71ceed5cb`, with five convergence events
+taken in their owning modules: the literal scenario default removed, the second economic model
+reduced to a carrier, the Models & Methods register made truthful about GenAI, the Architecture
+Surface reduced to one decision position, and an unrun capability reported as unrun. It is the state
+the six Wave-0/2 contracts remain frozen at, and the state at which the Scenario Draft contract stops
+being a declaration and becomes implemented behaviour (ADR-084 part 2 — a contract is frozen at a
+declared convergence SHA, not at a moment in time).
+
+**Wave 4 is NOT cut.** Where Gates A, B and C each ended *"the next wave is cut from the head"*, this
+one does not: `SCI-08` is blocked by `R-SCI07-6` and `SCI-10` remains deferred. When Wave 4 is
+eventually authorised it is cut from the head of `feature/cognix-sci-wave3-convergence`, which will
+be one governance-only commit ahead of SHA-D — this record of the SHA itself, which a commit cannot
+contain about itself, and which changes no code. Cutting from SHA-D and cutting from the branch head
+therefore give an identical working tree; the branch head is the correct base because it carries the
+complete governance record. This is the same honest two-step used for SHA-A, SHA-B and SHA-C.
 
 ### SHA-C
 
