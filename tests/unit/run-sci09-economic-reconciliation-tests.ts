@@ -44,6 +44,7 @@ import {
   type DynamicScenarioContext
 } from '../../components/observability/CognixArchitectureSurface';
 import { readFileSync } from 'fs';
+import { scenarioDecisionPosition } from '../../lib/living-evidence-engine';
 import { join } from 'path';
 
 let passed = 0;
@@ -347,6 +348,53 @@ async function main() {
     !/[-+*/]\s*100\b|Math\.round|toFixed/.test(carrierSource),
     'The reconciliation carrier performs no arithmetic on a published quantity'
   );
+
+  /*
+   * ONE decision position. The surface may not reach past the domain evaluation to the Living
+   * Evidence `decision_position` for a quantity the evaluation already publishes: they are
+   * different positions of the same scenario — the opening decision and the decision after its
+   * evidence has been advanced — and a surface that takes the gap from one and the money at risk
+   * from the other publishes two decisions as one.
+   */
+  const archSource = readFileSync(
+    join(process.cwd(), 'components', 'observability', 'CognixArchitectureSurface.tsx'),
+    'utf8'
+  ).replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
+
+  for (const quantity of [
+    'REVENUE_EXPOSURE_GBP',
+    'MARGIN_EXPOSURE_GBP',
+    'EXPOSED_DEMAND_UNITS',
+    'EXPECTED_DEMAND_UNITS',
+    'SERVABLE_DEMAND_UNITS',
+    'DECISION_GAP_PP',
+    'DECISION_WINDOW_HOURS',
+    'FORECAST_STABILITY'
+  ]) {
+    assert(
+      !archSource.includes(quantity),
+      `The Architecture Surface does not read ${quantity} from Living Evidence — the evaluated decision has one source`
+    );
+  }
+  assert(
+    !/livingEvidence\?\.decision_position/.test(archSource),
+    'No node reaches into the Living Evidence decision position for an evaluated quantity'
+  );
+
+  /*
+   * Measured rather than asserted: the two positions genuinely differ, which is why the rule above
+   * is load-bearing rather than tidy.
+   */
+  {
+    const evaluated = await evaluateAuthoritativeScenarioDecision(CANONICAL_SCENARIO_ID);
+    const position = scenarioDecisionPosition(CANONICAL_SCENARIO_ID);
+    const liveExposed = position.quantities.find(q => q.quantity === 'EXPOSED_DEMAND_UNITS')?.after;
+    assert(
+      typeof liveExposed === 'number' && liveExposed !== evaluated.exposedGap,
+      'The Living Evidence position and the evaluated decision are genuinely different positions',
+      `living ${liveExposed} vs evaluated ${evaluated.exposedGap}`
+    );
+  }
 
   /*
    * And the surface itself. The property is about EVALUATED quantities, not declared ones: a node

@@ -110,6 +110,16 @@ export interface ArchLayer {
 /**
  * The authoritative quantities a node may publish, formatted for display.
  *
+ * **One decision position, not two.** An earlier revision preferred the Living Evidence
+ * `decision_position` over the domain evaluation wherever it carried the same quantity. Both are
+ * real, and they are not the same position: the evaluator publishes the scenario's OPENING
+ * decision, and Living Evidence publishes where the decision stands after its evidence has been
+ * advanced. Mixing them put an exposed gap of 130,125 units two nodes away from the money at risk
+ * for an exposure of 181,437 — a reader who divides one by the other gets a unit revenue that
+ * matches nothing. The Refresh position belongs to Observability & Governance, where `SCI-06`
+ * renders it with the framing that makes it mean something; the Architecture Surface publishes the
+ * evaluated decision, from one source (ADR-073 rule 1).
+ *
  * `UNMEASURED` is the honest answer before the domain evaluation has been read — the `ATL-FINAL`
  * discipline of declaring unmeasured rather than reporting a figure that was not earned. There is
  * deliberately no local fallback arithmetic here to fill the gap.
@@ -239,8 +249,7 @@ export const ARCH_LAYERS: ArchLayer[] = [
         whatItIs: 'ADR-040 explicitly defines Forecast Stability as an inherent property of the evidence stream itself: the degree of volatility, trajectory drift, and noise in incoming observations over the decision horizon. It is never a model accuracy metric or confidence percentage.',
         resolveScenarioRole: (scenario, _methods, ctx) => {
           const { decision, num } = resolveMetrics(scenario, ctx);
-          const liveStability = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'FORECAST_STABILITY')?.after;
-          const stab = liveStability !== undefined ? String(liveStability) : num(decision?.stabilityScore);
+          const stab = num(decision?.stabilityScore);
           return {
             action: `Tracks evidence-stream trajectory stability for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
             details: `Evaluates signal trajectory consistency across consecutive trading days per ADR-040. An inherent property of the evidence stream itself, not an ML model confidence score.`,
@@ -453,10 +462,8 @@ export const ARCH_LAYERS: ArchLayer[] = [
         whatItIs: 'ADR-042 explicitly rules that the Decision Window is a hard operational constraint, not an artificial algorithmic confidence decay curve. It is calculated directly from supplier production lead times, logistics scheduling, and store replenishment cutoffs.',
         resolveScenarioRole: (scenario, _methods, ctx) => {
           const { decision } = resolveMetrics(scenario, ctx);
-          const liveHours = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'DECISION_WINDOW_HOURS')?.after;
-          const liveState = ctx?.livingEvidence?.decision_position?.decision_window;
-          const winHours = liveHours ?? decision?.windowRemainingHours;
-          const winState = liveState ?? decision?.windowState;
+          const winHours = decision?.windowRemainingHours;
+          const winState = decision?.windowState;
           return {
             action: `Enforces operational cutoff constraint with ${scenario?.supply?.supplier_name ?? 'supplier'}`,
             details: `Hard operational deadline constraint (ADR-042) derived from supplier lead time (${scenario?.calendar?.supplier_lead_time_days ?? '—'} days) and contractual cut-off schedule, before supplier production locks and transport cannot be flexed.`,
@@ -482,10 +489,8 @@ export const ARCH_LAYERS: ArchLayer[] = [
         whatItIs: 'ADR-043 defines Decision Regret as the comparative loss incurred by pursuing a suboptimal intervention (or doing nothing) versus committing to the optimal recommendation, evaluated over margin, revenue, and waste.',
         resolveScenarioRole: (scenario, _methods, ctx) => {
           const { decision, gbp } = resolveMetrics(scenario, ctx);
-          const liveMargin = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'MARGIN_EXPOSURE_GBP')?.after;
-          const liveRev = ctx?.livingEvidence?.decision_position?.quantities?.find(q => q.quantity === 'REVENUE_EXPOSURE_GBP')?.after;
-          const marginVal = liveMargin !== undefined ? Number(liveMargin) : decision?.marginExposureGbp;
-          const revVal = liveRev !== undefined ? Number(liveRev) : decision?.revenueExposureGbp;
+          const marginVal = decision?.marginExposureGbp;
+          const revVal = decision?.revenueExposureGbp;
           return {
             action: `Calculates commercial penalty of non-intervention for ${scenario?.identity?.sku_name ?? 'active SKU'}`,
             details: `Quantifies comparative expected loss under ADR-043 across margin, unserved demand, and customer loyalty if the Decision Gap is left unaddressed versus committing to the recommended intervention.`,
@@ -810,6 +815,17 @@ export default function CognixArchitectureSurface() {
     return methodsRegister.entries.find((e) => e.method_id === selectedNode.node.methodRefId);
   }, [methodsRegister, selectedNode]);
 
+  /*
+   * A node whose method the register lists as UNDESCRIBED — implemented, but it has not run here.
+   * The register carries the reason and this surface repeats it rather than writing its own: a
+   * mechanism that has not run must not be given the "synchronous, declared with the scenario
+   * record" label that belongs to the engines that do run every time.
+   */
+  const undescribedMethod = useMemo(() => {
+    if (!methodsRegister || !selectedNode.node.methodRefId || matchedMethod) return undefined;
+    return methodsRegister.undescribed.find((u) => u.method_id === selectedNode.node.methodRefId);
+  }, [methodsRegister, selectedNode, matchedMethod]);
+
   const nodeScenarioContext = useMemo(() => {
     return selectedNode.node.resolveScenarioRole(scenario, methodsRegister, dynamicContext);
   }, [selectedNode, scenario, methodsRegister, dynamicContext]);
@@ -1088,9 +1104,17 @@ export default function CognixArchitectureSurface() {
                     <div className="og-arch-prov-kv">
                       <span>When Last Run:</span>
                       <strong className="og-arch-unmeasured">
-                        Synchronous / Declared with scenario record
+                        {undescribedMethod
+                          ? 'Not run in this environment'
+                          : 'Synchronous / Declared with scenario record'}
                       </strong>
                     </div>
+                    {undescribedMethod && (
+                      <div className="og-arch-limitations-box">
+                        <span className="og-arch-lim-label">Governance Limitation:</span>
+                        <p>{undescribedMethod.reason}</p>
+                      </div>
+                    )}
                   </>
                 )}
               </div>
