@@ -2,13 +2,15 @@ import * as http from 'http';
 import {
   SignalSimulationRequest,
   ExternalSignalIngestRequest,
-  requireScenarioId,
   listRegisteredScenarios,
-  scenarioCatalogue,
-  getActiveScenarioId,
   scenarioNowIso,
   platformReceiptNowIso
 } from '../../../packages/contracts/src/index';
+import {
+  SIGNAL_SNAPSHOT_MAX_BODY_BYTES,
+  SIGNAL_SNAPSHOT_PATH,
+  validateSignalSnapshotRequest
+} from './scenario-signal-snapshot';
 import { generateSyntheticSignalSnapshot } from './enterprise-signal-generator';
 import { simulateEnterpriseSignalTimelines } from './dynamic-signal-simulator';
 import {
@@ -61,29 +63,23 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── ROUTE 2: /api/v1/scenarios — the scenario registry ─────────────────────
+  // ── ROUTE 2: /api/v1/scenarios — retired (`SCI-07R`, ADR-085) ────────────────
   if (pathname === '/api/v1/scenarios') {
     /*
-     * The REGISTERED catalogue, not the six world families. The families survive as TAXONOMY
-     * only: their pre-hardening economics were retired at `SCI-01` (ADR-077 part 2), and
-     * `SCI-03` stopped serving their temporal series with them (R-30) — with three certified
-     * packs published, two of the three family series contradicted their scenario's own record
-     * in direction as well as scale. The BFF route carries the reasoning in full.
+     * This service used to publish a catalogue from its own copy of the registry, bootstrapped from
+     * compiled data. The BFF registers, certifies and activates in its own process, so this catalogue
+     * could never contain an authored scenario (`R-SCI07-6`) and could not say which scenario was
+     * running (`R-32`). The scenario catalogue has exactly one publisher: the gated scenario runtime
+     * behind the web BFF's `GET /api/v1/scenarios`. Answering here would be a second authority.
      */
-    const catalogue = scenarioCatalogue();
-
-    console.log(`[cognix-world] HTTP GET /api/v1/scenarios | tenant: ${tenantId} | active: ${getActiveScenarioId()} | count: ${catalogue.length} | corr: ${correlationId}`);
-
-    res.writeHead(200);
+    res.writeHead(410);
     res.end(JSON.stringify({
-      status: 'success',
+      status: 'error',
       service: 'cognix-world',
-      tenant_id: tenantId,
+      error: 'CatalogueNotServedHere',
+      message: 'cognix-world holds no scenario catalogue. The scenario catalogue is published by the web BFF\'s gated scenario runtime (ADR-085).',
       correlation_id: correlationId,
-      active_scenario_id: getActiveScenarioId(),
-      count: catalogue.length,
-      timestamp: platformReceiptNowIso(),
-      data: catalogue
+      timestamp: platformReceiptNowIso()
     }));
     return;
   }
@@ -256,58 +252,105 @@ const server = http.createServer((req, res) => {
     return;
   }
 
-  // ── ROUTE 5: /api/v1/signals or /api/v1/signals/current ────────────────────
+  // ── ROUTE 5: POST /api/v1/signals/snapshot — record-carrying (`SCI-07R`, ADR-085) ──
+  if (pathname === SIGNAL_SNAPSHOT_PATH && req.method === 'POST') {
+    let body = '';
+    let tooLarge = false;
+    req.on('data', chunk => {
+      if (tooLarge) return;
+      body += chunk;
+      if (body.length > SIGNAL_SNAPSHOT_MAX_BODY_BYTES) {
+        tooLarge = true;
+        res.writeHead(413);
+        res.end(JSON.stringify({
+          status: 'error',
+          service: 'cognix-world',
+          error: 'PayloadTooLarge',
+          message: `A signal snapshot request may not exceed ${SIGNAL_SNAPSHOT_MAX_BODY_BYTES} bytes.`,
+          timestamp: platformReceiptNowIso()
+        }));
+        req.destroy();
+      }
+    });
+    req.on('end', () => {
+      if (tooLarge) return;
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(body);
+      } catch {
+        parsed = null;
+      }
+      const admission = validateSignalSnapshotRequest(parsed);
+      if (!admission.ok) {
+        res.writeHead(400);
+        res.end(JSON.stringify({
+          status: 'error',
+          service: 'cognix-world',
+          error: 'ScenarioRecordRequired',
+          message: admission.message,
+          correlation_id: correlationId,
+          timestamp: platformReceiptNowIso()
+        }));
+        return;
+      }
+      const { scenario, filters = {} } = admission.request;
+      const requestTenant = admission.request.tenant_id;
+      // The same tenant-boundary rule the ingest route enforces.
+      if (requestTenant && explicitTenantScope && requestTenant !== explicitTenantScope) {
+        res.writeHead(403);
+        res.end(JSON.stringify({
+          status: 'error',
+          service: 'cognix-world',
+          error: 'TenantBoundaryViolation',
+          message: `Request tenant_id (${requestTenant}) does not match scoped tenant (${explicitTenantScope})`,
+          timestamp: platformReceiptNowIso()
+        }));
+        return;
+      }
+      const snapshotTenant = requestTenant || tenantId;
+
+      let signals = generateSyntheticSignalSnapshot(scenario, snapshotTenant);
+      if (filters.signal_type) signals = signals.filter(s => s.signal_type === filters.signal_type);
+      if (filters.category) signals = signals.filter(s => s.category === filters.category);
+      if (filters.entity_type) signals = signals.filter(s => s.entity_type === filters.entity_type);
+      if (filters.entity_id) signals = signals.filter(s => s.entity_id === filters.entity_id);
+
+      console.log(`[cognix-world] HTTP POST ${SIGNAL_SNAPSHOT_PATH} | tenant: ${snapshotTenant} | scenario: ${scenario.identity.scenario_id} | count: ${signals.length}`);
+
+      res.writeHead(200);
+      res.end(JSON.stringify({
+        status: 'success',
+        service: 'cognix-world',
+        domain: 'enterprise-signals',
+        tenant_id: snapshotTenant,
+        scenario_id: scenario.identity.scenario_id,
+        scenario_family: scenario.taxonomy.family_id,
+        scenario_clock: scenarioNowIso(scenario),
+        count: signals.length,
+        correlation_id: correlationId,
+        timestamp: platformReceiptNowIso(),
+        data: signals
+      }));
+    });
+    return;
+  }
+
+  // ── /api/v1/signals and /api/v1/signals/current by id — retired (`SCI-07R`) ────
   if (pathname === '/api/v1/signals' || pathname === '/api/v1/signals/current') {
     /*
-     * ADR-077 part 4 holds on the domain service exactly as it holds on the BFF proxy.
-     * Correcting only the Next.js route would have left the same defaulting behind the
-     * proxy, which is where the FreshDirect UK signal was actually generated.
+     * These resolved `?scenario_id=` against this process's compiled copy of the registry, which is
+     * why an authored scenario was refused here (`R-SCI07-6`). ADR-077 part 4 still holds — a missing
+     * scenario is an error — and the scenario now travels as a record (ROUTE 5).
      */
-    let scenario;
-    try {
-      scenario = requireScenarioId(searchParams.get('scenario_id'), `GET ${pathname}`);
-    } catch (error: any) {
-      res.writeHead(400);
-      res.end(JSON.stringify({
-        status: 'error',
-        service: 'cognix-world',
-        error: 'ScenarioNotResolved',
-        message: error.message,
-        required_parameter: 'scenario_id',
-        correlation_id: correlationId,
-        timestamp: platformReceiptNowIso()
-      }));
-      return;
-    }
-
-    const signalType = searchParams.get('signal_type');
-    const category = searchParams.get('category');
-    const entityType = searchParams.get('entity_type');
-    const entityId = searchParams.get('entity_id');
-
-    let signals = generateSyntheticSignalSnapshot(scenario, tenantId);
-
-    // Apply filtering
-    if (signalType) signals = signals.filter(s => s.signal_type === signalType);
-    if (category) signals = signals.filter(s => s.category === category);
-    if (entityType) signals = signals.filter(s => s.entity_type === entityType);
-    if (entityId) signals = signals.filter(s => s.entity_id === entityId);
-
-    console.log(`[cognix-world] HTTP GET ${pathname} | tenant: ${tenantId} | scenario: ${scenario.identity.scenario_id} | count: ${signals.length}`);
-
-    res.writeHead(200);
+    res.writeHead(410);
     res.end(JSON.stringify({
-      status: 'success',
+      status: 'error',
       service: 'cognix-world',
-      domain: 'enterprise-signals',
-      tenant_id: tenantId,
-      scenario_id: scenario.identity.scenario_id,
-      scenario_family: scenario.taxonomy.family_id,
-      scenario_clock: scenarioNowIso(scenario),
-      count: signals.length,
+      error: 'ScenarioRecordRequired',
+      message: `cognix-world does not resolve scenario identities. POST the scenario record to ${SIGNAL_SNAPSHOT_PATH} (ADR-085).`,
+      required_parameter: 'scenario',
       correlation_id: correlationId,
-      timestamp: platformReceiptNowIso(),
-      data: signals
+      timestamp: platformReceiptNowIso()
     }));
     return;
   }
@@ -316,7 +359,8 @@ const server = http.createServer((req, res) => {
   if (pathname.startsWith('/api/v1/signals/')) {
     const id = pathname.split('/')[4];
     if (id) {
-      // Looked up across the registered catalogue, not across two hard-coded worlds.
+      // Looked up across the registered catalogue, not across two hard-coded worlds. In this process
+      // that is the COMPILED reference copy only — authored scenarios are never here (`R-SCI07R-3`).
       const allSignals = listRegisteredScenarios().flatMap(scenario =>
         generateSyntheticSignalSnapshot(scenario, tenantId)
       );
