@@ -457,3 +457,10 @@ deletes the credential and reproduces a confirmed scenario byte-identically.
 **SCI-08 ENTRY GATE: PASSED.** `SCI-08` is **not started** by this packet; authorising Wave 4 remains
 the owner's decision, and it is cut from this packet's head, not from SHA-D. `R-SCI07-1` remains the
 reason not to demonstrate the AI-assist path live until one credentialed round trip succeeds.
+
+---
+
+*Addendum, 2026-09-25 — `SCI-08`.* `R-SCI07R-6` is **CLOSED** by `SCI-08`: the selector renders through a
+portal and the Architecture scenario card is bounded; measured at 1440 / 1024 / 720 with a longer authored
+name. `R-SCI09-2`: the stale branch was confirmed to hold no unique commit; this environment refuses remote
+branch deletion, so it remains for the owner. See [`COGNIX_SCI_08_CREATE_YOUR_OWN_SCENARIO_REPORT.md`](COGNIX_SCI_08_CREATE_YOUR_OWN_SCENARIO_REPORT.md). The record above is unaltered.

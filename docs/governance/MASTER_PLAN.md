@@ -1207,7 +1207,8 @@ Status: `[IN PROGRESS]` — **WAVES 0, 1, 2 AND 3 COMPLETE AND CONVERGED.**
 | 2 | `SCI-05`, `SCI-06` (+ the `R-37` and `R-38`/`R-39` repairs) | **GATE C PASSED 2026-09-18** | SHA-C `c7c9f64f` |
 | 3 | `SCI-07`, `SCI-09` | **GATE D PASSED 2026-09-22** | SHA-D `2f8d7ed8` |
 | — | `SCI-07R` (repair, ADR-085) | **COMPLETED 2026-09-25.** Closes `R-SCI07-6` and `R-32`; **`SCI-08` entry gate PASSED** | — |
-| 4 | `SCI-10`, `SCI-08` | **NOT AUTHORISED — NOT STARTED.** The `SCI-08` blocker `R-SCI07-6` is closed by `SCI-07R`; authorising Wave 4 is the owner's decision, cut from the `SCI-07R` head. `SCI-10` remains deferred | — |
+| — | `SCI-08` (single lane, ahead of Wave 4) | **COMPLETED 2026-09-25.** Convergence gate PASSED — browser 102/102, estate 4,291 + `R-25` | — |
+| 4 | `SCI-10` (`SCI-08` delivered ahead, single lane) | **NOT CUT — BLOCKED.** `SCI-10` remains deferred and its Attested Upload contract is not declared; the Wave-4 gate has not run | — |
 
 All six governed contracts are frozen. The three `SCI-05`-owned Wave-2 contracts — Signal
 Materiality & Decision Relevance, the Refresh Operation and the Models & Methods register — are no
@@ -1311,7 +1312,7 @@ redesign.
 | `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | **[DELIVERED 2026-09-19 · CONVERGED 2026-09-22]** — `feature/cognix-sci-07-scenario-authoring` |
 | `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | **[COMPLETED 2026-09-19 · CONVERGED 2026-09-22]** — `Feature/cognix-sci-09-architecture-surface` (note the capital `F`; the lower-case branch of the same name is stale at the packet's first commit — `R-SCI09-2`) |
 | `SCI-07R` | Scenario Registry Authority (repair, ADR-085) | REPAIR | — | — | **[COMPLETED 2026-09-25]** — closes `R-SCI07-6`, `R-32`; see [`COGNIX_SCI_07R_SCENARIO_REGISTRY_AUTHORITY_REPORT.md`](../reports/COGNIX_SCI_07R_SCENARIO_REGISTRY_AUTHORITY_REPORT.md) |
-| `SCI-08` | Create Your Own Scenario Experience | POST-DEMO | Antigravity | 4 | Not started — entry gate PASSED at `SCI-07R` |
+| `SCI-08` | Create Your Own Scenario Experience | POST-DEMO | — | 4 | **[COMPLETED 2026-09-25]** — single lane, see [`COGNIX_SCI_08_CREATE_YOUR_OWN_SCENARIO_REPORT.md`](../reports/COGNIX_SCI_08_CREATE_YOUR_OWN_SCENARIO_REPORT.md) |
 | `SCI-10` | CSV Scenario Enrichment via Attested Admission | POST-DEMO | Cursor | 4 | Not started |
 
 Three repairs were authorised between packets and are recorded with the packets they repair in

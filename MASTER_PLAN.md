@@ -84,8 +84,11 @@ PROGRAMME    SCI — Scenario Intelligence (the Scenario Laboratory)
                     is the one scenario authority in every mode;
                     cognix-world computes over records; the browser
                     projects certified records.  SCI-08 entry gate PASSED
-             SCI-08 Create Your Own Scenario experience  [NOT STARTED - owner to authorise]
-                    Cut from the SCI-07R head, not SHA-D
+             SCI-08 Create Your Own Scenario experience           [COMPLETED]
+                    Single lane from the SCI-07R head; Wave 4 NOT cut.
+                    Create -> Review -> Confirm -> Run -> Understand;
+                    browser 102/102 at 1440/1024/720. Live Gemini
+                    NOT verified (R-SCI07-1 open)
              SCI-10 CSV enrichment via ESF-6 attested admission     [DEFERRED]
 
 PHASE 11     IP and Innovation Governance
@@ -98,6 +101,8 @@ For complete work packages, user stories, test requirements, and exit gates, see
 **Capability Atlas governance:** [`docs/governance/COGNIX_CAPABILITY_ATLAS.md`](docs/governance/COGNIX_CAPABILITY_ATLAS.md) · [`docs/governance/CAPABILITY_KNOWLEDGE_MODEL.md`](docs/governance/CAPABILITY_KNOWLEDGE_MODEL.md) · [`docs/architecture/CAPABILITY_ATLAS_ARCHITECTURE.md`](docs/architecture/CAPABILITY_ATLAS_ARCHITECTURE.md) · ADR-045 … ADR-051.
 
 **Demand capability governance:** [`docs/governance/DEMAND_OBSERVABILITY_MODEL.md`](docs/governance/DEMAND_OBSERVABILITY_MODEL.md) · [`docs/reports/COGNIX_DEMAND_DECISION_FRONTIER_PLANNING_REPORT.md`](docs/reports/COGNIX_DEMAND_DECISION_FRONTIER_PLANNING_REPORT.md) · ADR-040 … ADR-043.
+
+**Create Your Own Scenario (`SCI-08`):** [`docs/reports/COGNIX_SCI_08_CREATE_YOUR_OWN_SCENARIO_REPORT.md`](docs/reports/COGNIX_SCI_08_CREATE_YOUR_OWN_SCENARIO_REPORT.md) — the authoring experience, cross-surface truth, browser acceptance, residuals, and why Wave 4 is still blocked.
 
 **Scenario Registry Authority (`SCI-07R`, ADR-085):** [`docs/reports/COGNIX_SCI_07R_SCENARIO_REGISTRY_AUTHORITY_REPORT.md`](docs/reports/COGNIX_SCI_07R_SCENARIO_REGISTRY_AUTHORITY_REPORT.md) — reproduction, root cause shared with `R-28`/`R-32`, the decision, persistence reassessment, and the `SCI-08` entry gate (PASSED).
 

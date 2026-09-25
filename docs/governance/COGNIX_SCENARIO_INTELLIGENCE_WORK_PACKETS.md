@@ -64,7 +64,7 @@ and the lanes never touch.
 | `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 | **[COMPLETED 2026-09-17 · CONVERGED 2026-09-18]** |
 | `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | **[DELIVERED 2026-09-19 · CONVERGED 2026-09-22]** |
 | `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | **[COMPLETED 2026-09-19 · CONVERGED 2026-09-22]** |
-| `SCI-08` | Create Your Own Scenario Experience | **POST-DEMO** | Antigravity | 4 | Not started — entry gate PASSED at `SCI-07R` |
+| `SCI-08` | Create Your Own Scenario Experience | **POST-DEMO** | — | 4 | **[COMPLETED 2026-09-25 · single lane, Wave 4 NOT cut]** — `feature/cognix-sci-08-create-your-own` |
 | `SCI-10` | CSV Scenario Enrichment via Attested Admission | **POST-DEMO** | Cursor | 4 | Not started |
 
 `SCI-08` is numbered before `SCI-09` and scheduled after it: the numbers follow the conceptual areas,
@@ -1160,6 +1160,30 @@ uncertified scenario cannot be activated.
 **Browser acceptance.** 1440 / 1024 / 720; a demo owner authors and runs a scenario unaided.
 
 **Definition of done.** End-to-end authoring in the browser. Regression green. No visual drift.
+
+### `SCI-08` outcome — **[COMPLETED 2026-09-25]**
+
+Executed **alone and sequentially** on the owner's instruction, cut from `SCI-07R` `2362fa40` on
+`feature/cognix-sci-08-create-your-own`. **Wave 4 is not cut**: `SCI-10` is not started and no Wave-4
+convergence or gate has run. Depends on ADR-085: a confirmed authored scenario enters the one
+catalogue and runs through the curated selection path — no second registry, engine or calculation.
+
+One journey — Create → Review → Confirm → Run → Understand — in a dialog opened from the scenario
+selector. Readiness, provenance and certification are the server's; Understand renders the
+authoritative evaluator's figures; AI suggestions are marked proposals the author keeps or ignores, and
+the journey is complete with no provider. Export/import is *Save a copy* / *Open a saved scenario*.
+
+**Convergence repairs taken with it:** the Promotion planner displayed Cheddar for an authored product
+outside its archetype list while computing on the right one (fixed); the selector was constrained by
+the navigation drawer at 720 and the Architecture scenario select overflowed at 1440 (`R-SCI07R-6`,
+**CLOSED**).
+
+**Evidence:** `run-sci08-scenario-experience-tests` 31/31; full estate 57 runners, **4,291 passed**, `R-25`
+`A6b` the only failure (132/1, unchanged); tsc and build clean; browser **102/102** at 1440 / 1024 / 720
+on the three-process production topology, including cross-surface truth by id and by figure; restart
+behaviour as ADR-085 part 5 governs. **No contract changed** — seven contracts byte-identical to SHA-D.
+**Live Gemini NOT verified** (`R-SCI07-1` open). New residuals `R-SCI08-1…3`.
+Record: [`COGNIX_SCI_08_CREATE_YOUR_OWN_SCENARIO_REPORT.md`](../reports/COGNIX_SCI_08_CREATE_YOUR_OWN_SCENARIO_REPORT.md).
 
 ---
 
