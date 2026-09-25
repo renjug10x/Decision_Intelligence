@@ -1079,6 +1079,10 @@ Storyboard retired **only** at 6 of 6, otherwise retained and labelled.
   - Fresh Dairy: derived recommendation 14% discount (challenging committed 20% plan); exposed gap 130,130 units.
   - Premium Bakery: certified recommendation 0% / do not promote (committed 10% plan); exposed gap 1,354 units.
   - Chilled Salmon: derived recommendation 10% discount (aligned with committed 10% plan); exposed gap 22,956 units.
+  - *Correction note, added 2026-09-25 by `SCI-07R` (`R-SCI09-3`); the three lines above are left as this lane wrote
+    them.* The exposed-gap figures quoted are the contract's closed-form derivation. The Architecture Surface
+    publishes the authoritative domain evaluator's figures, as Gate D measured and reconciled (assessment §9):
+    **130,125** (Fresh Dairy), **23,006** (Chilled Salmon), **1,380** (Premium Bakery). Read those.
 - **Tightened Architectural Language:** Used precise, factually grounded terminology ("Dynamic Signal Simulation" instead of unverified real-time external claims; "Derived promotion recommendation"; zero "0% hallucination" assertions).
 - **Live Models & Methods Integration:** Node inspect drawer reads real registered methods from `scenarioMethodsRegister(scenario_id)`, displaying genuine `last_run_scenario_iso` timestamps or honest unmeasured indicators without creating duplicate truth models.
 - **Quiet SB-GATE Governance & Storyboard Disposition:**
