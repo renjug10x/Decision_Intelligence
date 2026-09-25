@@ -63,6 +63,11 @@ import {
 import { assessDecisionCaseCoherence } from './draft-coherence';
 import { assessCapabilityReadiness, describeScenarioProvenance } from './draft-readiness';
 import { scenarioDraftStore } from './draft-store';
+import {
+  AuthoredScenarioOwnershipError,
+  assertAuthoredScenarioAssignable,
+  recordAuthoredScenarioOwner
+} from './authored-scenario-ownership';
 
 export const SCENARIO_AUTHORING_VERSION = 'sci07_scenario_authoring_v1.0.0';
 
@@ -482,6 +487,19 @@ export function confirmDraft(request: ConfirmDraftRequest): ConfirmDraftResult {
    * The candidate has passed everything the gate can evaluate unregistered. Registration is what
    * lets `C-1.2` resolve the identity to this record, and the certification below is authoritative.
    */
+  /*
+   * `SCI-07R` (ADR-085 part 4): an id another workspace owns is refused BEFORE registration, so a
+   * collision can never replace someone else's certified record.
+   */
+  try {
+    assertAuthoredScenarioAssignable(resolved.scenario.identity.scenario_id, draft.tenant_id);
+  } catch (error) {
+    if (error instanceof AuthoredScenarioOwnershipError) {
+      throw new ScenarioAuthoringError(error.message, 'scenario_id');
+    }
+    throw error;
+  }
+
   const priorRecord = isScenarioRegistered(resolved.scenario.identity.scenario_id)
     ? resolveScenario(resolved.scenario.identity.scenario_id)
     : null;
@@ -528,6 +546,12 @@ export function confirmDraft(request: ConfirmDraftRequest): ConfirmDraftResult {
       }))
     );
   }
+
+  /*
+   * Certified: the scenario now belongs to the workspace that confirmed it. The scenario runtime shows
+   * it to that tenant only (ADR-085 part 4); the registry itself stays tenant-free.
+   */
+  recordAuthoredScenarioOwner(resolved.scenario.identity.scenario_id, draft.tenant_id);
 
   const confirmed: ScenarioDraft = {
     ...draft,
