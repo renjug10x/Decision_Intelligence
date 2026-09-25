@@ -1052,18 +1052,30 @@ async function run() {
    * the experience and no component reaches into the authoring runtime — is asserted structurally,
    * which is stronger than the substring was.
    */
-  const clientSurfaces = filesUnder('components').filter(rel => {
+  /*
+   * Restated again at `SCI-08`, which is the experience this guard was reserving the domain for.
+   * "No component consumes it YET" became false by design; the property it protected still holds
+   * and is asserted directly: a component reaches the authoring domain only through the governed
+   * routes, via the browser transport `lib/scenario-authoring-client.ts`, and only `SCI-08`'s own
+   * components do so. No component imports the server-side authoring runtime or calls a lifecycle
+   * function in-process.
+   */
+  const reachesRuntime = filesUnder('components').filter(rel => {
     const code = codeOf(rel);
-    return /from\s+['"][^'"]*\/scenario-authoring(\/|['"])/.test(code)
-      || /from\s+['"][^'"]*scenario-draft-model['"]/.test(code)
-      || /\bScenarioDraft[A-Za-z]*\b/.test(code)
-      || /\/api\/v1\/scenarios\/drafts/.test(code)
-      || /\b(createDraft|updateDraft|confirmDraft|resolveScenarioDraft|assessDraft)\b/.test(code);
+    return /from\s+['"][^'"]*\/lib\/scenario-authoring(\/[^'"]*)?['"]/.test(code)
+      || /\b(createDraft|updateDraft|confirmDraft|resolveScenarioDraft|assessDraft)\s*\(/.test(code);
   });
   assert(
-    clientSurfaces.length === 0,
-    'I2a: No client component consumes the authoring domain yet — SCI-08 owns the experience',
-    clientSurfaces.join(', ')
+    reachesRuntime.length === 0,
+    'I2a: No client component imports the authoring runtime or runs a lifecycle step in-process',
+    reachesRuntime.join(', ')
+  );
+  const callsDraftRoutes = filesUnder('components').filter(rel =>
+    /\/api\/v1\/scenarios\/drafts|scenario-authoring-client/.test(codeOf(rel)));
+  assert(
+    callsDraftRoutes.length > 0 && callsDraftRoutes.every(rel => rel.startsWith('components/scenario-authoring/')),
+    'I2b: Only SCI-08\'s experience reaches the authoring routes, and only through the browser transport',
+    callsDraftRoutes.join(', ')
   );
 
   /*
