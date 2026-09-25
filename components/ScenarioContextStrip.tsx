@@ -24,10 +24,12 @@ import {
 import { useDecisionState } from '@/context/DecisionStateContext';
 import { getOrCreateSessionId } from '@/lib/journey-client';
 import ScenarioSelectorModal from '@/components/ScenarioSelectorModal';
+import ScenarioAuthoringStudio from '@/components/scenario-authoring/ScenarioAuthoringStudio';
 
 export default function ScenarioContextStrip() {
   const { decisionState, resetScenario, refreshState } = useDecisionState();
   const [selectorOpen, setSelectorOpen] = useState(false);
+  const [authoringOpen, setAuthoringOpen] = useState(false);
   const [restartPhase, setRestartPhase] = useState<'idle' | 'working' | 'done'>('idle');
 
   // Dynamically resolve the active scenario from decision state or the canonical registry
@@ -206,7 +208,9 @@ export default function ScenarioContextStrip() {
         onClose={() => setSelectorOpen(false)}
         activeScenarioId={identity.scenario_id}
         onScenarioActivated={handleScenarioActivated}
+        onCreateScenario={() => { setSelectorOpen(false); setAuthoringOpen(true); }}
       />
+      <ScenarioAuthoringStudio isOpen={authoringOpen} onClose={() => setAuthoringOpen(false)} />
     </>
   );
 }

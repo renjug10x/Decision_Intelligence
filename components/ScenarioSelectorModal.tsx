@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { X, Check, AlertTriangle, ShieldCheck, Loader2, ArrowRight, HelpCircle } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { X, Check, AlertTriangle, ShieldCheck, Loader2, ArrowRight, HelpCircle, Plus } from 'lucide-react';
 import {
   fetchScenarioCatalogue,
   activateScenarioOnServer,
@@ -18,13 +19,16 @@ interface ScenarioSelectorModalProps {
   onClose: () => void;
   activeScenarioId: string;
   onScenarioActivated?: (scenarioId: string) => void;
+  /** `SCI-08`: open the authoring experience. A created scenario joins this same catalogue. */
+  onCreateScenario?: () => void;
 }
 
 export default function ScenarioSelectorModal({
   isOpen,
   onClose,
   activeScenarioId,
-  onScenarioActivated
+  onScenarioActivated,
+  onCreateScenario
 }: ScenarioSelectorModalProps) {
   const [catalogue, setCatalogue] = useState<ScenarioCatalogueEntry[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -129,7 +133,12 @@ export default function ScenarioSelectorModal({
     }
   };
 
-  return (
+  /*
+   * `SCI-08`: rendered through a portal to `document.body`. The selector is opened from the context
+   * strip inside the navigation drawer; at 720 the drawer's transform made this `position: fixed`
+   * dialog resolve against the 214px drawer rather than the viewport (`R-SCI07R-6`).
+   */
+  return createPortal(
     <div
       style={{
         position: 'fixed',
@@ -540,6 +549,8 @@ export default function ScenarioSelectorModal({
             padding: '12px 20px',
             borderTop: '1px solid var(--border)',
             display: 'flex',
+            flexWrap: 'wrap',
+            gap: 8,
             alignItems: 'center',
             justifyContent: 'space-between',
             background: 'var(--bg-surface, #F8FAFC)',
@@ -550,6 +561,28 @@ export default function ScenarioSelectorModal({
           <span>
             The scenario clock, demand baseline, supplier capacity, and decision state update consistently upon selection.
           </span>
+          {onCreateScenario && (
+            <button
+              type="button"
+              onClick={onCreateScenario}
+              style={{
+                padding: '5px 12px',
+                fontSize: '0.75rem',
+                fontWeight: 600,
+                borderRadius: 4,
+                border: '1px solid var(--g10x-orange)',
+                background: '#FFFFFF',
+                color: 'var(--g10x-orange)',
+                cursor: 'pointer',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 4,
+                whiteSpace: 'nowrap'
+              }}
+            >
+              <Plus size={12} strokeWidth={2.2} /> Create your own
+            </button>
+          )}
           <button
             type="button"
             onClick={onClose}
@@ -568,6 +601,7 @@ export default function ScenarioSelectorModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
