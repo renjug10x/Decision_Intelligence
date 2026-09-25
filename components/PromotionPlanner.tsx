@@ -1071,6 +1071,17 @@ export default function PromotionPlanner({
                     background: '#FFFFFF'
                   }}
                 >
+                  {/*
+                    `SCI-08` convergence: the scenario's own product is always offered. `skuId` opens on
+                    the active scenario's SKU, and for an authored scenario that SKU need not be one of
+                    the archetype defaults — with no matching option the browser DISPLAYED the first
+                    one (Cheddar) while every calculation ran on the authored product.
+                  */}
+                  {!CAMPAIGN_ARCHETYPES.some(a => a.default_sku === scenarioProjection.default_sku) && (
+                    <option key={scenarioProjection.default_sku} value={scenarioProjection.default_sku}>
+                      {scenarioProjection.sku_name} ({scenarioProjection.default_sku})
+                    </option>
+                  )}
                   {CAMPAIGN_ARCHETYPES.map(a => (
                     <option key={a.default_sku} value={a.default_sku}>
                       {a.sku_name} ({a.default_sku})
