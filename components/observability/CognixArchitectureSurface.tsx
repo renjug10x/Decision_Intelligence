@@ -771,7 +771,9 @@ export default function CognixArchitectureSurface() {
     } catch {
       return [];
     }
-  }, []);
+    // Re-read once the decision state names a scenario: an authored one is projected into this
+    // browser's registry only after the state arrives (`SCI-07R`, R-SCI07R-4).
+  }, [decisionState?.scenario_id]);
 
   // Resolve active Canonical Scenario
   const scenario = useMemo(() => {

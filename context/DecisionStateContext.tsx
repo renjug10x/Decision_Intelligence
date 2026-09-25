@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 import { DecisionState, DecisionCommandType } from '@/packages/contracts/src/index';
 import { fetchCurrentDecisionState, executeDecisionCommand, resetDecisionState } from '@/lib/decision-state-client';
 import { getOrCreateSessionId } from '@/lib/journey-client';
-import { syncActiveScenario } from '@/lib/scenario-client-registry';
+import { syncActiveScenario, projectScenarioFromServer } from '@/lib/scenario-client-registry';
 
 interface DecisionStateContextValue {
   decisionState: DecisionState | null;
@@ -41,6 +41,9 @@ export function DecisionStateProvider({ children }: { children: ReactNode }) {
          * means the render this state change causes already resolves the right scenario. Doing it in
          * an effect would render one frame of the previous scenario's economics first.
          */
+        // `SCI-07R`: an authored scenario reaches this browser's registry only as a projection of the
+        // server's certified record, fetched before the mirror so the render below resolves it.
+        await projectScenarioFromServer(state.scenario_id, state.tenant_id);
         syncActiveScenario(state.scenario_id);
         setDecisionState(state);
         setError(null);

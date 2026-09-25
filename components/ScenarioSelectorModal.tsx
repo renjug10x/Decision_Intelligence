@@ -7,7 +7,10 @@ import {
   activateScenarioOnServer,
   ScenarioCatalogueEntry
 } from '@/lib/world-client';
-import { syncActiveScenario as clientSyncActiveScenario } from '@/lib/scenario-client-registry';
+import {
+  syncActiveScenario as clientSyncActiveScenario,
+  projectScenarioFromServer
+} from '@/lib/scenario-client-registry';
 import { getOrCreateSessionId } from '@/lib/journey-client';
 
 interface ScenarioSelectorModalProps {
@@ -112,6 +115,9 @@ export default function ScenarioSelectorModal({
        * selection could succeed on the server while every surface kept computing the previous
        * scenario (R-33). The shared mirror reports a disagreement instead of hiding it.
        */
+      // An authored scenario is not compiled into this browser; project the server's record first
+      // (`SCI-07R`, ADR-085 part 3). A compiled pack is already here and this returns at once.
+      await projectScenarioFromServer(scenarioId);
       clientSyncActiveScenario(scenarioId);
 
       onScenarioActivated?.(scenarioId);

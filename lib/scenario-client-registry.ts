@@ -43,8 +43,10 @@ import '@/packages/contracts/src/scenario-packs';
 import {
   getActiveScenarioId,
   isScenarioRegistered,
-  activateScenario
+  activateScenario,
+  registerScenario
 } from '@/packages/contracts/src/scenario-registry';
+import type { CanonicalScenario } from '@/packages/contracts/src/canonical-scenario-model';
 
 export {
   getActiveScenario,
@@ -96,6 +98,53 @@ export function syncActiveScenario(scenarioId: string | undefined | null): boole
     return true;
   } catch (error: any) {
     console.warn(`[scenario-client-registry] Could not mirror ${scenarioId} locally: ${error?.message}`);
+    return false;
+  }
+}
+
+/**
+ * Project a scenario the SERVER holds into this browser's registry (`SCI-07R`, ADR-085 part 3).
+ *
+ * This registry is seeded from the compiled packs, so a scenario authored and certified on the server
+ * never existed here: after selecting one, `syncActiveScenario` refused to mirror it and every client
+ * engine kept computing the previous scenario — in every `COGNIX_WORLD_MODE`, including `local`.
+ *
+ * The browser registry is a READ PROJECTION of the server's authority, and this is the only way an
+ * authored record enters it:
+ *   - it is fetched from `GET /api/v1/scenarios/record`, which serves a record only if it is
+ *     registered, certified and visible to this tenant;
+ *   - the identity served must be the identity asked for, or nothing is registered;
+ *   - a record this browser already holds is never replaced — compiled packs cannot be shadowed.
+ *
+ * It grants nothing: activation is still the server's, through the gate. Returns whether this browser
+ * now holds the scenario; a failure is reported, never guessed around.
+ */
+export async function projectScenarioFromServer(
+  scenarioId: string | undefined | null,
+  tenantId: string = 'tenant_uk_retail_01'
+): Promise<boolean> {
+  if (!scenarioId) return false;
+  if (isScenarioRegistered(scenarioId)) return true;
+  try {
+    const query = new URLSearchParams({ scenario_id: scenarioId, tenant_id: tenantId });
+    const response = await fetch(`/api/v1/scenarios/record?${query.toString()}`, {
+      headers: { Accept: 'application/json', 'X-Tenant-ID': tenantId },
+      cache: 'no-store'
+    });
+    const payload = await response.json().catch(() => null);
+    const record = payload?.data as CanonicalScenario | undefined;
+    if (!response.ok || payload?.status !== 'success' || payload?.certification_state !== 'CERTIFIED'
+      || record?.identity?.scenario_id !== scenarioId) {
+      console.warn(
+        `[scenario-client-registry] The server did not publish a certified record for ${scenarioId}; `
+        + 'it is not projected into this browser.'
+      );
+      return false;
+    }
+    if (!isScenarioRegistered(scenarioId)) registerScenario(record);
+    return true;
+  } catch (error: any) {
+    console.warn(`[scenario-client-registry] Could not project ${scenarioId}: ${error?.message}`);
     return false;
   }
 }
