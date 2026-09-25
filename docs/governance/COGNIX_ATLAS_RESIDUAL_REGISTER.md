@@ -444,7 +444,28 @@ engine compares a scenario identity against a literal, and that the six constant
 unit economics, the full elasticity curve, derived impacts, every archetype curve, three causal
 evaluations and the reference scenario's whole certification result.
 
-### R-28 — The `cognix-world` domain service does not install the certification gate · **OPEN — GOVERNED**
+### R-28 — The `cognix-world` domain service does not install the certification gate · **OPEN — NARROWED by `SCI-07R`, RETAINED**
+
+**Re-assessed 2026-09-25 (ADR-085).** Not closed, because the defect as recorded is still literally
+true — `cognix-world` still cannot run the gate — and the governed exposure is narrowed, not removed.
+
+- **What is removed.** The recorded exposure was *"a scenario registered in that process without being
+  certified"*. `cognix-world` now registers nothing at runtime, serves no catalogue and resolves no
+  scenario identity for a product request; its only scenario data is the compiled reference copy the
+  BFF gate certifies at start-up. Every product signal request carries a record resolved by the BFF's
+  gated runtime, in which every registered scenario has certified (`R-SCI07-5` closure).
+- **What remains — `R-SCI07R-3`.** The new record-carrying route `POST /api/v1/signals/snapshot`
+  computes synthetic signals over any structurally valid record a caller posts; world cannot verify
+  certification. It is an internal, unauthenticated service (as every `cognix-world` route already
+  is) and the compose files publish its port. Signals are synthetic and carry no authority, so the
+  harm is bounded. Two legacy routes, `/signals/{id}` and `/signals/simulate`, still read the compiled
+  copy; no product surface calls them.
+- **Does not block `SCI-08`.** Owner: whichever packet first gives `cognix-world` an authenticated
+  boundary, or moves certification behind a contracts-level interface.
+
+The original record follows.
+
+#### R-28 as first recorded
 
 `lib/scenario-runtime.ts` installs the gate as a side effect of import, and every Next.js route that
 resolves or activates a scenario now goes through it — enforced by a source guard in
@@ -1032,7 +1053,24 @@ re-render, so no frame renders the previous scenario's economics.
 Neither lane could have found it: `SCI-03` registered packs nothing client-side consumed, and
 `SCI-04` resolved a catalogue that had one entry in it.
 
-### R-32 — Two registries answer "which scenario is active?" differently · **MITIGATED — underlying split open with R-28**
+### R-32 — Two registries answer "which scenario is active?" differently · **CLOSED by `SCI-07R`**
+
+**Closed 2026-09-25** under ADR-085, by removing the second authority rather than synchronising it.
+The catalogue AND the active pointer are now both answered by the gated scenario runtime in the BFF,
+in every `COGNIX_WORLD_MODE`; `cognix-world` serves no catalogue (`410`, naming the authority). The
+Gate-B mitigation answered only the active pointer here and left the catalogue upstream's, and
+authoring re-opened the split in a new shape: an authored scenario could be activated while the
+catalogue — still `cognix-world`'s — did not list it (measured at this packet's baseline: active id
+= the authored id, 3 entries, none active).
+
+Governed condition — one answer to "which scenarios exist and which is running" — asserted by
+`run-sci07r-scenario-registry-authority-tests.ts` A1, A5, B9 and by the service-topology acceptance
+(`scripts/sci07r-service-acceptance.mjs`) on the production build. Evidence:
+[`COGNIX_SCI_07R_SCENARIO_REGISTRY_AUTHORITY_REPORT.md`](../reports/COGNIX_SCI_07R_SCENARIO_REGISTRY_AUTHORITY_REPORT.md).
+
+**The original record follows, unaltered.**
+
+### R-32 (as first recorded) — two registries · **superseded by the closure above**
 
 In service mode `POST /api/v1/scenarios` activates in the Next process, while `GET` proxies the
 catalogue from `cognix-world`, which holds its own registry, has no activation endpoint and never

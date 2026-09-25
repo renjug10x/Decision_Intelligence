@@ -64,7 +64,7 @@ and the lanes never touch.
 | `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 | **[COMPLETED 2026-09-17 · CONVERGED 2026-09-18]** |
 | `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | **[DELIVERED 2026-09-19 · CONVERGED 2026-09-22]** |
 | `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | **[COMPLETED 2026-09-19 · CONVERGED 2026-09-22]** |
-| `SCI-08` | Create Your Own Scenario Experience | **POST-DEMO** | Antigravity | 4 | Not started |
+| `SCI-08` | Create Your Own Scenario Experience | **POST-DEMO** | Antigravity | 4 | Not started — entry gate PASSED at `SCI-07R` |
 | `SCI-10` | CSV Scenario Enrichment via Attested Admission | **POST-DEMO** | Cursor | 4 | Not started |
 
 `SCI-08` is numbered before `SCI-09` and scheduled after it: the numbers follow the conceptual areas,
@@ -1005,6 +1005,36 @@ was attempted. Recorded as `R-SCI07-1`.
 
 ---
 
+### `SCI-07R` repair — Scenario Registry Authority — **[COMPLETED 2026-09-25]**
+
+Authorised after Gate D to close the `SCI-08` entry blocker `R-SCI07-6`. Cut from the head of
+`feature/cognix-sci-wave3-convergence` (`331b3ed1`, one governance commit on SHA-D). Decision:
+**ADR-085**. Record: [`COGNIX_SCI_07R_SCENARIO_REGISTRY_AUTHORITY_REPORT.md`](../reports/COGNIX_SCI_07R_SCENARIO_REGISTRY_AUTHORITY_REPORT.md).
+
+**Root cause, reproduced on the production build.** The `SCI-01` registry is per-process module state;
+the BFF, `cognix-world` and the browser each held a copy bootstrapped from compiled data. Authoring
+registered in the BFF; in `service` mode the catalogue was `cognix-world`'s; the browser never learned
+the record. Five measured consequences, one of them `R-SCI07-6` as recorded, and `R-28`/`R-32` were
+the same root cause.
+
+**Decision.** The gated scenario runtime in the BFF is the single scenario authority in every mode.
+`cognix-world` serves no catalogue and computes signals over a record the BFF resolved. The browser
+registry is a governed read projection of certified, tenant-visible records. Authored scenarios are
+visible only to the tenant that confirmed them. Persistence remains deferred on correctness grounds
+(`R-SCI07R-1`).
+
+**No contract changed.** The six Gate-D frozen contracts and the Scenario Draft contract are
+byte-identical to SHA-D, asserted by blob hash in `run-sci07r-scenario-registry-authority-tests.ts`.
+
+**Residuals.** `R-SCI07-6` **CLOSED**; `R-32` **CLOSED**; `R-28` **narrowed, RETAINED**; `R-SCI07-3`
+**superseded by `R-SCI07R-1` (DEFERRED)**; `R-SCI09-3` **CLOSED** by annotation below the `SCI-09`
+record; new `R-SCI07R-1` … `R-SCI07R-6` in the report.
+
+**`SCI-08` and `SCI-10` were not started.** When Wave 4 is authorised it is cut from this packet's head,
+not from SHA-D: SHA-D does not contain the scenario authority `SCI-08` builds on.
+
+---
+
 ## `SCI-09` — CogniX Architecture Surface & `SB-GATE` Closure
 
 | | |
@@ -1563,6 +1593,11 @@ be one governance-only commit ahead of SHA-D — this record of the SHA itself, 
 contain about itself, and which changes no code. Cutting from SHA-D and cutting from the branch head
 therefore give an identical working tree; the branch head is the correct base because it carries the
 complete governance record. This is the same honest two-step used for SHA-A, SHA-B and SHA-C.
+
+**Superseded for Wave 4 by `SCI-07R` (2026-09-25).** The paragraph above stands as written at Gate D.
+Since then `SCI-07R` added the scenario authority `SCI-08` builds on (ADR-085), so the Wave-4 base is
+now the `SCI-07R` head, not the convergence branch head. The frozen contracts are unchanged —
+byte-identical to SHA-D.
 
 ### SHA-C
 

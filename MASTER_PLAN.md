@@ -79,11 +79,13 @@ PROGRAMME    SCI — Scenario Intelligence (the Scenario Laboratory)
              Gates A-D PASSED.  SHA-D 2f8d7ed8, Wave 3 converged
              2026-09-22.  SB-GATE stays 3 of 6 and the storyboard
              stays RETAINED - Gate D did not move it.
-             SCI-08 Create Your Own Scenario experience         [NOT AUTHORISED]
-                    Blocked by R-SCI07-6: in the service topology an
-                    authored, certified scenario is invisible to the
-                    selector, because the BFF registers it and
-                    cognix-world serves the catalogue
+             SCI-07R Scenario Registry Authority (ADR-085)       [COMPLETED]
+                    Closes R-SCI07-6 and R-32: the BFF scenario runtime
+                    is the one scenario authority in every mode;
+                    cognix-world computes over records; the browser
+                    projects certified records.  SCI-08 entry gate PASSED
+             SCI-08 Create Your Own Scenario experience  [NOT STARTED - owner to authorise]
+                    Cut from the SCI-07R head, not SHA-D
              SCI-10 CSV enrichment via ESF-6 attested admission     [DEFERRED]
 
 PHASE 11     IP and Innovation Governance
@@ -96,6 +98,8 @@ For complete work packages, user stories, test requirements, and exit gates, see
 **Capability Atlas governance:** [`docs/governance/COGNIX_CAPABILITY_ATLAS.md`](docs/governance/COGNIX_CAPABILITY_ATLAS.md) · [`docs/governance/CAPABILITY_KNOWLEDGE_MODEL.md`](docs/governance/CAPABILITY_KNOWLEDGE_MODEL.md) · [`docs/architecture/CAPABILITY_ATLAS_ARCHITECTURE.md`](docs/architecture/CAPABILITY_ATLAS_ARCHITECTURE.md) · ADR-045 … ADR-051.
 
 **Demand capability governance:** [`docs/governance/DEMAND_OBSERVABILITY_MODEL.md`](docs/governance/DEMAND_OBSERVABILITY_MODEL.md) · [`docs/reports/COGNIX_DEMAND_DECISION_FRONTIER_PLANNING_REPORT.md`](docs/reports/COGNIX_DEMAND_DECISION_FRONTIER_PLANNING_REPORT.md) · ADR-040 … ADR-043.
+
+**Scenario Registry Authority (`SCI-07R`, ADR-085):** [`docs/reports/COGNIX_SCI_07R_SCENARIO_REGISTRY_AUTHORITY_REPORT.md`](docs/reports/COGNIX_SCI_07R_SCENARIO_REGISTRY_AUTHORITY_REPORT.md) — reproduction, root cause shared with `R-28`/`R-32`, the decision, persistence reassessment, and the `SCI-08` entry gate (PASSED).
 
 **Wave-3 convergence and Gate D:** [`docs/reports/COGNIX_WAVE3_CONVERGENCE_GATE_D_ASSESSMENT.md`](docs/reports/COGNIX_WAVE3_CONVERGENCE_GATE_D_ASSESSMENT.md) — condition-by-condition evidence, the five convergence events the gate found, the `R-SCI07-5` closure and the recommendation to FREEZE rather than start `SCI-08`.
 
