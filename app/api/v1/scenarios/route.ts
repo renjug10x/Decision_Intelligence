@@ -31,9 +31,17 @@
  *
  * A consumer that needs a demand, capacity or exposure figure reads the scenario's own record.
  *
- * Server-side selection between service / demo-fallback / local modes is controlled strictly by:
- * - COGNIX_WORLD_MODE ('service' | 'demo-fallback' | 'local')
- * - COGNIX_WORLD_SERVICE_URL ('http://localhost:8081' or 'http://cognix-world:8081' in Docker Compose)
+ * One authority, in every mode (`SCI-07R`, ADR-085)
+ * -------------------------------------------------
+ * This route used to proxy the catalogue from `cognix-world` in `service` mode. That process holds its
+ * own copy of the registry, bootstrapped from compiled data, and never learns of a scenario registered
+ * here — so an authored scenario confirmed and certified in this process was absent from the catalogue
+ * the selector renders (`R-SCI07-6`), while activation, which happens here, still accepted it. The
+ * catalogue now comes from the gated scenario runtime in this process in every `COGNIX_WORLD_MODE`,
+ * the same process that registers, certifies and activates. `cognix-world` serves no catalogue.
+ *
+ * The catalogue is TENANT-SCOPED: compiled scenarios for everyone, an authored scenario for the
+ * workspace that confirmed it (ADR-085 part 4).
  *
  * Internal service URLs and container hostnames are strictly hidden from browser JavaScript.
  */
@@ -42,7 +50,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { platformReceiptNowIso } from '@/packages/contracts/src/index';
 // Through the scenario runtime: importing it installs the Scenario Certification Gate.
 import {
-  scenarioCatalogue,
+  scenarioCatalogueForTenant,
+  isScenarioVisibleToTenant,
   getActiveScenarioId,
   activateScenario,
   certifyRegisteredScenarios,
@@ -52,9 +61,7 @@ import {
   type CertificationState
 } from '@/lib/scenario-runtime';
 import { decisionStateStore } from '@/lib/decision-state-store';
-
-const WORLD_SERVICE_URL = process.env.COGNIX_WORLD_SERVICE_URL || 'http://localhost:8081';
-const WORLD_MODE = (process.env.COGNIX_WORLD_MODE as 'service' | 'demo-fallback' | 'local') || 'demo-fallback';
+import { DEFAULT_TENANT_ID, requestTenantId } from '@/app/api/v1/_shared/scenario-request';
 
 /**
  * The catalogue, each entry carrying its CERTIFICATION STATE (`SCI-04`) and nothing else added.
@@ -126,102 +133,34 @@ function withCertification<T extends { scenario_id?: string; scenarioId?: string
   return results;
 }
 
-/** The in-process catalogue, certified. */
-function catalogueWithCertification() {
-  return withCertification(scenarioCatalogue());
+/** The tenant's catalogue from the gated scenario runtime, certified. */
+function catalogueWithCertification(tenantId: string) {
+  return withCertification(scenarioCatalogueForTenant(tenantId));
 }
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const tenantId = searchParams.get('tenant_id') || 'tenant_uk_retail_01';
+  const tenantId = requestTenantId(searchParams, request.headers.get('x-tenant-id'));
   const correlationId = request.headers.get('x-correlation-id') || `corr_proxy_${Math.random().toString(36).slice(2, 11)}`;
+  const data = catalogueWithCertification(tenantId);
 
-  const body = (status: string, service: string) => ({
-    status,
-    service,
+  /*
+   * `active_scenario_id` has been answered here since Wave-1 convergence (`R-32`), because activation
+   * happens here. The catalogue now comes from the same place, so the two answers can no longer
+   * disagree about which scenarios exist. Activation remains estate-wide (`R-SCI07R-2`).
+   */
+  return NextResponse.json({
+    status: 'success',
+    service: 'cognix-web-bff',
+    authority: 'scenario-runtime',
     tenant_id: tenantId,
     correlation_id: correlationId,
     active_scenario_id: getActiveScenarioId(),
-    count: scenarioCatalogue().length,
+    count: data.length,
     // A server receipt. Each entry carries its own scenario clock (ADR-078 part 2).
     timestamp: platformReceiptNowIso(),
-    data: catalogueWithCertification()
+    data
   });
-
-  // Mode 1: Explicit Server-side Local Mode
-  if (WORLD_MODE === 'local') {
-    console.info('[NextJS BFF Proxy] COGNIX_WORLD_MODE=local: Serving the in-process scenario registry.');
-    return NextResponse.json(body('local', 'cognix-web-proxy-local'));
-  }
-
-  // Mode 2 & 3: Server-side Service Call to cognix-world
-  try {
-    const targetUrl = new URL('/api/v1/scenarios', WORLD_SERVICE_URL);
-    targetUrl.searchParams.set('tenant_id', tenantId);
-
-    const upstreamRes = await fetch(targetUrl.toString(), {
-      method: 'GET',
-      headers: {
-        'Accept': 'application/json',
-        'X-Tenant-ID': tenantId,
-        'X-Correlation-ID': correlationId
-      },
-      next: { revalidate: 0 }
-    });
-
-    if (upstreamRes.ok) {
-      const data = await upstreamRes.json();
-      /*
-       * The DOMAIN catalogue is the world service's; the CERTIFICATION-AWARE view of it is this
-       * route's. `cognix-world` does not install the Scenario Certification Gate (R-28), so a
-       * proxied catalogue arrives with no verdict on it and a selector reading it would show
-       * every certified pack as unavailable. The gate IS installed in this process, so the
-       * badge is applied here rather than duplicating domain logic upstream — one catalogue,
-       * one certification authority, whichever mode served the entries.
-       */
-      if (Array.isArray(data?.data)) {
-        /*
-         * `active_scenario_id` is answered HERE, not upstream. Activation happens in this process
-         * (`POST` below, through the gated runtime); `cognix-world` holds its own registry, has no
-         * activation endpoint and never learns of a switch, so its `active_scenario_id` is
-         * whatever it bootstrapped with. Proxying that verbatim published a stale active scenario
-         * to the client after every switch in service mode — two registries answering the same
-         * question differently, which is the duplicate scenario state Wave-1 convergence is for.
-         * The domain catalogue stays upstream's; which of it the estate is RUNNING is this
-         * process's to say. Recorded as R-32 against whichever packet makes `cognix-world`
-         * activation-aware; see also R-28.
-         */
-        return NextResponse.json({
-          ...data,
-          active_scenario_id: getActiveScenarioId(),
-          data: withCertification(data.data)
-        });
-      }
-      return NextResponse.json(data);
-    }
-
-    console.warn(`[NextJS BFF Proxy] Upstream cognix-world returned HTTP ${upstreamRes.status}`);
-  } catch (error: any) {
-    console.warn(`[NextJS BFF Proxy] Upstream cognix-world service unreachable at ${WORLD_SERVICE_URL}: ${error.message}`);
-  }
-
-  // If in strict 'service' mode and upstream service failed, return explicit HTTP 503 error (NO silent fallback)
-  if (WORLD_MODE === 'service') {
-    return NextResponse.json(
-      {
-        status: 'error',
-        service: 'cognix-web-proxy',
-        error: 'ServiceUnavailable',
-        message: `Upstream cognix-world domain service unreachable at ${WORLD_SERVICE_URL}`,
-        timestamp: platformReceiptNowIso()
-      },
-      { status: 503 }
-    );
-  }
-
-  // Mode 3: Demo Fallback Mode
-  console.warn(`[NextJS BFF Proxy] COGNIX_WORLD_MODE=demo-fallback: Upstream cognix-world service unreachable at ${WORLD_SERVICE_URL}. Using the in-process scenario registry for demo continuity.`);
-  return NextResponse.json(body('demo_fallback', 'cognix-web-proxy-fallback'));
 }
 
 /**
@@ -238,7 +177,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const scenarioId = body.scenario_id;
     const sessionId = body.session_id;
-    const tenantId = body.tenant_id || request.headers.get('x-tenant-id') || 'tenant_uk_retail_01';
+    const tenantId = body.tenant_id || request.headers.get('x-tenant-id') || DEFAULT_TENANT_ID;
 
     if (!scenarioId || typeof scenarioId !== 'string' || !scenarioId.trim()) {
       return NextResponse.json(
@@ -249,6 +188,17 @@ export async function POST(request: NextRequest) {
           timestamp: platformReceiptNowIso()
         },
         { status: 400 }
+      );
+    }
+
+    /*
+     * `SCI-07R` (ADR-085 part 4): a scenario this tenant cannot see cannot be activated by it, and the
+     * refusal is the one an unregistered id receives.
+     */
+    if (!isScenarioVisibleToTenant(scenarioId.trim(), tenantId)) {
+      throw new ScenarioResolutionError(
+        `Scenario "${scenarioId.trim()}" is not registered and cannot be activated.`,
+        scenarioId.trim()
       );
     }
 

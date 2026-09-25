@@ -24,7 +24,19 @@ import { platformReceiptNowIso } from '@/packages/contracts/src/scenario-clock';
  * Scenario Certification Gate, so a route cannot resolve a scenario that has not been
  * through the gate (ADR-080).
  */
-import { requireScenarioId, ScenarioResolutionError } from '@/lib/scenario-runtime';
+import {
+  requireScenarioId,
+  resolveScenarioForTenant,
+  ScenarioResolutionError
+} from '@/lib/scenario-runtime';
+
+/** The lab's declared default tenant, the same default every scenario route already applies. */
+export const DEFAULT_TENANT_ID = 'tenant_uk_retail_01';
+
+/** The tenant a request is scoped to: query, then header, then the declared default. */
+export function requestTenantId(searchParams: URLSearchParams, headerTenant?: string | null): string {
+  return (searchParams.get('tenant_id') || headerTenant || DEFAULT_TENANT_ID).trim() || DEFAULT_TENANT_ID;
+}
 
 export type ScenarioRequestResult =
   | { ok: true; scenario: CanonicalScenario }
@@ -41,7 +53,14 @@ export function resolveScenarioForRequest(
   requestContext: string
 ): ScenarioRequestResult {
   try {
-    return { ok: true, scenario: requireScenarioId(searchParams.get('scenario_id'), requestContext) };
+    const scenarioId = searchParams.get('scenario_id');
+    // A missing id is still refused with the route's own context (ADR-077 part 4).
+    if (!scenarioId || !scenarioId.trim()) requireScenarioId(scenarioId, requestContext);
+    /*
+     * `SCI-07R` (ADR-085 part 4): a scenario this tenant cannot see is refused exactly as an
+     * unregistered one is — authored scenarios belong to the workspace that confirmed them.
+     */
+    return { ok: true, scenario: resolveScenarioForTenant(scenarioId, requestTenantId(searchParams)) };
   } catch (error) {
     if (error instanceof ScenarioResolutionError) {
       return {

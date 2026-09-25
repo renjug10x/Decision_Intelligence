@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 // Through the scenario runtime: importing it installs the Scenario Certification Gate.
-import { requireScenarioId, ScenarioResolutionError } from '@/lib/scenario-runtime';
+import { requireScenarioForTenant, ScenarioResolutionError } from '@/lib/scenario-runtime';
+import { requestTenantId } from '@/app/api/v1/_shared/scenario-request';
 import { platformReceiptNowIso } from '@/packages/contracts/src/index';
 import { resolveScenario } from '@/packages/contracts/src/scenario-registry';
 import {
@@ -24,7 +25,11 @@ export async function GET(request: NextRequest) {
   const correlationId = request.headers.get('x-correlation-id') || `corr_evd_${Math.random().toString(36).slice(2, 11)}`;
 
   try {
-    const scenario = requireScenarioId(searchParams.get('scenario_id') ?? undefined, 'GET /api/v1/evidence');
+    const scenario = requireScenarioForTenant(
+      searchParams.get('scenario_id') ?? undefined,
+      'GET /api/v1/evidence',
+      requestTenantId(searchParams, request.headers.get('x-tenant-id'))
+    );
     const scenarioId = scenario.identity.scenario_id;
     const timelines = scenarioEvidenceTimelines(scenario);
     /*

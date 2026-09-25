@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { requireScenarioId, ScenarioResolutionError } from '@/lib/scenario-runtime';
+import { requireScenarioForTenant, ScenarioResolutionError } from '@/lib/scenario-runtime';
+import { requestTenantId } from '@/app/api/v1/_shared/scenario-request';
 import { platformReceiptNowIso } from '@/packages/contracts/src/index';
 import { restartScenarioEvidence } from '@/lib/living-evidence-engine';
 
@@ -15,9 +16,10 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const { searchParams } = new URL(request.url);
-    const scenarioId = requireScenarioId(
+    const scenarioId = requireScenarioForTenant(
       body.scenario_id ?? searchParams.get('scenario_id') ?? undefined,
-      'POST /api/v1/evidence/restart'
+      'POST /api/v1/evidence/restart',
+      body.tenant_id || requestTenantId(searchParams, request.headers.get('x-tenant-id'))
     ).identity.scenario_id;
 
     return NextResponse.json({
