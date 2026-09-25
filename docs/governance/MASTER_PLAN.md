@@ -1208,7 +1208,7 @@ Status: `[IN PROGRESS]` — **WAVES 0, 1, 2 AND 3 COMPLETE AND CONVERGED.**
 | 3 | `SCI-07`, `SCI-09` | **GATE D PASSED 2026-09-22** | SHA-D `2f8d7ed8` |
 | — | `SCI-07R` (repair, ADR-085) | **COMPLETED 2026-09-25.** Closes `R-SCI07-6` and `R-32`; **`SCI-08` entry gate PASSED** | — |
 | — | `SCI-08` (single lane, ahead of Wave 4) | **COMPLETED 2026-09-25.** Convergence gate PASSED — browser 102/102, estate 4,291 + `R-25` | — |
-| 4 | `SCI-10` (`SCI-08` delivered ahead, single lane) | **NOT CUT — BLOCKED.** `SCI-10` remains deferred and its Attested Upload contract is not declared; the Wave-4 gate has not run | — |
+| 4 | `SCI-10` (`SCI-08` delivered ahead, single lane) | **NOT STARTED — GOVERNANCE READY (2026-09-25).** Attested Upload contract declared ([`COGNIX_ATTESTED_UPLOAD_CONTRACT.md`](COGNIX_ATTESTED_UPLOAD_CONTRACT.md), ADR-086); `SCI-10` reconciled and execution-ready, awaiting the owner's authorisation. Gate E defined | — |
 
 All six governed contracts are frozen. The three `SCI-05`-owned Wave-2 contracts — Signal
 Materiality & Decision Relevance, the Refresh Operation and the Models & Methods register — are no
@@ -1313,7 +1313,7 @@ redesign.
 | `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | **[COMPLETED 2026-09-19 · CONVERGED 2026-09-22]** — `Feature/cognix-sci-09-architecture-surface` (note the capital `F`; the lower-case branch of the same name is stale at the packet's first commit — `R-SCI09-2`) |
 | `SCI-07R` | Scenario Registry Authority (repair, ADR-085) | REPAIR | — | — | **[COMPLETED 2026-09-25]** — closes `R-SCI07-6`, `R-32`; see [`COGNIX_SCI_07R_SCENARIO_REGISTRY_AUTHORITY_REPORT.md`](../reports/COGNIX_SCI_07R_SCENARIO_REGISTRY_AUTHORITY_REPORT.md) |
 | `SCI-08` | Create Your Own Scenario Experience | POST-DEMO | — | 4 | **[COMPLETED 2026-09-25]** — single lane, see [`COGNIX_SCI_08_CREATE_YOUR_OWN_SCENARIO_REPORT.md`](../reports/COGNIX_SCI_08_CREATE_YOUR_OWN_SCENARIO_REPORT.md) |
-| `SCI-10` | CSV Scenario Enrichment via Attested Admission | POST-DEMO | Cursor | 4 | Not started |
+| `SCI-10` | CSV Scenario Enrichment via Attested Admission | POST-DEMO | Cursor | 4 | Not started — reconciled, execution-ready; see [`COGNIX_SCI_10_RECONCILIATION_DESIGN_GATE.md`](../reports/COGNIX_SCI_10_RECONCILIATION_DESIGN_GATE.md) |
 
 Three repairs were authorised between packets and are recorded with the packets they repair in
 [`COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md`](COGNIX_SCENARIO_INTELLIGENCE_WORK_PACKETS.md):

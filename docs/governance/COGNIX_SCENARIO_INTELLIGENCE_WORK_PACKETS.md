@@ -65,7 +65,7 @@ and the lanes never touch.
 | `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | **[DELIVERED 2026-09-19 · CONVERGED 2026-09-22]** |
 | `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | **[COMPLETED 2026-09-19 · CONVERGED 2026-09-22]** |
 | `SCI-08` | Create Your Own Scenario Experience | **POST-DEMO** | — | 4 | **[COMPLETED 2026-09-25 · single lane, Wave 4 NOT cut]** — `feature/cognix-sci-08-create-your-own` |
-| `SCI-10` | CSV Scenario Enrichment via Attested Admission | **POST-DEMO** | Cursor | 4 | Not started |
+| `SCI-10` | CSV Scenario Enrichment via Attested Admission | **POST-DEMO** | Cursor | 4 | Not started — **reconciled and execution-ready 2026-09-25**; awaiting authorisation |
 
 `SCI-08` is numbered before `SCI-09` and scheduled after it: the numbers follow the conceptual areas,
 the waves follow the dependency graph, and renumbering to make them agree would make the packet IDs
@@ -172,6 +172,7 @@ and `→ SCI-09`).
 | **Models & Methods** — the register's published shape | `SCI-05` | **declared at Gate A**, implemented in Wave 2 | 06, 09 |
 | **Scenario Draft** — `GENAI_DRAFT` envelope, allowlist, validation verdicts | `SCI-07` | **declared at Gate B, IMPLEMENTED 2026-09-19** in `packages/contracts/src/scenario-draft-model.ts` | 08, 10 |
 | **Attested Upload** — CSV source registration and admission mapping over `ESF-6` | `SCI-10` | Gate C | 08 |
+| ↳ *reconciled 2026-09-25* | `SCI-10` | **DECLARED** at the `SCI-10` design gate — [`COGNIX_ATTESTED_UPLOAD_CONTRACT.md`](COGNIX_ATTESTED_UPLOAD_CONTRACT.md) (ADR-086). Enrichment of a **draft** with attested measured inputs, reusing ESF-6's trust primitives but **not** its outcome-observation store | 08 |
 
 No packet may alter a contract it does not own. A required change is raised at the convergence gate
 and re-frozen there — it is a convergence event, not a commit (ADR-084 part 2).
@@ -1228,6 +1229,27 @@ columns. Admission receipts monotonic per tenant. Reproduction without the provi
 **Definition of done.** A partial CSV enriches a scenario that certifies and runs. No raw cell content
 reaches the model. Regression green.
 
+### `SCI-10` reconciled definition — 2026-09-25 (design gate; **not started**)
+
+The definition above stands as written in 2026-09 and is **superseded where it conflicts** by the
+reconciliation in [`COGNIX_SCI_10_RECONCILIATION_DESIGN_GATE.md`](../reports/COGNIX_SCI_10_RECONCILIATION_DESIGN_GATE.md) and ADR-086:
+
+- **Mechanism corrected.** Enrichment is admitted **into a `DRAFT`** as a closed set of directly
+  observable `MEASUREMENT` inputs whose provenance is derived as `attested`. It is **not** admitted as
+  ESF-6 `OutcomeObservation`s: those are realised outcomes of a committed decision that `CDI-08`
+  compares against, and a scenario input is not one. ESF-6's attestation, identifiers, reserved-field
+  guard, server-derived `synthetic_demo` and per-tenant receipts are reused unchanged, plus one
+  additive receipt kind.
+- **Contract declared** — [`COGNIX_ATTESTED_UPLOAD_CONTRACT.md`](COGNIX_ATTESTED_UPLOAD_CONTRACT.md). Upload, validation, attestation and admission are separate
+  operations; certification, confirmation, activation and execution are unchanged and not the upload's.
+- **Base and sequencing corrected.** Base is `SCI-08` `aad33e90`, not SHA-D; `SCI-10` is sequential
+  after `SCI-08`, not concurrent with it. Its UI lives in `SCI-08`'s studio.
+- **First slice: the governed unset** in the authoring domain (withdrawal needs it; closes `R-SCI08-2`).
+- **"`Restart scenario` clears admitted observations"** no longer applies: admissions belong to a draft,
+  and a confirmed scenario is immutable. Withdrawal is the explicit removal, on a `DRAFT` only.
+- **GenAI mapping is optional**; acceptance is provider-off. **No new persistence** (`R-SCI07R-1` unchanged).
+- **Entry and acceptance criteria:** design gate §8. **Execution gate: READY**, pending authorisation.
+
 ---
 
 ## 7. Delivery priority for 23 September
@@ -1550,6 +1572,12 @@ is one commit ahead of SHA-B — this record of the SHA itself, which a commit c
 itself, and which changes no code. Cutting from SHA-B and cutting from the branch head therefore
 give an identical working tree; the branch head is the correct base because it carries the complete
 governance record. This is the same honest two-step used for SHA-A.
+
+### Contract declaration — Attested Upload, 2026-09-25
+
+Declared at the `SCI-10` design gate against `SCI-08` `aad33e90`, as the Scenario Draft contract was
+declared at Gate B: a frozen **declaration**, implemented later by its owner. The Gate-D row below that
+reads **NOT DECLARED** is left as that gate recorded it. [`COGNIX_ATTESTED_UPLOAD_CONTRACT.md`](COGNIX_ATTESTED_UPLOAD_CONTRACT.md) · ADR-086.
 
 ### Contract freeze at Gate D
 

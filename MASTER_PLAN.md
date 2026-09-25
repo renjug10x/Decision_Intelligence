@@ -89,7 +89,11 @@ PROGRAMME    SCI — Scenario Intelligence (the Scenario Laboratory)
                     Create -> Review -> Confirm -> Run -> Understand;
                     browser 102/102 at 1440/1024/720. Live Gemini
                     NOT verified (R-SCI07-1 open)
-             SCI-10 CSV enrichment via ESF-6 attested admission     [DEFERRED]
+             SCI-10 CSV enrichment via attested upload   [NOT STARTED - READY]
+                    Reconciled 2026-09-25 (ADR-086): enriches a draft
+                    with attested measured inputs; never certifies,
+                    confirms or activates. Contract declared.
+                    Awaiting owner authorisation
 
 PHASE 11     IP and Innovation Governance
 PHASE 12     Industry Demonstration Packs
@@ -101,6 +105,8 @@ For complete work packages, user stories, test requirements, and exit gates, see
 **Capability Atlas governance:** [`docs/governance/COGNIX_CAPABILITY_ATLAS.md`](docs/governance/COGNIX_CAPABILITY_ATLAS.md) · [`docs/governance/CAPABILITY_KNOWLEDGE_MODEL.md`](docs/governance/CAPABILITY_KNOWLEDGE_MODEL.md) · [`docs/architecture/CAPABILITY_ATLAS_ARCHITECTURE.md`](docs/architecture/CAPABILITY_ATLAS_ARCHITECTURE.md) · ADR-045 … ADR-051.
 
 **Demand capability governance:** [`docs/governance/DEMAND_OBSERVABILITY_MODEL.md`](docs/governance/DEMAND_OBSERVABILITY_MODEL.md) · [`docs/reports/COGNIX_DEMAND_DECISION_FRONTIER_PLANNING_REPORT.md`](docs/reports/COGNIX_DEMAND_DECISION_FRONTIER_PLANNING_REPORT.md) · ADR-040 … ADR-043.
+
+**Attested Upload (`SCI-10` design gate, ADR-086):** [`docs/reports/COGNIX_SCI_10_RECONCILIATION_DESIGN_GATE.md`](docs/reports/COGNIX_SCI_10_RECONCILIATION_DESIGN_GATE.md) · contract [`docs/governance/COGNIX_ATTESTED_UPLOAD_CONTRACT.md`](docs/governance/COGNIX_ATTESTED_UPLOAD_CONTRACT.md) — reconciled intent, trust model, residual dispositions and the Wave-4 graph.
 
 **Create Your Own Scenario (`SCI-08`):** [`docs/reports/COGNIX_SCI_08_CREATE_YOUR_OWN_SCENARIO_REPORT.md`](docs/reports/COGNIX_SCI_08_CREATE_YOUR_OWN_SCENARIO_REPORT.md) — the authoring experience, cross-surface truth, browser acceptance, residuals, and why Wave 4 is still blocked.
 

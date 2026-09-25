@@ -228,6 +228,11 @@ language is a drafting accelerator that removes no guarantee — which is exactl
 *enrichment*, admitted through `ESF-6`, and the product concept is the scenario. Where the user
 supplies nothing, the scenario still runs on declared modelled values.
 
+*Reconciled 2026-09-25 (ADR-086).* "Admitted through `ESF-6`" now means ESF-6's **trust primitives** —
+named-person attestation, server-issued identifiers, per-tenant receipts — not its outcome-observation
+store: uploaded data enriches a **draft** with attested measured inputs and never certifies, confirms or
+activates anything. [`COGNIX_ATTESTED_UPLOAD_CONTRACT.md`](COGNIX_ATTESTED_UPLOAD_CONTRACT.md).
+
 ### 6.1 Capability readiness vocabulary — **IMPLEMENTED (`SCI-07`)**
 
 Reuses what the estate already says rather than inventing a parallel scale. The demand frontier
