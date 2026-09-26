@@ -3960,6 +3960,24 @@ button.atlas-origin--open:focus-visible { outline: 2px solid var(--accent); outl
 .sci08-metric-label { font-size: 0.6875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); }
 .sci08-metric-value { font-size: 1.125rem; font-weight: 700; color: var(--text-primary); margin: 2px 0; }
 
+/* `SCI-10` — Use your own data, inside the SCI-08 studio's Review step */
+.sci08-tag.is-attested { display: inline-flex; align-items: center; gap: 3px; background: #f0fdf4; color: #166534; border: 1px solid #bbf7d0; }
+.sci08-button.is-disabled { opacity: 0.5; cursor: not-allowed; }
+.sci10-field-tag { margin-left: 6px; }
+.sci10-step { font-size: 0.75rem; font-weight: 700; color: var(--text-primary); margin: 12px 0 6px; }
+.sci10-review { border-top: 1px solid var(--border); margin-top: 8px; padding-top: 8px; }
+.sci10-mapping { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; max-width: 640px; }
+.sci10-map-row { display: grid; grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); align-items: center; gap: 10px; font-size: 0.75rem; min-width: 0; }
+.sci10-map-column { font-weight: 600; color: var(--text-secondary); overflow-wrap: anywhere; }
+.sci10-admitted { list-style: none; margin: 0 0 8px; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.sci10-admitted > li { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; font-size: 0.8125rem; min-width: 0; }
+.sci10-admitted > li > div { min-width: 0; overflow-wrap: anywhere; }
+.sci10-values { margin: 4px 0 0; padding-left: 16px; font-size: 0.75rem; color: var(--text-secondary); }
+
+@media (max-width: 560px) {
+  .sci10-map-row { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+}
+
 @media (max-width: 900px) {
   .sci08-review { grid-template-columns: minmax(0, 1fr); }
   .sci08-review-side { border-left: 0; border-top: 1px solid var(--border); padding: 12px 0 0; }

@@ -18,6 +18,9 @@ import type {
   ScenarioDraftProposal,
   ScenarioCapabilityReadiness
 } from '@/packages/contracts/src/scenario-draft-model';
+import type { AttestedUpload, AttestedUploadMapping } from '@/packages/contracts/src/attested-upload-model';
+
+export type { AttestedUpload, AttestedUploadMapping };
 
 /** The lab's declared tenant — the same default the selector and activation already use. */
 export const AUTHORING_TENANT_ID = 'tenant_uk_retail_01';
@@ -84,20 +87,29 @@ export interface AssistResult {
 export class AuthoringRequestError extends Error {
   readonly status: number;
   readonly issues: ScenarioDraftIssue[];
-  constructor(message: string, status: number, issues: ScenarioDraftIssue[] = []) {
+  /** A closed refusal reason, where the server gave one (`SCI-10` uploads). */
+  readonly reason?: string;
+  /** What the server returned beside the refusal, e.g. the caller's own live duplicate upload. */
+  readonly data?: unknown;
+  constructor(message: string, status: number, issues: ScenarioDraftIssue[] = [], reason?: string, data?: unknown) {
     super(message);
     this.name = 'AuthoringRequestError';
     this.status = status;
     this.issues = issues;
+    this.reason = reason;
+    this.data = data;
   }
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
+    // JSON bodies declare themselves; a form upload lets the browser write its own multipart boundary.
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    if (typeof init?.body === 'string') headers['Content-Type'] = 'application/json';
     response = await fetch(path, {
       ...init,
-      headers: { Accept: 'application/json', 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
+      headers: { ...headers, ...((init?.headers as Record<string, string> | undefined) ?? {}) },
       cache: 'no-store'
     });
   } catch {
@@ -108,7 +120,9 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
     throw new AuthoringRequestError(
       payload?.message || `The request was refused (HTTP ${response.status}).`,
       response.status,
-      Array.isArray(payload?.issues) ? payload.issues : []
+      Array.isArray(payload?.issues) ? payload.issues : [],
+      typeof payload?.reason === 'string' ? payload.reason : undefined,
+      payload?.data
     );
   }
   return payload.data as T;
@@ -158,6 +172,52 @@ export const confirmScenarioDraft = (draftId: string, confirmedBy: string, expec
     confirmed_by: confirmedBy,
     expected_content_hash: expectedContentHash
   });
+
+// ── Attested upload (`SCI-10`, ADR-086) ─────────────────────────────────────────
+// Transport only. The server fingerprints, validates, profiles, reduces and derives provenance; the
+// browser sends the file, the mapping the person chose and their attestation, and renders what returns.
+
+/** The declared contract's closed set — the only figures a file may supply. Vocabulary, not logic. */
+export { ATTESTED_UPLOAD_ADMISSIBLE_FIELDS } from '@/packages/contracts/src/attested-upload-model';
+
+const uploadsPath = (draftId: string) => `/api/v1/scenarios/drafts/${encodeURIComponent(draftId)}/uploads`;
+
+export const uploadScenarioExtract = (draftId: string, file: File) => {
+  const form = new FormData();
+  form.append('tenant_id', AUTHORING_TENANT_ID);
+  form.append('file', file);
+  return call<{ upload: AttestedUpload }>(uploadsPath(draftId), { method: 'POST', body: form });
+};
+
+export const listScenarioExtracts = (draftId: string) =>
+  call<{ uploads: AttestedUpload[] }>(`${uploadsPath(draftId)}?tenant_id=${AUTHORING_TENANT_ID}`);
+
+export const admitScenarioExtract = (
+  draftId: string,
+  upload: Pick<AttestedUpload, 'upload_id' | 'content_sha256'>,
+  mapping: AttestedUploadMapping[],
+  attestedBy: string,
+  statement: string
+) => post<{ upload: AttestedUpload; assessment: DraftAssessment }>(
+  `${uploadsPath(draftId)}/${encodeURIComponent(upload.upload_id)}/admit`,
+  {
+    tenant_id: AUTHORING_TENANT_ID,
+    upload_id: upload.upload_id,
+    expected_content_sha256: upload.content_sha256,
+    mapping,
+    attestation: {
+      attested_by: attestedBy,
+      attestation_statement: statement,
+      attestation_kind: 'FIRST_PARTY_OPERATOR_ATTESTATION'
+    }
+  }
+);
+
+export const withdrawScenarioExtract = (draftId: string, uploadId: string) =>
+  post<{ upload: AttestedUpload; assessment: DraftAssessment }>(
+    `${uploadsPath(draftId)}/${encodeURIComponent(uploadId)}/withdraw`,
+    { tenant_id: AUTHORING_TENANT_ID }
+  );
 
 export const exportScenarioDraft = (draftId: string) =>
   call<unknown>(`/api/v1/scenarios/drafts/${encodeURIComponent(draftId)}?tenant_id=${AUTHORING_TENANT_ID}&format=export`);

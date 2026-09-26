@@ -44,6 +44,7 @@ import { projectScenarioFromServer, syncActiveScenario } from '@/lib/scenario-cl
 import { getOrCreateSessionId } from '@/lib/journey-client';
 import { useDecisionState } from '@/context/DecisionStateContext';
 import { useCurrency } from '@/context/CurrencyContext';
+import AttestedUploadPanel from './AttestedUploadPanel';
 
 type Stage = 'create' | 'review' | 'confirm' | 'confirmed' | 'understand';
 
@@ -151,6 +152,10 @@ export default function ScenarioAuthoringStudio({ isOpen, onClose }: { isOpen: b
   const product = options?.products.find(p => p.sku_id === (assessment?.draft.inputs.sku_id ?? skuId));
   const situationSpec = options?.situations.find(s => s.id === (assessment?.draft.inputs.situation ?? situation));
   const blocking = (assessment?.issues ?? []).filter(i => i.severity === 'ERROR');
+  /** Inputs the confirmed scenario took from attested data — the server's provenance, rendered. */
+  const attestedLabels = (confirmed?.draft.field_provenance ?? [])
+    .filter(p => p.descriptor.origin === 'attested')
+    .map(p => fieldLabel(p.field as string));
   const scenarioName = (assessment?.draft.inputs.scenario_name as string | undefined)
     || confirmed?.scenario.scenario_name
     || 'Your scenario';
@@ -392,6 +397,18 @@ export default function ScenarioAuthoringStudio({ isOpen, onClose }: { isOpen: b
                   <strong>{product?.sku_name}</strong> · {situationSpec?.label}
                 </p>
 
+                {/* `SCI-10`: optional measured inputs from the person's own extract, attested by name. */}
+                <AttestedUploadPanel
+                  draft={assessment.draft}
+                  productName={product?.sku_name ?? 'this product'}
+                  fieldLabel={fieldLabel}
+                  locked={dirty}
+                  busy={busy}
+                  run={run}
+                  onAssessment={adopt}
+                  onNotice={setNotice}
+                />
+
                 <div className="sci08-assist">
                   <div className="sci08-assist-head"><Sparkles size={14} /> Describe it in your own words</div>
                   <textarea
@@ -458,11 +475,18 @@ export default function ScenarioAuthoringStudio({ isOpen, onClose }: { isOpen: b
                   <summary>Your own figures (optional)</summary>
                   <p className="sci08-muted">
                     Leave a box empty and CogniX uses a declared assumption for it, shown as “modelled” in readiness.
-                    Anything you enter is treated as stated by you.
+                    Anything you enter is treated as stated by you. A figure added from your data shows as attested until you change it.
                   </p>
                   <div className="sci08-field-grid">
                     {fields.filter(f => f.kind === 'QUANTITY').map(f => (
-                      <FieldInput key={f.id} field={f} value={form[f.id]} proposed={false} onChange={v => setField(f.id, v)} />
+                      <FieldInput
+                        key={f.id}
+                        field={f}
+                        value={form[f.id]}
+                        proposed={false}
+                        attested={assessment.field_provenance.some(p => p.field === f.id && p.descriptor.origin === 'attested')}
+                        onChange={v => setField(f.id, v)}
+                      />
                     ))}
                   </div>
                 </details>
@@ -587,6 +611,12 @@ export default function ScenarioAuthoringStudio({ isOpen, onClose }: { isOpen: b
                   note={`${decision.committedDepth}% committed`} />
                 <Metric label="Decision Window" value={`${decision.windowRemainingHours} hours`} note={humanise(decision.windowState)} />
               </div>
+              {attestedLabels.length > 0 && (
+                <p className="sci08-muted">
+                  <span className="sci08-tag is-attested">Attested</span>
+                  From data you uploaded and attested — declared by a named person, not verified by CogniX: {attestedLabels.join(', ')}.
+                </p>
+              )}
               <p className="sci08-muted">
                 Every figure is calculated by CogniX engines from your confirmed inputs — the same engines that run the
                 curated scenarios. AI produced none of them. Demand &amp; Forecast, Promotion, Campaign Decision and the
@@ -615,10 +645,12 @@ function Metric({ label, value, note }: { label: string; value: string; note?: s
   );
 }
 
-function FieldInput({ field, value, proposed, onChange }: {
+function FieldInput({ field, value, proposed, attested = false, onChange }: {
   field: AuthoringField;
   value: FormValue;
   proposed: boolean;
+  /** `SCI-10`: the server derived this value as attested (it still equals the admitted figure). */
+  attested?: boolean;
   onChange: (value: FormValue) => void;
 }): ReactNode {
   const id = `sci08-field-${field.id}`;
@@ -660,7 +692,10 @@ function FieldInput({ field, value, proposed, onChange }: {
   if (field.kind === 'QUANTITY') {
     return (
       <div className="sci08-field">
-        <label className="sci08-label" htmlFor={id}>{field.label}{field.unit ? ` (${field.unit})` : ''}</label>
+        <label className="sci08-label" htmlFor={id}>
+          {field.label}{field.unit ? ` (${field.unit})` : ''}
+          {attested && <span className="sci08-tag is-attested sci10-field-tag">From your data</span>}
+        </label>
         <input
           id={id}
           className="sci08-input"
