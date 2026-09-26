@@ -1290,6 +1290,12 @@ server-side, through the governed drafting route (`R-SCI07-1` **CLOSED**; `R-SCI
 residuals `R-SCI10-1…3`. Record:
 [`COGNIX_SCI_10_ATTESTED_UPLOAD_REPORT.md`](../reports/COGNIX_SCI_10_ATTESTED_UPLOAD_REPORT.md).
 
+**Post-Gate-E security repair (2026-09-26) — `R-SCI10-3` CLOSED at `cadd29ba`.** `next build` copied a
+local `.env` holding `GEMINI_API_KEY` into `.next/standalone/` (Next.js 16.2.7's unconditional standalone
+env copy). `npm run build` now seals the artefact and fails if any env file, credential value or
+`NEXT_PUBLIC_*` credential name remains; the key is injected into the server process at run time. SHA-E
+and the Gate-E evidence are unchanged; the post-Gate-E SHA is `cadd29ba`. Record §12a.
+
 ---
 
 ## 7. Delivery priority for 23 September

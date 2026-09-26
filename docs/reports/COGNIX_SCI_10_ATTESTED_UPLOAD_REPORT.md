@@ -202,6 +202,60 @@ governed `SCI-07` drafting route (`POST /api/v1/scenarios/drafts/{id}/assist`), 
 **LIVE PROVIDER ACCEPTANCE: VERIFIED — server-side, one controlled call, `SCI-07` drafting path.**
 `SCI-10` itself has no provider path. Not verified live: the browser suggestion flow (`R-SCI08-3`).
 
+## 12a. Post-Gate-E security repair — `R-SCI10-3` (2026-09-26)
+
+Recorded after Gate E and separately from it: §§1–12 and the Gate-E assessment stand as measured at
+SHA-E `c5fce33c`. **Post-Gate-E SHA: `cadd29ba434fee315a46679b4ae954fcdc7f85cf`** (the repair), on
+`feature/cognix-sci-10-csv-admission` from `9649ff0d`. No application code changed; the server-side
+Gemini integration is untouched.
+
+**Reproduced.** From a clean `.next`, `npm run build` with the normal local configuration (`.env` and
+`.env.local` both holding `GEMINI_API_KEY`) wrote `.next/standalone/.env`, and that file was the **only**
+one of 4,042 in the build output containing the key's value. `.env.local` was not copied. No other
+credential-bearing env file or value entered the output; `public/` holds none.
+
+**Root cause — Next.js standalone behaviour, not a CogniX script.** In `next@16.2.7`,
+`writeStandaloneDirectory` (`next/dist/build/index.js`) copies every env file `@next/env` loaded whose
+name is exactly `.env` or `.env.production` into `.next/standalone/`. It is unconditional: no
+`next.config` option and no `next build` flag disables it, and a build adapter's `onBuildComplete` runs
+*before* the standalone directory is written. The repository's `npm run build` was plain `next build`, so
+nothing stood between that copy and the artefact. Docker builds were already safe — `.dockerignore`
+keeps `.env`/`.env.*` out of every build context (only the placeholder `.env.example` enters, and Next
+never loads it) and `docker/Dockerfile.web` removes env files from its runner — so the exposure was
+native builds of the standalone server.
+
+**Repair.** `package.json` `build` is now `next build && node scripts/seal-standalone-artefact.mjs` —
+the entry point native builds and both Dockerfiles use, so there is no manual or separate step. The
+sealing step (1) removes the env files Next.js copied into `.next/standalone/` (outside `node_modules`);
+(2) verifies the **whole** `.next/` output — standalone server, server chunks, static client bundles —
+holds no `.env*` file and no value of any credential-named variable the build could see (from the four
+env files Next.js loads and from the build environment); (3) refuses a `NEXT_PUBLIC_*` credential name.
+Any finding fails the build; it prints names and paths, never a value.
+
+**Runtime secret model.** The build artefact carries code and configuration structure, never a live
+secret. `GEMINI_API_KEY` is injected into the **server process** at run time — the host environment in
+`docker-compose.yml` (`GEMINI_API_KEY=${GEMINI_API_KEY:-}`), or the shell that starts `server.js` — and
+the governed provider reads it at call time. No credential is renamed, no new secret mechanism is added,
+no `NEXT_PUBLIC_*` credential path exists.
+
+**Acceptance** (production build, three native processes, `service` mode; Docker not used):
+
+| Check | Result |
+|---|---|
+| Fresh build from a clean `.next`, normal local configuration | exit 0, 82/82 pages; `[seal]` removed `.next/standalone/.env`, scanned 4,041 files — **none packaged** |
+| Key value in the build output | **0 files** — the sealing step, an independent scan and `grep -r` agree; also 0 in the build log |
+| `.env*` files in the build output | **none**; every env value (≥ 12 chars) from all env files checked across `.next/` and `public/` (4,055 files): 0 hits |
+| Client bundles (24 chunks) | no key value, no `process.env.GEMINI*` access, no `NEXT_PUBLIC_*` credential name. The literal name `GEMINI_API_KEY` appears in one chunk only as explanatory prose ("a server-side GEMINI_API_KEY … never reaches a browser") |
+| **Without** runtime injection | AI drafting reported unavailable; `POST …/assist` → **503 `ProviderUnavailable`**, "Nothing was generated", manual path offered; key in no response, no log, not in the server process environment |
+| **With** runtime injection (artefact unchanged, still no env file) | one controlled request: `POST …/assist` → **200** in 11.5 s, `gemini-3.6-flash`, envelope `GENAI_DRAFT`/`NON_AUTHORITATIVE_DRAFT` valid, 5 allowlisted proposals, 0 rejected, no digit, draft inputs unchanged; key in no response or log; after the run the key is still in 0 files of `.next/` |
+| Browser smoke `scripts/sci10-secret-boundary-smoke.cjs` at 1440 / 720 | provider **off** 14/14 and provider **on** (offered, not clicked) 14/14 — manual path runs, upload path loads, every response body the browser received free of the key and of `NEXT_PUBLIC_*` credential names, no console error, no 5xx |
+| SCI-08 manual journey on the sealed build | 102/102 at 1440 / 1024 / 720 |
+| `run-sci10-r3-build-secret-tests` | **20 / 20** |
+| Regression | tsc clean; SCI-07 132, SCI-08 31, SCI-10 166, Wave-4 31, ESF-6 81, atl04r 124, atl06a 115, atl06c 127, atl06d 96, atl07 52 — unchanged; `atl06b` 132/1 (`R-25` `A6b`, unchanged) |
+| Full governed estate at `cadd29ba` | **60 runners, 4,508 passed, 1 failed** — Gate E's 4,488 + the new 20; every other runner's count identical; `R-25` `A6b` the only failure |
+
+The credential was never printed: every script compares the value and reports names, paths and counts.
+
 ## 13. Residuals
 
 | Id | Disposition |
@@ -217,7 +271,7 @@ governed `SCI-07` drafting route (`POST /api/v1/scenarios/drafts/{id}/assist`), 
 | `R-25` | **RETAINED — unchanged** (`A6b` 132 / 1) |
 | **`R-SCI10-1`** NEW | GenAI-assisted column mapping (contract `proposal_basis: GENAI_PROPOSAL`, optional) is **not built**; mapping is deterministic header matching confirmed by a person. The model boundary therefore holds by absence. Owner: optional future work, with the contract's ≤ 3 redacted samples rule |
 | **`R-SCI10-2`** NEW | Personal-name detection in cell content is a declared heuristic (honorifics, "Surname, Given", Title-case names from a closed list of common given names); e-mail, telephone, postcode and personal headers are pattern-exact. Low residual risk: a text column is never admitted, stored past profiling, logged or re-exported |
-| **`R-SCI10-3`** NEW — owner action | `next build` copies the local `.env` — which holds a live `GEMINI_API_KEY` — into `.next/standalone/.env`, so any standalone run of a local build loads the provider unless that copy is removed. Credential hygiene for deployment packaging; not an `SCI-10` code defect |
+| **`R-SCI10-3`** | **CLOSED 2026-09-26 — post-Gate-E security repair `cadd29ba`** (§12a). Was: `next build` copied the local `.env` — holding a live `GEMINI_API_KEY` — into `.next/standalone/.env`. Root cause Next.js 16.2.7's unconditional standalone env copy; repaired by sealing the artefact inside `npm run build`; key packaged in 0 files; provider unavailable safely without runtime injection and live with it |
 | note | Upload admission receipts live in ESF-6's receipt store (shared sequence, E4 lifetime), so a receipt outlives an evicted draft until the BFF restarts; it resolves nothing and carries no value |
 
 ## 14. Gates

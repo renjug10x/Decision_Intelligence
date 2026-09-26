@@ -76,6 +76,16 @@ tenant) are the architectural ones, unchanged by design. `R-SCI08-1` (Promotion 
 `R-SCI08-3` (live browser suggestion flow, narrowed), `R-25`, and the new `R-SCI10-1…3` are recorded in
 the `SCI-10` record §13. None blocks Gate E.
 
+## 5a. Post-Gate-E security repair — `R-SCI10-3` (recorded after the gate; the evidence above is unchanged)
+
+`next build` copied the local `.env`, holding a live `GEMINI_API_KEY`, into `.next/standalone/` — Next.js
+16.2.7's unconditional standalone env copy. Repaired at **post-Gate-E SHA `cadd29ba`**: `npm run build` now
+seals the artefact (copied env files removed; whole output verified free of env files, credential values
+and `NEXT_PUBLIC_*` credential names; the build fails otherwise). Fresh build: key in 0 of 4,041 files;
+provider unavailable safely without runtime injection, one controlled live request succeeded with it;
+browser smoke 14/14 provider-off and 14/14 provider-on with no secret in anything served. **`R-SCI10-3`
+CLOSED.** Detail: `SCI-10` record §12a.
+
 ## 6. Verdict
 
 **WAVE-4 GATE E: PASSED** at SHA-E `c5fce33c`. Wave 4 is the last wave in the `SCI` register, so every
