@@ -233,6 +233,11 @@ named-person attestation, server-issued identifiers, per-tenant receipts — not
 store: uploaded data enriches a **draft** with attested measured inputs and never certifies, confirms or
 activates anything. [`COGNIX_ATTESTED_UPLOAD_CONTRACT.md`](COGNIX_ATTESTED_UPLOAD_CONTRACT.md).
 
+*Implemented 2026-09-26 (`SCI-10`, Gate E).* A person's CSV extract enriches a draft with up to eight
+directly measured inputs, attested by name; those inputs read `attested` and reach `Ready` by §6.1's rule,
+and the draft is confirmed, certified and run like any other.
+[`COGNIX_SCI_10_ATTESTED_UPLOAD_REPORT.md`](../reports/COGNIX_SCI_10_ATTESTED_UPLOAD_REPORT.md).
+
 ### 6.1 Capability readiness vocabulary — **IMPLEMENTED (`SCI-07`)**
 
 Reuses what the estate already says rather than inventing a parallel scale. The demand frontier

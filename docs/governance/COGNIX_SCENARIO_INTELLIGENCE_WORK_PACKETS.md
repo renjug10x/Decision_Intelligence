@@ -1,5 +1,11 @@
 # CogniX Scenario Intelligence — Work Packets (`SCI`)
 
+**Current (2026-09-26): WAVE 4 CONVERGED — GATE E PASSED at SHA-E `c5fce33c`.** `SCI-10` (Attested
+Upload, ADR-086) delivered single-lane after `SCI-08` on `feature/cognix-sci-10-csv-admission`; every
+`SCI` packet has now converged. Nothing merged to `main` or `production`. See
+[`COGNIX_WAVE4_CONVERGENCE_GATE_E_ASSESSMENT.md`](../reports/COGNIX_WAVE4_CONVERGENCE_GATE_E_ASSESSMENT.md).
+The status paragraph below is kept as it was written.
+
 **Status:** Authorised for implementation. **WAVE 3 IN FLIGHT: `SCI-07` DELIVERED 2026-09-19 on
 `feature/cognix-sci-07-scenario-authoring`; `SCI-09` is the concurrent Antigravity lane. GATE D IS
 NOT CLAIMED and Wave 4 is NOT authorised. WAVE 2 COMPLETE AND CONVERGED. `SCI-05` (with the
@@ -64,8 +70,8 @@ and the lanes never touch.
 | `SCI-06` | Observability & Governance Experience | ANTIGRAVITY | Antigravity | 2 | **[COMPLETED 2026-09-17 · CONVERGED 2026-09-18]** |
 | `SCI-07` | Scenario Authoring Domain & Governed GenAI Drafting | CURSOR | Cursor | 3 | **[DELIVERED 2026-09-19 · CONVERGED 2026-09-22]** |
 | `SCI-09` | CogniX Architecture Surface & `SB-GATE` Closure | ANTIGRAVITY | Antigravity | 3 | **[COMPLETED 2026-09-19 · CONVERGED 2026-09-22]** |
-| `SCI-08` | Create Your Own Scenario Experience | **POST-DEMO** | — | 4 | **[COMPLETED 2026-09-25 · single lane, Wave 4 NOT cut]** — `feature/cognix-sci-08-create-your-own` |
-| `SCI-10` | CSV Scenario Enrichment via Attested Admission | **POST-DEMO** | Cursor | 4 | Not started — **reconciled and execution-ready 2026-09-25**; awaiting authorisation |
+| `SCI-08` | Create Your Own Scenario Experience | **POST-DEMO** | — | 4 | **[COMPLETED 2026-09-25 · single lane · CONVERGED at Gate E 2026-09-26]** — `feature/cognix-sci-08-create-your-own` |
+| `SCI-10` | CSV Scenario Enrichment via Attested Admission | **POST-DEMO** | — | 4 | **[COMPLETED 2026-09-26 · Gate E PASSED]** — `feature/cognix-sci-10-csv-admission`, SHA-E `c5fce33c` |
 
 `SCI-08` is numbered before `SCI-09` and scheduled after it: the numbers follow the conceptual areas,
 the waves follow the dependency graph, and renumbering to make them agree would make the packet IDs
@@ -220,6 +226,12 @@ Each packet branch is cut from the declared base SHA and from nothing else. Conv
 lane branches deliberately, in one place, by one operator. The convergence SHA is recorded in this
 document before the next wave is cut. A packet branch that has drifted from its base is rebased
 before convergence, never during.
+
+**Wave 4, as executed (2026-09-26).** The Wave-4 row above is the 2026-09 plan. `SCI-08` was delivered
+single-lane first (`aad33e90`); `SCI-10` was cut from the governance head `6151960` and is the wave's only
+remaining lane, so there was nothing to merge and **no `feature/cognix-sci-wave4-convergence` branch was
+cut** — the design gate (§7) set Gate E to be evaluated from `SCI-10`'s head. SHA-E is recorded in §9 on
+`feature/cognix-sci-10-csv-admission`.
 
 ## 6. Convergence gates
 
@@ -1250,6 +1262,34 @@ reconciliation in [`COGNIX_SCI_10_RECONCILIATION_DESIGN_GATE.md`](../reports/COG
 - **GenAI mapping is optional**; acceptance is provider-off. **No new persistence** (`R-SCI07R-1` unchanged).
 - **Entry and acceptance criteria:** design gate §8. **Execution gate: READY**, pending authorisation.
 
+### `SCI-10` outcome — **[COMPLETED 2026-09-26 · Gate E PASSED]**
+
+Authorised and executed from exactly `6151960`. **First slice, the governed unset** (`60b526ac`): a
+stated or attested field returns to CogniX's assumption as a domain operation — the key is removed, so
+provenance and readiness recompute and no stale value survives; `SCI-08`'s empty box adopts it
+(**`R-SCI08-2` CLOSED**). Then the **contract §6 committed byte for byte** with the one authorised
+additive ESF-6 receipt kind (`91230c24`); the **upload domain and its four routes** (`13638359`); and
+**"Use your own data" inside the `SCI-08` studio** (`561c860f`) — no second authoring surface.
+
+CSV → validate/profile → map (deterministic, confirmed by a person) → named-person attest → admit to
+the DRAFT by the two declared reductions, in one write → confirm, certify, select and run exactly as
+any draft. Admitted fields are `attested` (derived while the value equals the admitted value) and reach
+`Ready` by the existing rule; an edit makes them `stated`; withdrawal on a `DRAFT` returns them to the
+assumption. Same file in the same live draft → `DUPLICATE_UPLOAD`; the same file on a new draft →
+byte-identical values. All 26 closed refusals exercised; no partial admission; no cell value retained
+or logged; tenant isolation indistinguishable from nonexistence; nothing becomes an ESF-6
+`OutcomeObservation` — proven through the real prediction-comparison route. **ADR-086 and the declared
+contract unchanged**; the seven frozen contracts byte-identical to SHA-D.
+
+**Evidence:** `run-sci10-attested-upload-tests` 166/166; `run-wave4-convergence-tests` 31/31; full
+estate 59 runners, **4,488 passed**, `R-25` `A6b` the only failure (132/1, unchanged; every baseline
+count unchanged); tsc and build clean (82/82); browser **171/171** (upload journey) and **102/102**
+(manual journey) at 1440 / 1024 / 720 on the three-process production topology, provider off; restarts
+as governed (`cognix-world` 19/19 coherent; BFF 10/10 cleanly absent). **Live Gemini VERIFIED** once,
+server-side, through the governed drafting route (`R-SCI07-1` **CLOSED**; `R-SCI08-3` narrowed). New
+residuals `R-SCI10-1…3`. Record:
+[`COGNIX_SCI_10_ATTESTED_UPLOAD_REPORT.md`](../reports/COGNIX_SCI_10_ATTESTED_UPLOAD_REPORT.md).
+
 ---
 
 ## 7. Delivery priority for 23 September
@@ -1554,7 +1594,7 @@ Gate B, not as a commit (ADR-084 part 2).
 | Gate B | 1 | Wave 2 | **SHA-B recorded below**, on `feature/cognix-sci-03r-scenario-perspective-binding` |
 | Gate C | 2 | Wave 3 | **SHA-C recorded below**, on `feature/cognix-sci-wave2-convergence` |
 | Gate D | 3 | Wave 4 | **SHA-D recorded below**, on `feature/cognix-sci-wave3-convergence` |
-| Gate E | 4 | — | *not yet recorded* |
+| Gate E | 4 | — | **SHA-E recorded below**, on `feature/cognix-sci-10-csv-admission` (single lane — no convergence branch) |
 
 ### SHA-B
 
@@ -1572,6 +1612,32 @@ is one commit ahead of SHA-B — this record of the SHA itself, which a commit c
 itself, and which changes no code. Cutting from SHA-B and cutting from the branch head therefore
 give an identical working tree; the branch head is the correct base because it carries the complete
 governance record. This is the same honest two-step used for SHA-A.
+
+### SHA-E
+
+**SHA-E = `c5fce33c35185c0c0dd3cd41b326f52037f4128a`**
+
+That is the Wave-4 convergence state: `SCI-08` (converged at `aad33e90`) plus `SCI-10` — the governed
+unset, the Attested Upload contract implemented byte for byte, the upload domain, its routes and its
+experience — with the Gate-E evidence: one attested scenario proven equal across draft, confirmed
+scenario, server active scenario, browser projection, `cognix-world` signals, the evaluator and the
+Architecture surface, by id, quantity and provenance. Assessment:
+[`COGNIX_WAVE4_CONVERGENCE_GATE_E_ASSESSMENT.md`](../reports/COGNIX_WAVE4_CONVERGENCE_GATE_E_ASSESSMENT.md).
+
+It is on `feature/cognix-sci-10-csv-admission`, the wave's only lane; the branch head is one
+governance-only commit ahead — this record of the SHA itself, which changes no code (the same two-step
+as SHA-A … SHA-D). **Nothing was merged to `main` or `production`.**
+
+### Contract freeze at Gate E
+
+| Contract | Owner | State at Gate E |
+|---|---|---|
+| Scenario Contract · Scenario Clock · Scenario Registry & Activation · Provenance Vocabulary | `SCI-01` | **FROZEN** — byte-identical to SHA-D |
+| Scenario Certification | `SCI-02` | **FROZEN** — byte-identical to SHA-D |
+| Signal Materiality & Decision Relevance · Refresh Operation · Models & Methods | `SCI-05` | **FROZEN AND IMPLEMENTED** — byte-identical to SHA-D |
+| Scenario Draft | `SCI-07` | **FROZEN AND IMPLEMENTED** — byte-identical to SHA-D. The governed unset is implementation in `lib/scenario-authoring/` over the contract's existing "absent key" |
+| **Attested Upload** | `SCI-10` | **FROZEN AND NOW IMPLEMENTED** — `packages/contracts/src/attested-upload-model.ts` equals the declaration's §6 byte for byte |
+| ESF-6 Attested Observation (not a Gate contract) | ESF-6 | one additive `ReceiptKind`, `SCENARIO_UPLOAD_ADMISSION`, as ADR-086 part 2 authorised; every existing kind unchanged |
 
 ### Contract declaration — Attested Upload, 2026-09-25
 

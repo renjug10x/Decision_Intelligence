@@ -2,9 +2,12 @@
 
 **Status:** **DECLARED and FROZEN AS A DECLARATION** — 2026-09-25, at the `SCI-10` reconciliation design
 gate ([`COGNIX_SCI_10_RECONCILIATION_DESIGN_GATE.md`](../reports/COGNIX_SCI_10_RECONCILIATION_DESIGN_GATE.md)).
-Not implemented. **Owner:** `SCI-10` (ADR-084 part 1). **Consumers:** `SCI-08` (the experience that
+**IMPLEMENTED 2026-09-26** (below). **Owner:** `SCI-10` (ADR-084 part 1). **Consumers:** `SCI-08` (the experience that
 renders it). **Decision:** ADR-086.
 **Declared against:** `feature/cognix-sci-08-create-your-own` at `aad33e90b4ee3fb4b65c85d8cdd38e63d709f6c6`.
+**Implemented:** 2026-09-26 by `SCI-10` on `feature/cognix-sci-10-csv-admission`, SHA-E `c5fce33c` —
+§6 committed byte for byte as `packages/contracts/src/attested-upload-model.ts`; the declaration below is
+unchanged. Conformance: [`COGNIX_SCI_10_ATTESTED_UPLOAD_REPORT.md`](../reports/COGNIX_SCI_10_ATTESTED_UPLOAD_REPORT.md).
 
 **How this declaration becomes code.** §6 is normative TypeScript. `SCI-10` commits it verbatim as
 `packages/contracts/src/attested-upload-model.ts`, adds one `export *` line to the contracts barrel, and
