@@ -59,7 +59,14 @@ export interface AttestedObservationSource {
 export type ReceiptKind =
   | 'SOURCE_REGISTRATION'
   | 'CONTRACT_REGISTRATION'
-  | 'OBSERVATION_ADMISSION';
+  | 'OBSERVATION_ADMISSION'
+  /**
+   * `SCI-10` (ADR-086 part 2) — additive. The admission of an attested upload's measured INPUTS into a
+   * scenario draft: `subject_id` is the `upload_id`, and there is no `source_id`. It is deliberately
+   * not `OBSERVATION_ADMISSION`: an input admitted to a draft is not the realised outcome of a decision,
+   * and nothing that resolves observation receipts may resolve this one.
+   */
+  | 'SCENARIO_UPLOAD_ADMISSION';
 
 export interface ServerReceipt {
   /** SERVER-ISSUED. Reserved prefix `rcpt_`. */
@@ -249,8 +256,13 @@ export function validateServerReceipt(receipt: unknown): { valid: boolean; error
   if (!r.receipt_id || typeof r.receipt_id !== 'string' || !r.receipt_id.startsWith('rcpt_')) {
     errors.push("receipt_id is required and must have prefix 'rcpt_'");
   }
-  if (r.kind !== 'SOURCE_REGISTRATION' && r.kind !== 'CONTRACT_REGISTRATION' && r.kind !== 'OBSERVATION_ADMISSION') {
-    errors.push("kind must be 'SOURCE_REGISTRATION' | 'CONTRACT_REGISTRATION' | 'OBSERVATION_ADMISSION'");
+  if (
+    r.kind !== 'SOURCE_REGISTRATION'
+    && r.kind !== 'CONTRACT_REGISTRATION'
+    && r.kind !== 'OBSERVATION_ADMISSION'
+    && r.kind !== 'SCENARIO_UPLOAD_ADMISSION'
+  ) {
+    errors.push("kind must be 'SOURCE_REGISTRATION' | 'CONTRACT_REGISTRATION' | 'OBSERVATION_ADMISSION' | 'SCENARIO_UPLOAD_ADMISSION'");
   }
   if (!r.tenant_id || typeof r.tenant_id !== 'string' || !r.tenant_id.trim()) {
     errors.push('tenant_id is required');
@@ -266,6 +278,14 @@ export function validateServerReceipt(receipt: unknown): { valid: boolean; error
   }
   if (r.kind === 'OBSERVATION_ADMISSION' && (!r.source_id || !r.source_id.trim())) {
     errors.push('source_id is required for OBSERVATION_ADMISSION receipt');
+  }
+  if (r.kind === 'SCENARIO_UPLOAD_ADMISSION') {
+    if (!r.subject_id || !r.subject_id.startsWith('upl_')) {
+      errors.push("subject_id of a SCENARIO_UPLOAD_ADMISSION receipt must be the server-issued upload id ('upl_')");
+    }
+    if (r.source_id) {
+      errors.push('a SCENARIO_UPLOAD_ADMISSION receipt carries no source_id — an upload is not a registered observation source');
+    }
   }
   if (!r.issued_at_display || typeof r.issued_at_display !== 'string') {
     errors.push('issued_at_display is required');

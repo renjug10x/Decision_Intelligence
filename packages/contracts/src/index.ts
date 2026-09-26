@@ -131,6 +131,11 @@ export * from './intent-fusion-model';
 export * from './learning-pattern-model';
 export * from './memory-model';
 export * from './attested-observation-model';
+/*
+ * The Attested Upload contract, owned by `SCI-10` (ADR-086) — declared at the `SCI-10` design gate and
+ * committed verbatim. It enriches a DRAFT with measured inputs; it is not an outcome observation.
+ */
+export * from './attested-upload-model';
 export * from './demand-decision-frontier-model';
 export * from './capability-atlas-model';
 export * from './atlas-grounding-model';
