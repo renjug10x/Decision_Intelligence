@@ -124,18 +124,24 @@ export const createScenarioDraft = (situation: string, inputs: ScenarioDraftInpu
 export const importScenarioDraft = (file: unknown) =>
   post<DraftAssessment>('/api/v1/scenarios/drafts', { tenant_id: AUTHORING_TENANT_ID, import: file });
 
+/**
+ * `unsetFields` names the fields the author emptied: the server returns them to CogniX's declared
+ * assumption (the governed unset, `R-SCI08-2`). Leaving a field out of `inputs` alone would keep it.
+ */
 export const updateScenarioDraft = (
   draftId: string,
   inputs: ScenarioDraftInputs,
   acceptedProposals: ScenarioDraftProposal[] = [],
-  acceptedFromModel?: string
+  acceptedFromModel?: string,
+  unsetFields: string[] = []
 ) => call<DraftAssessment>(`/api/v1/scenarios/drafts/${encodeURIComponent(draftId)}`, {
   method: 'PATCH',
   body: JSON.stringify({
     tenant_id: AUTHORING_TENANT_ID,
     inputs,
     accepted_proposals: acceptedProposals,
-    accepted_from_model: acceptedFromModel
+    accepted_from_model: acceptedFromModel,
+    unset_fields: unsetFields
   })
 });
 

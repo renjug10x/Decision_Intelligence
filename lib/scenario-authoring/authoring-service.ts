@@ -134,7 +134,7 @@ export interface CreateDraftRequest {
 export function createDraft(request: CreateDraftRequest): ScenarioDraftAssessment {
   const suffix = newDraftSuffix();
   const opening = request.situation ? openingPosturesFor(request.situation) : {};
-  const inputs: ScenarioDraftInputs = { ...opening, ...(request.inputs ?? {}) };
+  const inputs = withoutUnsetFields({ ...opening, ...(request.inputs ?? {}) }, []);
 
   const validation = validateScenarioDraftInputs(inputs);
   if (!validation.valid) {
@@ -183,6 +183,56 @@ export interface UpdateDraftRequest {
    */
   accepted_proposals?: ScenarioDraftProposal[];
   accepted_from_model?: string;
+  /**
+   * Fields the person returns to CogniX's declared assumption (`R-SCI08-2`, ADR-086 part 4).
+   *
+   * The governed UNSET. An update MERGES, so leaving a field out of `inputs` keeps whatever it held;
+   * that is right for a partial edit and wrong for "I no longer state this". Naming the field here
+   * removes it, which is exactly how the frozen Scenario Draft contract already represents an unset
+   * field — an absent key — so resolution, readiness and provenance fall back to the declared
+   * assumption on their own. Setting and unsetting the same field in one update is refused rather
+   * than resolved by an order nobody can see.
+   */
+  unset_fields?: string[];
+}
+
+/**
+ * Apply the governed unset to a set of inputs, returning a copy with the named keys ABSENT.
+ *
+ * Also the one place a `null` is removed: a JSON body cannot carry `undefined`, so a client that sends
+ * `null` for a field means "nothing here", and a stored `null` would be a value that is neither stated
+ * nor absent — `null !== undefined` would read it as stated. No stale value, and no null, survives.
+ */
+function withoutUnsetFields(inputs: ScenarioDraftInputs, unset: readonly string[]): ScenarioDraftInputs {
+  const out: Record<string, unknown> = { ...inputs };
+  for (const field of unset) delete out[field];
+  for (const [key, value] of Object.entries(out)) {
+    if (value === null || value === undefined) delete out[key];
+  }
+  return out as ScenarioDraftInputs;
+}
+
+function assertUnsettable(request: UpdateDraftRequest): string[] {
+  const unset = [...new Set(request.unset_fields ?? [])];
+  for (const field of unset) {
+    if (typeof field !== 'string' || !scenarioDraftField(field)) {
+      throw new ScenarioAuthoringError(`"${String(field)}" is not an authorable scenario field, so it cannot be unset.`, String(field));
+    }
+    const setAlso = (request.inputs as Record<string, unknown> | undefined)?.[field];
+    if (setAlso !== undefined && setAlso !== null) {
+      throw new ScenarioAuthoringError(
+        `${scenarioDraftField(field)?.label ?? field} was both given a value and returned to CogniX's assumption in one change. Choose one.`,
+        field
+      );
+    }
+    if ((request.accepted_proposals ?? []).some(p => p.field === field)) {
+      throw new ScenarioAuthoringError(
+        `${scenarioDraftField(field)?.label ?? field} was both kept from a suggestion and returned to CogniX's assumption in one change. Choose one.`,
+        field
+      );
+    }
+  }
+  return unset;
 }
 
 export function updateDraft(request: UpdateDraftRequest): ScenarioDraftAssessment {
@@ -194,6 +244,7 @@ export function updateDraft(request: UpdateDraftRequest): ScenarioDraftAssessmen
     );
   }
 
+  const unset = assertUnsettable(request);
   const accepted = request.accepted_proposals ?? [];
   const acceptedInputs: Record<string, unknown> = {};
   for (const proposal of accepted) {
@@ -218,7 +269,7 @@ export function updateDraft(request: UpdateDraftRequest): ScenarioDraftAssessmen
         : proposal.value;
   }
 
-  const inputs: ScenarioDraftInputs = { ...existing.inputs, ...acceptedInputs, ...request.inputs };
+  const inputs = withoutUnsetFields({ ...existing.inputs, ...acceptedInputs, ...request.inputs }, unset);
   const validation = validateScenarioDraftInputs(inputs);
   if (!validation.valid) {
     throw new ScenarioAuthoringError(
@@ -228,9 +279,18 @@ export function updateDraft(request: UpdateDraftRequest): ScenarioDraftAssessmen
     );
   }
 
+  /*
+   * An unset field loses whatever provenance it carried. The `drafted_by_model` stamp is the one fact
+   * an assessment cannot re-derive from the inputs, so without this a field returned to CogniX's
+   * assumption would still be described as "drafted by AI and kept by you" — a stale claim about a
+   * value that no longer exists.
+   */
   const draft: ScenarioDraft = {
     ...existing,
     inputs,
+    field_provenance: unset.length > 0
+      ? existing.field_provenance.filter(p => !unset.includes(p.field as string))
+      : existing.field_provenance,
     updated_at: nowIso(),
     content_hash: contentHash(inputs)
   };

@@ -2,7 +2,8 @@
  * Scenario Draft — one draft (BFF route, `SCI-07`)
  * ───────────────────────────────────────────────────────────────────────────────
  * `GET`    the draft, its issues, its readiness and its provenance.
- * `PATCH`  change authoring inputs, and keep proposals a person chose to keep.
+ * `PATCH`  change authoring inputs, keep proposals a person chose to keep, and return named fields to
+ *          CogniX's declared assumption (`unset_fields`, the governed unset — `R-SCI08-2`).
  * `DELETE` withdraw it.
  *
  * `GET` also serves the exportable form when asked for it, so a person can take a draft away
@@ -69,6 +70,10 @@ export async function PATCH(request: NextRequest, context: { params: Promise<{ i
       accepted_proposals: (payload.accepted_proposals ?? []) as ScenarioDraftProposal[],
       accepted_from_model: typeof payload.accepted_from_model === 'string'
         ? payload.accepted_from_model.slice(0, 64)
+        : undefined,
+      // The governed unset (`R-SCI08-2`): these fields return to CogniX's declared assumption.
+      unset_fields: Array.isArray(payload.unset_fields)
+        ? (payload.unset_fields as unknown[]).map(f => String(f))
         : undefined
     });
 

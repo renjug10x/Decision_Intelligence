@@ -219,9 +219,20 @@ export default function ScenarioAuthoringStudio({ isOpen, onClose }: { isOpen: b
     return out as ScenarioDraftInputs;
   };
 
+  /** Boxes the author emptied that the draft still holds: returned to CogniX's assumption by the server. */
+  const unsetFromForm = (sent: ScenarioDraftInputs): string[] => {
+    const held = (assessment?.draft.inputs ?? {}) as Record<string, unknown>;
+    return fields
+      .map(f => f.id)
+      .filter(id => held[id] !== undefined && held[id] !== null && (sent as Record<string, unknown>)[id] === undefined);
+  };
+
   const save = () => run('save', async () => {
     if (!assessment) return;
-    const next = await updateScenarioDraft(assessment.draft.draft_id, inputsFromForm(), kept, kept.length ? proposalModel : undefined);
+    const sent = inputsFromForm();
+    const next = await updateScenarioDraft(
+      assessment.draft.draft_id, sent, kept, kept.length ? proposalModel : undefined, unsetFromForm(sent)
+    );
     adopt(next);
     setProposals(prev => prev.filter(p => !kept.some(k => k.field === p.field)));
   });
