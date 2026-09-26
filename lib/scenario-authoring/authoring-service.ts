@@ -63,6 +63,8 @@ import {
 import { assessDecisionCaseCoherence } from './draft-coherence';
 import { assessCapabilityReadiness, describeScenarioProvenance } from './draft-readiness';
 import { scenarioDraftStore } from './draft-store';
+import { liveAdmissionsFor } from './attested-upload-store';
+import { describeReduction } from './attested-upload-validation';
 import {
   AuthoredScenarioOwnershipError,
   assertAuthoredScenarioAssignable,
@@ -349,7 +351,27 @@ export function assessDraft(
    * chose to keep it — but WHERE IT CAME FROM is a fact about the scenario a reader is owed,
    * and ADR-082's `drafted` origin is the word for it.
    */
+  /*
+   * `SCI-10` (ADR-086 part 1): a field is `attested` only while its draft value EQUALS the value a live
+   * admission wrote (contract §5). Derived here, from the inputs and the admission, rather than stored:
+   * edit the value and it is `stated` again; withdraw the upload and it is gone. An attestation is a
+   * named person's declaration of source — the note says so, and never calls it a verification.
+   */
+  const admissions = liveAdmissionsFor(draft.tenant_id, draft.draft_id);
+  const current = draft.inputs as Record<string, unknown>;
+
   const fieldProvenance = (resolved?.field_provenance ?? []).map(entry => {
+    const admitted = admissions.get(entry.field);
+    if (admitted && current[entry.field as string] === admitted.value) {
+      const label = scenarioDraftField(entry.field as string)?.label ?? String(entry.field);
+      return {
+        field: entry.field,
+        descriptor: { ...admitted.provenance },
+        note: `${label} is ${describeReduction(admitted.reduction, admitted.periods_used)} in an extract `
+          + `attested by ${admitted.attested_by}. Attested means a named person declared its source; `
+          + 'CogniX checked its form, not its accuracy.'
+      };
+    }
     const model = draftedFields.get(entry.field as string) ?? draft.field_provenance
       .find(p => p.field === entry.field && p.drafted_by_model)?.drafted_by_model;
     return model

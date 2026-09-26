@@ -49,8 +49,8 @@ export const READINESS_INPUT_FIELDS: readonly ScenarioDraftFieldId[] = [
 /**
  * The readiness one input earns from its provenance.
  *
- *   observed / attested            → Ready      (not reachable until `SCI-10`; declared here so
- *                                                the ladder is complete rather than truncated)
+ *   observed / attested            → Ready      (`attested` is reached through `SCI-10`'s admitted
+ *                                                upload; `observed` is not yet reachable from a draft)
  *   stated, and a DECLARATION      → Ready      the person's statement IS the evidence
  *   stated, but a MEASUREMENT      → Limited    an assertion standing in for a reading
  *   derived                        → Ready      CogniX computed it from a governed master
@@ -194,6 +194,9 @@ export function describeScenarioProvenance(
   const clauses: string[] = [];
   const stated = byOrigin.get('stated');
   if (stated?.length) clauses.push(`${listOf(stated)} ${stated.length === 1 ? 'was' : 'were'} stated by you`);
+  // `SCI-10`: a declaration of source by a named person — never described as verified.
+  const attested = byOrigin.get('attested');
+  if (attested?.length) clauses.push(`${listOf(attested)} came from data you uploaded and attested`);
   const drafted = byOrigin.get('drafted');
   if (drafted?.length) clauses.push(`${listOf(drafted)} ${drafted.length === 1 ? 'was' : 'were'} drafted by AI and kept by you`);
   const modelled = byOrigin.get('modelled');

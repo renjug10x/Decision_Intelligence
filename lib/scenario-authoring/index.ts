@@ -38,6 +38,32 @@ export {
 
 export { assessDecisionCaseCoherence } from './draft-coherence';
 
+/*
+ * `SCI-10` (ADR-086): the Attested Upload lifecycle — upload, validation, attestation, admission and
+ * withdrawal. It enriches a DRAFT with measured inputs and owns nothing after admission.
+ */
+export {
+  receiveAttestedUpload,
+  listAttestedUploads,
+  admitAttestedUpload,
+  withdrawAttestedUpload,
+  type AttestedUploadOutcome,
+  type ReceiveAttestedUploadRequest
+} from './attested-upload-service';
+
+export { attestedUploadStore, attestedUploadClock, liveAdmissionsFor, type LiveAdmission } from './attested-upload-store';
+
+export {
+  AttestedUploadRefusalError,
+  refusalHttpStatus,
+  parseCsv,
+  decodeUtf8,
+  profileAgainstDraft,
+  proposeFieldForHeader,
+  reduceMapped,
+  FORMULA_SHAPED
+} from './attested-upload-validation';
+
 export {
   assessCapabilityReadiness,
   describeScenarioProvenance,
