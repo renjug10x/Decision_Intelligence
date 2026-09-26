@@ -30,7 +30,7 @@ const money = n => n >= 1_000_000 ? `£${(n / 1_000_000).toFixed(2)}M` : n >= 1_
 const units = n => n.toLocaleString('en-GB');
 
 (async () => {
-  const browser = await chromium.launch();
+  const browser = await chromium.launch(process.env.CHROMIUM_EXECUTABLE ? { executablePath: process.env.CHROMIUM_EXECUTABLE } : {});
   const authored = {};
 
   for (const width of [1440, 1024, 720]) {
