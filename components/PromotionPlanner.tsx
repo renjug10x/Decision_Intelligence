@@ -1588,7 +1588,8 @@ export default function PromotionPlanner({
 
             {activeLens === 'INVERSE' && (
               <InverseAnalysisLens
-                key={archetype.id}
+                key={`${archetype.id}:${activeScenario.identity.scenario_id}`}
+                scenario={activeScenario}
                 archetype={archetype}
                 currentDiscount={discountDepth}
                 currentRegion={targetRegion}
