@@ -35,6 +35,8 @@ import PlatformHealthSection from '@/components/observability/PlatformHealthSect
 import DecisionTraceView from '@/components/observability/DecisionTraceView';
 import { useApp } from '@/lib/context';
 import { useDecisionState } from '@/context/DecisionStateContext';
+import { useCurrency } from '@/context/CurrencyContext';
+import { SUPPORTED_CURRENCIES, type SupportedCurrency } from '@/packages/contracts/src/currency-model';
 import { scenarioInScopeId } from '@/packages/contracts/src';
 
 type SectionId = 'evidence' | 'methods' | 'health' | 'trace' | 'architecture' | 'configuration';
@@ -45,6 +47,7 @@ interface ObservabilityGovernanceProps {
 
 interface SectionDefinition {
   id: SectionId;
+  group: 'System' | 'Governance';
   label: string;
   question: string;
   Icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
@@ -53,38 +56,44 @@ interface SectionDefinition {
 const SECTIONS: SectionDefinition[] = [
   {
     id: 'evidence',
+    group: 'System',
     label: 'Evidence & Signals',
     question: 'What evidence supports its intelligence, and what changed?',
     Icon: Radio
   },
   {
     id: 'methods',
+    group: 'System',
     label: 'Models & Methods',
     question: 'Which method produced this, and where does AI contribute?',
     Icon: Layers
   },
   {
     id: 'health',
+    group: 'System',
     label: 'Platform Health',
     question: 'How trustworthy is the record itself, and is the estate sound?',
     Icon: Gauge
   },
   {
-    id: 'trace',
-    label: 'Decision Trace',
-    question: 'Why did CogniX recommend this, and did evidence change the decision?',
-    Icon: Activity
-  },
-  {
     id: 'architecture',
-    label: 'Architecture (retained)',
-    question: 'How is the platform architected? (Storyboard retained pending SB-GATE)',
+    group: 'System',
+    label: 'Architecture',
+    question: 'Seven-layer Scenario Intelligence architecture and governed mechanism flow',
     Icon: Network
   },
   {
+    id: 'trace',
+    group: 'Governance',
+    label: 'Decision Governance & Trace',
+    question: 'Why did CogniX recommend this, and how is the scenario certified?',
+    Icon: Activity
+  },
+  {
     id: 'configuration',
-    label: 'Platform Configuration',
-    question: 'Detection thresholds, human-in-the-loop, and scoping',
+    group: 'Governance',
+    label: 'AI & Operational Controls',
+    question: 'Detection thresholds, human-in-the-loop, provider controls, and scoping',
     Icon: SlidersHorizontal
   }
 ];
@@ -147,17 +156,57 @@ export default function ObservabilityGovernance({ initialSection }: Observabilit
   } = useApp();
 
   const { decisionState, refreshState, resetScenario } = useDecisionState();
+  const { currency, setCurrency, rates } = useCurrency();
   const [section, setSection] = useState<SectionId>(initialSection ?? 'evidence');
 
   const activeScenarioId = decisionState?.scenario_id ?? scenarioInScopeId();
+  const rateNote = rates.degraded_reason
+    ? `Reference rates from ${rates.rate_date}`
+    : `ECB rates, ${rates.rate_date}`;
 
   return (
     <div className="og">
       <header className="og-head">
-        <h1>Observability &amp; Governance</h1>
-        <p>
-          Governed evidence, method provenance, platform health, and decision trace for enterprise retail stakeholders.
-        </p>
+        <div className="og-head-top">
+          <div>
+            <h1>Observability &amp; Governance</h1>
+            <p>
+              System architecture, method provenance, service health, decision governance, and display preferences.
+            </p>
+          </div>
+
+          {/* Preferences: Display Currency (relocated from main navigation sidebar) */}
+          <div className="og-preferences-bar" role="region" aria-label="Preferences">
+            <div className="og-preferences-meta">
+              <span className="og-preferences-group">Preferences</span>
+              <span className="og-preferences-label">Display currency</span>
+            </div>
+            <div
+              className="og-currency-group"
+              role="group"
+              aria-label="Display currency"
+            >
+              {SUPPORTED_CURRENCIES.map((code: SupportedCurrency) => {
+                const selected = code === currency;
+                return (
+                  <button
+                    key={code}
+                    type="button"
+                    aria-pressed={selected}
+                    onClick={() => setCurrency(code)}
+                    title={`Show money in ${code}`}
+                    className={`og-currency-btn${selected ? ' is-selected' : ''}`}
+                  >
+                    {code}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="og-currency-note">
+              {currency === rates.base ? 'Modelled in GBP' : rateNote}
+            </p>
+          </div>
+        </div>
       </header>
 
       {/* Primary Section Navigation */}
@@ -172,6 +221,7 @@ export default function ObservabilityGovernance({ initialSection }: Observabilit
           >
             <s.Icon size={14} strokeWidth={1.75} />
             <span className="og-navitem-body">
+              <span className="og-navitem-group">{s.group}</span>
               <span className="og-navitem-label">{s.label}</span>
               <span className="og-navitem-question">{s.question}</span>
             </span>

@@ -19,6 +19,7 @@ import DecisionRippleIntelligence from '@/components/DecisionRippleIntelligence'
 import EnterpriseMemory from '@/components/EnterpriseMemory';
 import OpportunityIntelligence from '@/components/OpportunityIntelligence';
 import CampaignDecisionCanvas from '@/components/CampaignDecisionCanvas';
+import DynamicScenarioStudio from '@/components/DynamicScenarioStudio';
 import { EXPERIMENT_REGISTRY } from '@/config/experiments';
 import { env } from '@/config/environment';
 import ShellToast, { ToastMessage } from '@/components/ShellToast';
@@ -165,6 +166,8 @@ export default function App() {
             onBackToPortfolio={() => setCurrentPage('atlas')}
           />
         );
+      case 'scenario-studio':
+        return <DynamicScenarioStudio onNavigate={setCurrentPage} />;
       case 'architecture':   return <ObservabilityGovernance initialSection="architecture" />;
       case 'settings':       return <ObservabilityGovernance />;
       default:

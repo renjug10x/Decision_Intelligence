@@ -3983,3 +3983,986 @@ button.atlas-origin--open:focus-visible { outline: 2px solid var(--accent); outl
   .sci08-review-side { border-left: 0; border-top: 1px solid var(--border); padding: 12px 0 0; }
   .sci08-facts div { grid-template-columns: minmax(0, 1fr); gap: 2px; }
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   DYNAMIC SCENARIO STUDIO & SIDEBAR UX REFINEMENT
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Quiet persona context indicator in sidebar header */
+.sidebar-persona-context {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 2px;
+  font-size: 0.6875rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+}
+
+/* Compact "This decision" contextual strip below Capability Atlas */
+.scenario-context-strip {
+  position: relative;
+  margin: 6px 2px 4px;
+  padding: 7px 8px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.scenario-context-strip:hover,
+.scenario-context-strip:focus-within {
+  background: rgba(15, 23, 42, 0.025);
+  border-color: var(--border);
+}
+
+.scenario-context-strip.is-active {
+  background: var(--curiosity-light);
+  border-color: rgba(255, 107, 0, 0.32);
+}
+
+.scenario-context-heading {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 0.01em;
+  margin-bottom: 3px;
+}
+
+.scenario-context-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  min-width: 0;
+}
+
+.scenario-decision-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 1;
+  min-width: 0;
+  padding: 2px 0;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.scenario-decision-trigger:hover .scenario-decision-name,
+.scenario-decision-trigger.is-active .scenario-decision-name {
+  color: var(--g10x-orange);
+}
+
+.scenario-decision-trigger:focus-visible {
+  outline: 2px solid var(--g10x-orange);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.scenario-decision-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
+}
+
+.scenario-strip-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex-shrink: 0;
+}
+
+.scenario-strip-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.scenario-strip-icon-btn:hover:not(:disabled) {
+  color: var(--text-primary);
+  background: #ffffff;
+  border-color: var(--border);
+}
+
+.scenario-strip-icon-btn:focus-visible {
+  outline: 2px solid var(--g10x-orange);
+  outline-offset: 1px;
+}
+
+.scenario-strip-icon-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.scenario-context-meta {
+  margin-top: 2px;
+  padding-left: 19px;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+/* Lightweight progressive-disclosure popover on hover/focus */
+.scenario-decision-popover {
+  display: none;
+  position: absolute;
+  left: 4px;
+  right: 4px;
+  top: calc(100% + 4px);
+  z-index: 45;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+}
+
+.scenario-decision-popover.is-open {
+  display: block;
+}
+
+.scenario-decision-popover-title {
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.scenario-decision-popover-list {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.scenario-decision-popover-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 0.6875rem;
+  line-height: 1.35;
+}
+
+.scenario-decision-popover-row dt {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.scenario-decision-popover-row dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.scenario-decision-popover-hint {
+  margin-top: 7px;
+  padding-top: 6px;
+  border-top: 1px solid var(--border);
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--g10x-orange);
+}
+
+/* Observability & Governance — Preferences & Display Currency */
+.og-head-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  margin-bottom: 24px;
+}
+
+.og-head-top p {
+  margin-bottom: 0;
+}
+
+.og-preferences-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-card);
+  min-width: 240px;
+  max-width: 340px;
+}
+
+.og-preferences-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.og-preferences-group {
+  font-size: 0.625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.og-preferences-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.og-currency-group {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+  padding: 2px;
+  background: #f8fafc;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.og-currency-btn {
+  padding: 5px 8px;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 500;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-variant-numeric: tabular-nums;
+}
+
+.og-currency-btn:hover {
+  color: var(--text-primary);
+}
+
+.og-currency-btn.is-selected {
+  font-weight: 700;
+  color: var(--g10x-orange);
+  background: var(--curiosity-light);
+  border-color: var(--g10x-orange);
+}
+
+.og-currency-note {
+  margin: 2px 0 0 !important;
+  font-size: 0.6875rem !important;
+  color: var(--text-muted) !important;
+  line-height: 1.4 !important;
+}
+
+.og-navitem-group {
+  font-size: 0.5625rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+/* Inline ScenarioAuthoringStudio inside Dynamic Scenario Studio */
+.sci08-panel.is-inline {
+  max-height: none;
+  max-width: 100%;
+  box-shadow: none;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: visible;
+}
+
+.sci08-panel.is-inline .sci08-body {
+  overflow-y: visible;
+}
+
+/* Dynamic Scenario Studio Workspace */
+.dss-page {
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 28px 28px 64px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dss-header {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dss-header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.dss-eyebrow {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--g10x-orange);
+  margin-bottom: 3px;
+}
+
+.dss-title {
+  margin: 0;
+  font-size: 1.625rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+}
+
+.dss-subtitle {
+  margin: 4px 0 0;
+  font-size: 0.9375rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.dss-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dss-action-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.dss-action-btn:hover:not(:disabled) {
+  border-color: var(--border-strong);
+  color: var(--text-primary);
+}
+
+.dss-decision-strip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+}
+
+.dss-decision-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 0.8125rem;
+}
+
+.dss-decision-label {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.dss-decision-sku {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+.dss-decision-facts {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.dss-decision-fact {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  font-size: 0.75rem;
+}
+
+.dss-decision-fact dt {
+  color: var(--text-muted);
+}
+
+.dss-decision-fact dd {
+  margin: 0;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+/* Four Conceptual Areas Bar */
+.dss-pillars {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.dss-pillar-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.dss-pillar-card:hover {
+  border-color: var(--border-strong);
+}
+
+.dss-pillar-card.is-selected {
+  border-color: var(--g10x-orange);
+  background: rgba(255, 107, 0, 0.03);
+}
+
+.dss-pillar-card.is-foundation {
+  background: #f8fafc;
+}
+
+.dss-pillar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dss-pillar-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.dss-pillar-badge {
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: 4px;
+  letter-spacing: 0.02em;
+}
+
+.dss-pillar-badge.is-implemented {
+  background: #f0fdf4;
+  color: #166534;
+}
+
+.dss-pillar-badge.is-extension {
+  background: #f1f5f9;
+  color: var(--text-muted);
+}
+
+.dss-pillar-desc {
+  margin: 0;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  line-height: 1.45;
+}
+
+/* Primary Workspace Sections */
+.dss-workspace-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dss-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.dss-section-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dss-section-kicker {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+
+.dss-section-title {
+  margin: 2px 0 0;
+  font-size: 1.125rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.dss-lifecycle-pill {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+}
+
+.dss-inline-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+/* Explore: Active Decision Response Card */
+.dss-response-card {
+  padding: 16px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dss-response-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.dss-response-scenario {
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.dss-response-question {
+  margin-top: 2px;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.dss-certified-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 4px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  background: #f0fdf4;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.dss-metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(175px, 1fr));
+  gap: 10px;
+}
+
+.dss-metric {
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.dss-metric-label {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+}
+
+.dss-metric-value {
+  font-size: 1.0625rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.dss-metric-note {
+  font-size: 0.6875rem;
+  color: var(--text-secondary);
+}
+
+.dss-surface-links {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.dss-surface-links-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-right: 4px;
+}
+
+.dss-link-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+
+.dss-link-chip:hover {
+  border-color: var(--g10x-orange);
+  color: var(--g10x-orange);
+}
+
+/* Explore: Scenario Catalogue & Provenance */
+.dss-catalogue-block {
+  padding: 16px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dss-catalogue-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.dss-sub-heading {
+  margin: 0;
+  font-size: 0.875rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.dss-catalogue-count {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.dss-catalogue-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dss-catalogue-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #f8fafc;
+}
+
+.dss-catalogue-item.is-active {
+  background: rgba(255, 107, 0, 0.03);
+  border-color: rgba(255, 107, 0, 0.35);
+}
+
+.dss-catalogue-main {
+  min-width: 0;
+  flex: 1;
+}
+
+.dss-catalogue-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dss-catalogue-name {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.dss-provenance-tag {
+  font-size: 0.625rem;
+  font-weight: 600;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  color: var(--text-secondary);
+}
+
+.dss-provenance-tag.is-created_by_you {
+  background: #eff6ff;
+  color: #1e40af;
+  border-color: #bfdbfe;
+}
+
+.dss-provenance-tag.is-uploaded_evidence {
+  background: #f0fdf4;
+  color: #166534;
+  border-color: #bbf7d0;
+}
+
+.dss-active-tag {
+  font-size: 0.625rem;
+  font-weight: 700;
+  color: var(--g10x-orange);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.dss-catalogue-meta {
+  margin-top: 2px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.dss-current-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--g10x-orange);
+}
+
+.dss-run-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+  font: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+
+.dss-run-btn:hover:not(:disabled) {
+  border-color: var(--g10x-orange);
+  color: var(--g10x-orange);
+}
+
+/* Observe & Discover Architectural Foundations */
+.dss-foundation-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.dss-foundation-panel {
+  padding: 16px 18px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: #f8fafc;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.dss-foundation-panel.is-focused {
+  border-color: var(--border-strong);
+}
+
+.dss-foundation-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.dss-foundation-title-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.dss-foundation-status {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.dss-foundation-title {
+  margin: 0;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.dss-foundation-copy {
+  margin: 0;
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.dss-foundation-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
+.dss-provenance-architecture {
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.dss-provenance-arch-title {
+  font-size: 0.6875rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+
+.dss-provenance-arch-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.dss-provenance-arch-item {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: #ffffff;
+}
+
+.dss-provenance-arch-item.is-reserved {
+  border-style: dashed;
+  background: rgba(255, 255, 255, 0.65);
+}
+
+.dss-provenance-arch-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.dss-provenance-arch-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.dss-provenance-arch-state {
+  font-size: 0.625rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.dss-provenance-arch-desc {
+  margin: 3px 0 0;
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+@media (max-width: 1024px) {
+  .dss-page {
+    padding: 20px 20px 48px;
+  }
+  .dss-pillars {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .dss-foundation-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .dss-page {
+    padding: 16px 14px 40px;
+  }
+  .dss-pillars {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .dss-catalogue-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .og-preferences-bar {
+    width: 100%;
+    max-width: none;
+  }
+}

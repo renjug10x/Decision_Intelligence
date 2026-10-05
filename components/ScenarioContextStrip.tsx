@@ -14,8 +14,8 @@
  * Under SCI-04, ScenarioContextStrip also provides executive discovery and activation of
  * certified scenarios from the frozen catalogue, and direct restart of the active case.
  */
-import { useState } from 'react';
-import { Package, ArrowLeftRight, RotateCcw, Check, Loader2 } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Crosshair, ArrowLeftRight, RotateCcw, Check, Loader2 } from 'lucide-react';
 import {
   getActiveScenario,
   resolveScenario,
@@ -26,11 +26,20 @@ import { getOrCreateSessionId } from '@/lib/journey-client';
 import ScenarioSelectorModal from '@/components/ScenarioSelectorModal';
 import ScenarioAuthoringStudio from '@/components/scenario-authoring/ScenarioAuthoringStudio';
 
-export default function ScenarioContextStrip() {
+interface ScenarioContextStripProps {
+  active?: boolean;
+  onOpenStudio?: () => void;
+}
+
+export default function ScenarioContextStrip({
+  active = false,
+  onOpenStudio
+}: ScenarioContextStripProps = {}) {
   const { decisionState, resetScenario, refreshState } = useDecisionState();
   const [selectorOpen, setSelectorOpen] = useState(false);
   const [authoringOpen, setAuthoringOpen] = useState(false);
   const [restartPhase, setRestartPhase] = useState<'idle' | 'working' | 'done'>('idle');
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   // Dynamically resolve the active scenario from decision state or the canonical registry
   const activeScenario = (() => {
@@ -45,6 +54,17 @@ export default function ScenarioContextStrip() {
   })();
 
   const { identity, calendar, supply } = activeScenario;
+
+  useEffect(() => {
+    if (!detailsOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        setDetailsOpen(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [detailsOpen]);
 
   const handleRestart = async () => {
     if (restartPhase === 'working') return;
@@ -71,135 +91,121 @@ export default function ScenarioContextStrip() {
     await refreshState();
   };
 
+  const compactSummary = [
+    identity?.category,
+    identity?.market_scope_label,
+    calendar?.forecast_horizon_days ? `${calendar.forecast_horizon_days} days` : null
+  ]
+    .filter(Boolean)
+    .join(' · ');
+
+  const detailFields = [
+    { label: 'Product', value: identity?.sku_name },
+    { label: 'Category', value: identity?.category },
+    { label: 'Geographic scope', value: identity?.market_scope_label },
+    { label: 'Focus region', value: identity?.focus_region },
+    { label: 'Supplier', value: supply?.supplier_name },
+    {
+      label: 'Horizon',
+      value: calendar?.forecast_horizon_days ? `${calendar.forecast_horizon_days} days` : undefined
+    },
+    { label: 'Current scenario', value: identity?.scenario_name }
+  ].filter((item): item is { label: string; value: string } => Boolean(item.value));
+
   return (
     <>
       <div
-        className="scenario-context-strip"
-        style={{
-          padding: '10px 16px',
-          borderBottom: '1px solid var(--border)',
-          background: 'var(--bg-surface, #FFFFFF)'
-        }}
+        className={`scenario-context-strip${active ? ' is-active' : ''}`}
+        onMouseEnter={() => setDetailsOpen(true)}
+        onMouseLeave={() => setDetailsOpen(false)}
       >
-        <div
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            marginBottom: 4
-          }}
-        >
-          <div
-            style={{
-              fontSize: '0.5625rem',
-              fontWeight: 700,
-              letterSpacing: '0.08em',
-              textTransform: 'uppercase',
-              color: 'var(--text-muted)'
+        <div className="scenario-context-heading">This decision</div>
+
+        <div className="scenario-context-row">
+          <button
+            type="button"
+            className={`scenario-decision-trigger${active ? ' is-active' : ''}`}
+            onClick={() => {
+              setDetailsOpen(false);
+              onOpenStudio?.();
             }}
+            onFocus={() => setDetailsOpen(true)}
+            onBlur={() => setDetailsOpen(false)}
+            aria-describedby="active-decision-details-popover"
+            aria-current={active ? 'page' : undefined}
+            title={`Open Dynamic Scenario Studio for ${identity.sku_name}`}
           >
-            This decision
+            <Crosshair
+              size={13}
+              strokeWidth={1.85}
+              color={active ? 'var(--g10x-orange)' : 'var(--text-secondary)'}
+              style={{ flexShrink: 0 }}
+            />
+            <span className="scenario-decision-name">{identity.sku_name}</span>
+          </button>
+
+          <div className="scenario-strip-actions">
+            <button
+              type="button"
+              className="scenario-strip-icon-btn"
+              onClick={() => {
+                setDetailsOpen(false);
+                setSelectorOpen(true);
+              }}
+              title="Change decision"
+              aria-label="Change decision"
+            >
+              <ArrowLeftRight size={12} strokeWidth={1.85} />
+            </button>
+
+            <button
+              type="button"
+              className="scenario-strip-icon-btn"
+              onClick={handleRestart}
+              disabled={restartPhase === 'working'}
+              title={
+                restartPhase === 'done'
+                  ? 'Reset complete'
+                  : `Restart scenario (${identity.scenario_name})`
+              }
+              aria-label="Restart scenario"
+            >
+              {restartPhase === 'working' && <Loader2 size={12} className="spin" />}
+              {restartPhase === 'done' && <Check size={12} color="var(--success, #16A34A)" />}
+              {restartPhase === 'idle' && <RotateCcw size={12} strokeWidth={1.85} />}
+            </button>
           </div>
-          <span
-            style={{
-              fontSize: '0.5625rem',
-              fontWeight: 600,
-              color: 'var(--success, #16A34A)',
-              letterSpacing: '0.04em',
-              textTransform: 'uppercase'
-            }}
-          >
-            Active Case
-          </span>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-          <Package size={12} strokeWidth={1.75} color="var(--g10x-orange)" style={{ flexShrink: 0 }} />
-          <span
-            style={{
-              fontSize: '0.75rem',
-              fontWeight: 600,
-              color: 'var(--text-primary)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap'
+        {compactSummary && (
+          <div
+            className="scenario-context-meta"
+            onClick={() => {
+              setDetailsOpen(false);
+              onOpenStudio?.();
             }}
-            title={identity.sku_name}
           >
-            {identity.sku_name}
-          </span>
-        </div>
-
-        <div style={{ fontSize: '0.6875rem', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-          {identity.category} · {identity.market_scope_label} · {calendar.forecast_horizon_days} days
-        </div>
+            {compactSummary}
+          </div>
+        )}
 
         <div
-          style={{
-            fontSize: '0.6875rem',
-            color: 'var(--text-muted)',
-            lineHeight: 1.45,
-            marginBottom: 8
-          }}
+          id="active-decision-details-popover"
+          role="tooltip"
+          className={`scenario-decision-popover${detailsOpen ? ' is-open' : ''}`}
         >
-          {identity.focus_region} in focus · {supply.supplier_name}
-        </div>
-
-        {/* Executive Action Controls: Change Scenario & Quick Restart */}
-        <div style={{ display: 'flex', gap: 6, marginTop: 4 }}>
-          <button
-            type="button"
-            onClick={() => setSelectorOpen(true)}
-            title="Choose another certified scenario from the laboratory catalogue"
-            aria-label="Change scenario"
-            style={{
-              flex: 1,
-              padding: '4px 8px',
-              fontSize: '0.6875rem',
-              fontWeight: 600,
-              borderRadius: 4,
-              border: '1px solid var(--border)',
-              background: '#FFFFFF',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 5,
-              lineHeight: 1.3
-            }}
-          >
-            <ArrowLeftRight size={11} color="var(--g10x-orange)" strokeWidth={2} />
-            <span>Change</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleRestart}
-            disabled={restartPhase === 'working'}
-            title={`Restart ${identity.scenario_name} to its opening position`}
-            aria-label="Restart active scenario"
-            style={{
-              padding: '4px 8px',
-              fontSize: '0.6875rem',
-              fontWeight: 500,
-              borderRadius: 4,
-              border: '1px solid var(--border)',
-              background: '#FFFFFF',
-              color: restartPhase === 'done' ? 'var(--success)' : 'var(--text-muted)',
-              cursor: restartPhase === 'working' ? 'progress' : 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 4,
-              lineHeight: 1.3
-            }}
-          >
-            {restartPhase === 'working' && <Loader2 size={11} className="spin" />}
-            {restartPhase === 'done' && <Check size={11} />}
-            {restartPhase === 'idle' && <RotateCcw size={11} />}
-            <span>{restartPhase === 'done' ? 'Reset' : 'Restart'}</span>
-          </button>
+          <div className="scenario-decision-popover-title">Active decision context</div>
+          <dl className="scenario-decision-popover-list">
+            {detailFields.map(field => (
+              <div key={field.label} className="scenario-decision-popover-row">
+                <dt>{field.label}</dt>
+                <dd>{field.value}</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="scenario-decision-popover-hint">
+            Select to open Dynamic Scenario Studio
+          </div>
         </div>
       </div>
 
@@ -208,9 +214,17 @@ export default function ScenarioContextStrip() {
         onClose={() => setSelectorOpen(false)}
         activeScenarioId={identity.scenario_id}
         onScenarioActivated={handleScenarioActivated}
-        onCreateScenario={() => { setSelectorOpen(false); setAuthoringOpen(true); }}
+        onCreateScenario={() => {
+          setSelectorOpen(false);
+          if (active) {
+            onOpenStudio?.();
+          } else {
+            setAuthoringOpen(true);
+          }
+        }}
       />
       <ScenarioAuthoringStudio isOpen={authoringOpen} onClose={() => setAuthoringOpen(false)} />
     </>
   );
 }
+

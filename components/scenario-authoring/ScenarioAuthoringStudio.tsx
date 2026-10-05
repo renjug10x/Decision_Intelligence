@@ -97,7 +97,17 @@ const CERTIFICATION_REFUSAL =
 
 type FormValue = string | string[] | number | undefined;
 
-export default function ScenarioAuthoringStudio({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
+export default function ScenarioAuthoringStudio({
+  isOpen = true,
+  onClose = () => {},
+  mode = 'modal',
+  onScenarioConfirmed
+}: {
+  isOpen?: boolean;
+  onClose?: () => void;
+  mode?: 'modal' | 'inline';
+  onScenarioConfirmed?: (confirmed: ConfirmedScenario) => void;
+}) {
   const { refreshState } = useDecisionState();
   const { money } = useCurrency();
 
@@ -129,6 +139,13 @@ export default function ScenarioAuthoringStudio({ isOpen, onClose }: { isOpen: b
     setConfirmed(null); setDecision(null); setProblem(null); setNotice(null);
   }, []);
 
+  const handleDismiss = useCallback(() => {
+    if (mode === 'inline') {
+      reset();
+    }
+    onClose();
+  }, [mode, onClose, reset]);
+
   useEffect(() => {
     if (!isOpen) return;
     reset();
@@ -138,11 +155,11 @@ export default function ScenarioAuthoringStudio({ isOpen, onClose }: { isOpen: b
   }, [isOpen, reset]);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || mode === 'inline') return;
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape' && !busy) onClose(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [isOpen, busy, onClose]);
+  }, [isOpen, mode, busy, onClose]);
 
   const fields = useMemo(() => (options?.fields ?? []).filter(f => !NOT_OFFERED.has(f.id)), [options]);
   const fieldLabel = useCallback(
@@ -275,6 +292,7 @@ export default function ScenarioAuthoringStudio({ isOpen, onClose }: { isOpen: b
     const result = await confirmScenarioDraft(assessment.draft.draft_id, confirmedBy.trim(), assessment.draft.content_hash);
     setConfirmed(result);
     setStage('confirmed');
+    onScenarioConfirmed?.(result);
   });
 
   // ── Run: the same selection path a curated scenario takes ───────────────────
@@ -294,12 +312,11 @@ export default function ScenarioAuthoringStudio({ isOpen, onClose }: { isOpen: b
 
   const stageIndex = STEPS.findIndex(s => s.stage === stage);
 
-  const body = (
-    <div className="sci08-overlay" role="presentation" onClick={() => { if (!busy) onClose(); }}>
+  const panelContent = (
       <div
-        className="sci08-panel"
-        role="dialog"
-        aria-modal="true"
+        className={`sci08-panel${mode === 'inline' ? ' is-inline' : ''}`}
+        role={mode === 'inline' ? 'region' : 'dialog'}
+        aria-modal={mode === 'inline' ? undefined : 'true'}
         aria-labelledby="sci08-title"
         onClick={e => e.stopPropagation()}
       >
@@ -308,9 +325,15 @@ export default function ScenarioAuthoringStudio({ isOpen, onClose }: { isOpen: b
             <div className="sci08-eyebrow">CogniX Scenario Laboratory</div>
             <h2 id="sci08-title" className="sci08-title">Create your own scenario</h2>
           </div>
-          <button type="button" className="sci08-icon-button" aria-label="Close" onClick={onClose} disabled={!!busy}>
-            <X size={16} />
-          </button>
+          {mode === 'modal' ? (
+            <button type="button" className="sci08-icon-button" aria-label="Close" onClick={handleDismiss} disabled={!!busy}>
+              <X size={16} />
+            </button>
+          ) : stage !== 'create' ? (
+            <button type="button" className="sci08-button is-secondary" onClick={handleDismiss} disabled={!!busy}>
+              Start another scenario
+            </button>
+          ) : null}
         </header>
 
         <ol className="sci08-steps" aria-label="Progress">
@@ -589,7 +612,7 @@ export default function ScenarioAuthoringStudio({ isOpen, onClose }: { isOpen: b
                 <em> Change scenario</em>.
               </p>
               <div className="sci08-actions">
-                <button type="button" className="sci08-button is-secondary" disabled={!!busy} onClick={onClose}>Keep the current scenario</button>
+                <button type="button" className="sci08-button is-secondary" disabled={!!busy} onClick={handleDismiss}>Keep the current scenario</button>
                 <button type="button" className="sci08-button" disabled={!!busy} onClick={() => void runScenario()}>
                   {busy === 'run' ? <Loader2 size={13} className="spin" /> : <Play size={13} />} Run this scenario
                 </button>
@@ -623,12 +646,21 @@ export default function ScenarioAuthoringStudio({ isOpen, onClose }: { isOpen: b
                 Architecture view now show this scenario.
               </p>
               <div className="sci08-actions">
-                <button type="button" className="sci08-button" onClick={onClose}>Done</button>
+                <button type="button" className="sci08-button" onClick={handleDismiss}>Done</button>
               </div>
             </section>
           )}
         </div>
       </div>
+  );
+
+  if (mode === 'inline') {
+    return panelContent;
+  }
+
+  const body = (
+    <div className="sci08-overlay" role="presentation" onClick={() => { if (!busy) handleDismiss(); }}>
+      {panelContent}
     </div>
   );
 

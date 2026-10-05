@@ -1,13 +1,12 @@
 'use client';
 import {
   Compass, Layers, GitBranch, Database,
-  Tag, TrendingUp, Package, Box, Settings as SettingsIcon,
+  Tag, TrendingUp, Package, Boxes, FolderTree, Settings as SettingsIcon,
   LogOut, Briefcase, Store, Target
 } from 'lucide-react';
 import { useApp } from '@/lib/context';
 import { useAuth } from '@/context/AuthContext';
 import { CognixBrandLockup } from '@/components/CognixBrandLockup';
-import ScenarioControls from '@/components/ScenarioControls';
 import ScenarioContextStrip from '@/components/ScenarioContextStrip';
 
 import { trackJourneyEvent, resetSessionId } from '@/lib/journey-client';
@@ -56,35 +55,30 @@ export default function Sidebar({ currentPage, onNavigate, open = false, onDismi
       className={`sidebar${open ? ' open' : ''}`}
       style={{ background: '#F8FAFC', borderRight: '1px solid var(--border)' }}
     >
-      {/* Brand Header */}
-      <div className="sidebar-logo" style={{ padding: '18px 20px', borderBottom: '1px solid var(--border)' }}>
-        <CognixBrandLockup size="sm" centered={false} onClick={handleWordmarkClick} />
-      </div>
-
-      {/* Role Indicator */}
-      <div style={{ padding: '10px 16px', borderBottom: '1px solid var(--border)' }}>
-        <div style={{
-          background: '#FFFFFF',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius-sm)',
-          padding: '6px 10px',
-          fontSize: '0.75rem',
-          fontWeight: 500,
-          color: 'var(--text-secondary)',
+      {/* Brand Header & Quiet Persona Context */}
+      <div
+        className="sidebar-logo"
+        style={{
+          padding: '16px 18px 12px',
+          borderBottom: '1px solid var(--border)',
           display: 'flex',
-          alignItems: 'center',
-          gap: 6,
-        }}>
-          <roleMeta.Icon size={13} strokeWidth={1.75} color="var(--g10x-orange)" />
-          {roleMeta.label}
+          flexDirection: 'column',
+          alignItems: 'flex-start',
+          gap: 8
+        }}
+      >
+        <CognixBrandLockup size="sm" centered={false} onClick={handleWordmarkClick} />
+        <div
+          className="sidebar-persona-context"
+          aria-label={`Active workspace persona: ${roleMeta.label}`}
+        >
+          <roleMeta.Icon size={11} strokeWidth={1.75} color="var(--text-muted)" />
+          <span>{roleMeta.label}</span>
         </div>
       </div>
 
-      <ScenarioContextStrip />
-
       {/* Navigation Groups */}
-      <nav className="sidebar-nav" style={{ padding: '14px 10px' }}>
-        
+      <nav className="sidebar-nav" style={{ padding: '10px 10px' }}>
         {/*
           ATL-04R: the "Explore" grouping is gone, and with it the Portfolio and Questions entries.
           Three sidebar destinations over one governed estate made them read as three products; they
@@ -101,8 +95,14 @@ export default function Sidebar({ currentPage, onNavigate, open = false, onDismi
           <span>Capability Atlas</span>
         </button>
 
+        {/* Active Decision Context — immediately below Capability Atlas */}
+        <ScenarioContextStrip
+          active={currentPage === 'scenario-studio'}
+          onOpenStudio={() => go('scenario-studio')}
+        />
+
         {/* Experiments Section */}
-        <div className="nav-section-label" style={{ color: 'var(--text-muted)', fontSize: '0.625rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '14px 8px 6px' }}>
+        <div className="nav-section-label" style={{ color: 'var(--text-muted)', fontSize: '0.625rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '12px 8px 5px' }}>
           Experiments
         </div>
 
@@ -156,7 +156,7 @@ export default function Sidebar({ currentPage, onNavigate, open = false, onDismi
         </button>
 
         {/* Solutions Section */}
-        <div className="nav-section-label" style={{ color: 'var(--text-muted)', fontSize: '0.625rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '14px 8px 6px' }}>
+        <div className="nav-section-label" style={{ color: 'var(--text-muted)', fontSize: '0.625rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', padding: '12px 8px 5px' }}>
           Solutions
         </div>
 
@@ -191,7 +191,7 @@ export default function Sidebar({ currentPage, onNavigate, open = false, onDismi
           onClick={() => go('solution-inventory')}
           style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
         >
-          <Box size={14} color={currentPage === 'solution-inventory' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
+          <Boxes size={14} color={currentPage === 'solution-inventory' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
           <span>Inventory</span>
         </button>
 
@@ -200,38 +200,29 @@ export default function Sidebar({ currentPage, onNavigate, open = false, onDismi
           onClick={() => go('solution-category')}
           style={{ cursor: 'pointer', margin: '2px 0', fontSize: '0.8125rem' }}
         >
-          <Package size={14} color={currentPage === 'solution-category' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
+          <FolderTree size={14} color={currentPage === 'solution-category' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
           <span>Category</span>
         </button>
 
       </nav>
 
-      {/* Footer: De-emphasized Admin & Exit Demo */}
-      <div className="sidebar-footer" style={{ padding: '12px 14px', borderTop: '1px solid var(--border)' }}>
+      {/* Footer: Single Observability & Governance destination + Exit Demo */}
+      <div className="sidebar-footer" style={{ padding: '10px 10px', borderTop: '1px solid var(--border)' }}>
         {/*
           ATL-04R: About is no longer a destination. What sat behind it was a five-tab module whose
           default tab was a retired storyboard; its live diagnostics moved into Observability &
           Governance and its identification role became a header control. What remains here is one
           entry, named for what it now contains.
         */}
-        <ScenarioControls />
-
-        <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
-          <button
-            onClick={() => go('architecture')}
-            title="CogniX Architecture"
-            style={{ flex: 1, padding: '6px 6px', fontSize: '0.75rem', borderRadius: 4, background: currentPage === 'architecture' ? 'var(--curiosity-light)' : '#FFFFFF', border: currentPage === 'architecture' ? '1px solid var(--g10x-orange)' : '1px solid var(--border)', color: currentPage === 'architecture' ? 'var(--g10x-orange)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
-          >
-            <Compass size={12} /> Architecture
-          </button>
-          <button
-            onClick={() => go('settings')}
-            title="Observability & Governance"
-            style={{ flex: 1, padding: '6px 6px', fontSize: '0.75rem', borderRadius: 4, background: currentPage === 'settings' ? 'var(--curiosity-light)' : '#FFFFFF', border: currentPage === 'settings' ? '1px solid var(--g10x-orange)' : '1px solid var(--border)', color: currentPage === 'settings' ? 'var(--g10x-orange)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4 }}
-          >
-            <SettingsIcon size={12} /> Observability &amp; Governance
-          </button>
-        </div>
+        <button
+          className={`nav-item ${currentPage === 'settings' ? 'active' : ''}`}
+          onClick={() => go('settings')}
+          title="Observability & Governance"
+          style={{ cursor: 'pointer', margin: '0 0 6px 0', fontSize: '0.8125rem', width: '100%' }}
+        >
+          <SettingsIcon size={14} color={currentPage === 'settings' ? 'var(--g10x-orange)' : 'var(--text-muted)'} />
+          <span>Observability &amp; Governance</span>
+        </button>
 
         <button
           className="btn btn-ghost btn-sm w-full"
