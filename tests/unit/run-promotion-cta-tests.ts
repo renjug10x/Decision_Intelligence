@@ -398,7 +398,260 @@ async function runTests() {
     );
   }
 
-  console.log('\n====================================================');
+  console.log('\n=== E. Accept applies the candidate; inverse elasticity is executable ===');
+  {
+    const {
+      applyAcceptedIntervention,
+      resolvePlannerRegion,
+      elasticitySensitivityProposal,
+      inspectDecisionGraphNode,
+      validityStateToTwinLabel,
+      frontierPlayRegion,
+      highestYieldOpportunityRegion,
+      configFromCampaignIntent,
+      durationFromInclusiveWindow
+    } = await import('../../lib/campaign-candidate-intervention');
+    const chilled = CAMPAIGN_ARCHETYPES.find(a => a.id === 'ARCH-CHILLED-ELASTIC')!;
+    const regions = ['National', 'North West', 'Midlands', 'Yorkshire', 'London'];
+
+    const applied = applyAcceptedIntervention({
+      current: { discount_pct: 20, region: 'National', duration_days: 14 },
+      committed: null,
+      candidate: {
+        title: 'Exploit Regional Opportunity (North West)',
+        type: 'EXPLOIT',
+        description: 'Scoped regional candidate',
+        proposed_discount: 14,
+        proposed_scope: 5,
+        proposed_duration: 9,
+        proposed_region: 'North West',
+        expected_demand: 30,
+        expected_contribution: 1000
+      },
+      availableRegions: regions
+    });
+    assert(applied.next.discount_pct === 14, 'E-01: Accept writes the candidate discount');
+    assert(applied.next.region === 'North West', 'E-02: Accept writes the candidate region');
+    assert(applied.next.duration_days === 9, 'E-03: Accept writes the candidate duration');
+    assert(
+      applied.committed.discount_pct === 20 && applied.committed.region === 'National',
+      'E-04: first Accept snapshots the committed plan'
+    );
+
+    const second = applyAcceptedIntervention({
+      current: applied.next,
+      committed: applied.committed,
+      candidate: {
+        title: 'CogniX Recommended',
+        type: 'ADOPT_FRONTIER_PLAY',
+        description: 'Curve alternative',
+        proposed_discount: 14,
+        proposed_scope: 50,
+        proposed_duration: 14,
+        proposed_region: 'National',
+        expected_demand: 20,
+        expected_contribution: 2000
+      },
+      availableRegions: regions
+    });
+    assert(
+      second.committed.discount_pct === 20,
+      'E-05: a later Accept does not overwrite the original committed plan'
+    );
+
+    assert(
+      resolvePlannerRegion('North West & Midlands', regions, 'National') === 'North West',
+      'E-06: compound regions resolve to a planner option'
+    );
+    assert(
+      resolvePlannerRegion('Targeted Cohort', regions, 'National') === 'National',
+      'E-07: unknown region labels fall back rather than inventing a control value'
+    );
+
+    const sensitivity = elasticitySensitivityProposal(chilled, chilled.default_discount_pct);
+    assert(
+      typeof sensitivity.discount_pct === 'number' && sensitivity.discount_pct > 0,
+      'E-08: elasticity sensitivity names a curve depth rather than the default no-op'
+    );
+    assert(
+      sensitivity.notes.length > 0,
+      'E-09: elasticity sensitivity explains recommended vs flip'
+    );
+
+    const demandNode = chilled.decision_graph.nodes.find(n => n.category === 'DEMAND')!;
+    const demandPanel = inspectDecisionGraphNode({ archetype: chilled, node: demandNode });
+    assert(
+      demandPanel.facts.length >= 3 && demandPanel.facts.some(f => f.label === 'North West'),
+      'E-10: DEMAND inspector joins the opportunity matrix, not invented series'
+    );
+    const decisionNode = chilled.decision_graph.nodes.find(n => n.category === 'DECISION')!;
+    const decisionPanel = inspectDecisionGraphNode({ archetype: chilled, node: decisionNode });
+    assert(
+      /not CDI-06/i.test(decisionPanel.source + (decisionPanel.caveat || '')),
+      'E-11: DECISION inspector names curve alternatives rather than CDI-06 Pareto'
+    );
+
+    assert(validityStateToTwinLabel('STABLE') === 'STILL VALID', 'E-12: STABLE maps to still valid');
+    assert(
+      validityStateToTwinLabel('REASSESS_REQUIRED') === 'CONDITION BREACHED',
+      'E-13: REASSESS_REQUIRED maps to a breached condition'
+    );
+
+    const targeted = chilled.frontier_plays.find(p => p.id === 'play_targeted')!;
+    assert(
+      regions.includes(frontierPlayRegion(chilled, targeted)),
+      'E-14: targeted frontier plays resolve to a real planner region'
+    );
+    assert(
+      highestYieldOpportunityRegion(chilled) === 'North West',
+      'E-15: highest-yield opportunity region is North West on the canonical archetype'
+    );
+
+    assert(durationFromInclusiveWindow('2026-09-01', '2026-09-14') === 14, 'E-16: inclusive window is 14 days');
+    const restored = configFromCampaignIntent(
+      {
+        campaign_intent: { provisional_discount_depth: 14 },
+        audience_market: {
+          region: 'North West',
+          planned_start: '2026-09-01',
+          planned_end: '2026-09-09'
+        }
+      },
+      { discount_pct: 20, region: 'National', duration_days: 14 }
+    );
+    assert(
+      restored.discount_pct === 14 && restored.region === 'North West' && restored.duration_days === 9,
+      'E-17: hydration reconstructs planner config from the registered intent'
+    );
+
+    const inverseSource = readFileSync(
+      join(ROOT, 'components', 'campaign', 'InverseAnalysisLens.tsx'),
+      'utf8'
+    );
+    assert(
+      /target_parameter === 'DEMAND_UPLIFT'/.test(inverseSource) &&
+        /elasticitySensitivityProposal/.test(inverseSource),
+      'E-18: Test Elasticity Sensitivity uses the scenario curve'
+    );
+    assert(
+      /applyAcceptedIntervention/.test(plannerSource) &&
+        /setDiscountDepth\(applied\.next\.discount_pct\)/.test(plannerSource),
+      'E-19: Accept writes candidate depth/region/duration into planner state'
+    );
+    assert(
+      !/Interventions generate an execution brief/.test(plannerSource),
+      'E-20: the empty Accept handler is gone'
+    );
+    assert(
+      /REGISTER_DECISION_CONTRACT/.test(plannerSource) &&
+        /assessDecisionValidityClient/.test(plannerSource) &&
+        /hydrateActiveContract/.test(plannerSource),
+      'E-21: activation binds WP10-C, assesses validity, and hydrates on load'
+    );
+    assert(
+      /comparison_basis: 'SCENARIO_ELASTICITY_CURVE'/.test(
+        readFileSync(join(ROOT, 'components', 'campaign', 'DecisionFrontierLens.tsx'), 'utf8')
+      ),
+      'E-22: frontier adoption is labelled as a curve alternative'
+    );
+    assert(
+      /inspectDecisionGraphNode/.test(
+        readFileSync(join(ROOT, 'components', 'campaign', 'DecisionGraphLens.tsx'), 'utf8')
+      ),
+      'E-23: the graph inspector joins existing artefacts'
+    );
+    const twinSrc = twinSource;
+    assert(
+      /validityAssessment \? 'CDI-07A DECISION VALIDITY'/.test(twinSrc) &&
+        /Governed in-flight correction is planned on the outlook/.test(twinSrc),
+      'E-24: in-flight prefers CDI-07A validity and CTW-02 moments over the twin apply stub'
+    );
+
+    const {
+      canHydrateContractForScenario,
+      describeInverseConditionDecision
+    } = await import('../../lib/campaign-candidate-intervention');
+
+    assert(
+      canHydrateContractForScenario({
+        contract: { status: 'ACTIVE', contract_id: 'DC-1' },
+        intent: { decision_context: { scenario_id: 'SCN-REF-FRESH-DAIRY-001' } },
+        activeScenarioId: 'SCN-REF-FRESH-DAIRY-001'
+      }) === true,
+      'E-25: canHydrateContractForScenario allows ACTIVE contract matching activeScenarioId'
+    );
+    assert(
+      canHydrateContractForScenario({
+        contract: { status: 'ACTIVE', contract_id: 'DC-1' },
+        intent: { decision_context: { scenario_id: 'SCN-REF-FRESH-DAIRY-001' } },
+        activeScenarioId: 'SCN-CHILLED-SALMON-002'
+      }) === false,
+      'E-26: canHydrateContractForScenario blocks ACTIVE contract from a different scenario'
+    );
+    assert(
+      canHydrateContractForScenario({
+        contract: { status: 'SUPERSEDED', contract_id: 'DC-1' },
+        intent: { decision_context: { scenario_id: 'SCN-REF-FRESH-DAIRY-001' } },
+        activeScenarioId: 'SCN-REF-FRESH-DAIRY-001'
+      }) === false,
+      'E-27: canHydrateContractForScenario blocks non-ACTIVE contract'
+    );
+
+    for (const cond of chilled.inverse_conditions) {
+      const desc = describeInverseConditionDecision({
+        archetype: chilled,
+        condition: cond,
+        currentDiscountPct: chilled.default_discount_pct,
+        currentRegion: chilled.default_region,
+        currentDurationDays: chilled.default_duration_days
+      });
+      assert(
+        desc.decision_question.length > 10 &&
+          desc.current_assumption.length > 3 &&
+          desc.tested_condition.length > 3 &&
+          desc.recommendation_implication.length > 10,
+        `E-28 (${cond.target_parameter}): describeInverseConditionDecision returns structured decision fields`
+      );
+    }
+
+    const expectedVisualByCategory: Record<string, string> = {
+      SIGNAL: 'SIGNAL_COMPARISON',
+      EVIDENCE: 'ELASTICITY_CURVE',
+      HYPOTHESIS: 'HYPOTHESIS_TEST',
+      DEMAND: 'OPPORTUNITY_RANKING',
+      ECONOMICS: 'ECONOMICS_WATERFALL',
+      DECISION: 'FRONTIER_COMPARISON',
+      INTERVENTION: 'INTERVENTION_COMPARISON'
+    };
+    for (const node of chilled.decision_graph.nodes) {
+      const inspected = inspectDecisionGraphNode({
+        archetype: chilled,
+        node,
+        liveContributionGbp: 2940,
+        liveDemandUpliftPct: 24.5
+      });
+      assert(
+        inspected.visual.kind === expectedVisualByCategory[node.category] &&
+          inspected.what_this_tells_us.length > 10 &&
+          inspected.why_it_matters.length > 10 &&
+          inspected.threshold_comparison.length > 5 &&
+          ['SEEDED WORLD MODEL', 'DERIVED FROM SCENARIO CURVE', 'LIVE CDI ASSESSMENT'].includes(
+            inspected.provenance_badge
+          ),
+        `E-29 (${node.category}): inspectDecisionGraphNode returns semantic visual ${expectedVisualByCategory[node.category]} and structured intelligence fields`
+      );
+    }
+
+    assert(
+      /canHydrateContractForScenario/.test(plannerSource) &&
+        /decision-state-strip/.test(plannerSource) &&
+        /state-committed-configuration/.test(plannerSource) &&
+        /state-candidate-intervention/.test(plannerSource) &&
+        /state-accepted-configuration/.test(plannerSource) &&
+        /state-activated-decision/.test(plannerSource),
+      'E-30: PromotionPlanner enforces scenario hydration isolation and renders 4-state decision strip'
+    );
+  }
   console.log(`PROMOTION CTA RESULTS: ${passCount} passed, ${failCount} failed`);
   console.log('====================================================');
   if (failCount > 0) process.exit(1);
