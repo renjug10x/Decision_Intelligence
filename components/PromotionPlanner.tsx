@@ -53,14 +53,20 @@ import {
 } from '@/lib/campaign-intent-client';
 import {
   ActiveIntervention,
+  CompetitiveInterventionContext,
   PlannerCampaignConfig,
   PLANNER_DURATION_OPTIONS,
   applyAcceptedIntervention,
   canHydrateContractForScenario,
   configFromCampaignIntent,
+  extractCompetitiveContextFromIntent,
   plannerConfigurationSignature,
   resolvePlannerRegion
 } from '@/lib/campaign-candidate-intervention';
+import {
+  CompetitiveResponseOptionType,
+  CompetitiveWhatIfIntelligenceResult
+} from '@/lib/competitive-price-response';
 import {
   DecisionContract,
   DecisionContractReference,
@@ -192,8 +198,17 @@ export default function PromotionPlanner({
   const [proposedIntervention, setProposedIntervention] = useState<ActiveIntervention | null>(null);
   const [acceptedIntervention, setAcceptedIntervention] = useState<ActiveIntervention | null>(null);
   const [committedConfiguration, setCommittedConfiguration] = useState<PlannerCampaignConfig | null>(null);
+  const [hydratedCompetitiveContext, setHydratedCompetitiveContext] =
+    useState<CompetitiveInterventionContext | null>(null);
+  const [activeCompetitiveWhatIf, setActiveCompetitiveWhatIf] =
+    useState<CompetitiveWhatIfIntelligenceResult | null>(null);
+  const [selectedCompetitiveOptionType, setSelectedCompetitiveOptionType] =
+    useState<CompetitiveResponseOptionType | null>(null);
   const [validityAssessment, setValidityAssessment] = useState<DecisionValidityAssessment | null>(null);
   const [isTraceModalOpen, setIsTraceModalOpen] = useState<boolean>(false);
+
+  const activeCompetitiveContext =
+    acceptedIntervention?.provenance?.competitive_context ?? hydratedCompetitiveContext ?? null;
 
   // Live Governed-Engine Evaluation State (CDI-02/03/04/06)
   const [isSimulating, setIsSimulating] = useState<boolean>(false);
@@ -309,6 +324,9 @@ export default function PromotionPlanner({
     setProposedIntervention(null);
     setAcceptedIntervention(null);
     setCommittedConfiguration(null);
+    setHydratedCompetitiveContext(null);
+    setActiveCompetitiveWhatIf(null);
+    setSelectedCompetitiveOptionType(null);
     setDecisionContract(null);
     setActivatedSignature(null);
     setFlight(null);
@@ -356,12 +374,17 @@ export default function PromotionPlanner({
       const nextMechanic = intent?.campaign_intent?.provisional_mechanic
         ? String(intent.campaign_intent.provisional_mechanic)
         : scenarioProjection.default_mechanic;
+      const extractedCompetitive = extractCompetitiveContextFromIntent(intent);
 
       setSkuId(sku);
       setMechanic(nextMechanic);
       setDiscountDepth(restored.discount_pct);
       setTargetRegion(region);
       setDurationDays(restored.duration_days);
+      setHydratedCompetitiveContext(extractedCompetitive?.context ?? null);
+      if (extractedCompetitive?.context) {
+        setSelectedCompetitiveOptionType(extractedCompetitive.context.selected_response_type);
+      }
       setDecisionContract(existing);
       setActivatedSignature(
         plannerConfigurationSignature({
@@ -408,6 +431,9 @@ export default function PromotionPlanner({
     setProposedIntervention(null);
     setAcceptedIntervention(null);
     setCommittedConfiguration(null);
+    setHydratedCompetitiveContext(null);
+    setActiveCompetitiveWhatIf(null);
+    setSelectedCompetitiveOptionType(null);
   };
 
   /**
@@ -428,7 +454,8 @@ export default function PromotionPlanner({
         target_region: targetRegion,
         duration_days: durationDays,
         tenant_id: CAMPAIGN_DEMO_TENANT_ID,
-        session_id: CAMPAIGN_DEMO_SESSION_ID
+        session_id: CAMPAIGN_DEMO_SESSION_ID,
+        competitive_context: activeCompetitiveContext ?? undefined
       });
 
       const registered = await registerCampaignIntentClient(intent as any);
@@ -667,6 +694,9 @@ export default function PromotionPlanner({
     setProposedIntervention(null);
     setAcceptedIntervention(null);
     setCommittedConfiguration(null);
+    setHydratedCompetitiveContext(null);
+    setActiveCompetitiveWhatIf(null);
+    setSelectedCompetitiveOptionType(null);
     setValidityAssessment(null);
     setActiveMode('PLANNING');
     const listed = await listCampaignExperimentsClient({
@@ -903,7 +933,8 @@ export default function PromotionPlanner({
         target_region: targetRegion,
         duration_days: durationDays,
         tenant_id: CAMPAIGN_DEMO_TENANT_ID,
-        session_id: CAMPAIGN_DEMO_SESSION_ID
+        session_id: CAMPAIGN_DEMO_SESSION_ID,
+        competitive_context: activeCompetitiveContext ?? undefined
       });
       const requestIdentity = {
         tenant_id: CAMPAIGN_DEMO_TENANT_ID,
@@ -963,7 +994,7 @@ export default function PromotionPlanner({
     return () => {
       isCancelled = true;
     };
-  }, [archetype, skuId, mechanic, discountDepth, targetRegion, durationDays]);
+  }, [archetype, skuId, mechanic, discountDepth, targetRegion, durationDays, activeCompetitiveContext]);
 
   const handleProposeIntervention = (action: ActiveIntervention) => {
     setCommittedConfiguration(prev =>
@@ -974,6 +1005,9 @@ export default function PromotionPlanner({
       }
     );
     setProposedIntervention(action);
+    if (action.provenance?.competitive_context) {
+      setSelectedCompetitiveOptionType(action.provenance.competitive_context.selected_response_type);
+    }
   };
 
   const handleAcceptIntervention = (intervention: ActiveIntervention) => {
@@ -989,6 +1023,12 @@ export default function PromotionPlanner({
     });
     setCommittedConfiguration(applied.committed);
     setAcceptedIntervention(intervention);
+    setHydratedCompetitiveContext(intervention.provenance?.competitive_context ?? null);
+    if (intervention.provenance?.competitive_context) {
+      setSelectedCompetitiveOptionType(
+        intervention.provenance.competitive_context.selected_response_type
+      );
+    }
     setDiscountDepth(applied.next.discount_pct);
     setTargetRegion(applied.next.region);
     setDurationDays(applied.next.duration_days);
@@ -1263,9 +1303,9 @@ export default function PromotionPlanner({
                 </div>
                 <input
                   type="range"
-                  min={5}
+                  min={0}
                   max={40}
-                  step={1}
+                  step={Number.isInteger(discountDepth) ? 1 : 0.01}
                   value={discountDepth}
                   onChange={e => setDiscountDepth(Number(e.target.value))}
                   style={{ width: '100%', accentColor: '#2563EB' }}
@@ -1370,7 +1410,9 @@ export default function PromotionPlanner({
                       background: '#F8FAFC',
                       border: '1px solid #E2E8F0',
                       borderRadius: 6,
-                      padding: '8px 10px'
+                      padding: '8px 10px',
+                      minWidth: 0,
+                      overflowWrap: 'anywhere'
                     }}
                   >
                     <div style={{ fontSize: '0.64rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
@@ -1391,7 +1433,9 @@ export default function PromotionPlanner({
                       background: isReviewingCandidate ? '#EFF6FF' : '#F8FAFC',
                       border: isReviewingCandidate ? '1.5px solid #2563EB' : '1px solid #E2E8F0',
                       borderRadius: 6,
-                      padding: '8px 10px'
+                      padding: '8px 10px',
+                      minWidth: 0,
+                      overflowWrap: 'anywhere'
                     }}
                   >
                     <div style={{ fontSize: '0.64rem', fontWeight: 700, color: isReviewingCandidate ? '#1E40AF' : '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
@@ -1416,7 +1460,9 @@ export default function PromotionPlanner({
                       background: acceptedIntervention ? '#ECFDF5' : '#F8FAFC',
                       border: acceptedIntervention ? '1.5px solid #10B981' : '1px solid #E2E8F0',
                       borderRadius: 6,
-                      padding: '8px 10px'
+                      padding: '8px 10px',
+                      minWidth: 0,
+                      overflowWrap: 'anywhere'
                     }}
                   >
                     <div style={{ fontSize: '0.64rem', fontWeight: 700, color: acceptedIntervention ? '#065F46' : '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
@@ -1439,7 +1485,10 @@ export default function PromotionPlanner({
                       background: flightReady ? '#0F172A' : staleActivation ? '#FFFBEB' : '#F8FAFC',
                       border: flightReady ? '1.5px solid #0F172A' : staleActivation ? '1px solid #FDE68A' : '1px solid #E2E8F0',
                       borderRadius: 6,
-                      padding: '8px 10px'
+                      padding: '8px 10px',
+                      minWidth: 0,
+                      overflowWrap: 'anywhere',
+                      wordBreak: 'break-word'
                     }}
                   >
                     <div style={{ fontSize: '0.64rem', fontWeight: 700, color: flightReady ? '#93C5FD' : staleActivation ? '#92400E' : '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
@@ -1452,7 +1501,7 @@ export default function PromotionPlanner({
                         ? 'Modified since activation'
                         : 'Awaiting Approve & Activate'}
                     </div>
-                    <div style={{ fontSize: '0.68rem', color: flightReady ? '#CBD5E1' : staleActivation ? '#B45309' : '#94A3B8', marginTop: 1 }}>
+                    <div style={{ fontSize: '0.68rem', color: flightReady ? '#CBD5E1' : staleActivation ? '#B45309' : '#94A3B8', marginTop: 1, overflowWrap: 'anywhere', wordBreak: 'break-all' }}>
                       {flightReady && decisionContract
                         ? `Contract ${decisionContract.contract_id}`
                         : 'Governed CDI-06 → CDI-07A'}
@@ -1495,6 +1544,7 @@ export default function PromotionPlanner({
               ownerCustom={ownerCustom}
               rationaleId={rationaleId}
               rationaleContext={rationaleContext}
+              competitiveContext={activeCompetitiveContext}
               onSelectPlay={setSelectedPlayId}
               onOwnerRoleChange={setOwnerRoleId}
               onOwnerCustomChange={setOwnerCustom}
@@ -1596,6 +1646,12 @@ export default function PromotionPlanner({
                 currentDurationDays={durationDays}
                 onProposeIntervention={handleProposeIntervention}
                 onOpenDemandLens={() => setActiveLens('DEMAND')}
+                initialCompetitiveWhatIf={activeCompetitiveWhatIf}
+                initialSelectedOptionType={selectedCompetitiveOptionType}
+                onCompetitiveWhatIfChange={(whatIf, selectedType) => {
+                  setActiveCompetitiveWhatIf(whatIf);
+                  setSelectedCompetitiveOptionType(selectedType);
+                }}
               />
             )}
 
@@ -1615,6 +1671,8 @@ export default function PromotionPlanner({
                 currentRegion={targetRegion}
                 currentDurationDays={durationDays}
                 onProposeIntervention={handleProposeIntervention}
+                competitiveWhatIf={activeCompetitiveWhatIf}
+                selectedCompetitiveOptionType={selectedCompetitiveOptionType}
               />
             )}
           </div>

@@ -24,15 +24,20 @@ import {
   elasticitySensitivityProposal,
   highestYieldOpportunityRegion,
   describeInverseConditionDecision,
+  buildCompetitiveResponseCandidateIntervention,
   ActiveIntervention
 } from '@/lib/campaign-candidate-intervention';
 import type { CanonicalScenario } from '@/packages/contracts/src/canonical-scenario-model';
 import { inScopeStoreCount, scenarioInScope } from '@/packages/contracts/src/scenario-scope';
 import {
+  COMPETITIVE_PREFERRED_RESPONSE_BADGE,
   COMPETITIVE_USER_FACING_PROVENANCE_BADGE,
   COMPETITIVE_USER_FACING_PROVENANCE_LABEL,
   COMPETITIVE_USER_FACING_PROVENANCE_NOTE,
   type CompetitivePriceAssumption,
+  type CompetitiveResponseOption,
+  type CompetitiveResponseOptionType,
+  type CompetitiveWhatIfIntelligenceResult,
   createCompetitivePriceAssumption,
   evaluateCompetitiveWhatIfIntelligence,
   scenarioPromotedPriceAtDepthGbp
@@ -47,6 +52,12 @@ interface InverseAnalysisLensProps {
   currentDurationDays?: number;
   onProposeIntervention: (action: ActiveIntervention) => void;
   onOpenDemandLens?: () => void;
+  initialCompetitiveWhatIf?: CompetitiveWhatIfIntelligenceResult | null;
+  initialSelectedOptionType?: CompetitiveResponseOptionType | null;
+  onCompetitiveWhatIfChange?: (
+    whatIf: CompetitiveWhatIfIntelligenceResult | null,
+    selectedOptionType: CompetitiveResponseOptionType | null
+  ) => void;
 }
 
 export default function InverseAnalysisLens({
@@ -56,7 +67,10 @@ export default function InverseAnalysisLens({
   currentRegion,
   currentDurationDays,
   onProposeIntervention,
-  onOpenDemandLens
+  onOpenDemandLens,
+  initialCompetitiveWhatIf,
+  initialSelectedOptionType,
+  onCompetitiveWhatIfChange
 }: InverseAnalysisLensProps) {
   const { money, localise } = useCurrency();
   const [testedHypothesis, setTestedHypothesis] = useState<Record<string, boolean>>({});
@@ -67,27 +81,71 @@ export default function InverseAnalysisLens({
   const activeRegion = currentRegion ?? archetype.default_region;
   const activeDurationDays = currentDurationDays ?? archetype.default_duration_days;
 
-  // Competitive Price Response What-If progressive-disclosure state (ephemeral, never stages candidates)
+  const matchingInitialWhatIf =
+    initialCompetitiveWhatIf &&
+    initialCompetitiveWhatIf.scenario_id === resolvedScenario.identity.scenario_id
+      ? initialCompetitiveWhatIf
+      : null;
+
+  // Competitive Price Response What-If progressive-disclosure state
   const [isCompetitiveOpen, setIsCompetitiveOpen] = useState<boolean>(false);
   const [benchmarkPriceInput, setBenchmarkPriceInput] = useState<string>('');
   const [sensitivityGammaInput, setSensitivityGammaInput] = useState<string>('');
   const [evaluatedAssumption, setEvaluatedAssumption] =
     useState<CompetitivePriceAssumption | null>(null);
   const [competitiveValidationError, setCompetitiveValidationError] = useState<string | null>(null);
+  const [selectedCompetitiveOptionType, setSelectedCompetitiveOptionType] =
+    useState<CompetitiveResponseOptionType | null>(null);
+  const previousScenarioIdRef = React.useRef<string>(resolvedScenario.identity.scenario_id);
+
+  // Hydrate previously evaluated competitive assumption when switching back to this lens
+  useEffect(() => {
+    if (matchingInitialWhatIf && !evaluatedAssumption) {
+      setIsCompetitiveOpen(true);
+      setBenchmarkPriceInput(String(matchingInitialWhatIf.assumption.assumed_competitive_price_gbp));
+      setSensitivityGammaInput(
+        String(matchingInitialWhatIf.assumption.competitive_response_pp_per_disadvantage_point)
+      );
+      setEvaluatedAssumption(matchingInitialWhatIf.assumption);
+      setSelectedCompetitiveOptionType(initialSelectedOptionType ?? null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Reset ephemeral competitive assumptions on scenario identity switch
   useEffect(() => {
-    setIsCompetitiveOpen(false);
-    setBenchmarkPriceInput('');
-    setSensitivityGammaInput('');
-    setEvaluatedAssumption(null);
-    setCompetitiveValidationError(null);
+    if (previousScenarioIdRef.current !== resolvedScenario.identity.scenario_id) {
+      previousScenarioIdRef.current = resolvedScenario.identity.scenario_id;
+      setIsCompetitiveOpen(false);
+      setBenchmarkPriceInput('');
+      setSensitivityGammaInput('');
+      setEvaluatedAssumption(null);
+      setCompetitiveValidationError(null);
+      setSelectedCompetitiveOptionType(null);
+    }
   }, [resolvedScenario.identity.scenario_id]);
 
   const activePromotedPriceGbp = useMemo(
     () => scenarioPromotedPriceAtDepthGbp(resolvedScenario, activeDepthPct),
     [resolvedScenario, activeDepthPct]
   );
+
+  const governedTargetScope = useMemo(() => {
+    const nonNationalCells = [...archetype.opportunity_matrix]
+      .filter(c => c.region !== 'National')
+      .sort((a, b) => b.opportunity_index - a.opportunity_index);
+    if (nonNationalCells.length > 0) {
+      return nonNationalCells[0].region;
+    }
+    return resolvedScenario.identity.focus_region;
+  }, [archetype.opportunity_matrix, resolvedScenario.identity.focus_region]);
+
+  const governedSecondaryScope = useMemo(() => {
+    const nonNationalCells = [...archetype.opportunity_matrix]
+      .filter(c => c.region !== 'National' && c.region !== activeRegion)
+      .sort((a, b) => b.opportunity_index - a.opportunity_index);
+    return nonNationalCells[0]?.region;
+  }, [archetype.opportunity_matrix, activeRegion]);
 
   const competitiveIntelligence = useMemo(() => {
     if (!evaluatedAssumption) return null;
@@ -97,12 +155,28 @@ export default function InverseAnalysisLens({
         assumption: evaluatedAssumption,
         active_depth_pct: activeDepthPct,
         scope: activeRegion,
-        horizon_days: activeDurationDays
+        horizon_days: activeDurationDays,
+        target_scope: governedTargetScope,
+        secondary_scope: governedSecondaryScope
       });
     } catch {
       return null;
     }
-  }, [resolvedScenario, evaluatedAssumption, activeDepthPct, activeRegion, activeDurationDays]);
+  }, [
+    resolvedScenario,
+    evaluatedAssumption,
+    activeDepthPct,
+    activeRegion,
+    activeDurationDays,
+    governedTargetScope,
+    governedSecondaryScope
+  ]);
+
+  useEffect(() => {
+    if (onCompetitiveWhatIfChange) {
+      onCompetitiveWhatIfChange(competitiveIntelligence, selectedCompetitiveOptionType);
+    }
+  }, [competitiveIntelligence, selectedCompetitiveOptionType, onCompetitiveWhatIfChange]);
 
   const handleEvaluateCompetitiveWhatIf = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -133,8 +207,10 @@ export default function InverseAnalysisLens({
         competitive_response_pp_per_disadvantage_point: parsedGamma
       });
       setEvaluatedAssumption(assumption);
+      setSelectedCompetitiveOptionType(null);
     } catch (err: any) {
       setEvaluatedAssumption(null);
+      setSelectedCompetitiveOptionType(null);
       setCompetitiveValidationError(
         err?.message || 'Enter a valid positive competitive benchmark price and non-negative sensitivity.'
       );
@@ -146,6 +222,7 @@ export default function InverseAnalysisLens({
     setSensitivityGammaInput('');
     setEvaluatedAssumption(null);
     setCompetitiveValidationError(null);
+    setSelectedCompetitiveOptionType(null);
   };
 
   const handleModelCondition = (cond: InverseCondition) => {
@@ -229,6 +306,17 @@ export default function InverseAnalysisLens({
         notes
       }
     });
+  };
+
+  const handleSelectCompetitiveOption = (opt: CompetitiveResponseOption) => {
+    if (!competitiveIntelligence || !opt.available) return;
+    const candidate = buildCompetitiveResponseCandidateIntervention({
+      whatIfResult: competitiveIntelligence,
+      selectedOption: opt
+    });
+    setSelectedCompetitiveOptionType(opt.option_type);
+    setSelectedConditionId(null);
+    onProposeIntervention(candidate);
   };
 
   const handleTestHypothesis = (hypo: SignalHypothesis) => {
@@ -487,6 +575,7 @@ export default function InverseAnalysisLens({
                 {/* Minimum Missing Assumptions Form */}
                 <form
                   data-testid="competitive-assumptions-form"
+                  noValidate
                   onSubmit={handleEvaluateCompetitiveWhatIf}
                   style={{
                     background: '#FFFFFF',
@@ -609,7 +698,7 @@ export default function InverseAnalysisLens({
                         id="input-competitive-sensitivity-gamma"
                         data-testid="input-competitive-sensitivity-gamma"
                         type="number"
-                        step="0.1"
+                        step="0.01"
                         min="0"
                         value={sensitivityGammaInput}
                         onChange={e => setSensitivityGammaInput(e.target.value)}
@@ -1291,6 +1380,332 @@ export default function InverseAnalysisLens({
                         {competitiveIntelligence.boundary_sweep.max_disadvantage_pp >= 0 ? '+' : ''}
                         {competitiveIntelligence.boundary_sweep.max_disadvantage_pp.toFixed(1)}%] using a deterministic{' '}
                         {competitiveIntelligence.boundary_sweep.step_pp}pp list-price disadvantage search step (numerical search granularity, not a commercial threshold).
+                      </div>
+                    </div>
+
+                    {/* Step 3 → Response Options Comparison (HOLD, MATCH, TARGET, REDUCE EXPOSURE) */}
+                    <div
+                      data-testid="competitive-response-options-section"
+                      style={{
+                        background: '#FFFFFF',
+                        border: '1px solid #E2E8F0',
+                        borderRadius: 8,
+                        padding: '14px 16px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 12
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          flexWrap: 'wrap',
+                          gap: 8
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: '0.84rem', fontWeight: 700, color: '#0F172A' }}>
+                            Governed Promotional Response Options (HOLD · MATCH · TARGET · REDUCE EXPOSURE)
+                          </div>
+                          <div style={{ fontSize: '0.73rem', color: '#64748B', marginTop: 2 }}>
+                            Every option is evaluated on the single Slice 1–3 competitive-price domain path under the Maximum Net Contribution objective. Selecting an option stages a Candidate Intervention without mutating active planner controls until human Accept.
+                          </div>
+                        </div>
+                        <span
+                          style={{
+                            fontSize: '0.66rem',
+                            fontWeight: 700,
+                            color: '#1E293B',
+                            background: '#F1F5F9',
+                            border: '1px solid #CBD5E1',
+                            padding: '2px 8px',
+                            borderRadius: 4
+                          }}
+                        >
+                          OBJECTIVE: MAXIMUM NET CONTRIBUTION
+                        </span>
+                      </div>
+
+                      {/* CogniX Preferred Response Banner */}
+                      <div
+                        data-testid="competitive-preferred-response-banner"
+                        style={{
+                          background: '#ECFDF5',
+                          border: '1.5px solid #10B981',
+                          borderRadius: 8,
+                          padding: '10px 14px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: 4
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <span
+                            data-testid="competitive-preferred-response-badge"
+                            style={{
+                              fontSize: '0.66rem',
+                              fontWeight: 800,
+                              color: '#065F46',
+                              background: '#D1FAE5',
+                              border: '1px solid #6EE7B7',
+                              padding: '2px 8px',
+                              borderRadius: 4,
+                              letterSpacing: '0.03em'
+                            }}
+                          >
+                            {COMPETITIVE_PREFERRED_RESPONSE_BADGE}: {competitiveIntelligence.response_options.preferred_option.label}
+                          </span>
+                          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#065F46' }}>
+                            {competitiveIntelligence.response_options.preferred_option.depth_pct}% ·{' '}
+                            {competitiveIntelligence.response_options.preferred_option.scope} (
+                            {competitiveIntelligence.response_options.preferred_option.stores_count} stores) ·{' '}
+                            {competitiveIntelligence.response_options.preferred_option.duration_days}d ·{' '}
+                            {money(competitiveIntelligence.response_options.preferred_option.net_contribution_delta_gbp ?? 0, { signed: true })}
+                          </span>
+                        </div>
+                        <div
+                          data-testid="competitive-preferred-response-rationale"
+                          style={{ fontSize: '0.76rem', color: '#064E3B', lineHeight: 1.4, fontWeight: 500 }}
+                        >
+                          {localise(competitiveIntelligence.response_options.preferred_response_rationale)}
+                        </div>
+                      </div>
+
+                      {/* 4 Response Options Grid */}
+                      <div
+                        data-testid="competitive-response-options-grid"
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+                          gap: 12
+                        }}
+                      >
+                        {competitiveIntelligence.response_options.options.map(opt => {
+                          const isSelected = selectedCompetitiveOptionType === opt.option_type;
+                          return (
+                            <div
+                              key={opt.option_type}
+                              data-testid={`competitive-response-option-${opt.option_type.toLowerCase()}`}
+                              style={{
+                                background: !opt.available
+                                  ? '#F8FAFC'
+                                  : isSelected
+                                    ? '#EFF6FF'
+                                    : opt.is_preferred
+                                      ? '#F0FDF4'
+                                      : '#FFFFFF',
+                                border: !opt.available
+                                  ? '1px dashed #CBD5E1'
+                                  : isSelected
+                                    ? '2px solid #2563EB'
+                                    : opt.is_preferred
+                                      ? '1.5px solid #10B981'
+                                      : '1px solid #E2E8F0',
+                                borderRadius: 8,
+                                padding: '12px 14px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                justifyContent: 'space-between',
+                                gap: 10,
+                                minWidth: 0
+                              }}
+                            >
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                {/* Option Header & Badges */}
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, flexWrap: 'wrap' }}>
+                                  <span
+                                    style={{
+                                      fontSize: '0.68rem',
+                                      fontWeight: 800,
+                                      color: '#0F172A',
+                                      background: '#E2E8F0',
+                                      padding: '2px 7px',
+                                      borderRadius: 4
+                                    }}
+                                  >
+                                    {opt.label}
+                                  </span>
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
+                                    {opt.is_preferred && (
+                                      <span
+                                        data-testid={`competitive-option-preferred-badge-${opt.option_type.toLowerCase()}`}
+                                        style={{
+                                          fontSize: '0.62rem',
+                                          fontWeight: 800,
+                                          color: '#065F46',
+                                          background: '#D1FAE5',
+                                          border: '1px solid #6EE7B7',
+                                          padding: '2px 6px',
+                                          borderRadius: 4
+                                        }}
+                                      >
+                                        {COMPETITIVE_PREFERRED_RESPONSE_BADGE}
+                                      </span>
+                                    )}
+                                    {!opt.available && (
+                                      <span
+                                        data-testid={`competitive-option-unavailable-${opt.option_type.toLowerCase()}`}
+                                        style={{
+                                          fontSize: '0.62rem',
+                                          fontWeight: 800,
+                                          color: '#991B1B',
+                                          background: '#FEE2E2',
+                                          border: '1px solid #FECACA',
+                                          padding: '2px 6px',
+                                          borderRadius: 4
+                                        }}
+                                      >
+                                        UNAVAILABLE — OUT OF BOUNDS
+                                      </span>
+                                    )}
+                                  </div>
+                                </div>
+
+                                <div style={{ fontSize: '0.82rem', fontWeight: 700, color: '#0F172A' }}>
+                                  {opt.title}
+                                </div>
+
+                                {!opt.available ? (
+                                  <div
+                                    data-testid={`competitive-option-unavailable-reason-${opt.option_type.toLowerCase()}`}
+                                    style={{
+                                      background: '#FEF2F2',
+                                      border: '1px solid #FECACA',
+                                      borderRadius: 6,
+                                      padding: '8px 10px',
+                                      fontSize: '0.73rem',
+                                      color: '#991B1B',
+                                      lineHeight: 1.4
+                                    }}
+                                  >
+                                    {localise(opt.unavailable_reason || '')}
+                                  </div>
+                                  ) : (
+                                  <div style={{ display: 'flex', flexDirection: 'column', gap: 5, fontSize: '0.73rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderBottom: '1px solid #F1F5F9', paddingBottom: 3 }}>
+                                      <span style={{ color: '#64748B' }}>Depth &amp; Shelf Price</span>
+                                      <strong style={{ color: '#0F172A', fontFamily: 'monospace', textAlign: 'right' }}>
+                                        {opt.depth_pct}% ({money(opt.promoted_price_gbp ?? 0, { decimals: 2, compact: false })})
+                                      </strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderBottom: '1px solid #F1F5F9', paddingBottom: 3 }}>
+                                      <span style={{ color: '#64748B' }}>Scope &amp; Duration</span>
+                                      <strong style={{ color: '#0F172A', textAlign: 'right' }}>
+                                        {opt.scope} ({opt.stores_count} stores) · {opt.duration_days}d
+                                      </strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', borderBottom: '1px solid #F1F5F9', paddingBottom: 3, gap: 8 }}>
+                                      <span style={{ color: '#64748B' }}>Relative Position</span>
+                                      <strong style={{ color: '#334155', textAlign: 'right' }}>
+                                        {localise(opt.relative_position_label)}
+                                      </strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderBottom: '1px solid #F1F5F9', paddingBottom: 3 }}>
+                                      <span style={{ color: '#64748B' }}>Own-Price / Competitive</span>
+                                      <strong style={{ color: '#0F172A', fontFamily: 'monospace', textAlign: 'right' }}>
+                                        +{(opt.own_price_response_pp ?? 0).toFixed(1)}pp / {(opt.competitive_response_pp ?? 0) >= 0 ? '+' : ''}
+                                        {(opt.competitive_response_pp ?? 0).toFixed(1)}pp
+                                      </strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderBottom: '1px solid #F1F5F9', paddingBottom: 3 }}>
+                                      <span style={{ color: '#64748B' }}>Expected Demand</span>
+                                      <strong style={{ color: '#2563EB', fontFamily: 'monospace', textAlign: 'right' }}>
+                                        +{(opt.expected_demand_uplift_pct ?? 0).toFixed(1)}% ({(opt.expected_demand_units ?? 0).toLocaleString('en-GB')} units)
+                                      </strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderBottom: '1px solid #F1F5F9', paddingBottom: 3 }}>
+                                      <span style={{ color: '#64748B' }}>Net Contribution</span>
+                                      <strong
+                                        style={{
+                                          color: (opt.net_contribution_delta_gbp ?? 0) >= 0 ? '#059669' : '#DC2626',
+                                          fontFamily: 'monospace',
+                                          textAlign: 'right'
+                                        }}
+                                      >
+                                        {money(opt.net_contribution_delta_gbp ?? 0, { signed: true })}
+                                      </strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8, borderBottom: '1px solid #F1F5F9', paddingBottom: 3 }}>
+                                      <span style={{ color: '#64748B' }}>Delta vs HOLD</span>
+                                      <strong
+                                        style={{
+                                          color:
+                                            opt.option_type === 'HOLD'
+                                              ? '#475569'
+                                              : (opt.delta_vs_hold_contribution_gbp ?? 0) >= 0
+                                                ? '#059669'
+                                                : '#DC2626',
+                                          fontFamily: 'monospace',
+                                          textAlign: 'right'
+                                        }}
+                                      >
+                                        {opt.option_type === 'HOLD'
+                                          ? 'Baseline (0)'
+                                          : money(opt.delta_vs_hold_contribution_gbp ?? 0, { signed: true })}
+                                      </strong>
+                                    </div>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 8 }}>
+                                      <span style={{ color: '#64748B' }}>Margin Exposure</span>
+                                      <strong style={{ color: '#475569', fontFamily: 'monospace', textAlign: 'right' }}>
+                                        {money(opt.margin_exposure_gbp ?? 0)}
+                                      </strong>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {opt.available && (
+                                  <div style={{ fontSize: '0.72rem', color: '#475569', lineHeight: 1.35 }}>
+                                    {localise(opt.rationale)}
+                                  </div>
+                                )}
+                              </div>
+
+                              <button
+                                type="button"
+                                data-testid={`btn-select-competitive-option-${opt.option_type.toLowerCase()}`}
+                                disabled={!opt.available}
+                                onClick={() => handleSelectCompetitiveOption(opt)}
+                                style={{
+                                  width: '100%',
+                                  background: !opt.available
+                                    ? '#E2E8F0'
+                                    : isSelected
+                                      ? '#1E40AF'
+                                      : opt.is_preferred
+                                        ? '#059669'
+                                        : '#2563EB',
+                                  color: !opt.available ? '#64748B' : '#FFFFFF',
+                                  border: 'none',
+                                  padding: '8px 12px',
+                                  borderRadius: 6,
+                                  fontSize: '0.76rem',
+                                  fontWeight: 600,
+                                  cursor: !opt.available ? 'not-allowed' : 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  gap: 6
+                                }}
+                              >
+                                {!opt.available ? (
+                                  <span>Unavailable (Out of Governed Bounds)</span>
+                                ) : isSelected ? (
+                                  <>
+                                    <CheckCircle2 size={13} />
+                                    <span>Staged in Candidate Workspace</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <span>Stage {opt.label} as Candidate</span>
+                                    <ArrowRight size={13} />
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          );
+                        })}
                       </div>
                     </div>
                   </div>

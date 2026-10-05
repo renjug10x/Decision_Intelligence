@@ -23,6 +23,9 @@ import {
 } from 'lucide-react';
 import { DecisionContract } from '@/packages/contracts/src/campaign-decision-contract-model';
 import {
+  CompetitiveInterventionContext
+} from '@/lib/campaign-candidate-intervention';
+import {
   DECISION_CONFIRMATION_EXPLANATION,
   DECISION_OWNER_HELPER,
   DECISION_OWNER_ROLES,
@@ -79,6 +82,7 @@ export default function FlightActivationPanel({
   ownerCustom,
   rationaleId,
   rationaleContext,
+  competitiveContext,
   onSelectPlay,
   onOwnerRoleChange,
   onOwnerCustomChange,
@@ -102,6 +106,7 @@ export default function FlightActivationPanel({
   ownerCustom: string;
   rationaleId: string;
   rationaleContext: string;
+  competitiveContext?: CompetitiveInterventionContext | null;
   onSelectPlay: (id: string) => void;
   onOwnerRoleChange: (v: string) => void;
   onOwnerCustomChange: (v: string) => void;
@@ -397,6 +402,67 @@ export default function FlightActivationPanel({
               <span style={{ color: SLATE, fontWeight: 600 }}>{readinessState}</span>
             </div>
           )}
+        </div>
+      )}
+
+      {competitiveContext && (
+        <div
+          data-testid="activation-competitive-provenance"
+          style={{
+            marginTop: 12,
+            background: '#FFFBEB',
+            border: '1px solid #FDE68A',
+            borderRadius: 8,
+            padding: '10px 12px'
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, flexWrap: 'wrap', marginBottom: 4 }}>
+            <span style={{ fontSize: '0.7rem', fontWeight: 700, color: '#92400E', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Competitive Response Governance Record ({competitiveContext.selected_response_label})
+            </span>
+            <span
+              style={{
+                fontSize: '0.65rem',
+                fontWeight: 700,
+                padding: '2px 7px',
+                borderRadius: 4,
+                background: '#FEF3C7',
+                color: '#B45309',
+                border: '1px solid #FCD34D'
+              }}
+            >
+              {competitiveContext.provenance_badge}
+            </span>
+          </div>
+          <div style={{ fontSize: '0.76rem', fontWeight: 600, color: '#78350F', marginBottom: 6 }}>
+            {competitiveContext.governance_statement}
+          </div>
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+              gap: 8,
+              fontSize: '0.72rem',
+              color: '#92400E'
+            }}
+          >
+            <div>
+              <span style={{ color: '#B45309' }}>Benchmark price: </span>
+              <strong>£{competitiveContext.assumed_competitive_price_gbp.toFixed(2)}</strong>
+            </div>
+            <div>
+              <span style={{ color: '#B45309' }}>Sensitivity γ: </span>
+              <strong>{competitiveContext.competitive_response_pp_per_disadvantage_point.toFixed(2)} pp/pt</strong>
+            </div>
+            <div>
+              <span style={{ color: '#B45309' }}>Selected option: </span>
+              <strong>{competitiveContext.selected_response_label}</strong>
+            </div>
+            <div>
+              <span style={{ color: '#B45309' }}>Objective: </span>
+              <strong>MAXIMUM_NET_CONTRIBUTION</strong>
+            </div>
+          </div>
         </div>
       )}
 

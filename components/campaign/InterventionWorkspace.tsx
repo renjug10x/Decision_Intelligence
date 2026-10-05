@@ -76,11 +76,18 @@ export default function InterventionWorkspace({
       committedConfiguration.region !== currentRegion ||
       committedConfiguration.duration_days !== currentDuration);
 
-  const baselineEconomics = estimateInterventionEconomics(archetype, {
-    discount_pct: baselineDiscount,
-    stores: baselineStores,
-    duration_days: baselineDuration
-  });
+  const compCtx = intervention.provenance?.competitive_context ?? null;
+
+  const baselineEconomics = compCtx
+    ? {
+        expected_demand_uplift_pct: compCtx.baseline_expected_demand_uplift_pct,
+        net_contribution_delta_gbp: compCtx.baseline_net_contribution_delta_gbp
+      }
+    : estimateInterventionEconomics(archetype, {
+        discount_pct: baselineDiscount,
+        stores: baselineStores,
+        duration_days: baselineDuration
+      });
 
   // Applied planner configuration
   const appliedConfig = applyAcceptedIntervention({
@@ -115,6 +122,106 @@ export default function InterventionWorkspace({
         onNavigateToCommitment();
       }, 1200);
     }
+  };
+
+  const renderCompetitiveProvenanceBlock = (testId: string) => {
+    if (!compCtx) return null;
+    return (
+      <div
+        data-testid={testId}
+        style={{
+          background: '#F8FAFC',
+          border: '1px solid #CBD5E1',
+          borderRadius: 8,
+          padding: '12px 14px',
+          marginBottom: 16,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 8,
+          fontSize: '0.76rem'
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <span
+              style={{
+                fontSize: '0.66rem',
+                fontWeight: 800,
+                color: '#1E293B',
+                background: '#FFFFFF',
+                border: '1px solid #94A3B8',
+                padding: '2px 7px',
+                borderRadius: 4
+              }}
+            >
+              {compCtx.provenance_badge}
+            </span>
+            <strong style={{ color: '#0F172A' }}>{compCtx.provenance_label}</strong>
+          </div>
+          <span
+            style={{
+              fontSize: '0.68rem',
+              fontWeight: 700,
+              color: '#1E40AF',
+              background: '#EFF6FF',
+              border: '1px solid #BFDBFE',
+              padding: '2px 7px',
+              borderRadius: 4
+            }}
+          >
+            SELECTED RESPONSE: {compCtx.selected_response_label}
+          </span>
+        </div>
+
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))',
+            gap: 8,
+            paddingTop: 4,
+            borderTop: '1px solid #E2E8F0'
+          }}
+        >
+          <div>
+            <span style={{ color: '#64748B' }}>Competitive benchmark:</span>{' '}
+            <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>
+              {money(compCtx.assumed_competitive_price_gbp, { decimals: 2, compact: false })}
+            </strong>
+          </div>
+          <div>
+            <span style={{ color: '#64748B' }}>Demand sensitivity (γ):</span>{' '}
+            <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>
+              {compCtx.competitive_response_pp_per_disadvantage_point}pp/pp
+            </strong>
+          </div>
+          <div>
+            <span style={{ color: '#64748B' }}>Relative position:</span>{' '}
+            <strong style={{ color: '#0F172A' }}>
+              {localise(compCtx.relative_price_position_label)}
+            </strong>
+          </div>
+          <div>
+            <span style={{ color: '#64748B' }}>Decision boundary:</span>{' '}
+            <strong style={{ color: '#0F172A' }}>
+              {localise(compCtx.decision_boundary_headline)}
+            </strong>
+          </div>
+        </div>
+
+        <div
+          data-testid={`${testId}-governance-statement`}
+          style={{
+            fontSize: '0.74rem',
+            fontWeight: 600,
+            color: '#334155',
+            paddingTop: 4,
+            borderTop: '1px dashed #CBD5E1'
+          }}
+        >
+          {compCtx.governance_statement}
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -187,6 +294,8 @@ export default function InterventionWorkspace({
                 : ''}
             </div>
           )}
+
+          {renderCompetitiveProvenanceBlock('candidate-competitive-context')}
 
           {/* Committed vs Candidate Side-by-Side Comparison */}
           <div
@@ -289,11 +398,14 @@ export default function InterventionWorkspace({
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px solid #BFDBFE' }}>
                   <span style={{ color: '#475569' }}>Expected Uplift:</span>
-                  <strong style={{ color: '#059669' }}>+{intervention.expected_demand.toFixed(1)}%</strong>
+                  <strong style={{ color: intervention.expected_demand >= 0 ? '#059669' : '#DC2626' }}>
+                    {intervention.expected_demand >= 0 ? '+' : ''}
+                    {intervention.expected_demand.toFixed(1)}%
+                  </strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#475569' }}>Net Contribution:</span>
-                  <strong style={{ color: '#059669' }}>
+                  <strong style={{ color: intervention.expected_contribution >= 0 ? '#059669' : '#DC2626' }}>
                     {formatGbp(intervention.expected_contribution)}
                   </strong>
                 </div>
@@ -398,12 +510,14 @@ export default function InterventionWorkspace({
                 Live assessment recalculated
               </span>
               {intervention.provenance && (
-                <div style={{ fontSize: '0.7rem', color: '#047857', marginTop: 4 }}>
+                <div style={{ fontSize: '0.7rem', color: '#047857', marginTop: 4, overflowWrap: 'anywhere', wordBreak: 'break-word' }}>
                   Provenance: {intervention.provenance.source_lens.replace(/_/g, ' ')} · {intervention.provenance.source_id}
                 </div>
               )}
             </div>
           </div>
+
+          {renderCompetitiveProvenanceBlock('accepted-competitive-context')}
 
           <div
             style={{

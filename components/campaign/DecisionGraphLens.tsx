@@ -16,9 +16,15 @@ import {
 import { CampaignArchetype, estimateInterventionEconomics } from '@/lib/campaign-archetypes';
 import {
   inspectDecisionGraphNode,
+  buildCompetitiveAssumptionGraphNode,
+  COMPETITIVE_ASSUMPTION_NODE_ID,
   GraphSemanticVisual,
   ActiveIntervention
 } from '@/lib/campaign-candidate-intervention';
+import type {
+  CompetitiveResponseOptionType,
+  CompetitiveWhatIfIntelligenceResult
+} from '@/lib/competitive-price-response';
 import { useCurrency } from '@/context/CurrencyContext';
 
 interface DecisionGraphLensProps {
@@ -29,6 +35,8 @@ interface DecisionGraphLensProps {
   currentRegion?: string;
   currentDurationDays?: number;
   onProposeIntervention?: (action: ActiveIntervention) => void;
+  competitiveWhatIf?: CompetitiveWhatIfIntelligenceResult | null;
+  selectedCompetitiveOptionType?: CompetitiveResponseOptionType | null;
 }
 
 export default function DecisionGraphLens({
@@ -38,14 +46,38 @@ export default function DecisionGraphLens({
   currentDiscountPct,
   currentRegion,
   currentDurationDays,
-  onProposeIntervention
+  onProposeIntervention,
+  competitiveWhatIf = null,
+  selectedCompetitiveOptionType = null
 }: DecisionGraphLensProps) {
   const { money, localise } = useCurrency();
   const graph = archetype.decision_graph;
+  const displayNodes = React.useMemo(() => {
+    if (!competitiveWhatIf) return graph.nodes;
+    const compNode = buildCompetitiveAssumptionGraphNode(
+      competitiveWhatIf,
+      selectedCompetitiveOptionType
+    );
+    return [...graph.nodes, compNode];
+  }, [graph.nodes, competitiveWhatIf, selectedCompetitiveOptionType]);
+
+  const displayLinks = React.useMemo(() => {
+    if (!competitiveWhatIf) return graph.links;
+    const evidenceNode = graph.nodes.find(n => n.category === 'EVIDENCE') ?? graph.nodes[0];
+    const economicsNode = graph.nodes.find(n => n.category === 'ECONOMICS');
+    const decisionNode = graph.nodes.find(n => n.category === 'DECISION');
+    return [
+      ...graph.links,
+      ...(evidenceNode ? [{ from: evidenceNode.id, to: COMPETITIVE_ASSUMPTION_NODE_ID }] : []),
+      ...(economicsNode ? [{ from: COMPETITIVE_ASSUMPTION_NODE_ID, to: economicsNode.id }] : []),
+      ...(decisionNode ? [{ from: COMPETITIVE_ASSUMPTION_NODE_ID, to: decisionNode.id }] : [])
+    ];
+  }, [graph.links, graph.nodes, competitiveWhatIf]);
+
   const [selectedNodeId, setSelectedNodeId] = useState<string>(graph.nodes[0]?.id || '');
 
   const selectedNode =
-    graph.nodes.find(n => n.id === selectedNodeId) || graph.nodes[0] || null;
+    displayNodes.find(n => n.id === selectedNodeId) || displayNodes[0] || null;
 
   const getCategoryColor = (cat: string) => {
     switch (cat) {
@@ -810,6 +842,113 @@ export default function DecisionGraphLens({
           </div>
         );
       }
+
+      case 'COMPETITIVE_ASSUMPTION': {
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }} data-testid="graph-visual-COMPETITIVE_ASSUMPTION">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+              <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#0F172A', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <Scale size={14} color="#7C3AED" />
+                OUR PRICE vs MODELLED COMPETITIVE BENCHMARK vs DECISION BOUNDARY
+              </div>
+              <span
+                style={{
+                  fontSize: '0.64rem',
+                  fontWeight: 700,
+                  color: '#475569',
+                  background: '#F1F5F9',
+                  border: '1px solid #CBD5E1',
+                  padding: '2px 7px',
+                  borderRadius: 4
+                }}
+              >
+                {visual.provenance_badge_label} · {visual.provenance_detail_label}
+              </span>
+            </div>
+
+            {/* 3-Column Comparison: Our Price vs Modelled Competitive Benchmark vs Decision Boundary */}
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))',
+                gap: 8
+              }}
+            >
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '8px 10px', fontSize: '0.72rem' }}>
+                <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+                  Our Price ({visual.active_depth_pct}% Depth)
+                </div>
+                <div style={{ fontWeight: 800, color: '#0F172A', fontSize: '0.86rem', marginTop: 2, fontFamily: 'monospace' }}>
+                  {money(visual.our_promotional_price_gbp, { decimals: 2, compact: false })}
+                </div>
+                <div style={{ color: '#475569', marginTop: 2 }}>
+                  List price: {money(visual.our_list_price_gbp, { decimals: 2, compact: false })}
+                </div>
+              </div>
+
+              <div style={{ background: '#EFF6FF', border: '1px solid #BFDBFE', borderRadius: 6, padding: '8px 10px', fontSize: '0.72rem' }}>
+                <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#1E40AF', textTransform: 'uppercase' }}>
+                  Modelled Competitive Benchmark
+                </div>
+                <div style={{ fontWeight: 800, color: '#1E3A8A', fontSize: '0.86rem', marginTop: 2, fontFamily: 'monospace' }}>
+                  {money(visual.assumed_competitive_price_gbp, { decimals: 2, compact: false })}
+                </div>
+                <div style={{ color: '#1E40AF', marginTop: 2 }}>
+                  {localise(visual.relative_position_label)} ({visual.disadvantage_pp >= 0 ? '+' : ''}
+                  {visual.disadvantage_pp.toFixed(2)}pp)
+                </div>
+              </div>
+
+              <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '8px 10px', fontSize: '0.72rem' }}>
+                <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#92400E', textTransform: 'uppercase' }}>
+                  Decision Boundary (γ = {visual.gamma}pp/pp)
+                </div>
+                <div style={{ fontWeight: 800, color: '#92400E', fontSize: '0.82rem', marginTop: 2 }}>
+                  {visual.boundary_outcome === 'FLIP_FOUND' &&
+                  visual.boundary_price_gbp !== null &&
+                  visual.boundary_disadvantage_pp !== null
+                    ? `${visual.boundary_disadvantage_pp >= 0 ? '+' : ''}${visual.boundary_disadvantage_pp.toFixed(1)}% (${money(visual.boundary_price_gbp, { decimals: 2, compact: false })})`
+                    : 'No Decision Flip'}
+                </div>
+                <div style={{ color: '#78350F', marginTop: 2 }}>
+                  Current winner: {visual.current_winner_depth_pct}% ({money(visual.current_winner_contribution_gbp, { signed: true })})
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, fontSize: '0.72rem' }}>
+              <div style={{ background: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: 6, padding: '8px 10px' }}>
+                <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+                  Own-Price vs Competitive Demand Decomposition
+                </div>
+                <div style={{ fontWeight: 700, color: '#0F172A', marginTop: 2, fontFamily: 'monospace' }}>
+                  Own: +{visual.own_price_response_pp.toFixed(2)}pp · Competitive: {visual.competitive_response_pp >= 0 ? '+' : ''}
+                  {visual.competitive_response_pp.toFixed(2)}pp
+                </div>
+                <div style={{ fontSize: '0.68rem', color: '#475569', marginTop: 2 }}>
+                  Ambient: {visual.ambient_competitive_effect_pp >= 0 ? '+' : ''}
+                  {visual.ambient_competitive_effect_pp.toFixed(2)}pp · Attributable: {visual.intervention_attributable_competitive_effect_pp >= 0 ? '+' : ''}
+                  {visual.intervention_attributable_competitive_effect_pp.toFixed(2)}pp
+                </div>
+              </div>
+
+              <div style={{ background: '#ECFDF5', border: '1px solid #A7F3D0', borderRadius: 6, padding: '8px 10px' }}>
+                <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#065F46', textTransform: 'uppercase' }}>
+                  {visual.selected_response_label ? 'Selected Response Option' : 'CogniX Preferred Response'}
+                </div>
+                <div style={{ fontWeight: 700, color: '#065F46', marginTop: 2 }}>
+                  {visual.selected_response_summary
+                    ? visual.selected_response_summary
+                    : `${visual.preferred_option_label} (${money(visual.preferred_option_contribution_gbp, { signed: true })})`}
+                </div>
+                <div style={{ fontSize: '0.68rem', color: '#047857', marginTop: 2 }}>
+                  {localise(visual.boundary_headline)}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      }
     }
   };
 
@@ -854,15 +993,20 @@ export default function DecisionGraphLens({
           marginBottom: 16
         }}
       >
-        {graph.nodes.map((node, idx) => {
+        {displayNodes.map((node, idx) => {
           const isSelected = selectedNode?.id === node.id;
           const colors = getCategoryColor(node.category);
+          const isCompetitiveAssumptionNode = node.id === COMPETITIVE_ASSUMPTION_NODE_ID;
 
           return (
             <React.Fragment key={node.id}>
               <div
                 onClick={() => setSelectedNodeId(node.id)}
-                data-testid={`graph-node-${node.category}`}
+                data-testid={
+                  isCompetitiveAssumptionNode
+                    ? 'graph-node-COMPETITIVE_ASSUMPTION'
+                    : `graph-node-${node.category}`
+                }
                 style={{
                   minWidth: 160,
                   flex: '0 0 auto',
@@ -899,7 +1043,9 @@ export default function DecisionGraphLens({
                       borderRadius: 3
                     }}
                   >
-                    {node.provenance.replace(/_/g, ' ')}
+                    {isCompetitiveAssumptionNode
+                      ? 'MODELLED ASSUMPTION'
+                      : node.provenance.replace(/_/g, ' ')}
                   </span>
                 </div>
 
@@ -912,7 +1058,7 @@ export default function DecisionGraphLens({
                 </div>
               </div>
 
-              {idx < graph.nodes.length - 1 && (
+              {idx < displayNodes.length - 1 && (
                 <ArrowRight size={16} color="#94A3B8" style={{ flexShrink: 0 }} />
               )}
             </React.Fragment>
@@ -929,13 +1075,15 @@ export default function DecisionGraphLens({
           liveDemandUpliftPct,
           currentDiscountPct,
           currentRegion,
-          currentDurationDays
+          currentDurationDays,
+          competitiveWhatIf,
+          selectedCompetitiveOptionType
         });
         const catColors = getCategoryColor(selectedNode.category);
         const provColors = getProvenanceBadgeStyle(panel.provenance_tier);
-        const inbound = graph.links.filter(l => l.to === selectedNode.id);
-        const outbound = graph.links.filter(l => l.from === selectedNode.id);
-        const nameOf = (id: string) => graph.nodes.find(n => n.id === id)?.label || id;
+        const inbound = displayLinks.filter(l => l.to === selectedNode.id);
+        const outbound = displayLinks.filter(l => l.from === selectedNode.id);
+        const nameOf = (id: string) => displayNodes.find(n => n.id === id)?.label || id;
 
         return (
           <div
