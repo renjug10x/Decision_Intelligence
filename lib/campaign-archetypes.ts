@@ -2810,6 +2810,18 @@ export function buildCampaignIntentFromArchetype(
     posture?: InterventionPosture;
     tenant_id?: string;
     session_id?: string;
+    competitive_context?: {
+      assumed_competitive_price_gbp: number;
+      competitive_response_pp_per_disadvantage_point: number;
+      selected_response_type: string;
+      selected_response_label: string;
+      relative_price_position_label: string;
+      decision_boundary_headline: string;
+      provenance_badge: string;
+      provenance_label: string;
+      governance_statement: string;
+      [key: string]: unknown;
+    } | null;
   }
 ): CampaignIntent & { intent_id: string } {
   const tenantId = overrides?.tenant_id || CAMPAIGN_DEMO_TENANT_ID;
@@ -2836,6 +2848,31 @@ export function buildCampaignIntentFromArchetype(
   const objective = overrides?.objective || archetype.default_objective;
   const posture = overrides?.posture || archetype.intervention_posture;
   const intentId = `cdi_intent_${tenantId}_${sessionId}_${archetype.id}`.replace(/[^a-zA-Z0-9_]/g, '_');
+  const compCtx = overrides?.competitive_context;
+
+  const contextualFactorNotes = [
+    `Archetype: ${archetype.name}`,
+    `Price Elasticity: ${archetype.price_elasticity}`,
+    `Cannibalisation Rate: ${archetype.cannibalisation_rate}`,
+    ...(compCtx
+      ? [
+          `${compCtx.provenance_badge} (${compCtx.provenance_label}): Benchmark £${compCtx.assumed_competitive_price_gbp.toFixed(2)}, γ = ${compCtx.competitive_response_pp_per_disadvantage_point}pp/pp · Selected response: ${compCtx.selected_response_label} · ${compCtx.relative_price_position_label}`,
+          compCtx.governance_statement,
+          `COGNIX_COMPETITIVE_CONTEXT_JSON:${JSON.stringify(compCtx)}`
+        ]
+      : [])
+  ];
+
+  const assumptions = [
+    'Synthetic demo baseline calibrated to enterprise store network',
+    ...(compCtx
+      ? [
+          `${compCtx.provenance_badge} (${compCtx.provenance_label}): Assumed competitive benchmark price £${compCtx.assumed_competitive_price_gbp.toFixed(2)}, demand sensitivity γ = ${compCtx.competitive_response_pp_per_disadvantage_point}pp per percentage-point disadvantage (${compCtx.relative_price_position_label}).`,
+          `Selected competitive response option: ${compCtx.selected_response_label} (${discount}% · ${region} · ${duration}d). Decision objective: MAXIMUM NET CONTRIBUTION. Decision boundary: ${compCtx.decision_boundary_headline}.`,
+          compCtx.governance_statement
+        ]
+      : [])
+  ];
 
   return {
     campaign_intent_id: intentId,
@@ -2869,13 +2906,9 @@ export function buildCampaignIntentFromArchetype(
       planned_end: end
     },
     decision_context: {
-      contextual_factor_notes: [
-        `Archetype: ${archetype.name}`,
-        `Price Elasticity: ${archetype.price_elasticity}`,
-        `Cannibalisation Rate: ${archetype.cannibalisation_rate}`
-      ],
+      contextual_factor_notes: contextualFactorNotes,
       open_questions: ['How will competitors respond to promotional launch?'],
-      assumptions: ['Synthetic demo baseline calibrated to enterprise store network'],
+      assumptions,
       /*
        * ADR-077 part 1: nothing but a scenario record may ORIGINATE a scenario identity.
        * This used to mint `SCN-${archetype.id}` — a third source of scenario identity beside

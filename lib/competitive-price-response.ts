@@ -1456,6 +1456,17 @@ export function evaluateCompetitiveCdiDecision(
             campaign_design_response_pp: round2(
               newInterventionPp - existingBridge.price_depth_response_pp,
             ),
+            design_components:
+              attributableCompetitivePp !== 0
+                ? [
+                    ...existingBridge.design_components,
+                    {
+                      driver_id: 'interaction_residual',
+                      label: 'Competitive price response (modelled assumption)',
+                      contribution_pp: attributableCompetitivePp,
+                    },
+                  ]
+                : existingBridge.design_components,
             total_attributable_pp: newInterventionPp,
           }
         : undefined,
@@ -2142,6 +2153,70 @@ export interface CompetitiveWhatIfPlainLanguageSummary {
   readonly beyond_boundary_detail: string;
 }
 
+export type CompetitiveResponseOptionType =
+  | 'HOLD'
+  | 'MATCH'
+  | 'TARGET'
+  | 'REDUCE_EXPOSURE';
+
+export const GOVERNED_PLANNER_DURATION_DAYS = [7, 14, 21, 28] as const;
+
+export const COMPETITIVE_PREFERRED_RESPONSE_BADGE = 'COGNIX PREFERRED RESPONSE' as const;
+
+export interface CompetitiveResponseOption {
+  readonly option_type: CompetitiveResponseOptionType;
+  readonly label: 'HOLD' | 'MATCH' | 'TARGET' | 'REDUCE EXPOSURE';
+  readonly title: string;
+  readonly available: boolean;
+  readonly unavailable_reason: string | null;
+  readonly depth_pct: number | null;
+  readonly promoted_price_gbp: number | null;
+  readonly scope: string;
+  readonly stores_count: number;
+  readonly duration_days: number;
+  readonly relative_price_position: RelativePricePosition | null;
+  readonly relative_position_label: string;
+  readonly own_price_response_pp: number | null;
+  readonly competitive_response_pp: number | null;
+  readonly ambient_competitive_effect_pp: number | null;
+  readonly intervention_attributable_competitive_effect_pp: number | null;
+  readonly expected_demand_uplift_pct: number | null;
+  readonly expected_demand_units: number | null;
+  readonly incremental_units: number | null;
+  readonly net_contribution_delta_gbp: number | null;
+  readonly margin_exposure_gbp: number | null;
+  readonly delta_vs_hold_contribution_gbp: number | null;
+  readonly delta_vs_hold_uplift_pp: number | null;
+  readonly delta_vs_hold_exposure_gbp: number | null;
+  readonly rationale: string;
+  readonly is_preferred: boolean;
+  readonly preferred_badge: typeof COMPETITIVE_PREFERRED_RESPONSE_BADGE | null;
+  readonly evaluation: CompetitiveDepthEvaluationPoint | null;
+  readonly provenance_badge: typeof COMPETITIVE_USER_FACING_PROVENANCE_BADGE;
+  readonly provenance_label: typeof COMPETITIVE_USER_FACING_PROVENANCE_LABEL;
+}
+
+export interface CompetitiveResponseOptionsInput {
+  readonly scenario: CanonicalScenario;
+  readonly assumption: CompetitivePriceAssumption;
+  readonly active_depth_pct?: number;
+  readonly scope?: string;
+  readonly horizon_days?: number;
+  readonly candidate_depths_pct?: readonly number[];
+  readonly target_scope?: string;
+  readonly secondary_scope?: string;
+}
+
+export interface CompetitiveResponseOptionsComparison {
+  readonly objective: 'MAXIMUM_NET_CONTRIBUTION';
+  readonly options: readonly CompetitiveResponseOption[];
+  readonly preferred_option_type: CompetitiveResponseOptionType;
+  readonly preferred_option: CompetitiveResponseOption;
+  readonly preferred_response_rationale: string;
+  readonly hold_is_preferred: boolean;
+  readonly provenance: ProvenanceDescriptor;
+}
+
 export interface CompetitiveWhatIfIntelligenceInput {
   readonly scenario: CanonicalScenario;
   readonly assumption: CompetitivePriceAssumption;
@@ -2149,6 +2224,8 @@ export interface CompetitiveWhatIfIntelligenceInput {
   readonly scope?: string;
   readonly horizon_days?: number;
   readonly candidate_depths_pct?: readonly number[];
+  readonly target_scope?: string;
+  readonly secondary_scope?: string;
 }
 
 export interface CompetitiveWhatIfIntelligenceResult {
@@ -2162,6 +2239,7 @@ export interface CompetitiveWhatIfIntelligenceResult {
   readonly current_decision_impact: CompetitiveWhatIfDecisionImpact;
   readonly match_reference: CompetitiveWhatIfMatchReference;
   readonly boundary_sweep: CompetitiveDecisionBoundarySweepResult;
+  readonly response_options: CompetitiveResponseOptionsComparison;
   readonly intelligence_summary: CompetitiveWhatIfPlainLanguageSummary;
   readonly curve_evaluation: CompetitiveElasticityCurveResult;
   readonly provenance: ProvenanceDescriptor;
@@ -2177,14 +2255,501 @@ function formatSignedPct(value: number, decimals = 1): string {
   return value > 0 ? `+${fixed}%` : `${fixed}%`;
 }
 
+function formatSignedGbpPlain(value: number): string {
+  const abs = Math.abs(Math.round(value)).toLocaleString('en-GB');
+  return value >= 0 ? `+£${abs}` : `-£${abs}`;
+}
+
+function formatRelativePositionShortLabel(pos: RelativePricePosition): string {
+  if (pos.standing === 'DISADVANTAGE') {
+    return `${pos.disadvantage_pp.toFixed(1)}% more expensive (£${pos.our_promotional_price_gbp.toFixed(2)} vs £${pos.assumed_competitive_price_gbp.toFixed(2)})`;
+  }
+  if (pos.standing === 'ADVANTAGE') {
+    return `${Math.abs(pos.disadvantage_pp).toFixed(1)}% cheaper (£${pos.our_promotional_price_gbp.toFixed(2)} vs £${pos.assumed_competitive_price_gbp.toFixed(2)})`;
+  }
+  return `Price parity (£${pos.our_promotional_price_gbp.toFixed(2)} vs £${pos.assumed_competitive_price_gbp.toFixed(2)})`;
+}
+
+/**
+ * Resolves the highest-opportunity regional scope for `TARGET` from the scenario's
+ * governed regional scope multipliers and focus region.
+ */
+function resolveGovernedTargetScope(
+  scenario: CanonicalScenario,
+  explicitTargetScope?: string,
+): string {
+  const storeCounts = scenario.estate.region_store_counts;
+  if (
+    explicitTargetScope &&
+    explicitTargetScope !== 'National' &&
+    storeCounts[explicitTargetScope] !== undefined
+  ) {
+    return explicitTargetScope;
+  }
+  const focusRegion = scenario.identity.focus_region;
+  if (focusRegion && focusRegion !== 'National' && storeCounts[focusRegion] !== undefined) {
+    return focusRegion;
+  }
+  const regionalEntries = Object.entries(storeCounts).filter(([region]) => region !== 'National');
+  regionalEntries.sort((a, b) => {
+    const multA = scenarioScopeResponseMultiplier(scenario, a[0]);
+    const multB = scenarioScopeResponseMultiplier(scenario, b[0]);
+    if (multB !== multA) return multB - multA;
+    return b[1] - a[1];
+  });
+  return regionalEntries[0]?.[0] ?? scenario.identity.market_scope_label;
+}
+
+/**
+ * Resolves a lower-exposure regional scope when duration is already at the
+ * minimum governed 7-day window.
+ */
+function resolveReducedExposureScope(
+  scenario: CanonicalScenario,
+  activeScope: string,
+  explicitSecondaryScope?: string,
+): string {
+  const storeCounts = scenario.estate.region_store_counts;
+  const activeStores = scenarioStoreCount(scenario, activeScope);
+  if (
+    explicitSecondaryScope &&
+    storeCounts[explicitSecondaryScope] !== undefined &&
+    storeCounts[explicitSecondaryScope] < activeStores
+  ) {
+    return explicitSecondaryScope;
+  }
+  const smallerRegions = Object.entries(storeCounts)
+    .filter(([region, count]) => region !== 'National' && count < activeStores)
+    .sort((a, b) => {
+      const multA = scenarioScopeResponseMultiplier(scenario, a[0]);
+      const multB = scenarioScopeResponseMultiplier(scenario, b[0]);
+      if (multB !== multA) return multB - multA;
+      return b[1] - a[1];
+    });
+  if (smallerRegions.length > 0) {
+    return smallerRegions[0][0];
+  }
+  return resolveGovernedTargetScope(scenario);
+}
+
+/**
+ * Evaluates the four governed business-readable competitive response options:
+ *   - `HOLD`: keep current accepted/committed configuration (depth, scope, duration)
+ *   - `MATCH`: adjust depth to shelf-price parity via Slice 1 `deriveCompetitiveMatchDepth`
+ *     (marked `available: false` with explicit reason if outside governed depth bounds — never clamped)
+ *   - `TARGET`: focus the promotional response on the highest-opportunity regional scope
+ *   - `REDUCE_EXPOSURE`: reduce promotional exposure (shorter governed duration or smaller regional scope)
+ *     while retaining the current promotional depth intent
+ *
+ * Every option is evaluated through the single Slice 1–3 competitive-price domain path
+ * (`evaluateCompetitiveScenarioAtDepth`), and the preferred option is chosen strictly under
+ * `MAXIMUM_NET_CONTRIBUTION`.
+ */
+export function evaluateCompetitiveResponseOptions(
+  input: CompetitiveResponseOptionsInput,
+): CompetitiveResponseOptionsComparison {
+  const {
+    scenario,
+    assumption,
+    active_depth_pct = scenario?.economics?.promotion_depth_pct,
+    scope: rawScope,
+    horizon_days: rawDurationDays,
+    candidate_depths_pct,
+    target_scope,
+    secondary_scope,
+  } = input;
+
+  validateScenarioAndDepth(scenario, active_depth_pct);
+  validateCompetitivePriceAssumption(assumption);
+
+  const activeDepthPct = round2(active_depth_pct);
+  const activeScope = rawScope ?? scenario.identity.market_scope_label;
+  const activeDurationDays = rawDurationDays ?? scenario.calendar.promotion_duration_days;
+  const activeStores = scenarioStoreCount(scenario, activeScope);
+
+  // ── 1. HOLD ───────────────────────────────────────────────────────────────
+  const holdEval = evaluateCompetitiveScenarioAtDepth(scenario, activeDepthPct, assumption, {
+    scope: activeScope,
+    ambient_depth_pct: 0,
+    ambient_scope: activeScope,
+    horizon_days: activeDurationDays,
+  });
+  const holdPos = deriveRelativePricePosition(
+    scenario,
+    activeDepthPct,
+    assumption.assumed_competitive_price_gbp,
+  );
+
+  const holdOptionBase: Omit<CompetitiveResponseOption, 'is_preferred' | 'preferred_badge'> = {
+    option_type: 'HOLD',
+    label: 'HOLD',
+    title: 'Hold Current Configuration',
+    available: true,
+    unavailable_reason: null,
+    depth_pct: activeDepthPct,
+    promoted_price_gbp: holdEval.promoted_price_gbp,
+    scope: activeScope,
+    stores_count: activeStores,
+    duration_days: activeDurationDays,
+    relative_price_position: holdPos,
+    relative_position_label: formatRelativePositionShortLabel(holdPos),
+    own_price_response_pp: holdEval.own_price_response_pp,
+    competitive_response_pp: holdEval.competitive_response_pp,
+    ambient_competitive_effect_pp: holdEval.ambient_competitive_effect_pp,
+    intervention_attributable_competitive_effect_pp:
+      holdEval.intervention_attributable_competitive_effect_pp,
+    expected_demand_uplift_pct: holdEval.expected_demand_uplift_pct,
+    expected_demand_units: holdEval.expected_demand_units,
+    incremental_units: holdEval.incremental_units,
+    net_contribution_delta_gbp: holdEval.net_contribution_delta_gbp,
+    margin_exposure_gbp: holdEval.margin_exposure_gbp,
+    delta_vs_hold_contribution_gbp: 0,
+    delta_vs_hold_uplift_pp: 0,
+    delta_vs_hold_exposure_gbp: 0,
+    rationale: `Keep the current ${activeDepthPct}% promotional configuration across ${activeScope} (${activeStores} stores) for ${activeDurationDays} days without changing price depth or scope.`,
+    evaluation: holdEval,
+    provenance_badge: COMPETITIVE_USER_FACING_PROVENANCE_BADGE,
+    provenance_label: COMPETITIVE_USER_FACING_PROVENANCE_LABEL,
+  };
+
+  // ── 2. MATCH ──────────────────────────────────────────────────────────────
+  const matchDerivation = deriveCompetitiveMatchDepth(
+    scenario,
+    assumption.assumed_competitive_price_gbp,
+  );
+
+  let matchOptionBase: Omit<CompetitiveResponseOption, 'is_preferred' | 'preferred_badge'>;
+
+  if (
+    !matchDerivation.is_achievable_within_bounds ||
+    matchDerivation.match_depth_pct === null
+  ) {
+    const unavailableReason =
+      matchDerivation.status === 'COMPETITOR_ABOVE_LIST'
+        ? `Unavailable — Modelled competitive benchmark (£${matchDerivation.assumed_competitive_price_gbp.toFixed(2)}) sits above our £${matchDerivation.list_price_gbp.toFixed(2)} list price (${matchDerivation.raw_required_depth_pct.toFixed(1)}% implied depth). Our unpromoted shelf price already undercuts the benchmark; parity cannot be achieved via promotional discounting.`
+        : `Unavailable — Shelf-price parity with £${matchDerivation.assumed_competitive_price_gbp.toFixed(2)} requires ${matchDerivation.raw_required_depth_pct.toFixed(1)}% promotional depth, which exceeds the ${matchDerivation.max_depth_pct}% governed maximum depth bound. CogniX does not clamp out-of-bounds parity into a disguised recommendation.`;
+
+    matchOptionBase = {
+      option_type: 'MATCH',
+      label: 'MATCH',
+      title: 'Match Competitive Benchmark Price',
+      available: false,
+      unavailable_reason: unavailableReason,
+      depth_pct: null,
+      promoted_price_gbp: null,
+      scope: activeScope,
+      stores_count: activeStores,
+      duration_days: activeDurationDays,
+      relative_price_position: null,
+      relative_position_label: `Parity out of bounds (${matchDerivation.raw_required_depth_pct.toFixed(1)}% implied depth vs 0–${matchDerivation.max_depth_pct}% governed range)`,
+      own_price_response_pp: null,
+      competitive_response_pp: null,
+      ambient_competitive_effect_pp: null,
+      intervention_attributable_competitive_effect_pp: null,
+      expected_demand_uplift_pct: null,
+      expected_demand_units: null,
+      incremental_units: null,
+      net_contribution_delta_gbp: null,
+      margin_exposure_gbp: null,
+      delta_vs_hold_contribution_gbp: null,
+      delta_vs_hold_uplift_pp: null,
+      delta_vs_hold_exposure_gbp: null,
+      rationale: unavailableReason,
+      evaluation: null,
+      provenance_badge: COMPETITIVE_USER_FACING_PROVENANCE_BADGE,
+      provenance_label: COMPETITIVE_USER_FACING_PROVENANCE_LABEL,
+    };
+  } else {
+    const matchDepthPct = matchDerivation.match_depth_pct;
+    const matchEval = evaluateCompetitiveScenarioAtDepth(
+      scenario,
+      matchDepthPct,
+      assumption,
+      {
+        scope: activeScope,
+        ambient_depth_pct: 0,
+        ambient_scope: activeScope,
+        horizon_days: activeDurationDays,
+      },
+    );
+    const matchPos = deriveRelativePricePosition(
+      scenario,
+      matchDepthPct,
+      assumption.assumed_competitive_price_gbp,
+    );
+
+    matchOptionBase = {
+      option_type: 'MATCH',
+      label: 'MATCH',
+      title: 'Match Competitive Benchmark Price',
+      available: true,
+      unavailable_reason: null,
+      depth_pct: matchDepthPct,
+      promoted_price_gbp: matchEval.promoted_price_gbp,
+      scope: activeScope,
+      stores_count: activeStores,
+      duration_days: activeDurationDays,
+      relative_price_position: matchPos,
+      relative_position_label: formatRelativePositionShortLabel(matchPos),
+      own_price_response_pp: matchEval.own_price_response_pp,
+      competitive_response_pp: matchEval.competitive_response_pp,
+      ambient_competitive_effect_pp: matchEval.ambient_competitive_effect_pp,
+      intervention_attributable_competitive_effect_pp:
+        matchEval.intervention_attributable_competitive_effect_pp,
+      expected_demand_uplift_pct: matchEval.expected_demand_uplift_pct,
+      expected_demand_units: matchEval.expected_demand_units,
+      incremental_units: matchEval.incremental_units,
+      net_contribution_delta_gbp: matchEval.net_contribution_delta_gbp,
+      margin_exposure_gbp: matchEval.margin_exposure_gbp,
+      delta_vs_hold_contribution_gbp:
+        matchEval.net_contribution_delta_gbp - holdEval.net_contribution_delta_gbp,
+      delta_vs_hold_uplift_pp: round2(
+        matchEval.expected_demand_uplift_pct - holdEval.expected_demand_uplift_pct,
+      ),
+      delta_vs_hold_exposure_gbp: round2(
+        matchEval.margin_exposure_gbp - holdEval.margin_exposure_gbp,
+      ),
+      rationale: `Adjust promotional depth to ${matchDepthPct}% across ${activeScope} (${activeStores} stores, ${activeDurationDays} days) so our promotional shelf price (£${matchEval.promoted_price_gbp.toFixed(2)}) achieves parity with the £${assumption.assumed_competitive_price_gbp.toFixed(2)} modelled benchmark.`,
+      evaluation: matchEval,
+      provenance_badge: COMPETITIVE_USER_FACING_PROVENANCE_BADGE,
+      provenance_label: COMPETITIVE_USER_FACING_PROVENANCE_LABEL,
+    };
+  }
+
+  // ── 3. TARGET ─────────────────────────────────────────────────────────────
+  const targetRegion = resolveGovernedTargetScope(scenario, target_scope);
+  const targetStores = scenarioStoreCount(scenario, targetRegion);
+  const targetDurationDays = activeDurationDays;
+  const targetCurve = evaluateCompetitiveDepthCurve(scenario, assumption, {
+    scope: targetRegion,
+    ambient_depth_pct: 0,
+    ambient_scope: targetRegion,
+    horizon_days: targetDurationDays,
+    candidate_depths_pct,
+  });
+
+  const positiveDepthPoints = targetCurve.competitive_points.filter(
+    (pt) => pt.discount_pct > 0,
+  );
+  let targetDepthPct: number;
+  if (targetCurve.recommended_discount_pct > 0) {
+    if (
+      targetRegion === activeScope &&
+      targetCurve.recommended_discount_pct === activeDepthPct &&
+      positiveDepthPoints.length > 1
+    ) {
+      const alternativePositive = positiveDepthPoints
+        .filter((pt) => pt.discount_pct !== activeDepthPct)
+        .reduce((best, pt) =>
+          pt.net_contribution_delta_gbp > best.net_contribution_delta_gbp ? pt : best,
+        );
+      targetDepthPct = alternativePositive.discount_pct;
+    } else {
+      targetDepthPct = targetCurve.recommended_discount_pct;
+    }
+  } else if (positiveDepthPoints.length > 0) {
+    const candidates =
+      targetRegion === activeScope && positiveDepthPoints.length > 1
+        ? positiveDepthPoints.filter((pt) => pt.discount_pct !== activeDepthPct)
+        : positiveDepthPoints;
+    const bestPositive = candidates.reduce((best, pt) =>
+      pt.net_contribution_delta_gbp > best.net_contribution_delta_gbp ? pt : best,
+    );
+    targetDepthPct = bestPositive.discount_pct;
+  } else {
+    targetDepthPct = activeDepthPct > 0 ? activeDepthPct : scenario.economics.promotion_depth_pct;
+  }
+
+  const targetEval = evaluateCompetitiveScenarioAtDepth(
+    scenario,
+    targetDepthPct,
+    assumption,
+    {
+      scope: targetRegion,
+      ambient_depth_pct: 0,
+      ambient_scope: targetRegion,
+      horizon_days: targetDurationDays,
+    },
+  );
+  const targetPos = deriveRelativePricePosition(
+    scenario,
+    targetDepthPct,
+    assumption.assumed_competitive_price_gbp,
+  );
+
+  const targetOptionBase: Omit<CompetitiveResponseOption, 'is_preferred' | 'preferred_badge'> = {
+    option_type: 'TARGET',
+    label: 'TARGET',
+    title: `Target Highest-Opportunity Scope (${targetRegion})`,
+    available: true,
+    unavailable_reason: null,
+    depth_pct: targetDepthPct,
+    promoted_price_gbp: targetEval.promoted_price_gbp,
+    scope: targetRegion,
+    stores_count: targetStores,
+    duration_days: targetDurationDays,
+    relative_price_position: targetPos,
+    relative_position_label: formatRelativePositionShortLabel(targetPos),
+    own_price_response_pp: targetEval.own_price_response_pp,
+    competitive_response_pp: targetEval.competitive_response_pp,
+    ambient_competitive_effect_pp: targetEval.ambient_competitive_effect_pp,
+    intervention_attributable_competitive_effect_pp:
+      targetEval.intervention_attributable_competitive_effect_pp,
+    expected_demand_uplift_pct: targetEval.expected_demand_uplift_pct,
+    expected_demand_units: targetEval.expected_demand_units,
+    incremental_units: targetEval.incremental_units,
+    net_contribution_delta_gbp: targetEval.net_contribution_delta_gbp,
+    margin_exposure_gbp: targetEval.margin_exposure_gbp,
+    delta_vs_hold_contribution_gbp:
+      targetEval.net_contribution_delta_gbp - holdEval.net_contribution_delta_gbp,
+    delta_vs_hold_uplift_pp: round2(
+      targetEval.expected_demand_uplift_pct - holdEval.expected_demand_uplift_pct,
+    ),
+    delta_vs_hold_exposure_gbp: round2(
+      targetEval.margin_exposure_gbp - holdEval.margin_exposure_gbp,
+    ),
+    rationale: `Apply the response where CogniX already sees the strongest opportunity. Focus ${targetDepthPct}% depth on ${targetRegion} (${targetStores} stores · ${targetDurationDays} days) using the existing governed regional opportunity model.`,
+    evaluation: targetEval,
+    provenance_badge: COMPETITIVE_USER_FACING_PROVENANCE_BADGE,
+    provenance_label: COMPETITIVE_USER_FACING_PROVENANCE_LABEL,
+  };
+
+  // ── 4. REDUCE EXPOSURE ────────────────────────────────────────────────────
+  const reduceDepthPct =
+    activeDepthPct > 0 ? activeDepthPct : scenario.economics.promotion_depth_pct || 10;
+  let reduceScope = activeScope;
+  let reduceDurationDays = activeDurationDays;
+  let reduceMechanismDetail: string;
+
+  const shorterDurations = GOVERNED_PLANNER_DURATION_DAYS.filter(
+    (d) => d < activeDurationDays,
+  );
+  if (shorterDurations.length > 0) {
+    reduceDurationDays = shorterDurations[shorterDurations.length - 1];
+    reduceMechanismDetail = `shortening campaign duration from ${activeDurationDays} days to ${reduceDurationDays} days across ${reduceScope}`;
+  } else {
+    reduceScope = resolveReducedExposureScope(scenario, activeScope, secondary_scope);
+    reduceMechanismDetail = `narrowing store scope from ${activeScope} (${activeStores} stores) to ${reduceScope} (${scenarioStoreCount(scenario, reduceScope)} stores) over ${reduceDurationDays} days`;
+  }
+  const reduceStores = scenarioStoreCount(scenario, reduceScope);
+
+  const reduceEval = evaluateCompetitiveScenarioAtDepth(
+    scenario,
+    reduceDepthPct,
+    assumption,
+    {
+      scope: reduceScope,
+      ambient_depth_pct: 0,
+      ambient_scope: reduceScope,
+      horizon_days: reduceDurationDays,
+    },
+  );
+  const reducePos = deriveRelativePricePosition(
+    scenario,
+    reduceDepthPct,
+    assumption.assumed_competitive_price_gbp,
+  );
+
+  const reduceOptionBase: Omit<CompetitiveResponseOption, 'is_preferred' | 'preferred_badge'> = {
+    option_type: 'REDUCE_EXPOSURE',
+    label: 'REDUCE EXPOSURE',
+    title: `Reduce Exposure (${reduceDepthPct}% · ${reduceScope} · ${reduceDurationDays}d)`,
+    available: true,
+    unavailable_reason: null,
+    depth_pct: reduceDepthPct,
+    promoted_price_gbp: reduceEval.promoted_price_gbp,
+    scope: reduceScope,
+    stores_count: reduceStores,
+    duration_days: reduceDurationDays,
+    relative_price_position: reducePos,
+    relative_position_label: formatRelativePositionShortLabel(reducePos),
+    own_price_response_pp: reduceEval.own_price_response_pp,
+    competitive_response_pp: reduceEval.competitive_response_pp,
+    ambient_competitive_effect_pp: reduceEval.ambient_competitive_effect_pp,
+    intervention_attributable_competitive_effect_pp:
+      reduceEval.intervention_attributable_competitive_effect_pp,
+    expected_demand_uplift_pct: reduceEval.expected_demand_uplift_pct,
+    expected_demand_units: reduceEval.expected_demand_units,
+    incremental_units: reduceEval.incremental_units,
+    net_contribution_delta_gbp: reduceEval.net_contribution_delta_gbp,
+    margin_exposure_gbp: reduceEval.margin_exposure_gbp,
+    delta_vs_hold_contribution_gbp:
+      reduceEval.net_contribution_delta_gbp - holdEval.net_contribution_delta_gbp,
+    delta_vs_hold_uplift_pp: round2(
+      reduceEval.expected_demand_uplift_pct - holdEval.expected_demand_uplift_pct,
+    ),
+    delta_vs_hold_exposure_gbp: round2(
+      reduceEval.margin_exposure_gbp - holdEval.margin_exposure_gbp,
+    ),
+    rationale: `Reduce promotional exposure while retaining the ${reduceDepthPct}% promotional depth intent by ${reduceMechanismDetail}.`,
+    evaluation: reduceEval,
+    provenance_badge: COMPETITIVE_USER_FACING_PROVENANCE_BADGE,
+    provenance_label: COMPETITIVE_USER_FACING_PROVENANCE_LABEL,
+  };
+
+  // ── 5. Preferred Option Selection (MAXIMUM NET CONTRIBUTION) ─────────────
+  const baseOptions = [holdOptionBase, matchOptionBase, targetOptionBase, reduceOptionBase];
+  const tiePriority: Record<CompetitiveResponseOptionType, number> = {
+    HOLD: 0,
+    TARGET: 1,
+    REDUCE_EXPOSURE: 2,
+    MATCH: 3,
+  };
+
+  const availableOptions = baseOptions.filter(
+    (opt) => opt.available && opt.net_contribution_delta_gbp !== null,
+  );
+  const winningBase = availableOptions.reduce((best, candidate) => {
+    const bestContrib = best.net_contribution_delta_gbp!;
+    const candContrib = candidate.net_contribution_delta_gbp!;
+    if (candContrib > bestContrib) return candidate;
+    if (candContrib < bestContrib) return best;
+    return tiePriority[candidate.option_type] < tiePriority[best.option_type]
+      ? candidate
+      : best;
+  }, availableOptions[0]);
+
+  const options: CompetitiveResponseOption[] = baseOptions.map((opt) => {
+    const isPreferred = opt.option_type === winningBase.option_type;
+    return {
+      ...opt,
+      is_preferred: isPreferred,
+      preferred_badge: isPreferred ? COMPETITIVE_PREFERRED_RESPONSE_BADGE : null,
+    };
+  });
+
+  const preferredOption = options.find((opt) => opt.is_preferred)!;
+  let preferredRationale: string;
+
+  if (preferredOption.option_type === 'HOLD') {
+    preferredRationale = `HOLD is the CogniX Preferred Response because retaining the current ${preferredOption.depth_pct}% · ${preferredOption.scope} · ${preferredOption.duration_days}d configuration delivers the highest net contribution (${formatSignedGbpPlain(preferredOption.net_contribution_delta_gbp!)}) under this modelled competitive assumption without unnecessary reconfiguration.`;
+  } else if (preferredOption.option_type === 'TARGET') {
+    preferredRationale = `TARGET is the CogniX Preferred Response because focusing ${preferredOption.depth_pct}% depth on ${preferredOption.scope} (${preferredOption.stores_count} stores · ${preferredOption.duration_days}d) delivers the highest net contribution (${formatSignedGbpPlain(preferredOption.net_contribution_delta_gbp!)}, ${formatSignedGbpPlain(preferredOption.delta_vs_hold_contribution_gbp!)} vs HOLD) while applying the response where CogniX already sees the strongest opportunity.`;
+  } else if (preferredOption.option_type === 'MATCH') {
+    preferredRationale = `MATCH is the CogniX Preferred Response because adjusting promotional depth to ${preferredOption.depth_pct}% to reach shelf-price parity (£${preferredOption.promoted_price_gbp!.toFixed(2)}) delivers the highest net contribution (${formatSignedGbpPlain(preferredOption.net_contribution_delta_gbp!)}, ${formatSignedGbpPlain(preferredOption.delta_vs_hold_contribution_gbp!)} vs HOLD) under this modelled competitive assumption.`;
+  } else {
+    preferredRationale = `REDUCE EXPOSURE is the CogniX Preferred Response because narrowing promotional exposure to ${preferredOption.depth_pct}% · ${preferredOption.scope} · ${preferredOption.duration_days}d limits margin erosion and delivers the highest net contribution (${formatSignedGbpPlain(preferredOption.net_contribution_delta_gbp!)}, ${formatSignedGbpPlain(preferredOption.delta_vs_hold_contribution_gbp!)} vs HOLD) under this modelled competitive assumption.`;
+  }
+
+  return {
+    objective: 'MAXIMUM_NET_CONTRIBUTION',
+    options,
+    preferred_option_type: preferredOption.option_type,
+    preferred_option: preferredOption,
+    preferred_response_rationale: preferredRationale,
+    hold_is_preferred: preferredOption.option_type === 'HOLD',
+    provenance: COMPETITIVE_DERIVED_PROVENANCE,
+  };
+}
+
 /**
  * Evaluates the complete Competitive Price Response What-If Intelligence bundle
  * for a certified scenario and a validated `CompetitivePriceAssumption`.
  *
  * All calculations — relative price position, own-price vs competitive demand
  * decomposition, contribution-maximising winner, deterministic decision-boundary
- * sweep, and MATCH parity derivation — execute in this domain function so React
- * components perform zero competitive arithmetic.
+ * sweep, MATCH parity derivation, and the four governed response options — execute
+ * in this domain function so React components perform zero competitive arithmetic.
  */
 export function evaluateCompetitiveWhatIfIntelligence(
   input: CompetitiveWhatIfIntelligenceInput,
@@ -2196,6 +2761,8 @@ export function evaluateCompetitiveWhatIfIntelligence(
     scope,
     horizon_days = scenario?.calendar?.promotion_duration_days,
     candidate_depths_pct,
+    target_scope,
+    secondary_scope,
   } = input;
 
   validateScenarioAndDepth(scenario, active_depth_pct);
@@ -2311,7 +2878,19 @@ export function evaluateCompetitiveWhatIfIntelligence(
   const matchDetail =
     `Reference configuration only — under Maximum Net Contribution, ${curveEvaluation.recommended_discount_pct}% depth remains the contribution-maximising configuration. CogniX does not automatically recommend or stage price matching.`;
 
-  // 5. Plain-Language Intelligence Summary
+  // 5. Response Options Comparison (HOLD, MATCH, TARGET, REDUCE EXPOSURE)
+  const responseOptions = evaluateCompetitiveResponseOptions({
+    scenario,
+    assumption,
+    active_depth_pct,
+    scope,
+    horizon_days,
+    candidate_depths_pct,
+    target_scope,
+    secondary_scope,
+  });
+
+  // 6. Plain-Language Intelligence Summary
   const recDepth = curveEvaluation.recommended_discount_pct;
   const baseRecDepth = baselineCurve.recommended_discount_pct;
 
@@ -2393,6 +2972,7 @@ export function evaluateCompetitiveWhatIfIntelligence(
       detail: matchDetail,
     },
     boundary_sweep: boundarySweep,
+    response_options: responseOptions,
     intelligence_summary: {
       current_decision_headline: currentDecisionHeadline,
       current_decision_detail: currentDecisionDetail,
@@ -2407,4 +2987,5 @@ export function evaluateCompetitiveWhatIfIntelligence(
     provenance: COMPETITIVE_DERIVED_PROVENANCE,
   };
 }
+
 

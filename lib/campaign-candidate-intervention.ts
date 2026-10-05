@@ -15,13 +15,64 @@ import type {
 } from './campaign-archetypes';
 import { estimateInterventionEconomics } from './campaign-archetypes';
 import { inScopeStoreCount } from '../packages/contracts/src/scenario-scope';
+import {
+  type CompetitivePriceAssumption,
+  type CompetitiveResponseOption,
+  type CompetitiveResponseOptionType,
+  type CompetitiveWhatIfIntelligenceResult,
+  COMPETITIVE_USER_FACING_PROVENANCE_BADGE,
+  COMPETITIVE_USER_FACING_PROVENANCE_LABEL,
+  createCompetitivePriceAssumption
+} from './competitive-price-response';
 
 export type CandidateLensSource =
   | 'OPPORTUNITY'
   | 'FRONTIER'
   | 'INVERSE'
   | 'DEMAND'
-  | 'SIGNAL_HYPOTHESIS';
+  | 'SIGNAL_HYPOTHESIS'
+  | 'COMPETITIVE_PRICE_RESPONSE';
+
+export const COMPETITIVE_GOVERNANCE_STATEMENT =
+  'This configuration was selected under a modelled competitive-price assumption.' as const;
+
+export const COMPETITIVE_CONTEXT_JSON_PREFIX = 'COGNIX_COMPETITIVE_CONTEXT_JSON:' as const;
+
+export interface CompetitiveInterventionContext {
+  assumed_competitive_price_gbp: number;
+  competitive_response_pp_per_disadvantage_point: number;
+  selected_response_type: CompetitiveResponseOptionType;
+  selected_response_label: string;
+  relative_price_position_label: string;
+  disadvantage_pp: number;
+  price_gap_gbp: number;
+  standing: 'DISADVANTAGE' | 'PARITY' | 'ADVANTAGE';
+  own_price_response_pp: number;
+  competitive_response_pp: number;
+  ambient_competitive_effect_pp: number;
+  intervention_attributable_competitive_effect_pp: number;
+  expected_demand_uplift_pct: number;
+  expected_demand_units: number;
+  incremental_units: number;
+  net_contribution_delta_gbp: number;
+  margin_exposure_gbp: number;
+  baseline_depth_pct: number;
+  baseline_scope: string;
+  baseline_stores: number;
+  baseline_duration_days: number;
+  baseline_expected_demand_uplift_pct: number;
+  baseline_expected_demand_units: number;
+  baseline_net_contribution_delta_gbp: number;
+  baseline_margin_exposure_gbp: number;
+  decision_boundary_headline: string;
+  decision_boundary_detail: string;
+  preferred_option_type: CompetitiveResponseOptionType;
+  preferred_response_rationale: string;
+  provenance_badge: typeof COMPETITIVE_USER_FACING_PROVENANCE_BADGE;
+  provenance_label: typeof COMPETITIVE_USER_FACING_PROVENANCE_LABEL;
+  governance_statement: typeof COMPETITIVE_GOVERNANCE_STATEMENT;
+  [key: string]: unknown;
+}
 
 export interface InterventionProvenance {
   source_lens: CandidateLensSource;
@@ -33,6 +84,7 @@ export interface InterventionProvenance {
   elasticity_flip_discount_pct?: number;
   recommended_discount_pct?: number;
   comparison_basis?: 'SCENARIO_ELASTICITY_CURVE' | 'CDI06_OUTCOME_FRONTIER';
+  competitive_context?: CompetitiveInterventionContext;
 }
 
 export interface ActiveIntervention {
@@ -46,6 +98,149 @@ export interface ActiveIntervention {
   expected_demand: number;
   expected_contribution: number;
   provenance?: InterventionProvenance;
+}
+
+/**
+ * Builds a governed `ActiveIntervention` candidate from a selected `CompetitiveResponseOption`
+ * and its parent `CompetitiveWhatIfIntelligenceResult`.
+ *
+ * Staging this candidate does NOT mutate active planner controls; only human `Accept`
+ * applies the configuration into the planner and triggers live CDI evaluation.
+ */
+export function buildCompetitiveResponseCandidateIntervention(args: {
+  whatIfResult: CompetitiveWhatIfIntelligenceResult;
+  selectedOption: CompetitiveResponseOption;
+}): ActiveIntervention {
+  const { whatIfResult, selectedOption } = args;
+  if (
+    !selectedOption.available ||
+    selectedOption.depth_pct === null ||
+    !selectedOption.evaluation ||
+    !selectedOption.relative_price_position
+  ) {
+    throw new Error(
+      `Cannot stage unavailable competitive response option "${selectedOption.label}": ${selectedOption.unavailable_reason ?? 'outside governed bounds'}.`
+    );
+  }
+
+  const holdOption =
+    whatIfResult.response_options.options.find(o => o.option_type === 'HOLD') ?? selectedOption;
+
+  const competitiveContext: CompetitiveInterventionContext = {
+    assumed_competitive_price_gbp: whatIfResult.assumption.assumed_competitive_price_gbp,
+    competitive_response_pp_per_disadvantage_point:
+      whatIfResult.assumption.competitive_response_pp_per_disadvantage_point,
+    selected_response_type: selectedOption.option_type,
+    selected_response_label: selectedOption.label,
+    relative_price_position_label: selectedOption.relative_position_label,
+    disadvantage_pp: selectedOption.relative_price_position.disadvantage_pp,
+    price_gap_gbp: selectedOption.relative_price_position.price_gap_gbp,
+    standing: selectedOption.relative_price_position.standing,
+    own_price_response_pp: selectedOption.own_price_response_pp ?? 0,
+    competitive_response_pp: selectedOption.competitive_response_pp ?? 0,
+    ambient_competitive_effect_pp: selectedOption.ambient_competitive_effect_pp ?? 0,
+    intervention_attributable_competitive_effect_pp:
+      selectedOption.intervention_attributable_competitive_effect_pp ?? 0,
+    expected_demand_uplift_pct: selectedOption.expected_demand_uplift_pct ?? 0,
+    expected_demand_units: selectedOption.expected_demand_units ?? 0,
+    incremental_units: selectedOption.incremental_units ?? 0,
+    net_contribution_delta_gbp: selectedOption.net_contribution_delta_gbp ?? 0,
+    margin_exposure_gbp: selectedOption.margin_exposure_gbp ?? 0,
+    baseline_depth_pct: holdOption.depth_pct ?? whatIfResult.current_decision_impact.active_depth_pct,
+    baseline_scope: holdOption.scope,
+    baseline_stores: holdOption.stores_count,
+    baseline_duration_days: holdOption.duration_days,
+    baseline_expected_demand_uplift_pct:
+      holdOption.expected_demand_uplift_pct ??
+      whatIfResult.current_decision_impact.active_point.expected_demand_uplift_pct,
+    baseline_expected_demand_units:
+      holdOption.expected_demand_units ??
+      whatIfResult.current_decision_impact.active_point.expected_demand_units,
+    baseline_net_contribution_delta_gbp:
+      holdOption.net_contribution_delta_gbp ??
+      whatIfResult.current_decision_impact.active_point.net_contribution_delta_gbp,
+    baseline_margin_exposure_gbp:
+      holdOption.margin_exposure_gbp ??
+      whatIfResult.current_decision_impact.active_point.margin_exposure_gbp,
+    decision_boundary_headline: whatIfResult.intelligence_summary.decision_boundary_headline,
+    decision_boundary_detail: whatIfResult.intelligence_summary.decision_boundary_detail,
+    preferred_option_type: whatIfResult.response_options.preferred_option_type,
+    preferred_response_rationale: whatIfResult.response_options.preferred_response_rationale,
+    provenance_badge: COMPETITIVE_USER_FACING_PROVENANCE_BADGE,
+    provenance_label: COMPETITIVE_USER_FACING_PROVENANCE_LABEL,
+    governance_statement: COMPETITIVE_GOVERNANCE_STATEMENT
+  };
+
+  return {
+    title: `Competitive Response: ${selectedOption.label} (${selectedOption.depth_pct}% · ${selectedOption.scope} · ${selectedOption.duration_days}d)`,
+    type: `COMPETITIVE_${selectedOption.option_type}`,
+    description: `${selectedOption.rationale} ${COMPETITIVE_GOVERNANCE_STATEMENT}`,
+    proposed_discount: selectedOption.depth_pct,
+    proposed_scope: selectedOption.stores_count,
+    proposed_duration: selectedOption.duration_days,
+    proposed_region: selectedOption.scope,
+    expected_demand: selectedOption.expected_demand_uplift_pct ?? 0,
+    expected_contribution: selectedOption.net_contribution_delta_gbp ?? 0,
+    provenance: {
+      source_lens: 'COMPETITIVE_PRICE_RESPONSE',
+      source_id: `comp_resp_${selectedOption.option_type.toLowerCase()}`,
+      source_label: `${COMPETITIVE_USER_FACING_PROVENANCE_BADGE} · ${selectedOption.label}`,
+      recommended_discount_pct:
+        whatIfResult.current_decision_impact.competitive_recommended_depth_pct,
+      notes: [
+        `${COMPETITIVE_USER_FACING_PROVENANCE_BADGE}: ${COMPETITIVE_USER_FACING_PROVENANCE_LABEL} (Benchmark £${whatIfResult.assumption.assumed_competitive_price_gbp.toFixed(2)}, γ = ${whatIfResult.assumption.competitive_response_pp_per_disadvantage_point}pp/pp).`,
+        `Selected response: ${selectedOption.label} (${selectedOption.depth_pct}% · ${selectedOption.scope} · ${selectedOption.duration_days}d) · Relative position: ${selectedOption.relative_position_label}.`,
+        `Decision boundary context: ${whatIfResult.intelligence_summary.decision_boundary_headline}.`,
+        COMPETITIVE_GOVERNANCE_STATEMENT
+      ],
+      competitive_context: competitiveContext
+    }
+  };
+}
+
+/**
+ * Extracts a persisted `CompetitiveInterventionContext` and reconstructed
+ * `CompetitivePriceAssumption` from a `CampaignIntent` if present.
+ */
+export function extractCompetitiveContextFromIntent(
+  intent:
+    | {
+        decision_context?: {
+          assumptions?: string[];
+          contextual_factor_notes?: string[];
+        };
+      }
+    | null
+    | undefined
+): {
+  context: CompetitiveInterventionContext;
+  assumption: CompetitivePriceAssumption;
+} | null {
+  if (!intent?.decision_context) return null;
+  const entries = [
+    ...(intent.decision_context.contextual_factor_notes ?? []),
+    ...(intent.decision_context.assumptions ?? [])
+  ];
+  const encoded = entries.find(line => line.startsWith(COMPETITIVE_CONTEXT_JSON_PREFIX));
+  if (!encoded) return null;
+  try {
+    const rawJson = encoded.slice(COMPETITIVE_CONTEXT_JSON_PREFIX.length).trim();
+    const parsed = JSON.parse(rawJson) as CompetitiveInterventionContext;
+    if (
+      typeof parsed?.assumed_competitive_price_gbp !== 'number' ||
+      typeof parsed?.competitive_response_pp_per_disadvantage_point !== 'number'
+    ) {
+      return null;
+    }
+    const assumption = createCompetitivePriceAssumption({
+      assumed_competitive_price_gbp: parsed.assumed_competitive_price_gbp,
+      competitive_response_pp_per_disadvantage_point:
+        parsed.competitive_response_pp_per_disadvantage_point
+    });
+    return { context: parsed, assumption };
+  } catch {
+    return null;
+  }
 }
 
 export interface PlannerCampaignConfig {
@@ -569,19 +764,81 @@ export type GraphSemanticVisual =
       target_uplift_pct: number;
       target_contribution_gbp: number;
       intervention_label: string;
+    }
+  | {
+      kind: 'COMPETITIVE_ASSUMPTION';
+      provenance_badge_label: typeof COMPETITIVE_USER_FACING_PROVENANCE_BADGE;
+      provenance_detail_label: typeof COMPETITIVE_USER_FACING_PROVENANCE_LABEL;
+      our_list_price_gbp: number;
+      our_promotional_price_gbp: number;
+      active_depth_pct: number;
+      assumed_competitive_price_gbp: number;
+      price_gap_gbp: number;
+      disadvantage_pp: number;
+      standing: 'DISADVANTAGE' | 'PARITY' | 'ADVANTAGE';
+      relative_position_label: string;
+      gamma: number;
+      own_price_response_pp: number;
+      competitive_response_pp: number;
+      ambient_competitive_effect_pp: number;
+      intervention_attributable_competitive_effect_pp: number;
+      current_winner_depth_pct: number;
+      current_winner_contribution_gbp: number;
+      boundary_outcome: 'FLIP_FOUND' | 'NO_FLIP_WITHIN_TESTED_RANGE';
+      boundary_price_gbp: number | null;
+      boundary_disadvantage_pp: number | null;
+      boundary_new_winner_depth_pct: number | null;
+      boundary_headline: string;
+      preferred_option_type: CompetitiveResponseOptionType;
+      preferred_option_label: string;
+      preferred_option_contribution_gbp: number;
+      selected_response_type: CompetitiveResponseOptionType | null;
+      selected_response_label: string | null;
+      selected_response_summary: string | null;
     };
 
 export interface GraphInspectorPanel {
   heading: string;
   source: string;
   provenance_tier: 'SEEDED_WORLD_MODEL' | 'DERIVED_SCENARIO_CURVE' | 'LIVE_CDI_ASSESSMENT';
-  provenance_badge: 'SEEDED WORLD MODEL' | 'DERIVED FROM SCENARIO CURVE' | 'LIVE CDI ASSESSMENT';
+  provenance_badge:
+    | 'SEEDED WORLD MODEL'
+    | 'DERIVED FROM SCENARIO CURVE'
+    | 'LIVE CDI ASSESSMENT'
+    | 'MODELLED ASSUMPTION';
   what_this_tells_us: string;
   why_it_matters: string;
   threshold_comparison: string;
   facts: GraphInspectorFact[];
   visual: GraphSemanticVisual;
   caveat?: string;
+}
+
+export const COMPETITIVE_ASSUMPTION_NODE_ID = 'n_comp_assumption' as const;
+
+/**
+ * Builds the governed Evidence Network node for a modelled competitive-price assumption
+ * within the existing `HYPOTHESIS` node category (never `COMPETITOR SIGNAL`).
+ */
+export function buildCompetitiveAssumptionGraphNode(
+  whatIfResult: CompetitiveWhatIfIntelligenceResult,
+  selectedOptionType?: CompetitiveResponseOptionType | null
+): CampaignArchetype['decision_graph']['nodes'][number] {
+  const pos = whatIfResult.current_position.position;
+  const gamma = whatIfResult.assumption.competitive_response_pp_per_disadvantage_point;
+  const selectedOpt = selectedOptionType
+    ? whatIfResult.response_options.options.find(o => o.option_type === selectedOptionType)
+    : null;
+  return {
+    id: COMPETITIVE_ASSUMPTION_NODE_ID,
+    label: 'Competitive Assumption',
+    category: 'HYPOTHESIS',
+    provenance: 'SIMULATED',
+    summary: `Benchmark £${pos.assumed_competitive_price_gbp.toFixed(2)} · γ = ${gamma}pp/pp (${whatIfResult.current_position.relative_position_label})`,
+    detail: selectedOpt
+      ? `${COMPETITIVE_USER_FACING_PROVENANCE_BADGE} (${COMPETITIVE_USER_FACING_PROVENANCE_LABEL}): ${whatIfResult.intelligence_summary.decision_boundary_headline}. Selected response: ${selectedOpt.label}.`
+      : `${COMPETITIVE_USER_FACING_PROVENANCE_BADGE} (${COMPETITIVE_USER_FACING_PROVENANCE_LABEL}): ${whatIfResult.intelligence_summary.decision_boundary_headline}. Preferred response: ${whatIfResult.response_options.preferred_option.label}.`
+  };
 }
 
 /**
@@ -600,6 +857,8 @@ export function inspectDecisionGraphNode(args: {
   committedConfig?: PlannerCampaignConfig | null;
   candidateIntervention?: ActiveIntervention | null;
   acceptedIntervention?: ActiveIntervention | null;
+  competitiveWhatIf?: CompetitiveWhatIfIntelligenceResult | null;
+  selectedCompetitiveOptionType?: CompetitiveResponseOptionType | null;
 }): GraphInspectorPanel {
   const { archetype, node } = args;
   const curve = archetype.elasticity_curve;
@@ -724,6 +983,96 @@ export function inspectDecisionGraphNode(args: {
     }
 
     case 'HYPOTHESIS': {
+      if (node.id === COMPETITIVE_ASSUMPTION_NODE_ID && args.competitiveWhatIf) {
+        const comp = args.competitiveWhatIf;
+        const pos = comp.current_position.position;
+        const impact = comp.current_decision_impact;
+        const sweep = comp.boundary_sweep;
+        const pref = comp.response_options.preferred_option;
+        const selectedType =
+          args.selectedCompetitiveOptionType ??
+          args.candidateIntervention?.provenance?.competitive_context?.selected_response_type ??
+          args.acceptedIntervention?.provenance?.competitive_context?.selected_response_type ??
+          null;
+        const selectedOpt = selectedType
+          ? comp.response_options.options.find(o => o.option_type === selectedType) ?? null
+          : null;
+
+        return {
+          heading: 'Modelled competitive-price assumption',
+          source: 'lib/competitive-price-response (MODELLED ASSUMPTION · entered by you)',
+          provenance_tier: 'DERIVED_SCENARIO_CURVE',
+          provenance_badge: 'MODELLED ASSUMPTION',
+          what_this_tells_us: `${comp.current_position.headline}. Our £${pos.our_promotional_price_gbp.toFixed(2)} promotional shelf price (${pos.promotion_depth_pct}% off £${pos.list_price_gbp.toFixed(2)} list) is evaluated against a £${pos.assumed_competitive_price_gbp.toFixed(2)} modelled benchmark at γ = ${comp.assumption.competitive_response_pp_per_disadvantage_point}pp per disadvantage point.`,
+          why_it_matters: `${comp.intelligence_summary.current_decision_detail} ${comp.response_options.preferred_response_rationale}`,
+          threshold_comparison: `${comp.intelligence_summary.decision_boundary_headline} · Preferred response: ${pref.label} (${pref.depth_pct}% · ${pref.scope} · ${pref.duration_days}d)`,
+          facts: [
+            {
+              label: 'Provenance',
+              value: `${COMPETITIVE_USER_FACING_PROVENANCE_BADGE} (${COMPETITIVE_USER_FACING_PROVENANCE_LABEL})`,
+              note: 'origin: modelled · method: manual · authority: authoritative (counterfactual only)'
+            },
+            {
+              label: 'Our price vs benchmark',
+              value: `List £${pos.list_price_gbp.toFixed(2)} → Promo £${pos.our_promotional_price_gbp.toFixed(2)} vs Benchmark £${pos.assumed_competitive_price_gbp.toFixed(2)}`,
+              note: `Relative gap: ${pos.price_gap_gbp >= 0 ? '+' : ''}£${pos.price_gap_gbp.toFixed(2)} (${pos.disadvantage_pp >= 0 ? '+' : ''}${pos.disadvantage_pp.toFixed(2)}pp of list)`
+            },
+            {
+              label: 'Demand sensitivity (γ)',
+              value: `${comp.assumption.competitive_response_pp_per_disadvantage_point}pp per disadvantage point`,
+              note: `Own-price: +${impact.active_point.own_price_response_pp.toFixed(2)}pp · Competitive: ${impact.active_point.competitive_response_pp >= 0 ? '+' : ''}${impact.active_point.competitive_response_pp.toFixed(2)}pp`
+            },
+            {
+              label: 'Current winner & boundary',
+              value: `${sweep.current_winner.winning_depth_pct}% depth (£${sweep.current_winner.winning_contribution_gbp.toLocaleString('en-GB')})`,
+              note: comp.intelligence_summary.decision_boundary_headline
+            },
+            {
+              label: 'Selected / Preferred response',
+              value: selectedOpt
+                ? `Selected: ${selectedOpt.label} (${selectedOpt.depth_pct}% · ${selectedOpt.scope} · ${selectedOpt.duration_days}d)`
+                : `Preferred: ${pref.label} (${pref.depth_pct}% · ${pref.scope} · ${pref.duration_days}d)`,
+              note: COMPETITIVE_GOVERNANCE_STATEMENT
+            }
+          ],
+          visual: {
+            kind: 'COMPETITIVE_ASSUMPTION',
+            provenance_badge_label: COMPETITIVE_USER_FACING_PROVENANCE_BADGE,
+            provenance_detail_label: COMPETITIVE_USER_FACING_PROVENANCE_LABEL,
+            our_list_price_gbp: pos.list_price_gbp,
+            our_promotional_price_gbp: pos.our_promotional_price_gbp,
+            active_depth_pct: pos.promotion_depth_pct,
+            assumed_competitive_price_gbp: pos.assumed_competitive_price_gbp,
+            price_gap_gbp: pos.price_gap_gbp,
+            disadvantage_pp: pos.disadvantage_pp,
+            standing: pos.standing,
+            relative_position_label: comp.current_position.relative_position_label,
+            gamma: comp.assumption.competitive_response_pp_per_disadvantage_point,
+            own_price_response_pp: impact.active_point.own_price_response_pp,
+            competitive_response_pp: impact.active_point.competitive_response_pp,
+            ambient_competitive_effect_pp: impact.decomposition.ambient_competitive_effect_pp,
+            intervention_attributable_competitive_effect_pp:
+              impact.decomposition.intervention_attributable_competitive_effect_pp,
+            current_winner_depth_pct: sweep.current_winner.winning_depth_pct,
+            current_winner_contribution_gbp: sweep.current_winner.winning_contribution_gbp,
+            boundary_outcome: sweep.outcome,
+            boundary_price_gbp: sweep.boundary ? sweep.boundary.assumed_competitive_price_gbp : null,
+            boundary_disadvantage_pp: sweep.boundary ? sweep.boundary.disadvantage_pp : null,
+            boundary_new_winner_depth_pct: sweep.boundary ? sweep.boundary.new_winning_depth_pct : null,
+            boundary_headline: comp.intelligence_summary.decision_boundary_headline,
+            preferred_option_type: pref.option_type,
+            preferred_option_label: pref.label,
+            preferred_option_contribution_gbp: pref.net_contribution_delta_gbp ?? 0,
+            selected_response_type: selectedOpt ? selectedOpt.option_type : null,
+            selected_response_label: selectedOpt ? selectedOpt.label : null,
+            selected_response_summary: selectedOpt
+              ? `${selectedOpt.label}: ${selectedOpt.depth_pct}% · ${selectedOpt.scope} (${selectedOpt.stores_count} stores) · ${selectedOpt.duration_days}d`
+              : null
+          },
+          caveat: COMPETITIVE_GOVERNANCE_STATEMENT
+        };
+      }
+
       const hypo =
         archetype.signal_hypotheses.find(
           h =>
