@@ -132,6 +132,12 @@ const post = <T>(path: string, body: unknown) => call<T>(path, { method: 'POST',
 
 export const fetchAuthoringOptions = () => call<AuthoringOptions>('/api/v1/scenarios/authoring');
 
+/** Confirmed and in-progress drafts for this tenant. Read-only; the server remains the authority. */
+export const listScenarioDrafts = () => {
+  const query = new URLSearchParams({ tenant_id: AUTHORING_TENANT_ID });
+  return call<ScenarioDraft[]>(`/api/v1/scenarios/drafts?${query.toString()}`);
+};
+
 export const createScenarioDraft = (situation: string, inputs: ScenarioDraftInputs) =>
   post<DraftAssessment>('/api/v1/scenarios/drafts', { tenant_id: AUTHORING_TENANT_ID, situation, inputs });
 

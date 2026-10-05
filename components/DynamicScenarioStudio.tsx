@@ -160,6 +160,7 @@ export default function DynamicScenarioStudio({ onNavigate }: DynamicScenarioStu
   const [evaluating, setEvaluating] = useState(false);
   const [activatingId, setActivatingId] = useState<string | null>(null);
   const [attestedScenarioIds, setAttestedScenarioIds] = useState<Record<string, boolean>>({});
+  const [competitiveScenarioIds, setCompetitiveScenarioIds] = useState<Record<string, true>>({});
 
   const activeScenario = (() => {
     try {
@@ -195,6 +196,21 @@ export default function DynamicScenarioStudio({ onNavigate }: DynamicScenarioStu
   useEffect(() => {
     void loadStudioState(identity.scenario_id);
   }, [identity.scenario_id, loadStudioState]);
+
+  const rememberCompetitiveScenarios = useCallback((scenarioIds: string[]) => {
+    if (scenarioIds.length === 0) return;
+    setCompetitiveScenarioIds(prev => {
+      let changed = false;
+      const next = { ...prev };
+      for (const id of scenarioIds) {
+        if (!next[id]) {
+          next[id] = true;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, []);
 
   const handleRestart = async () => {
     if (restartPhase === 'working') return;
@@ -236,7 +252,11 @@ export default function DynamicScenarioStudio({ onNavigate }: DynamicScenarioStu
 
   const handleScenarioConfirmed = (confirmed: {
     scenario: { scenario_id: string };
-    draft: { field_provenance?: Array<{ descriptor: { origin: string } }> };
+    draft: {
+      scenario_id: string;
+      inputs: { situation?: string };
+      field_provenance?: Array<{ descriptor: { origin: string } }>;
+    };
   }) => {
     const hasAttested = (confirmed.draft.field_provenance ?? []).some(
       p => p.descriptor.origin === 'attested'
@@ -247,7 +267,18 @@ export default function DynamicScenarioStudio({ onNavigate }: DynamicScenarioStu
         [confirmed.scenario.scenario_id]: true
       }));
     }
+    if (confirmed.draft.inputs.situation === 'COMPETITIVE_PRICE_RESPONSE') {
+      setCompetitiveScenarioIds(prev => ({
+        ...prev,
+        [confirmed.draft.scenario_id]: true
+      }));
+    }
     void loadStudioState(identity.scenario_id);
+  };
+
+  const openCompetitivePriceResponse = () => {
+    window.sessionStorage.setItem(STUDIO_COMPETITIVE_WHAT_IF_HANDOFF_KEY, '1');
+    onNavigate?.('solution-promo');
   };
 
   const resolveProvenance = (item: ScenarioCatalogueEntry): ScenarioProvenanceDescriptor => {
@@ -388,10 +419,8 @@ export default function DynamicScenarioStudio({ onNavigate }: DynamicScenarioStu
             isOpen={true}
             mode="inline"
             onScenarioConfirmed={handleScenarioConfirmed}
-            onExploreCompetitivePriceResponse={onNavigate ? () => {
-              window.sessionStorage.setItem(STUDIO_COMPETITIVE_WHAT_IF_HANDOFF_KEY, '1');
-              onNavigate('solution-promo');
-            } : undefined}
+            onCompetitiveScenarios={rememberCompetitiveScenarios}
+            onExploreCompetitivePriceResponse={onNavigate ? openCompetitivePriceResponse : undefined}
           />
         </section>
 
@@ -472,6 +501,22 @@ export default function DynamicScenarioStudio({ onNavigate }: DynamicScenarioStu
                   </span>
                 </div>
               </div>
+
+              {competitiveScenarioIds[identity.scenario_id] && onNavigate && (
+                <div className="dss-competitive-handoff">
+                  <button
+                    type="button"
+                    className="dss-competitive-handoff-btn"
+                    data-testid="btn-explore-competitive-price-response"
+                    onClick={openCompetitivePriceResponse}
+                  >
+                    Explore competitive price response <ArrowUpRight size={13} />
+                  </button>
+                  <span className="dss-competitive-handoff-note">
+                    Test how competitive pricing could change this decision.
+                  </span>
+                </div>
+              )}
 
               {onNavigate && (
                 <div className="dss-surface-links">

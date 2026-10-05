@@ -4640,6 +4640,42 @@ button.atlas-origin--open:focus-visible { outline: 2px solid var(--accent); outl
   color: var(--text-secondary);
 }
 
+.dss-competitive-handoff {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
+  border: 1px solid rgba(232, 93, 4, 0.35);
+  background: rgba(232, 93, 4, 0.06);
+}
+
+.dss-competitive-handoff-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--g10x-orange);
+  background: var(--g10x-orange);
+  color: #ffffff;
+  font: inherit;
+  font-size: 0.8125rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.dss-competitive-handoff-btn:hover {
+  filter: brightness(0.96);
+}
+
+.dss-competitive-handoff-note {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+}
+
 .dss-surface-links {
   display: flex;
   align-items: center;

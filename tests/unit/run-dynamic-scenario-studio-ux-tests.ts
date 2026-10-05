@@ -158,6 +158,19 @@ function main() {
   );
 
   assert(
+    studio.includes('btn-explore-competitive-price-response') &&
+      studio.includes('Explore competitive price response') &&
+      studio.includes('Test how competitive pricing could change this decision.') &&
+      studio.includes("draft.inputs.situation === 'COMPETITIVE_PRICE_RESPONSE'") &&
+      studio.includes('STUDIO_COMPETITIVE_WHAT_IF_HANDOFF_KEY') &&
+      studio.includes("onNavigate?.('solution-promo')") &&
+      studio.includes("onNavigate('solution-promo')") &&
+      !studio.includes('InverseAnalysis') &&
+      !/benchmark|gamma|γ/.test(studio),
+    'W8: Explore card offers the competitive handoff only for a confirmed competitive situation and does not host a second What-If'
+  );
+
+  assert(
     SCENARIO_PROVENANCE_FOUNDATION.created_by_you.label === 'Created by you' &&
       SCENARIO_PROVENANCE_FOUNDATION.created_by_you.implemented === true &&
       SCENARIO_PROVENANCE_FOUNDATION.uploaded_evidence.label === 'Built from uploaded evidence' &&

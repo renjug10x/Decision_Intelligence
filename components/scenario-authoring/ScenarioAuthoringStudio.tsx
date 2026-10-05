@@ -31,6 +31,7 @@ import {
   fetchAuthoringOptions,
   fetchEvaluatedDecision,
   importScenarioDraft,
+  listScenarioDrafts,
   requestDraftAssistance,
   updateScenarioDraft,
   type AuthoringField,
@@ -102,7 +103,8 @@ export default function ScenarioAuthoringStudio({
   onClose = () => {},
   mode = 'modal',
   onScenarioConfirmed,
-  onExploreCompetitivePriceResponse
+  onExploreCompetitivePriceResponse,
+  onCompetitiveScenarios
 }: {
   isOpen?: boolean;
   onClose?: () => void;
@@ -113,6 +115,11 @@ export default function ScenarioAuthoringStudio({
    * The callback navigates. It does not receive a benchmark or γ.
    */
   onExploreCompetitivePriceResponse?: () => void;
+  /**
+   * Scenario ids whose confirmed draft situation is competitive price response.
+   * The certified scenario record does not carry the situation, so Explore asks here.
+   */
+  onCompetitiveScenarios?: (scenarioIds: string[]) => void;
 }) {
   const { refreshState } = useDecisionState();
   const { money } = useCurrency();
@@ -159,6 +166,24 @@ export default function ScenarioAuthoringStudio({
       .then(setOptions)
       .catch((e: Error) => setProblem({ message: e.message, issues: [] }));
   }, [isOpen, reset]);
+
+  useEffect(() => {
+    if (!isOpen || !onCompetitiveScenarios) return;
+    let cancelled = false;
+    listScenarioDrafts()
+      .then(drafts => {
+        if (cancelled) return;
+        onCompetitiveScenarios(
+          drafts
+            .filter(draft => draft.state === 'CONFIRMED' && draft.inputs.situation === 'COMPETITIVE_PRICE_RESPONSE')
+            .map(draft => draft.scenario_id)
+        );
+      })
+      .catch(() => undefined);
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, onCompetitiveScenarios, confirmed]);
 
   useEffect(() => {
     if (!isOpen || mode === 'inline') return;
