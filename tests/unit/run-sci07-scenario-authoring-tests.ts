@@ -59,7 +59,9 @@ import {
   SCENARIO_CAPABILITIES,
   SCENARIO_DRAFT_FIELDS,
   SCENARIO_SITUATIONS,
+  SCENARIO_SITUATIONS_NOT_SUPPORTED,
   SCENARIO_SITUATION_IDS,
+  scenarioSituation,
   assertNoQuantitativeFieldIsGenAiAuthorable,
   canonicaliseScenarioDraftInputs,
   isGenAiAuthorableField,
@@ -219,8 +221,27 @@ async function run() {
   );
 
   assert(
-    SCENARIO_SITUATION_IDS.length === SCENARIO_SITUATIONS.length && SCENARIO_SITUATIONS.length === 3,
-    'A6: The governed situation set is closed and matches the families the signal fabric implements'
+    SCENARIO_SITUATION_IDS.length === SCENARIO_SITUATIONS.length && SCENARIO_SITUATIONS.length === 4,
+    'A6: The governed situation set is closed: three signal families plus the ADR-087 competitive decision context'
+  );
+  const competitiveSituation = scenarioSituation('COMPETITIVE_PRICE_RESPONSE');
+  assert(
+    competitiveSituation?.family_id === 'promotion_surge'
+      && competitiveSituation.archetype_id === 'ARCH-CHILLED-ELASTIC'
+      && competitiveSituation.label === 'A competitor changes price during our promotion'
+      && /counterfactual to explore/.test(competitiveSituation.decision_shape)
+      && /never as an observed competitor fact/.test(competitiveSituation.evidence_opens_on),
+    'A6b: Competitive price response reuses the promotion family and does not claim an observed competitor move'
+  );
+  assert(
+    !SCENARIO_SITUATIONS_NOT_SUPPORTED.some(s => /competitor price/i.test(s.label))
+      && SCENARIO_SITUATIONS_NOT_SUPPORTED.some(s => /Online fulfilment/i.test(s.label))
+      && SCENARIO_SITUATIONS_NOT_SUPPORTED.some(s => /Multi-SKU/i.test(s.label)),
+    'A6c: Competitive price response has left the unsupported list; fulfilment and range decisions have not'
+  );
+  assert(
+    !SCENARIO_DRAFT_FIELDS.some(f => /competitive|disadvantage|benchmark/i.test(f.id)),
+    'A6d: Benchmark price and γ are not certified Scenario Draft inputs'
   );
 
   const badField = validateScenarioDraftInputs({ sku_id: 'P004', margin_exposure_gbp: 12 });

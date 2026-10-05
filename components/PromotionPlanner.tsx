@@ -65,7 +65,8 @@ import {
 } from '@/lib/campaign-candidate-intervention';
 import {
   CompetitiveResponseOptionType,
-  CompetitiveWhatIfIntelligenceResult
+  CompetitiveWhatIfIntelligenceResult,
+  STUDIO_COMPETITIVE_WHAT_IF_HANDOFF_KEY
 } from '@/lib/competitive-price-response';
 import {
   DecisionContract,
@@ -191,8 +192,18 @@ export default function PromotionPlanner({
   const [durationDays, setDurationDays] = useState<number>(archetype.default_duration_days);
   const [objective, setObjective] = useState<'GROWTH' | 'MARGIN' | 'CLEARANCE'>('GROWTH');
 
+  // Studio handoff opens the existing What-If lens. Read after mount: the flag is browser-only.
+  const [openCompetitiveOnArrival, setOpenCompetitiveOnArrival] = useState(false);
+
   // Active Analytical Lens Tab
   const [activeLens, setActiveLens] = useState<AnalyticalLensId>('DEMAND');
+
+  useEffect(() => {
+    if (window.sessionStorage.getItem(STUDIO_COMPETITIVE_WHAT_IF_HANDOFF_KEY) !== '1') return;
+    window.sessionStorage.removeItem(STUDIO_COMPETITIVE_WHAT_IF_HANDOFF_KEY);
+    setOpenCompetitiveOnArrival(true);
+    setActiveLens('INVERSE');
+  }, []);
 
   // Active Proposed & Accepted Intervention State
   const [proposedIntervention, setProposedIntervention] = useState<ActiveIntervention | null>(null);
@@ -1648,6 +1659,7 @@ export default function PromotionPlanner({
                 onOpenDemandLens={() => setActiveLens('DEMAND')}
                 initialCompetitiveWhatIf={activeCompetitiveWhatIf}
                 initialSelectedOptionType={selectedCompetitiveOptionType}
+                openCompetitivePanel={openCompetitiveOnArrival}
                 onCompetitiveWhatIfChange={(whatIf, selectedType) => {
                   setActiveCompetitiveWhatIf(whatIf);
                   setSelectedCompetitiveOptionType(selectedType);

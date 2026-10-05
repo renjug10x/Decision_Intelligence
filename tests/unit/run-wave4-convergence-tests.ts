@@ -137,10 +137,21 @@ async function run() {
   // ═════════════════════════════════════════════════════════════════════════════
   console.log('\n=== A. GATE-E CONTRACT FREEZE ======================================\n');
   for (const rel of ['canonical-scenario-model', 'scenario-clock', 'scenario-registry', 'provenance-vocabulary',
-    'scenario-certification-model', 'living-evidence-contracts', 'scenario-draft-model']) {
+    'scenario-certification-model', 'living-evidence-contracts']) {
     const path = `packages/contracts/src/${rel}.ts`;
     assert(execSync(`git rev-parse ${SHA_D}:${path}`, { cwd: ROOT }).toString().trim() === execSync(`git hash-object ${path}`, { cwd: ROOT }).toString().trim(),
       `A1: ${rel} byte-identical to SHA-D`);
+  }
+  // ADR-087 amends scenario-draft-model only. Gate-D history stays the historical blob.
+  {
+    const path = 'packages/contracts/src/scenario-draft-model.ts';
+    const historical = execSync(`git rev-parse ${SHA_D}:${path}`, { cwd: ROOT }).toString().trim();
+    const now = execSync(`git hash-object ${path}`, { cwd: ROOT }).toString().trim();
+    assert(historical === '91768b4e83d7829e6437284e39833231f1ed60ea',
+      'A1-hist: Gate-D scenario-draft blob is unchanged history');
+    assert(now === '5108d775856d1401e09047e88dd5c4762f751f07',
+      'A1-adr087: scenario-draft matches the ADR-087 baseline');
+    assert(historical !== now, 'A1-adr087: the amendment is not claimed as SHA-D byte identity');
   }
 
   // ═════════════════════════════════════════════════════════════════════════════

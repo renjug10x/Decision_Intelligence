@@ -36,6 +36,7 @@ import { useCurrency } from '@/context/CurrencyContext';
 import { getOrCreateSessionId } from '@/lib/journey-client';
 import ScenarioSelectorModal from '@/components/ScenarioSelectorModal';
 import ScenarioAuthoringStudio from '@/components/scenario-authoring/ScenarioAuthoringStudio';
+import { STUDIO_COMPETITIVE_WHAT_IF_HANDOFF_KEY } from '@/lib/competitive-price-response';
 
 export type StudioAreaId = 'build' | 'explore' | 'observe' | 'discover';
 
@@ -387,6 +388,10 @@ export default function DynamicScenarioStudio({ onNavigate }: DynamicScenarioStu
             isOpen={true}
             mode="inline"
             onScenarioConfirmed={handleScenarioConfirmed}
+            onExploreCompetitivePriceResponse={onNavigate ? () => {
+              window.sessionStorage.setItem(STUDIO_COMPETITIVE_WHAT_IF_HANDOFF_KEY, '1');
+              onNavigate('solution-promo');
+            } : undefined}
           />
         </section>
 

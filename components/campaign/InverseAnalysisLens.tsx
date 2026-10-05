@@ -54,6 +54,8 @@ interface InverseAnalysisLensProps {
   onOpenDemandLens?: () => void;
   initialCompetitiveWhatIf?: CompetitiveWhatIfIntelligenceResult | null;
   initialSelectedOptionType?: CompetitiveResponseOptionType | null;
+  /** Studio arrival opens the existing What-If panel. It does not supply a benchmark or γ. */
+  openCompetitivePanel?: boolean;
   onCompetitiveWhatIfChange?: (
     whatIf: CompetitiveWhatIfIntelligenceResult | null,
     selectedOptionType: CompetitiveResponseOptionType | null
@@ -70,6 +72,7 @@ export default function InverseAnalysisLens({
   onOpenDemandLens,
   initialCompetitiveWhatIf,
   initialSelectedOptionType,
+  openCompetitivePanel = false,
   onCompetitiveWhatIfChange
 }: InverseAnalysisLensProps) {
   const { money, localise } = useCurrency();
@@ -88,7 +91,7 @@ export default function InverseAnalysisLens({
       : null;
 
   // Competitive Price Response What-If progressive-disclosure state
-  const [isCompetitiveOpen, setIsCompetitiveOpen] = useState<boolean>(false);
+  const [isCompetitiveOpen, setIsCompetitiveOpen] = useState<boolean>(openCompetitivePanel);
   const [benchmarkPriceInput, setBenchmarkPriceInput] = useState<string>('');
   const [sensitivityGammaInput, setSensitivityGammaInput] = useState<string>('');
   const [evaluatedAssumption, setEvaluatedAssumption] =

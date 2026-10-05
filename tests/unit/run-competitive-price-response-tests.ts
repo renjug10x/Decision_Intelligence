@@ -23,6 +23,7 @@ import {
   CANONICAL_SCENARIO,
   CHILLED_SALMON_SCENARIO,
   PREMIUM_BAKERY_SCENARIO,
+  SCENARIO_SITUATIONS,
   SCENARIO_SITUATIONS_NOT_SUPPORTED,
   scenarioContributionAtDepthGbp,
   scenarioDepthResponsePp,
@@ -877,13 +878,11 @@ const CANONICAL_PACKS: readonly { name: string; scenario: CanonicalScenario }[] 
       `J4 Premium Bakery canonical outputs unchanged (recommended depth ${bakeryRec.discount_pct}% — do not promote)`,
     );
 
-    // Verify SCI-07 unsupported situations still contains Competitor price response
-    const hasCompPriceUnsupported = SCENARIO_SITUATIONS_NOT_SUPPORTED.some(
-      (s) => s.label.toLowerCase() === 'competitor price response',
-    );
+    const competitiveSituation = SCENARIO_SITUATIONS.find(s => s.id === 'COMPETITIVE_PRICE_RESPONSE');
     assert(
-      hasCompPriceUnsupported === true,
-      'J5 SCI-07 SCENARIO_SITUATIONS_NOT_SUPPORTED still lists "Competitor price response" unchanged',
+      competitiveSituation?.family_id === 'promotion_surge'
+        && !SCENARIO_SITUATIONS_NOT_SUPPORTED.some(s => /competitor price/i.test(s.label)),
+      'J5 ADR-087: competitive price response is a supported situation on the promotion family, not an unsupported third-party claim',
     );
   }
 

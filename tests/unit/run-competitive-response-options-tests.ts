@@ -27,6 +27,7 @@ import {
   CANONICAL_SCENARIO,
   CHILLED_SALMON_SCENARIO,
   PREMIUM_BAKERY_SCENARIO,
+  SCENARIO_SITUATIONS,
   SCENARIO_SITUATIONS_NOT_SUPPORTED,
   scenarioStoreCount,
 } from '../../packages/contracts/src/index';
@@ -825,10 +826,11 @@ async function runTests() {
     }
 
     assert(
-      SCENARIO_SITUATIONS_NOT_SUPPORTED.some(s =>
-        /Competitor price response/i.test(typeof s === 'string' ? s : s.label),
-      ),
-      'N5 SCI-07 frozen contract boundary respected: Competitor price response remains in SCENARIO_SITUATIONS_NOT_SUPPORTED without mutating SHA-D frozen contracts',
+      SCENARIO_SITUATIONS.some(s => s.id === 'COMPETITIVE_PRICE_RESPONSE')
+        && !SCENARIO_SITUATIONS_NOT_SUPPORTED.some(s =>
+          /Competitor price response/i.test(typeof s === 'string' ? s : s.label),
+        ),
+      'N5 ADR-087: competitive price response is a supported situation; benchmark and γ stay outside the certified draft',
     );
   }
 

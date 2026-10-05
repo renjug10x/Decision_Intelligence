@@ -194,12 +194,21 @@ async function run() {
     'packages/contracts/src/scenario-registry.ts',
     'packages/contracts/src/provenance-vocabulary.ts',
     'packages/contracts/src/scenario-certification-model.ts',
-    'packages/contracts/src/living-evidence-contracts.ts',
-    'packages/contracts/src/scenario-draft-model.ts'
+    'packages/contracts/src/living-evidence-contracts.ts'
   ]) {
     const frozen = execSync(`git rev-parse ${SHA_D}:${rel}`, { cwd: ROOT }).toString().trim();
     const now = execSync(`git hash-object ${rel}`, { cwd: ROOT }).toString().trim();
     assert(frozen === now, `A3: ${rel} is byte-identical to SHA-D`);
+  }
+  {
+    const rel = 'packages/contracts/src/scenario-draft-model.ts';
+    const historical = execSync(`git rev-parse ${SHA_D}:${rel}`, { cwd: ROOT }).toString().trim();
+    const now = execSync(`git hash-object ${rel}`, { cwd: ROOT }).toString().trim();
+    assert(historical === '91768b4e83d7829e6437284e39833231f1ed60ea',
+      'A3-hist: Gate-D scenario-draft blob is unchanged history');
+    assert(now === '5108d775856d1401e09047e88dd5c4762f751f07',
+      'A3-adr087: scenario-draft matches the ADR-087 baseline');
+    assert(historical !== now, 'A3-adr087: the amendment is not claimed as SHA-D byte identity');
   }
   const changedContracts = execSync(`git diff --name-only ${BASELINE} -- packages/contracts`, { cwd: ROOT }).toString().trim().split('\n').filter(Boolean);
   const untracked = execSync('git ls-files --others --exclude-standard -- packages/contracts', { cwd: ROOT }).toString().trim().split('\n').filter(Boolean);
@@ -207,8 +216,9 @@ async function run() {
   assert(isDeepStrictEqual(touched, [
     'packages/contracts/src/attested-observation-model.ts',
     'packages/contracts/src/attested-upload-model.ts',
-    'packages/contracts/src/index.ts'
-  ]), 'A4: The only contract files touched are the new declaration, its barrel line, and ESF-6\'s authorised receipt kind', touched.join(', '));
+    'packages/contracts/src/index.ts',
+    'packages/contracts/src/scenario-draft-model.ts'
+  ]), 'A4: Contract files touched since the SCI-10 baseline are the attested-upload set plus the ADR-087 scenario-draft amendment', touched.join(', '));
   const barrelDiff = execSync(`git diff ${BASELINE} -- packages/contracts/src/index.ts`, { cwd: ROOT }).toString();
   assert(!/^-[^-]/m.test(barrelDiff), 'A5: …the barrel change is additive (no line removed)');
 

@@ -24,6 +24,7 @@ import {
   CANONICAL_SCENARIO,
   CHILLED_SALMON_SCENARIO,
   PREMIUM_BAKERY_SCENARIO,
+  SCENARIO_SITUATIONS,
   SCENARIO_SITUATIONS_NOT_SUPPORTED,
 } from '../../packages/contracts/src/index';
 import {
@@ -128,13 +129,14 @@ async function runTests() {
     'A5 InverseAnalysisLens exposes the exact Competitive Price Response What-If question',
   );
   assert(
-    /const \[isCompetitiveOpen, setIsCompetitiveOpen\] = useState<boolean>\(false\)/.test(
-      inverseLensSource,
-    ) &&
+    /openCompetitivePanel = false/.test(inverseLensSource) &&
+      /const \[isCompetitiveOpen, setIsCompetitiveOpen\] = useState<boolean>\(openCompetitivePanel\)/.test(
+        inverseLensSource,
+      ) &&
       /const \[evaluatedAssumption, setEvaluatedAssumption\] =\s*useState<CompetitivePriceAssumption \| null>\(null\)/.test(
         inverseLensSource,
       ),
-    'A6 Competitive What-If opens collapsed with null assumption by default (progressive disclosure)',
+    'A6 Competitive What-If stays collapsed with a null assumption unless Studio opens the existing panel',
   );
 
   // ── B. MODELLED PROVENANCE ────────────────────────────────────────────────
@@ -636,10 +638,11 @@ async function runTests() {
       'K3 Premium Bakery canonical curve recommendation (0% — do not promote) unchanged',
     );
     assert(
-      SCENARIO_SITUATIONS_NOT_SUPPORTED.some((s) =>
-        /Competitor price response/i.test(typeof s === 'string' ? s : s.label),
-      ),
-      'K4 SCI-07 SCENARIO_SITUATIONS_NOT_SUPPORTED still includes Competitor price response',
+      SCENARIO_SITUATIONS.some(s => s.id === 'COMPETITIVE_PRICE_RESPONSE' && s.family_id === 'promotion_surge')
+        && !SCENARIO_SITUATIONS_NOT_SUPPORTED.some((s) =>
+          /Competitor price response/i.test(typeof s === 'string' ? s : s.label),
+        ),
+      'K4 ADR-087: competitive price response is a supported decision context, not an unsupported situation',
     );
 
     // Verify that Competitive What-If handler in InverseAnalysisLens never calls onProposeIntervention

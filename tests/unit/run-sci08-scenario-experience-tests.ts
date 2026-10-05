@@ -68,8 +68,13 @@ async function run() {
   console.log('\n=== A. CREATE → REVIEW → CONFIRM → RUN → UNDERSTAND, THROUGH THE TRANSPORT ==\n');
 
   const options = await transport.fetchAuthoringOptions();
-  assert(options.situations.length === 3 && options.products.length > 0 && options.manual_authoring_available,
+  assert(options.situations.length === 4 && options.products.length > 0 && options.manual_authoring_available,
     'A1: The experience opens on the governed situations and product master');
+  assert(
+    options.situations.some(s => s.id === 'COMPETITIVE_PRICE_RESPONSE')
+      && !options.situations_not_supported.some(s => /competitor price/i.test(s.label)),
+    'A1b: Competitive price response is a fourth decision, not an unsupported situation (ADR-087)'
+  );
   assert(options.genai_drafting_available === false,
     'A2: With no credential the server reports AI suggestions unavailable — and the manual path is still offered');
 
@@ -174,12 +179,21 @@ async function run() {
     'packages/contracts/src/scenario-registry.ts',
     'packages/contracts/src/provenance-vocabulary.ts',
     'packages/contracts/src/scenario-certification-model.ts',
-    'packages/contracts/src/living-evidence-contracts.ts',
-    'packages/contracts/src/scenario-draft-model.ts'
+    'packages/contracts/src/living-evidence-contracts.ts'
   ]) {
     const gateD = execSync(`git rev-parse 2f8d7ed8b479452a804c61e4202c87697b62e4de:${rel}`, { cwd: ROOT }).toString().trim();
     const now = execSync(`git hash-object ${rel}`, { cwd: ROOT }).toString().trim();
     assert(gateD === now, `D1: ${rel} is byte-identical to SHA-D`);
+  }
+  {
+    const rel = 'packages/contracts/src/scenario-draft-model.ts';
+    const historical = execSync(`git rev-parse 2f8d7ed8b479452a804c61e4202c87697b62e4de:${rel}`, { cwd: ROOT }).toString().trim();
+    const now = execSync(`git hash-object ${rel}`, { cwd: ROOT }).toString().trim();
+    assert(historical === '91768b4e83d7829e6437284e39833231f1ed60ea',
+      'D1-hist: Gate-D scenario-draft blob is unchanged history');
+    assert(now === '5108d775856d1401e09047e88dd5c4762f751f07',
+      'D1-adr087: scenario-draft matches the ADR-087 baseline');
+    assert(historical !== now, 'D1-adr087: the amendment is not claimed as SHA-D byte identity');
   }
 
   console.log(`\n=== SCI-08: ${passed} passed, ${failed} failed ===`);

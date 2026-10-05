@@ -98,17 +98,23 @@ export const SCENARIO_DRAFT_ID_PREFIX = 'DRAFT-';
  * This is a closed allowlist and it is short on purpose. The synthetic signal fabric
  * implements three scenario families (`services/world/src/enterprise-signal-generator.ts`),
  * and certification dimension `C-4.1` requires a signal timeline to exist. A situation
- * outside this set would author a scenario that cannot certify, so the honest answer is to
- * publish what the estate supports rather than to accept the request and fail later.
+ * outside a family the fabric can serve would author a scenario that cannot certify, so
+ * the honest answer is to publish what the estate supports rather than to accept the
+ * request and fail later.
  *
  * `COGNIX_SCENARIO_INTELLIGENCE.md` §5.1 is the precedent: online fulfilment pressure is
- * declared roadmap rather than offered, because no engine consumes it economically. The
- * same rule is applied here to authoring.
+ * declared roadmap rather than offered, because no engine consumes it economically.
+ *
+ * `COMPETITIVE_PRICE_RESPONSE` is the ADR-087 additive member. It is a decision context,
+ * not a fourth signal family and not evidence that a competitor changed price. It reuses
+ * `promotion_surge` so the existing timeline still certifies, and the modelled benchmark
+ * and γ stay outside this draft. They are entered later in Promotion What-If.
  */
 export type ScenarioSituationId =
   | 'PROMOTION_DEMAND_SURGE'
   | 'SUPPLIER_LEAD_TIME_RISK'
-  | 'SHORT_LIFE_WASTE_EXPOSURE';
+  | 'SHORT_LIFE_WASTE_EXPOSURE'
+  | 'COMPETITIVE_PRICE_RESPONSE';
 
 export interface ScenarioSituationSpec {
   id: ScenarioSituationId;
@@ -154,6 +160,18 @@ export const SCENARIO_SITUATIONS: readonly ScenarioSituationSpec[] = [
     family_id: 'fresh_perishable_waste',
     archetype_id: 'ARCH-PREMIUM-ARTISAN',
     evidence_opens_on: 'surplus ageing, bake-plan headroom and margin compression'
+  },
+  {
+    id: 'COMPETITIVE_PRICE_RESPONSE',
+    label: 'A competitor changes price during our promotion',
+    decision_shape:
+      'Test whether the planned promotion still makes sense if competitive pricing changes. '
+      + 'The question is whether our decision would still hold. This is a counterfactual to explore, '
+      + 'not evidence that a competitor has changed price.',
+    family_id: 'promotion_surge',
+    archetype_id: 'ARCH-CHILLED-ELASTIC',
+    evidence_opens_on:
+      'the promotion\'s own demand, price and supplier capacity. A competitive benchmark is explored afterwards as a modelled assumption, never as an observed competitor fact'
   }
 ];
 
@@ -177,12 +195,6 @@ export const SCENARIO_SITUATIONS_NOT_SUPPORTED: readonly { label: string; reason
     reason:
       'the canonical record carries no fulfilment capacity, centre throughput or pick-rate term, and '
       + 'no engine consumes one economically. Registered roadmap, never demonstrated as present.'
-  },
-  {
-    label: 'Competitor price response',
-    reason:
-      'no admitted evidence source describes a competitor, and a modelled competitor price would be '
-      + 'a claim about a third party the estate cannot support.'
   },
   {
     label: 'Multi-SKU range or category-wide reallocation',

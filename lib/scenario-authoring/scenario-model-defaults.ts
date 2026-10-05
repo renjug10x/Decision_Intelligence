@@ -394,6 +394,29 @@ export const SITUATION_OPENING_POSTURES:
     market_scope: 'NATIONAL',
     focus_region: 'London',
     channels: ['In store']
+  },
+  /*
+   * Same opening shape as a committed promotion. ADR-087: the certified record is the
+   * promotion being tested. Competitive benchmark price and γ are not draft inputs; they
+   * are entered later as a modelled What-If. A different posture set here would invent a
+   * second economic scenario the situation does not certify.
+   */
+  COMPETITIVE_PRICE_RESPONSE: {
+    estate_profile: 'balanced_estate',
+    demand_scale_profile: 'high_volume_staple',
+    demand_movement_profile: 'surging',
+    horizon_profile: 'fortnight',
+    supply_lead_time_profile: 'short_lead',
+    promotion_intent: 'committed_cut',
+    supply_headroom_profile: 'standard',
+    supplier_flex_posture: 'standard',
+    supplier_funding_posture: 'shared',
+    price_sensitivity: 'responsive',
+    inventory_position_profile: 'balanced',
+    waste_exposure: 'moderate',
+    market_scope: 'NATIONAL',
+    focus_region: 'North West',
+    channels: ['In store', 'Online']
   }
 };
 

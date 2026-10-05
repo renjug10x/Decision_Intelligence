@@ -1533,6 +1533,12 @@ export async function evaluateCompetitiveAuthoritativeDecision(
  * User-facing copy must NEVER present the benchmark as market truth, observed
  * competitor price, attested evidence, or a competitor signal.
  */
+/**
+ * One-shot handoff from Dynamic Scenario Studio into the existing Promotion What-If lens.
+ * The value is only a navigation flag. It carries no benchmark, no γ and no provenance.
+ */
+export const STUDIO_COMPETITIVE_WHAT_IF_HANDOFF_KEY = 'cognix.studio.openCompetitiveWhatIf';
+
 export const COMPETITIVE_USER_FACING_PROVENANCE_BADGE = 'MODELLED ASSUMPTION' as const;
 export const COMPETITIVE_USER_FACING_PROVENANCE_LABEL =
   'Modelled assumption · entered by you' as const;

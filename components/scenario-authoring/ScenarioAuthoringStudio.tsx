@@ -101,12 +101,18 @@ export default function ScenarioAuthoringStudio({
   isOpen = true,
   onClose = () => {},
   mode = 'modal',
-  onScenarioConfirmed
+  onScenarioConfirmed,
+  onExploreCompetitivePriceResponse
 }: {
   isOpen?: boolean;
   onClose?: () => void;
   mode?: 'modal' | 'inline';
   onScenarioConfirmed?: (confirmed: ConfirmedScenario) => void;
+  /**
+   * After a competitive-price situation is running, open the existing Promotion What-If.
+   * The callback navigates. It does not receive a benchmark or γ.
+   */
+  onExploreCompetitivePriceResponse?: () => void;
 }) {
   const { refreshState } = useDecisionState();
   const { money } = useCurrency();
@@ -168,6 +174,7 @@ export default function ScenarioAuthoringStudio({
   );
   const product = options?.products.find(p => p.sku_id === (assessment?.draft.inputs.sku_id ?? skuId));
   const situationSpec = options?.situations.find(s => s.id === (assessment?.draft.inputs.situation ?? situation));
+  const authoredSituation = assessment?.draft.inputs.situation ?? situation;
   const blocking = (assessment?.issues ?? []).filter(i => i.severity === 'ERROR');
   /** Inputs the confirmed scenario took from attested data — the server's provenance, rendered. */
   const attestedLabels = (confirmed?.draft.field_provenance ?? [])
@@ -645,8 +652,25 @@ export default function ScenarioAuthoringStudio({
                 curated scenarios. AI produced none of them. Demand &amp; Forecast, Promotion, Campaign Decision and the
                 Architecture view now show this scenario.
               </p>
+              {authoredSituation === 'COMPETITIVE_PRICE_RESPONSE' && onExploreCompetitivePriceResponse && (
+                <p className="sci08-muted">
+                  This situation asks whether the promotion still holds if competitive pricing changes.
+                  The benchmark price and response strength are entered next, on the existing Promotion What-If.
+                  They stay a modelled assumption. They are not recorded as something a competitor did.
+                </p>
+              )}
               <div className="sci08-actions">
-                <button type="button" className="sci08-button" onClick={handleDismiss}>Done</button>
+                {authoredSituation === 'COMPETITIVE_PRICE_RESPONSE' && onExploreCompetitivePriceResponse && (
+                  <button
+                    type="button"
+                    className="sci08-button"
+                    data-testid="btn-studio-competitive-what-if"
+                    onClick={onExploreCompetitivePriceResponse}
+                  >
+                    <Play size={13} /> Explore competitive price response
+                  </button>
+                )}
+                <button type="button" className="sci08-button is-secondary" onClick={handleDismiss}>Done</button>
               </div>
             </section>
           )}
