@@ -14,52 +14,90 @@ import {
 import {
   CampaignArchetype,
   InverseCondition,
-  DecisionChangeTrigger,
   SignalHypothesis,
-  estimateInterventionEconomics,
-  regionStoreCounts
+  estimateInterventionEconomics
 } from '@/lib/campaign-archetypes';
-/* SCI-03R (`R-35`): the ACTIVE scenario, not the reference instance bound by name. A surface that reads `CANONICAL_*` publishes Fresh Dairy's terms under whatever scenario is selected. */
+import {
+  elasticitySensitivityProposal,
+  highestYieldOpportunityRegion,
+  describeInverseConditionDecision,
+  ActiveIntervention
+} from '@/lib/campaign-candidate-intervention';
 import { inScopeStoreCount } from '@/packages/contracts/src/scenario-scope';
 import { useCurrency } from '@/context/CurrencyContext';
 
 interface InverseAnalysisLensProps {
   archetype: CampaignArchetype;
-  onProposeIntervention: (action: {
-    title: string;
-    type: string;
-    description: string;
-    proposed_discount: number;
-    proposed_scope: number;
-    proposed_duration: number;
-    proposed_region: string;
-    expected_demand: number;
-    expected_contribution: number;
-  }) => void;
+  currentDiscount?: number;
+  currentRegion?: string;
+  currentDurationDays?: number;
+  onProposeIntervention: (action: ActiveIntervention) => void;
+  onOpenDemandLens?: () => void;
 }
 
 export default function InverseAnalysisLens({
   archetype,
-  onProposeIntervention
+  currentDiscount,
+  currentRegion,
+  currentDurationDays,
+  onProposeIntervention,
+  onOpenDemandLens
 }: InverseAnalysisLensProps) {
   const { money, localise } = useCurrency();
   const [testedHypothesis, setTestedHypothesis] = useState<Record<string, boolean>>({});
+  const [selectedConditionId, setSelectedConditionId] = useState<string | null>(null);
 
   const handleModelCondition = (cond: InverseCondition) => {
-    const defaultScope = inScopeStoreCount(archetype.default_region);
-    let disc = archetype.default_discount_pct;
+    setSelectedConditionId(cond.id);
+    const defaultScope = inScopeStoreCount(currentRegion ?? archetype.default_region);
+    let disc = currentDiscount ?? archetype.default_discount_pct;
     let scope = defaultScope;
-    const dur = archetype.default_duration_days;
+    const dur = currentDurationDays ?? archetype.default_duration_days;
+    const notes: string[] = [];
+    let fundingOverlay: number | undefined;
+    let flipPct: number | undefined;
+    let recommendedPct: number | undefined;
+    let region = currentRegion ?? archetype.default_region;
+
+    const decisionSummary = describeInverseConditionDecision({
+      archetype,
+      condition: cond,
+      currentDiscountPct: currentDiscount,
+      currentRegion,
+      currentDurationDays
+    });
 
     if (cond.target_parameter === 'DISCOUNT_DEPTH') {
       disc = cond.target_value;
+      notes.push(
+        `Tested condition: ${decisionSummary.tested_condition} vs current ${decisionSummary.current_assumption}.`,
+        `Applies ${cond.target_value}% discount depth to the planner on Accept.`
+      );
     } else if (cond.target_parameter === 'STORE_SCOPE') {
       scope = cond.target_value;
+      region = highestYieldOpportunityRegion(archetype);
+      notes.push(
+        `Tested condition: ${decisionSummary.tested_condition} vs current ${decisionSummary.current_assumption}.`,
+        `Scopes the campaign to ${scope} stores in ${region} (highest seeded regional opportunity index).`
+      );
+    } else if (cond.target_parameter === 'DEMAND_UPLIFT') {
+      const sensitivity = elasticitySensitivityProposal(
+        archetype,
+        currentDiscount ?? archetype.default_discount_pct
+      );
+      disc = sensitivity.discount_pct;
+      flipPct = sensitivity.flip_discount_pct;
+      recommendedPct = sensitivity.recommended_discount_pct;
+      notes.push(...sensitivity.notes);
+    } else if (cond.target_parameter === 'SUPPLIER_FUNDING') {
+      fundingOverlay = cond.target_value;
+      notes.push(
+        cond.target_value === 0
+          ? 'Evaluation overlay: trade funding is not required for this configuration.'
+          : `Evaluation overlay (${cond.target_display}): bridges the contribution gap between ${disc}% depth and the ${decisionSummary.decision_boundary}. Accept keeps ${disc}% depth in planner controls because supplier funding is an evaluation condition, not a planner slider.`
+      );
     }
 
-    // Economics derived from the archetype's own seeded elasticity curve at the
-    // modelled discount/scope/duration; SUPPLIER_FUNDING conditions improve the
-    // contribution outlook by the funded amount declared in the condition itself.
     const economics = estimateInterventionEconomics(archetype, {
       discount_pct: disc,
       stores: scope,
@@ -73,13 +111,22 @@ export default function InverseAnalysisLens({
     onProposeIntervention({
       title: `Model Condition: ${cond.condition_text}`,
       type: 'INVERSE_CONDITION_MODEL',
-      description: cond.explanation,
+      description: `${decisionSummary.decision_question} — ${decisionSummary.recommendation_implication}`,
       proposed_discount: disc,
       proposed_scope: scope,
       proposed_duration: dur,
-      proposed_region: scope < defaultScope ? `${archetype.default_region} Core` : archetype.default_region,
+      proposed_region: region,
       expected_demand: economics.expected_demand_uplift_pct,
-      expected_contribution: fundedContribution
+      expected_contribution: fundedContribution,
+      provenance: {
+        source_lens: 'INVERSE',
+        source_id: cond.id,
+        source_label: cond.condition_text,
+        funding_overlay_gbp: fundingOverlay,
+        elasticity_flip_discount_pct: flipPct,
+        recommended_discount_pct: recommendedPct,
+        notes
+      }
     });
   };
 
@@ -100,7 +147,15 @@ export default function InverseAnalysisLens({
       proposed_duration: p.duration,
       proposed_region: p.region,
       expected_demand: economics.expected_demand_uplift_pct,
-      expected_contribution: economics.net_contribution_delta_gbp
+      expected_contribution: economics.net_contribution_delta_gbp,
+      provenance: {
+        source_lens: 'SIGNAL_HYPOTHESIS',
+        source_id: hypo.signal_id,
+        source_label: hypo.signal_headline,
+        notes: [
+          `Seeded world-model hypothesis verdict: ${hypo.test_result.verdict.replace(/_/g, ' ')} — evaluated against scenario elasticity when accepted.`
+        ]
+      }
     });
   };
 
@@ -132,79 +187,188 @@ export default function InverseAnalysisLens({
             What Would Have To Be True?
           </h3>
           <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '4px 0 0 0' }}>
-            Inverse decision analysis identifying the exact conditions under which this campaign becomes unconditionally accretive.
+            Decision-condition analysis across discount depth, regional store scope, supplier funding overlay, and elasticity sensitivity. Testing a condition stages a candidate intervention for review before any planner control changes.
           </p>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {archetype.inverse_conditions.map((cond, idx) => (
-            <div
-              key={cond.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                background: '#F8FAFC',
-                border: '1px solid #E2E8F0',
-                borderRadius: 8,
-                padding: '12px 16px',
-                flexWrap: 'wrap',
-                gap: 12
-              }}
-            >
-              <div style={{ maxWidth: 680 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                  <span
-                    style={{
-                      fontSize: '0.7rem',
-                      fontWeight: 700,
-                      color: '#2563EB',
-                      background: '#EFF6FF',
-                      border: '1px solid #BFDBFE',
-                      padding: '2px 6px',
-                      borderRadius: 4
-                    }}
-                  >
-                    CONDITION {idx + 1}
-                  </span>
-                  <span style={{ fontSize: '0.9rem', fontWeight: 700, color: '#0F172A' }}>
-                    {cond.condition_text}
-                  </span>
-                </div>
-                <div style={{ fontSize: '0.8rem', color: '#475569', lineHeight: 1.4 }}>
-                  {localise(cond.explanation)}
-                </div>
-              </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {archetype.inverse_conditions.map((cond, idx) => {
+            const summary = describeInverseConditionDecision({
+              archetype,
+              condition: cond,
+              currentDiscountPct: currentDiscount,
+              currentRegion,
+              currentDurationDays
+            });
+            const isSelected = selectedConditionId === cond.id;
 
-              <button
-                onClick={() => handleModelCondition(cond)}
+            return (
+              <div
+                key={cond.id}
                 style={{
-                  background: '#FFFFFF',
-                  color: '#2563EB',
-                  border: '1px solid #BFDBFE',
-                  padding: '7px 14px',
-                  borderRadius: 6,
-                  fontSize: '0.8rem',
-                  fontWeight: 600,
-                  cursor: 'pointer',
+                  background: isSelected ? '#EFF6FF' : '#F8FAFC',
+                  border: isSelected ? '1.5px solid #2563EB' : '1px solid #E2E8F0',
+                  borderRadius: 8,
+                  padding: '14px 16px',
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: 6,
-                  transition: 'all 0.15s ease'
-                }}
-                onMouseEnter={e => {
-                  e.currentTarget.style.background = '#EFF6FF';
-                  e.currentTarget.style.borderColor = '#2563EB';
-                }}
-                onMouseLeave={e => {
-                  e.currentTarget.style.background = '#FFFFFF';
-                  e.currentTarget.style.borderColor = '#BFDBFE';
+                  flexDirection: 'column',
+                  gap: 10
                 }}
               >
-                <span>{cond.modelling_action_label}</span>
-              </button>
-            </div>
-          ))}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: 12
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 260 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                      <span
+                        style={{
+                          fontSize: '0.68rem',
+                          fontWeight: 700,
+                          color: '#2563EB',
+                          background: '#DBEAFE',
+                          border: '1px solid #BFDBFE',
+                          padding: '2px 6px',
+                          borderRadius: 4
+                        }}
+                      >
+                        CONDITION {idx + 1} · {cond.target_parameter.replace(/_/g, ' ')}
+                      </span>
+                      <span
+                        style={{
+                          fontSize: '0.66rem',
+                          fontWeight: 700,
+                          color: summary.recommendation_changes ? '#065F46' : '#92400E',
+                          background: summary.recommendation_changes ? '#ECFDF5' : '#FFFBEB',
+                          border: `1px solid ${summary.recommendation_changes ? '#A7F3D0' : '#FDE68A'}`,
+                          padding: '2px 6px',
+                          borderRadius: 4
+                        }}
+                      >
+                        {summary.recommendation_changes
+                          ? 'RECOMMENDATION CHANGES ON ACCEPT'
+                          : 'EVALUATION OVERLAY · PLANNER DEPTH UNCHANGED'}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0F172A', marginBottom: 2 }}>
+                      {cond.condition_text}
+                    </div>
+                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#1E40AF', marginBottom: 4 }}>
+                      Decision question: {localise(summary.decision_question)}
+                    </div>
+                    <div style={{ fontSize: '0.78rem', color: '#475569', lineHeight: 1.4 }}>
+                      {localise(cond.explanation)}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                    <button
+                      onClick={() => handleModelCondition(cond)}
+                      style={{
+                        background: isSelected ? '#2563EB' : '#FFFFFF',
+                        color: isSelected ? '#FFFFFF' : '#2563EB',
+                        border: '1px solid #2563EB',
+                        padding: '7px 14px',
+                        borderRadius: 6,
+                        fontSize: '0.8rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        transition: 'all 0.15s ease'
+                      }}
+                    >
+                      <span>{cond.modelling_action_label}</span>
+                    </button>
+                    {cond.target_parameter === 'DEMAND_UPLIFT' && onOpenDemandLens && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenDemandLens()}
+                        style={{
+                          background: 'transparent',
+                          color: '#475569',
+                          border: 'none',
+                          padding: '2px 4px',
+                          fontSize: '0.72rem',
+                          fontWeight: 600,
+                          cursor: 'pointer',
+                          textDecoration: 'underline'
+                        }}
+                      >
+                        Inspect Demand &amp; Elasticity Curve →
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Structured Decision Condition Breakdown */}
+                <div
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                    gap: 8,
+                    background: '#FFFFFF',
+                    border: '1px solid #E2E8F0',
+                    borderRadius: 6,
+                    padding: '8px 10px',
+                    fontSize: '0.74rem'
+                  }}
+                >
+                  <div>
+                    <div style={{ fontSize: '0.64rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+                      Current Assumption
+                    </div>
+                    <div style={{ fontWeight: 600, color: '#0F172A', marginTop: 2 }}>
+                      {localise(summary.current_assumption)}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.64rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+                      Tested Condition
+                    </div>
+                    <div style={{ fontWeight: 700, color: '#2563EB', marginTop: 2 }}>
+                      {localise(summary.tested_condition)}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.64rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+                      Economic / Decision Effect
+                    </div>
+                    <div
+                      style={{
+                        fontWeight: 700,
+                        color: summary.economic_effect_gbp >= 0 ? '#059669' : '#DC2626',
+                        marginTop: 2,
+                        fontFamily: 'monospace'
+                      }}
+                    >
+                      {summary.economic_effect_gbp >= 0 ? '+' : ''}
+                      {money(summary.economic_effect_gbp)} net (
+                      {summary.economic_delta_vs_current_gbp >= 0 ? '+' : ''}
+                      {money(summary.economic_delta_vs_current_gbp)} vs current)
+                    </div>
+                    <div style={{ fontSize: '0.68rem', color: '#475569', marginTop: 1 }}>
+                      {localise(summary.decision_boundary)}
+                    </div>
+                  </div>
+                  <div>
+                    <div style={{ fontSize: '0.64rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
+                      Recommendation Implication
+                    </div>
+                    <div style={{ color: '#334155', marginTop: 2, lineHeight: 1.35 }}>
+                      {localise(summary.recommendation_implication)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </div>
 

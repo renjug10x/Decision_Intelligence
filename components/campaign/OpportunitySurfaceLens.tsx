@@ -14,20 +14,11 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { CampaignArchetype, OpportunityCell, estimateInterventionEconomics } from '@/lib/campaign-archetypes';
+import { ActiveIntervention } from '@/lib/campaign-candidate-intervention';
 
 interface OpportunitySurfaceLensProps {
   archetype: CampaignArchetype;
-  onProposeIntervention: (action: {
-    title: string;
-    type: string;
-    description: string;
-    proposed_discount: number;
-    proposed_scope: number;
-    proposed_duration: number;
-    proposed_region: string;
-    expected_demand: number;
-    expected_contribution: number;
-  }) => void;
+  onProposeIntervention: (action: ActiveIntervention) => void;
 }
 
 export default function OpportunitySurfaceLens({
@@ -62,7 +53,20 @@ export default function OpportunitySurfaceLens({
       proposed_duration: act.target_duration,
       proposed_region: cell.region,
       expected_demand: economics.expected_demand_uplift_pct,
-      expected_contribution: economics.net_contribution_delta_gbp
+      expected_contribution: economics.net_contribution_delta_gbp,
+      provenance: {
+        source_lens: 'OPPORTUNITY',
+        source_id: `${cell.region}_${cell.window_label}`,
+        source_label: `${cell.region} · Compositional Index ${cell.opportunity_index}`,
+        factors: cell.factors.map(f => ({
+          label: f.label,
+          points: f.points,
+          rationale: f.rationale
+        })),
+        notes: [
+          `Compositional Opportunity Index ${cell.opportunity_index}/100 (${cell.tier}) derived from seeded regional factors; live CDI-02/03/04/05 assessment updates when accepted into the planner.`
+        ]
+      }
     });
   };
 
@@ -87,22 +91,38 @@ export default function OpportunitySurfaceLens({
         }}
       >
         <div>
-          <h3
-            style={{
-              fontSize: '1.05rem',
-              fontWeight: 700,
-              color: '#0F172A',
-              margin: 0,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8
-            }}
-          >
-            <MapPin size={18} color="#2563EB" />
-            Campaign Opportunity Surface
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <h3
+              style={{
+                fontSize: '1.05rem',
+                fontWeight: 700,
+                color: '#0F172A',
+                margin: 0,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8
+              }}
+            >
+              <MapPin size={18} color="#2563EB" />
+              Campaign Opportunity Surface
+            </h3>
+            <span
+              style={{
+                fontSize: '0.66rem',
+                fontWeight: 700,
+                color: '#475569',
+                background: '#F1F5F9',
+                border: '1px solid #CBD5E1',
+                padding: '2px 7px',
+                borderRadius: 4,
+                letterSpacing: '0.03em'
+              }}
+            >
+              COMPOSITIONAL OPPORTUNITY INDEX · SEEDED REGIONAL FACTORS
+            </span>
+          </div>
           <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '4px 0 0 0' }}>
-            Interactive 2D Opportunity Index (0–100) mapping micro-market demand propensity, warehouse headroom, and competitor density.
+            Compositional regional index (0–100) combining seeded micro-market demand propensity, depot headroom, and competitive density. Live CDI-03 economic yield recalculates when a candidate is accepted.
           </p>
         </div>
 
@@ -225,8 +245,8 @@ export default function OpportunitySurfaceLens({
             <div>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                 <div>
-                  <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748B', textTransform: 'uppercase' }}>
-                    Opportunity Breakdown
+                  <div style={{ fontSize: '0.7rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                    Compositional Factor Breakdown
                   </div>
                   <h4 style={{ fontSize: '1.05rem', fontWeight: 700, color: '#0F172A', margin: '2px 0 0 0' }}>
                     {selectedCell.region} · Index {selectedCell.opportunity_index}
@@ -249,9 +269,9 @@ export default function OpportunitySurfaceLens({
               </div>
 
               {/* Factors Decomposition */}
-              <div style={{ marginBottom: 14 }}>
+              <div style={{ marginBottom: 12 }}>
                 <div style={{ fontSize: '0.75rem', fontWeight: 600, color: '#475569', marginBottom: 6 }}>
-                  Why is this opportunity scoring {selectedCell.opportunity_index}?
+                  Seeded regional factors contributing to index {selectedCell.opportunity_index}:
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -259,9 +279,6 @@ export default function OpportunitySurfaceLens({
                     <div
                       key={factor.factor_id}
                       style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
                         background: '#FFFFFF',
                         border: '1px solid #E2E8F0',
                         padding: '6px 10px',
@@ -269,24 +286,64 @@ export default function OpportunitySurfaceLens({
                         fontSize: '0.78rem'
                       }}
                     >
-                      <span style={{ color: '#334155' }}>{factor.label}</span>
-                      <span
-                        style={{
-                          fontWeight: 700,
-                          color: factor.points >= 0 ? '#059669' : '#DC2626',
-                          fontFamily: 'monospace'
-                        }}
-                      >
-                        {factor.points >= 0 ? `+${factor.points}` : factor.points}
-                      </span>
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <span style={{ color: '#0F172A', fontWeight: 600 }}>{factor.label}</span>
+                        <span
+                          style={{
+                            fontWeight: 700,
+                            color: factor.points >= 0 ? '#059669' : '#DC2626',
+                            fontFamily: 'monospace'
+                          }}
+                        >
+                          {factor.points >= 0 ? `+${factor.points} pts` : `${factor.points} pts`}
+                        </span>
+                      </div>
+                      {factor.rationale && (
+                        <div style={{ fontSize: '0.7rem', color: '#64748B', marginTop: 2 }}>
+                          {factor.rationale}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
               </div>
 
+              {/* Scoped Candidate Parameters */}
+              <div
+                style={{
+                  background: '#FFFFFF',
+                  border: '1px solid #DBEAFE',
+                  borderRadius: 6,
+                  padding: '8px 10px',
+                  marginBottom: 12
+                }}
+              >
+                <div style={{ fontSize: '0.68rem', fontWeight: 700, color: '#1E40AF', textTransform: 'uppercase', marginBottom: 4 }}>
+                  Scoped Candidate Parameters
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, fontSize: '0.74rem' }}>
+                  <div>
+                    <div style={{ color: '#64748B', fontSize: '0.66rem' }}>Region</div>
+                    <div style={{ fontWeight: 700, color: '#0F172A' }}>{selectedCell.region}</div>
+                  </div>
+                  <div>
+                    <div style={{ color: '#64748B', fontSize: '0.66rem' }}>Discount</div>
+                    <div style={{ fontWeight: 700, color: '#0F172A' }}>{selectedCell.recommended_action.target_discount}%</div>
+                  </div>
+                  <div>
+                    <div style={{ color: '#64748B', fontSize: '0.66rem' }}>Duration</div>
+                    <div style={{ fontWeight: 700, color: '#0F172A' }}>{selectedCell.recommended_action.target_duration}d</div>
+                  </div>
+                  <div>
+                    <div style={{ color: '#64748B', fontSize: '0.66rem' }}>Scope</div>
+                    <div style={{ fontWeight: 700, color: '#0F172A' }}>{selectedCell.recommended_action.target_stores} stores</div>
+                  </div>
+                </div>
+              </div>
+
               {/* Action Description */}
               <div style={{ fontSize: '0.78rem', color: '#475569', lineHeight: 1.4, marginBottom: 14 }}>
-                <strong>CogniX Proposal:</strong> {selectedCell.recommended_action.description}
+                <strong>Candidate Rationale:</strong> {selectedCell.recommended_action.description}
               </div>
             </div>
 
@@ -317,7 +374,7 @@ export default function OpportunitySurfaceLens({
                 <ArrowRight size={14} />
               </button>
               <div style={{ textAlign: 'center', fontSize: '0.68rem', color: '#94A3B8', marginTop: 4 }}>
-                Creates a candidate intervention without modifying active campaign
+                Proposes a candidate intervention for review. Accept applies region, depth, and duration to the planner.
               </div>
             </div>
           </div>

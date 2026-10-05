@@ -999,7 +999,7 @@ const SEEDED_ARCHETYPES: Record<ArchetypeId, CampaignArchetype> = {
       {
         id: 'play_cognix',
         name: 'CogniX Recommended',
-        badge: 'Pareto Optimal',
+        badge: 'Recommended trade-off',
         discount_pct: CANONICAL_RECOMMENDED_POINT.discount_pct,
         stores_count: canonicalStoreCount('National'),
         duration_days: CANONICAL_SCENARIO.calendar.promotion_duration_days,
@@ -2096,7 +2096,7 @@ const SEEDED_ARCHETYPES: Record<ArchetypeId, CampaignArchetype> = {
       {
         id: 'play_sw_window_only',
         name: 'Take the Window, Hold the Price',
-        badge: 'Pareto Optimal',
+        badge: 'Recommended trade-off',
         discount_pct: 0,
         stores_count: 50,
         duration_days: 5,

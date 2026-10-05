@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { CampaignArchetype } from '@/lib/campaign-archetypes';
 import { CampaignFlightProjection } from '@/packages/contracts/src/campaign-continuous-timeline-model';
+import { DecisionValidityAssessment } from '@/packages/contracts/src/campaign-decision-contract-model';
+import { validityStateToTwinLabel } from '@/lib/campaign-candidate-intervention';
 import ContinuousFlightTimeline from '@/components/campaign/ContinuousFlightTimeline';
 import CampaignStory from '@/components/campaign/CampaignStory';
 import { CampaignStoryEvent } from '@/packages/contracts/src/campaign-intervention-model';
@@ -39,6 +41,7 @@ interface LiveDecisionTwinLensProps {
   story?: CampaignStoryEvent[];
   onReturnToPlanning?: () => void;
   onApplyInFlightAction?: (action: any) => void;
+  validityAssessment?: DecisionValidityAssessment | null;
 }
 
 export default function LiveDecisionTwinLens({
@@ -48,11 +51,15 @@ export default function LiveDecisionTwinLens({
   outlookSlot = null,
   story = [],
   onReturnToPlanning,
-  onApplyInFlightAction
+  onApplyInFlightAction,
+  validityAssessment = null
 }: LiveDecisionTwinLensProps) {
   const twin = archetype.decision_twin;
   const [selectedDeviation, setSelectedDeviation] = useState<any>(twin.deviations[0] || null);
   const [appliedActionId, setAppliedActionId] = useState<string | null>(null);
+  const governedValidity = validityAssessment
+    ? validityStateToTwinLabel(validityAssessment.state)
+    : twin.is_decision_still_valid;
 
   const getValidityStyle = (status: string) => {
     switch (status) {
@@ -67,7 +74,7 @@ export default function LiveDecisionTwinLens({
     }
   };
 
-  const vStyle = getValidityStyle(twin.is_decision_still_valid);
+  const vStyle = getValidityStyle(governedValidity);
   const ValidityIcon = vStyle.icon;
 
   const handleApplyAction = (dev: any) => {
@@ -141,9 +148,11 @@ export default function LiveDecisionTwinLens({
           >
             <ValidityIcon size={18} color={vStyle.text} />
             <div>
-              <div style={{ fontSize: '0.7rem', color: vStyle.text, fontWeight: 600 }}>ORIGINAL DECISION VALIDITY</div>
+              <div style={{ fontSize: '0.7rem', color: vStyle.text, fontWeight: 600 }}>
+                {validityAssessment ? 'CDI-07A DECISION VALIDITY' : 'SEEDED TWIN VALIDITY'}
+              </div>
               <div style={{ fontSize: '0.95rem', color: vStyle.text, fontWeight: 800 }}>
-                {twin.is_decision_still_valid}
+                {governedValidity}
               </div>
             </div>
           </div>
@@ -256,7 +265,9 @@ export default function LiveDecisionTwinLens({
             Detected In-Flight Deviations ({twin.deviations.length})
           </h3>
           <p style={{ fontSize: '0.78rem', color: '#64748B', margin: '0 0 14px 0' }}>
-            Simulated variance between the expected causal trajectory and seeded in-flight observations (demo world model).
+            {flight
+              ? 'Seeded demonstration deviations. Governed in-flight correction is planned on the outlook (CTW-02 Decision Moments), not from these cards.'
+              : 'Simulated variance between the expected causal trajectory and seeded in-flight observations (demo world model).'}
           </p>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
@@ -376,35 +387,42 @@ export default function LiveDecisionTwinLens({
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-              <button
-                onClick={() => handleApplyAction(selectedDeviation)}
-                disabled={appliedActionId === selectedDeviation.id}
-                style={{
-                  background: appliedActionId === selectedDeviation.id ? '#059669' : '#2563EB',
-                  color: '#FFFFFF',
-                  border: 'none',
-                  padding: '8px 18px',
-                  borderRadius: 6,
-                  fontSize: '0.825rem',
-                  fontWeight: 600,
-                  cursor: appliedActionId === selectedDeviation.id ? 'default' : 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 6
-                }}
-              >
-                {appliedActionId === selectedDeviation.id ? (
-                  <>
-                    <Check size={14} />
-                    Course Correction Accepted (Simulated)
-                  </>
-                ) : (
-                  <>
-                    <span>Accept Course Correction (Simulated)</span>
-                    <ArrowRight size={14} />
-                  </>
-                )}
-              </button>
+              {flight ? (
+                <div style={{ fontSize: '0.75rem', color: '#64748B', lineHeight: 1.45, maxWidth: 360, textAlign: 'right' }}>
+                  Course correction for an activated campaign is confirmed through Decision Moments
+                  above. This seeded recommendation is not applied to the flight.
+                </div>
+              ) : (
+                <button
+                  onClick={() => handleApplyAction(selectedDeviation)}
+                  disabled={appliedActionId === selectedDeviation.id}
+                  style={{
+                    background: appliedActionId === selectedDeviation.id ? '#059669' : '#2563EB',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    padding: '8px 18px',
+                    borderRadius: 6,
+                    fontSize: '0.825rem',
+                    fontWeight: 600,
+                    cursor: appliedActionId === selectedDeviation.id ? 'default' : 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  {appliedActionId === selectedDeviation.id ? (
+                    <>
+                      <Check size={14} />
+                      Course Correction Accepted (Simulated)
+                    </>
+                  ) : (
+                    <>
+                      <span>Accept Course Correction (Simulated)</span>
+                      <ArrowRight size={14} />
+                    </>
+                  )}
+                </button>
+              )}
             </div>
           </div>
         )}

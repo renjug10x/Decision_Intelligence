@@ -13,21 +13,12 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { CampaignArchetype, FrontierPlay } from '@/lib/campaign-archetypes';
+import { ActiveIntervention, frontierPlayRegion } from '@/lib/campaign-candidate-intervention';
 import { useCurrency } from '@/context/CurrencyContext';
 
 interface DecisionFrontierLensProps {
   archetype: CampaignArchetype;
-  onProposeIntervention: (action: {
-    title: string;
-    type: string;
-    description: string;
-    proposed_discount: number;
-    proposed_scope: number;
-    proposed_duration: number;
-    proposed_region: string;
-    expected_demand: number;
-    expected_contribution: number;
-  }) => void;
+  onProposeIntervention: (action: ActiveIntervention) => void;
 }
 
 export default function DecisionFrontierLens({
@@ -51,9 +42,20 @@ export default function DecisionFrontierLens({
       proposed_discount: play.discount_pct,
       proposed_scope: play.stores_count,
       proposed_duration: play.duration_days,
-      proposed_region: 'Targeted Cohort',
+      proposed_region: frontierPlayRegion(archetype, play),
       expected_demand: play.expected_demand_uplift_pct,
-      expected_contribution: play.net_contribution_delta_gbp
+      expected_contribution: play.net_contribution_delta_gbp,
+      provenance: {
+        source_lens: 'FRONTIER',
+        source_id: play.id,
+        source_label: play.name,
+        comparison_basis: 'SCENARIO_ELASTICITY_CURVE',
+        notes: [
+          play.is_current ? 'This is the committed plan on the scenario curve.' : '',
+          play.is_recommended ? 'Curve-recommended point — not a CDI-06 Pareto survivor.' : '',
+          `Supply exposure (${play.supply_exposure}) and waste (${play.waste_impact_pct}%) are seeded play labels.`
+        ].filter(Boolean)
+      }
     });
   };
 
@@ -182,7 +184,7 @@ export default function DecisionFrontierLens({
         </div>
       </div>
 
-      {/* ── Section 2: Decision Frontier (Pareto Plot Alternatives) ── */}
+      {/* ── Section 2: Decision Frontier (Trade-Off Alternatives) ── */}
       <div
         style={{
           background: '#FFFFFF',
@@ -192,24 +194,40 @@ export default function DecisionFrontierLens({
           boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
         }}
       >
-        <div style={{ marginBottom: 16 }}>
-          <h3
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10, marginBottom: 16 }}>
+          <div>
+            <h3
+              style={{
+                fontSize: '1.05rem',
+                fontWeight: 700,
+                color: '#0F172A',
+                margin: 0,
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8
+              }}
+            >
+              <Compass size={18} color="#2563EB" />
+              Decision Frontier — Candidate Configuration Comparison
+            </h3>
+            <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '4px 0 0 0' }}>
+              Five scenario-curve trade-off alternatives priced on this scenario&apos;s elasticity and commercial terms. Adopting an alternative stages a candidate intervention for review and human Accept; the governed CDI-06 outcome frontier runs at Approve &amp; Activate.
+            </p>
+          </div>
+          <span
             style={{
-              fontSize: '1.05rem',
+              fontSize: '0.68rem',
               fontWeight: 700,
-              color: '#0F172A',
-              margin: 0,
-              display: 'flex',
-              alignItems: 'center',
-              gap: 8
+              color: '#1E40AF',
+              background: '#EFF6FF',
+              border: '1px solid #BFDBFE',
+              padding: '3px 8px',
+              borderRadius: 4,
+              letterSpacing: '0.03em'
             }}
           >
-            <Compass size={18} color="#2563EB" />
-            Decision Frontier — Candidate Configuration Comparison
-          </h3>
-          <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '4px 0 0 0' }}>
-            Multi-objective Pareto comparison of alternative campaign plays. Click any alternative to inspect commercial tradeoffs.
-          </p>
+            DERIVED · SCENARIO ELASTICITY CURVE
+          </span>
         </div>
 
         {/* Frontier Plays Grid */}
@@ -246,7 +264,7 @@ export default function DecisionFrontierLens({
                 }}
               >
                 {/* Badge */}
-                {play.badge && (
+                {(play.badge || play.is_recommended) && (
                   <span
                     style={{
                       position: 'absolute',
@@ -260,7 +278,9 @@ export default function DecisionFrontierLens({
                       borderRadius: 4
                     }}
                   >
-                    {play.badge}
+                    {play.is_recommended || play.badge === 'Pareto Optimal'
+                      ? 'Recommended trade-off'
+                      : play.badge}
                   </span>
                 )}
 

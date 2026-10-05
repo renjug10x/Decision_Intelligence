@@ -13,22 +13,17 @@ import {
   Percent,
   Check
 } from 'lucide-react';
-import { CampaignArchetype, estimateInterventionEconomics, regionStoreCounts } from '@/lib/campaign-archetypes';
+import { CampaignArchetype, estimateInterventionEconomics } from '@/lib/campaign-archetypes';
+import {
+  ActiveIntervention,
+  PlannerCampaignConfig,
+  applyAcceptedIntervention
+} from '@/lib/campaign-candidate-intervention';
 /* SCI-03R (`R-35`): the ACTIVE scenario, not the reference instance bound by name. A surface that reads `CANONICAL_*` publishes Fresh Dairy's terms under whatever scenario is selected. */
 import { inScopeStoreCount } from '@/packages/contracts/src/scenario-scope';
 import { useCurrency } from '@/context/CurrencyContext';
 
-export interface ActiveIntervention {
-  title: string;
-  type: string;
-  description: string;
-  proposed_discount: number;
-  proposed_scope: number;
-  proposed_duration: number;
-  proposed_region: string;
-  expected_demand: number;
-  expected_contribution: number;
-}
+export type { ActiveIntervention };
 
 interface InterventionWorkspaceProps {
   archetype: CampaignArchetype;
@@ -36,6 +31,7 @@ interface InterventionWorkspaceProps {
   currentRegion: string;
   currentDuration: number;
   intervention: ActiveIntervention | null;
+  committedConfiguration?: PlannerCampaignConfig | null;
   onAcceptIntervention: (intervention: ActiveIntervention) => void;
   onRejectIntervention: () => void;
   onNavigateToCommitment?: () => void;
@@ -47,6 +43,7 @@ export default function InterventionWorkspace({
   currentRegion,
   currentDuration,
   intervention,
+  committedConfiguration = null,
   onAcceptIntervention,
   onRejectIntervention,
   onNavigateToCommitment
@@ -55,16 +52,47 @@ export default function InterventionWorkspace({
   const [acceptedBrief, setAcceptedBrief] = useState<boolean>(false);
   const [commitmentPrepared, setCommitmentPrepared] = useState<boolean>(false);
 
+  const interventionKey = intervention
+    ? `${intervention.title}|${intervention.proposed_discount}|${intervention.proposed_region}|${intervention.proposed_duration}|${intervention.provenance?.source_id || ''}`
+    : '';
+
+  React.useEffect(() => {
+    setAcceptedBrief(false);
+    setCommitmentPrepared(false);
+  }, [interventionKey]);
+
   if (!intervention) return null;
 
-  // Current-configuration economics derived from the archetype's seeded elasticity curve
-  // at the ACTUAL selected discount/region/duration — never the archetype's default story.
-  const currentStores = inScopeStoreCount(currentRegion);
-  const currentEconomics = estimateInterventionEconomics(archetype, {
-    discount_pct: currentDiscount,
-    stores: currentStores,
-    duration_days: currentDuration
+  // Baseline configuration always honours the original committed baseline when present
+  // so Committed A -> Candidate B -> Accept B -> Candidate C preserves Committed A.
+  const baselineDiscount = committedConfiguration?.discount_pct ?? currentDiscount;
+  const baselineRegion = committedConfiguration?.region ?? currentRegion;
+  const baselineDuration = committedConfiguration?.duration_days ?? currentDuration;
+  const baselineStores = inScopeStoreCount(baselineRegion);
+
+  const hasPriorAcceptedDiff =
+    committedConfiguration !== null &&
+    (committedConfiguration.discount_pct !== currentDiscount ||
+      committedConfiguration.region !== currentRegion ||
+      committedConfiguration.duration_days !== currentDuration);
+
+  const baselineEconomics = estimateInterventionEconomics(archetype, {
+    discount_pct: baselineDiscount,
+    stores: baselineStores,
+    duration_days: baselineDuration
   });
+
+  // Applied planner configuration
+  const appliedConfig = applyAcceptedIntervention({
+    current: {
+      discount_pct: currentDiscount,
+      region: currentRegion,
+      duration_days: currentDuration
+    },
+    committed: committedConfiguration,
+    candidate: intervention,
+    availableRegions: [currentRegion, intervention.proposed_region]
+  }).next;
 
   // Execution conditions come from the archetype's own declared boundary triggers.
   const executionTrigger =
@@ -91,9 +119,10 @@ export default function InterventionWorkspace({
 
   return (
     <div
+      data-testid="intervention-workspace"
       style={{
         background: '#FFFFFF',
-        border: '2px solid #2563EB',
+        border: acceptedBrief ? '2px solid #059669' : '2px solid #2563EB',
         borderRadius: 12,
         padding: '24px 28px',
         boxShadow: '0 4px 12px rgba(37,99,235,0.08)',
@@ -117,38 +146,49 @@ export default function InterventionWorkspace({
               width: 8,
               height: 8,
               borderRadius: '50%',
-              background: '#2563EB'
+              background: acceptedBrief ? '#059669' : '#2563EB'
             }}
           />
           <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#0F172A', margin: 0 }}>
-            {acceptedBrief ? 'Execution Brief: Rebalanced Campaign Decision' : 'Proposed Campaign Intervention'}
+            {acceptedBrief ? 'Accepted Configuration: Candidate Applied to Planner' : 'Candidate Intervention Under Review'}
           </h3>
         </div>
 
-        {!acceptedBrief && (
-          <span
-            style={{
-              fontSize: '0.75rem',
-              color: '#1E40AF',
-              background: '#EFF6FF',
-              border: '1px solid #BFDBFE',
-              padding: '3px 8px',
-              borderRadius: 4,
-              fontWeight: 600
-            }}
-          >
-            ACTIONABLE PROPOSAL · UNCOMMITTED
-          </span>
-        )}
+        <span
+          style={{
+            fontSize: '0.72rem',
+            color: acceptedBrief ? '#065F46' : '#1E40AF',
+            background: acceptedBrief ? '#ECFDF5' : '#EFF6FF',
+            border: `1px solid ${acceptedBrief ? '#A7F3D0' : '#BFDBFE'}`,
+            padding: '3px 8px',
+            borderRadius: 4,
+            fontWeight: 700
+          }}
+        >
+          {acceptedBrief ? 'ACCEPTED CONFIGURATION · LIVE CDI RECALCULATED' : 'CANDIDATE INTERVENTION · UNCOMMITTED'}
+        </span>
       </div>
 
       {!acceptedBrief && intervention && (
         <>
           <p style={{ fontSize: '0.875rem', color: '#475569', margin: '0 0 18px 0', lineHeight: 1.45 }}>
-            <strong>{intervention.title}:</strong> {intervention.description}
+            <strong>{intervention.title}:</strong> {localise(intervention.description)}
           </p>
+          {intervention.provenance && (
+            <div style={{ fontSize: '0.75rem', color: '#1E40AF', margin: '-10px 0 16px 0' }}>
+              Source: {intervention.provenance.source_lens.replace(/_/g, ' ')}
+              {intervention.provenance.source_id ? ` (${intervention.provenance.source_id})` : ''}
+              {intervention.provenance.source_label ? ` · ${intervention.provenance.source_label}` : ''}
+              {intervention.provenance.comparison_basis === 'SCENARIO_ELASTICITY_CURVE'
+                ? ' · scenario elasticity curve (not the CDI-06 activation frontier)'
+                : ''}
+              {typeof intervention.provenance.funding_overlay_gbp === 'number'
+                ? ` · supplier funding overlay ${formatGbp(intervention.provenance.funding_overlay_gbp)}`
+                : ''}
+            </div>
+          )}
 
-          {/* Current vs Proposed Side-by-Side Comparison */}
+          {/* Committed vs Candidate Side-by-Side Comparison */}
           <div
             style={{
               display: 'grid',
@@ -157,7 +197,7 @@ export default function InterventionWorkspace({
               marginBottom: 20
             }}
           >
-            {/* Current Baseline Card */}
+            {/* Committed Baseline Card */}
             <div
               style={{
                 background: '#F8FAFC',
@@ -167,39 +207,56 @@ export default function InterventionWorkspace({
               }}
             >
               <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', marginBottom: 8 }}>
-                Current Configuration
+                Committed Configuration (Baseline)
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.85rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#64748B' }}>Discount Depth:</span>
-                  <strong>{currentDiscount}% Cut</strong>
+                  <strong>{baselineDiscount}% Cut</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#64748B' }}>Store Scope:</span>
-                  <strong>{currentStores} Stores ({currentRegion})</strong>
+                  <strong>{baselineStores} Stores ({baselineRegion})</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#64748B' }}>Duration:</span>
-                  <strong>{currentDuration} Days</strong>
+                  <strong>{baselineDuration} Days</strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px solid #E2E8F0' }}>
                   <span style={{ color: '#64748B' }}>Expected Uplift:</span>
-                  <strong style={{ color: currentEconomics.expected_demand_uplift_pct >= 0 ? '#059669' : '#DC2626' }}>
-                    {currentEconomics.expected_demand_uplift_pct >= 0 ? '+' : ''}
-                    {currentEconomics.expected_demand_uplift_pct.toFixed(1)}%
+                  <strong style={{ color: baselineEconomics.expected_demand_uplift_pct >= 0 ? '#059669' : '#DC2626' }}>
+                    {baselineEconomics.expected_demand_uplift_pct >= 0 ? '+' : ''}
+                    {baselineEconomics.expected_demand_uplift_pct.toFixed(1)}%
                   </strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#64748B' }}>Net Contribution:</span>
-                  <strong style={{ color: currentEconomics.net_contribution_delta_gbp >= 0 ? '#059669' : '#DC2626' }}>
-                    {formatGbp(currentEconomics.net_contribution_delta_gbp)}
+                  <strong style={{ color: baselineEconomics.net_contribution_delta_gbp >= 0 ? '#059669' : '#DC2626' }}>
+                    {formatGbp(baselineEconomics.net_contribution_delta_gbp)}
                   </strong>
                 </div>
               </div>
+
+              {hasPriorAcceptedDiff && (
+                <div
+                  style={{
+                    marginTop: 10,
+                    paddingTop: 8,
+                    borderTop: '1px dashed #CBD5E1',
+                    fontSize: '0.74rem',
+                    color: '#065F46'
+                  }}
+                >
+                  Currently applied on planner controls:{' '}
+                  <strong>
+                    {currentDiscount}% · {currentRegion} · {currentDuration} days
+                  </strong>
+                </div>
+              )}
             </div>
 
-            {/* Proposed Intervention Card */}
+            {/* Candidate Intervention Card */}
             <div
               style={{
                 background: '#EFF6FF',
@@ -209,7 +266,7 @@ export default function InterventionWorkspace({
               }}
             >
               <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#2563EB', textTransform: 'uppercase', marginBottom: 8 }}>
-                Proposed CogniX Intervention
+                Candidate Intervention
               </div>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: '0.85rem' }}>
@@ -223,7 +280,12 @@ export default function InterventionWorkspace({
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span style={{ color: '#475569' }}>Duration:</span>
-                  <strong style={{ color: '#2563EB' }}>{intervention.proposed_duration} Days</strong>
+                  <strong style={{ color: '#2563EB' }}>
+                    {intervention.proposed_duration} Days
+                    {appliedConfig.duration_days !== intervention.proposed_duration
+                      ? ` (applies as ${appliedConfig.duration_days}d planner control)`
+                      : ''}
+                  </strong>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', paddingTop: 6, borderTop: '1px solid #BFDBFE' }}>
                   <span style={{ color: '#475569' }}>Expected Uplift:</span>
@@ -274,15 +336,75 @@ export default function InterventionWorkspace({
               }}
             >
               <CheckCircle2 size={15} />
-              Accept Intervention & Generate Execution Brief
+              Accept Intervention — apply to campaign configuration
             </button>
           </div>
         </>
       )}
 
-      {/* Accepted Execution Brief */}
+      {/* Accepted Execution Brief & Restrained Transition Summary */}
       {acceptedBrief && intervention && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Restrained Candidate Applied Transition Summary */}
+          <div
+            data-testid="candidate-applied-summary"
+            style={{
+              background: '#ECFDF5',
+              border: '1px solid #A7F3D0',
+              borderRadius: 8,
+              padding: '14px 18px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: 16
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '0.78rem', fontWeight: 800, color: '#065F46', textTransform: 'uppercase', letterSpacing: '0.03em', marginBottom: 6 }}>
+                Candidate applied
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'auto auto', columnGap: 18, rowGap: 4, fontSize: '0.82rem', color: '#0F172A' }}>
+                <span style={{ color: '#475569', fontWeight: 600 }}>Discount</span>
+                <strong style={{ fontFamily: 'monospace' }}>
+                  {baselineDiscount}% → {currentDiscount}%
+                </strong>
+                <span style={{ color: '#475569', fontWeight: 600 }}>Region</span>
+                <strong>
+                  {baselineRegion} → {currentRegion}
+                </strong>
+                <span style={{ color: '#475569', fontWeight: 600 }}>Duration</span>
+                <strong>
+                  {baselineDuration} → {currentDuration} days
+                </strong>
+              </div>
+            </div>
+            <div style={{ textAlign: 'right' }}>
+              <span
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: 6,
+                  fontSize: '0.78rem',
+                  fontWeight: 700,
+                  color: '#065F46',
+                  background: '#FFFFFF',
+                  border: '1px solid #A7F3D0',
+                  padding: '5px 10px',
+                  borderRadius: 6
+                }}
+              >
+                <CheckCircle2 size={14} color="#059669" />
+                Live assessment recalculated
+              </span>
+              {intervention.provenance && (
+                <div style={{ fontSize: '0.7rem', color: '#047857', marginTop: 4 }}>
+                  Provenance: {intervention.provenance.source_lens.replace(/_/g, ' ')} · {intervention.provenance.source_id}
+                </div>
+              )}
+            </div>
+          </div>
+
           <div
             style={{
               background: '#F8FAFC',
@@ -294,6 +416,27 @@ export default function InterventionWorkspace({
             <h4 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#0F172A', margin: '0 0 10px 0' }}>
               Execution Brief Summary (SKU: {archetype.default_sku} · {archetype.sku_name})
             </h4>
+            <p style={{ fontSize: '0.8rem', color: '#334155', margin: '0 0 12px 0', lineHeight: 1.45 }}>
+              This candidate is now the active planner configuration. Live CDI-02/03/04/05 have re-evaluated
+              it, and Approve &amp; Activate will register this configuration into CDI-06 / CDI-07A.
+            </p>
+            {committedConfiguration && (
+              <div style={{ fontSize: '0.78rem', color: '#64748B', marginBottom: 12 }}>
+                Committed baseline retained for comparison:{' '}
+                <strong>
+                  {committedConfiguration.discount_pct}% · {committedConfiguration.region} ·{' '}
+                  {committedConfiguration.duration_days} days
+                </strong>
+              </div>
+            )}
+            {intervention.provenance?.factors && intervention.provenance.factors.length > 0 && (
+              <div style={{ fontSize: '0.78rem', color: '#475569', marginBottom: 12 }}>
+                <strong>Inherited evidence:</strong>{' '}
+                {intervention.provenance.factors
+                  .map(f => `${f.label}${typeof f.points === 'number' ? ` ${f.points >= 0 ? '+' : ''}${f.points}` : ''}`)
+                  .join(' · ')}
+              </div>
+            )}
 
             <div
               style={{
@@ -305,16 +448,16 @@ export default function InterventionWorkspace({
               }}
             >
               <div>
-                <span style={{ color: '#64748B' }}>Approved Discount:</span>{' '}
-                <strong>{intervention.proposed_discount}% Cut</strong>
+                <span style={{ color: '#64748B' }}>Applied Discount:</span>{' '}
+                <strong>{currentDiscount}% Cut</strong>
               </div>
               <div>
                 <span style={{ color: '#64748B' }}>Target Store Scope:</span>{' '}
-                <strong>{intervention.proposed_scope} Superstores</strong>
+                <strong>{inScopeStoreCount(currentRegion)} Superstores ({currentRegion})</strong>
               </div>
               <div>
-                <span style={{ color: '#64748B' }}>Duration:</span>{' '}
-                <strong>{intervention.proposed_duration} Days</strong>
+                <span style={{ color: '#64748B' }}>Applied Duration:</span>{' '}
+                <strong>{currentDuration} Days</strong>
               </div>
               <div>
                 <span style={{ color: '#64748B' }}>Projected Net Margin:</span>{' '}
@@ -336,7 +479,7 @@ export default function InterventionWorkspace({
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
             <div style={{ fontSize: '0.8rem', color: '#059669', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 6 }}>
               <CheckCircle2 size={16} />
-              Intervention accepted. Ready for enterprise commitment handoff.
+              Intervention accepted. Ready for Approve &amp; Activate or Commitment handoff.
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

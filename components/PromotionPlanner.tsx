@@ -47,18 +47,31 @@ import {
   registerCampaignIntentClient,
   evaluateOutcomeFrontierClient,
   createDecisionContractClient,
-  getCurrentDecisionContractClient
+  getCurrentDecisionContractClient,
+  fetchCurrentCampaignIntent,
+  assessDecisionValidityClient
 } from '@/lib/campaign-intent-client';
 import {
-  projectCampaignFlightClient,
-  buildElapsedTelemetryFromArchetype
-} from '@/lib/campaign-flight-client';
+  ActiveIntervention,
+  PlannerCampaignConfig,
+  PLANNER_DURATION_OPTIONS,
+  applyAcceptedIntervention,
+  canHydrateContractForScenario,
+  configFromCampaignIntent,
+  plannerConfigurationSignature,
+  resolvePlannerRegion
+} from '@/lib/campaign-candidate-intervention';
 import {
   DecisionContract,
   DecisionContractReference,
   DecisionResolution,
+  DecisionValidityAssessment,
   computeContractDigest
 } from '@/packages/contracts/src/campaign-decision-contract-model';
+import {
+  projectCampaignFlightClient,
+  buildElapsedTelemetryFromArchetype
+} from '@/lib/campaign-flight-client';
 import {
   CampaignFlightProjection,
   buildResolutionStatement,
@@ -79,7 +92,7 @@ import OpportunitySurfaceLens from '@/components/campaign/OpportunitySurfaceLens
 import DecisionFrontierLens from '@/components/campaign/DecisionFrontierLens';
 import InverseAnalysisLens from '@/components/campaign/InverseAnalysisLens';
 import DecisionGraphLens from '@/components/campaign/DecisionGraphLens';
-import InterventionWorkspace, { ActiveIntervention } from '@/components/campaign/InterventionWorkspace';
+import InterventionWorkspace from '@/components/campaign/InterventionWorkspace';
 import LiveDecisionTwinLens from '@/components/campaign/LiveDecisionTwinLens';
 import FlightActivationPanel, { ActivationChoice } from '@/components/campaign/FlightActivationPanel';
 import CampaignOutlookPanel from '@/components/campaign/CampaignOutlookPanel';
@@ -126,7 +139,7 @@ export default function PromotionPlanner({
   onNavigateToCanvas
 }: PromotionPlannerProps) {
   const app = useApp();
-  const { decisionState } = useDecisionState();
+  const { decisionState, executeCommand } = useDecisionState();
 
   // Mode Switcher: Pre-Flight Planning vs Live Decision Twin
   const [activeMode, setActiveMode] = useState<'PLANNING' | 'DECISION_TWIN'>('PLANNING');
@@ -175,8 +188,11 @@ export default function PromotionPlanner({
   // Active Analytical Lens Tab
   const [activeLens, setActiveLens] = useState<AnalyticalLensId>('DEMAND');
 
-  // Active Proposed Intervention
+  // Active Proposed & Accepted Intervention State
   const [proposedIntervention, setProposedIntervention] = useState<ActiveIntervention | null>(null);
+  const [acceptedIntervention, setAcceptedIntervention] = useState<ActiveIntervention | null>(null);
+  const [committedConfiguration, setCommittedConfiguration] = useState<PlannerCampaignConfig | null>(null);
+  const [validityAssessment, setValidityAssessment] = useState<DecisionValidityAssessment | null>(null);
   const [isTraceModalOpen, setIsTraceModalOpen] = useState<boolean>(false);
 
   // Live Governed-Engine Evaluation State (CDI-02/03/04/06)
@@ -241,14 +257,14 @@ export default function PromotionPlanner({
   );
 
   /** Everything that changes what was decided. Any change invalidates an existing activation. */
-  const configurationSignature = [
-    archetype.id,
+  const configurationSignature = plannerConfigurationSignature({
+    archetypeId: archetype.id,
     skuId,
     mechanic,
-    String(discountDepth),
-    targetRegion,
-    String(durationDays)
-  ].join('|');
+    discountPct: discountDepth,
+    region: targetRegion,
+    durationDays
+  });
 
   const staleActivation = decisionContract !== null && activatedSignature !== configurationSignature;
   const flightReady =
@@ -275,12 +291,14 @@ export default function PromotionPlanner({
   );
 
   /*
-   * Follow the active scenario. A scenario switch re-opens this surface on that scenario's own
-   * projection and its declared configuration, so no previous scenario's depth, region, duration
-   * or SKU survives the switch. Keyed on the scenario identity rather than on the projection
-   * object, which is rebuilt on every render.
+   * Follow the active scenario and enforce strict scenario isolation.
+   * A scenario switch resets all planner controls, candidate/accepted interventions, and in-flight
+   * contract state to the new scenario's projection before checking if the session store holds an
+   * ACTIVE contract that explicitly belongs to this scenario_id.
    */
   useEffect(() => {
+    let cancelled = false;
+
     setSelectedArchetypeId(scenarioProjection.id);
     setArchetype(scenarioProjection);
     setSkuId(scenarioProjection.default_sku);
@@ -289,7 +307,87 @@ export default function PromotionPlanner({
     setTargetRegion(scenarioProjection.default_region);
     setDurationDays(scenarioProjection.default_duration_days);
     setProposedIntervention(null);
-  }, [activeScenario.identity.scenario_id]);
+    setAcceptedIntervention(null);
+    setCommittedConfiguration(null);
+    setDecisionContract(null);
+    setActivatedSignature(null);
+    setFlight(null);
+    setFlightError(null);
+    setActivationError(null);
+    setActivationChoices([]);
+    setValidityAssessment(null);
+    setPreview(null);
+    setPreviewingMomentId(null);
+    setActiveMode('PLANNING');
+
+    async function hydrateActiveContract() {
+      const existing = await getCurrentDecisionContractClient(
+        CAMPAIGN_DEMO_TENANT_ID,
+        CAMPAIGN_DEMO_SESSION_ID
+      );
+      if (cancelled) return;
+      if (!existing || existing.status !== 'ACTIVE') return;
+
+      const intent = await fetchCurrentCampaignIntent(
+        CAMPAIGN_DEMO_TENANT_ID,
+        CAMPAIGN_DEMO_SESSION_ID
+      );
+      if (cancelled) return;
+
+      // Enforce scenario isolation: never hydrate a contract from a different scenario.
+      if (
+        !canHydrateContractForScenario({
+          contract: existing,
+          intent,
+          activeScenarioId: activeScenario.identity.scenario_id
+        })
+      ) {
+        return;
+      }
+
+      const available = Object.keys(regionStoreCounts());
+      const restored = configFromCampaignIntent(intent || {}, {
+        discount_pct: scenarioProjection.default_discount_pct,
+        region: scenarioProjection.default_region,
+        duration_days: scenarioProjection.default_duration_days
+      });
+      const region = resolvePlannerRegion(restored.region, available, restored.region);
+      const sku = intent?.campaign_intent?.sku_scope?.[0] || scenarioProjection.default_sku;
+      const nextMechanic = intent?.campaign_intent?.provisional_mechanic
+        ? String(intent.campaign_intent.provisional_mechanic)
+        : scenarioProjection.default_mechanic;
+
+      setSkuId(sku);
+      setMechanic(nextMechanic);
+      setDiscountDepth(restored.discount_pct);
+      setTargetRegion(region);
+      setDurationDays(restored.duration_days);
+      setDecisionContract(existing);
+      setActivatedSignature(
+        plannerConfigurationSignature({
+          archetypeId: scenarioProjection.id,
+          skuId: sku,
+          mechanic: nextMechanic,
+          discountPct: restored.discount_pct,
+          region,
+          durationDays: restored.duration_days
+        })
+      );
+
+      const validity = await assessDecisionValidityClient({
+        contract_id: existing.contract_id,
+        tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+        session_id: CAMPAIGN_DEMO_SESSION_ID,
+        as_of: existing.created_as_of
+      });
+      if (!cancelled) setValidityAssessment(validity.assessment);
+    }
+
+    void hydrateActiveContract();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeScenario.identity.scenario_id, scenarioProjection]);
 
   // When selected archetype changes, reset default configuration parameters
   const handleSelectArchetype = (archId: string) => {
@@ -308,6 +406,8 @@ export default function PromotionPlanner({
     setTargetRegion(arch.default_region);
     setDurationDays(arch.default_duration_days);
     setProposedIntervention(null);
+    setAcceptedIntervention(null);
+    setCommittedConfiguration(null);
   };
 
   /**
@@ -455,6 +555,18 @@ export default function PromotionPlanner({
       setActivationChoices([]);
       setActivationError(null);
       await preservePromotionExperiment(intent, created.contract);
+      await executeCommand(
+        'REGISTER_DECISION_CONTRACT',
+        { decision_contract_ref: created.contract.contract_id },
+        'PromotionPlanner'
+      );
+      const validity = await assessDecisionValidityClient({
+        contract_id: created.contract.contract_id,
+        tenant_id: CAMPAIGN_DEMO_TENANT_ID,
+        session_id: CAMPAIGN_DEMO_SESSION_ID,
+        as_of: created.contract.created_as_of
+      });
+      setValidityAssessment(validity.assessment);
     } catch (e: any) {
       setActivationError(e?.message || 'CogniX could not activate this decision.');
     } finally {
@@ -553,6 +665,9 @@ export default function PromotionPlanner({
     setRationaleId('');
     setRationaleContext('');
     setProposedIntervention(null);
+    setAcceptedIntervention(null);
+    setCommittedConfiguration(null);
+    setValidityAssessment(null);
     setActiveMode('PLANNING');
     const listed = await listCampaignExperimentsClient({
       tenant_id: CAMPAIGN_DEMO_TENANT_ID,
@@ -850,13 +965,33 @@ export default function PromotionPlanner({
     };
   }, [archetype, skuId, mechanic, discountDepth, targetRegion, durationDays]);
 
-  const handleProposeIntervention = (action: any) => {
+  const handleProposeIntervention = (action: ActiveIntervention) => {
+    setCommittedConfiguration(prev =>
+      prev ?? {
+        discount_pct: discountDepth,
+        region: targetRegion,
+        duration_days: durationDays
+      }
+    );
     setProposedIntervention(action);
-    // Scroll smoothly to intervention workspace if needed
   };
 
   const handleAcceptIntervention = (intervention: ActiveIntervention) => {
-    // Interventions generate an execution brief
+    const applied = applyAcceptedIntervention({
+      current: {
+        discount_pct: discountDepth,
+        region: targetRegion,
+        duration_days: durationDays
+      },
+      committed: committedConfiguration,
+      candidate: intervention,
+      availableRegions: Object.keys(regionStoreCounts())
+    });
+    setCommittedConfiguration(applied.committed);
+    setAcceptedIntervention(intervention);
+    setDiscountDepth(applied.next.discount_pct);
+    setTargetRegion(applied.next.region);
+    setDurationDays(applied.next.duration_days);
   };
 
   const handleRejectIntervention = () => {
@@ -867,8 +1002,9 @@ export default function PromotionPlanner({
     setDiscountDepth(discount);
   };
 
-  const handleApplyInFlightAction = (action: any) => {
-    // In-flight action accepted
+  const handleApplyInFlightAction = (_action: unknown) => {
+    // Seeded twin deviations are demonstration narrative. Governed in-flight
+    // correction is CTW-02 plan/preview/confirm on the outlook, not this stub.
   };
 
   const handleNavigateToCommitments = () => {
@@ -1186,13 +1322,145 @@ export default function PromotionPlanner({
                     background: '#FFFFFF'
                   }}
                 >
-                  <option value={7}>7 Days (Short Burst)</option>
-                  <option value={14}>14 Days (Standard Window)</option>
-                  <option value={21}>21 Days (Extended Run)</option>
-                  <option value={28}>28 Days (Full Cycle)</option>
+                  {Array.from(new Set<number>([...PLANNER_DURATION_OPTIONS, durationDays]))
+                    .sort((a, b) => a - b)
+                    .map(days => (
+                      <option key={days} value={days}>
+                        {days === 7
+                          ? '7 Days (Short Burst)'
+                          : days === 14
+                            ? '14 Days (Standard Window)'
+                            : days === 21
+                              ? '21 Days (Extended Run)'
+                              : days === 28
+                                ? '28 Days (Full Cycle)'
+                                : `${days} Days (from accepted candidate)`}
+                      </option>
+                    ))}
                 </select>
               </div>
             </div>
+            {/* ── 4-State Decision Lifecycle Strip (Committed · Candidate · Accepted · Activated) ── */}
+            {(() => {
+              const committedRef = committedConfiguration ?? {
+                discount_pct: archetype.default_discount_pct,
+                region: archetype.default_region,
+                duration_days: archetype.default_duration_days
+              };
+              const isReviewingCandidate =
+                proposedIntervention !== null &&
+                proposedIntervention !== acceptedIntervention;
+              return (
+                <div
+                  data-testid="decision-state-strip"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
+                    gap: 10,
+                    marginTop: 14,
+                    paddingTop: 14,
+                    borderTop: '1px solid #F1F5F9',
+                    fontSize: '0.75rem'
+                  }}
+                >
+                  {/* 1. COMMITTED CONFIGURATION */}
+                  <div
+                    data-testid="state-committed-configuration"
+                    style={{
+                      background: '#F8FAFC',
+                      border: '1px solid #E2E8F0',
+                      borderRadius: 6,
+                      padding: '8px 10px'
+                    }}
+                  >
+                    <div style={{ fontSize: '0.64rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                      1. Committed Configuration
+                    </div>
+                    <div style={{ fontWeight: 700, color: '#0F172A', marginTop: 2 }}>
+                      {committedRef.discount_pct}% · {committedRef.region} · {committedRef.duration_days}d
+                    </div>
+                    <div style={{ fontSize: '0.68rem', color: '#64748B', marginTop: 1 }}>
+                      Baseline before experimentation
+                    </div>
+                  </div>
+
+                  {/* 2. CANDIDATE INTERVENTION */}
+                  <div
+                    data-testid="state-candidate-intervention"
+                    style={{
+                      background: isReviewingCandidate ? '#EFF6FF' : '#F8FAFC',
+                      border: isReviewingCandidate ? '1.5px solid #2563EB' : '1px solid #E2E8F0',
+                      borderRadius: 6,
+                      padding: '8px 10px'
+                    }}
+                  >
+                    <div style={{ fontSize: '0.64rem', fontWeight: 700, color: isReviewingCandidate ? '#1E40AF' : '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                      2. Candidate Intervention
+                    </div>
+                    <div style={{ fontWeight: 700, color: isReviewingCandidate ? '#1E3A8A' : '#64748B', marginTop: 2 }}>
+                      {isReviewingCandidate && proposedIntervention
+                        ? `${proposedIntervention.proposed_discount}% · ${proposedIntervention.proposed_region} · ${proposedIntervention.proposed_duration}d`
+                        : 'No candidate staged'}
+                    </div>
+                    <div style={{ fontSize: '0.68rem', color: isReviewingCandidate ? '#2563EB' : '#94A3B8', marginTop: 1 }}>
+                      {isReviewingCandidate && proposedIntervention?.provenance
+                        ? `Under review (${proposedIntervention.provenance.source_lens.replace(/_/g, ' ')})`
+                        : 'Select a lens action to stage'}
+                    </div>
+                  </div>
+
+                  {/* 3. ACCEPTED CONFIGURATION */}
+                  <div
+                    data-testid="state-accepted-configuration"
+                    style={{
+                      background: acceptedIntervention ? '#ECFDF5' : '#F8FAFC',
+                      border: acceptedIntervention ? '1.5px solid #10B981' : '1px solid #E2E8F0',
+                      borderRadius: 6,
+                      padding: '8px 10px'
+                    }}
+                  >
+                    <div style={{ fontSize: '0.64rem', fontWeight: 700, color: acceptedIntervention ? '#065F46' : '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                      3. Accepted Configuration
+                    </div>
+                    <div style={{ fontWeight: 700, color: '#0F172A', marginTop: 2 }}>
+                      {discountDepth}% · {targetRegion} · {durationDays}d
+                    </div>
+                    <div style={{ fontSize: '0.68rem', color: acceptedIntervention ? '#059669' : '#64748B', marginTop: 1 }}>
+                      {acceptedIntervention
+                        ? `Candidate applied (${acceptedIntervention.provenance?.source_lens.replace(/_/g, ' ') || 'ACCEPTED'})`
+                        : 'Active planner controls'}
+                    </div>
+                  </div>
+
+                  {/* 4. ACTIVATED DECISION */}
+                  <div
+                    data-testid="state-activated-decision"
+                    style={{
+                      background: flightReady ? '#0F172A' : staleActivation ? '#FFFBEB' : '#F8FAFC',
+                      border: flightReady ? '1.5px solid #0F172A' : staleActivation ? '1px solid #FDE68A' : '1px solid #E2E8F0',
+                      borderRadius: 6,
+                      padding: '8px 10px'
+                    }}
+                  >
+                    <div style={{ fontSize: '0.64rem', fontWeight: 700, color: flightReady ? '#93C5FD' : staleActivation ? '#92400E' : '#64748B', textTransform: 'uppercase', letterSpacing: '0.03em' }}>
+                      4. Activated Decision
+                    </div>
+                    <div style={{ fontWeight: 700, color: flightReady ? '#FFFFFF' : staleActivation ? '#92400E' : '#64748B', marginTop: 2 }}>
+                      {flightReady && decisionContract
+                        ? `ACTIVE · ${discountDepth}% · ${targetRegion} · ${durationDays}d`
+                        : staleActivation
+                        ? 'Modified since activation'
+                        : 'Awaiting Approve & Activate'}
+                    </div>
+                    <div style={{ fontSize: '0.68rem', color: flightReady ? '#CBD5E1' : staleActivation ? '#B45309' : '#94A3B8', marginTop: 1 }}>
+                      {flightReady && decisionContract
+                        ? `Contract ${decisionContract.contract_id}`
+                        : 'Governed CDI-06 → CDI-07A'}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           {/* ── Active Proposed Intervention Workspace (if any proposed) ── */}
@@ -1203,6 +1471,7 @@ export default function PromotionPlanner({
             currentRegion={targetRegion}
             currentDuration={durationDays}
             intervention={proposedIntervention}
+            committedConfiguration={committedConfiguration}
             onAcceptIntervention={handleAcceptIntervention}
             onRejectIntervention={handleRejectIntervention}
             onNavigateToCommitment={handleNavigateToCommitments}
@@ -1321,7 +1590,11 @@ export default function PromotionPlanner({
               <InverseAnalysisLens
                 key={archetype.id}
                 archetype={archetype}
+                currentDiscount={discountDepth}
+                currentRegion={targetRegion}
+                currentDurationDays={durationDays}
                 onProposeIntervention={handleProposeIntervention}
+                onOpenDemandLens={() => setActiveLens('DEMAND')}
               />
             )}
 
@@ -1329,6 +1602,18 @@ export default function PromotionPlanner({
               <DecisionGraphLens
                 key={archetype.id}
                 archetype={archetype}
+                liveContributionGbp={
+                  liveEvaluation?.counterfactual?.economic_basis?.contribution_delta_over_window_gbp ??
+                  liveEvaluation?.counterfactual?.campaign_delta?.contribution_delta_gbp ??
+                  null
+                }
+                liveDemandUpliftPct={
+                  liveEvaluation?.counterfactual?.campaign_delta?.attributable_uplift_pp ?? null
+                }
+                currentDiscountPct={discountDepth}
+                currentRegion={targetRegion}
+                currentDurationDays={durationDays}
+                onProposeIntervention={handleProposeIntervention}
               />
             )}
           </div>
@@ -1374,6 +1659,7 @@ export default function PromotionPlanner({
           }
           onReturnToPlanning={() => setActiveMode('PLANNING')}
           onApplyInFlightAction={handleApplyInFlightAction}
+          validityAssessment={validityAssessment}
         />
       )}
 
