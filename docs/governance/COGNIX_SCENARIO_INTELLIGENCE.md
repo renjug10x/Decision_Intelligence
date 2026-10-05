@@ -213,6 +213,12 @@ governed situations — a promotion demand surge, a supplier lead-time risk and 
 exposure — each of which authors a scenario that certifies on all twelve dimensions. What CogniX
 cannot model is published beside what it can, with reasons.
 
+**Amendment, 2026-10-05 (ADR-087).** Competitive price response is now a fourth governed situation.
+The three situations above are unchanged. The fourth reuses the promotion signal family so
+certification still has a timeline. It names a counterfactual to explore. It does not record a
+competitor price, and it does not claim a competitor changed price. Benchmark price and γ are
+entered afterwards in Promotion What-If, outside certified scenario truth.
+
 **What is not built:** CSV enrichment (`SCI-10`), the authoring experience (`SCI-08`), and scenario
 persistence beyond export/import, which those two packets should decide with the UX in front of them.
 
