@@ -124,6 +124,30 @@ class AttestedUploadStore {
       .map(e => e.upload);
   }
 
+  /** Copy admitted upload records to a revision draft so attested field provenance carries forward. */
+  copyAdmittedForDraft(tenantId: string, fromDraftId: string, toDraftId: string): void {
+    this.sweep();
+    for (const entry of [...this.byKey.values()]) {
+      if (
+        entry.upload.tenant_id === tenantId &&
+        entry.upload.draft_id === fromDraftId &&
+        entry.upload.state === 'ADMITTED'
+      ) {
+        const clonedUpload: AttestedUpload = {
+          ...entry.upload,
+          upload_id: `${entry.upload.upload_id}_REV_${toDraftId.slice(-6)}`,
+          draft_id: toDraftId
+        };
+        this.byKey.set(this.key(tenantId, clonedUpload.upload_id), {
+          upload: clonedUpload,
+          held: null,
+          grain_sku: entry.grain_sku,
+          profiled_at_ms: entry.profiled_at_ms
+        });
+      }
+    }
+  }
+
   /** Whether any upload in this process still holds parsed columns. Retention evidence for tests. */
   heldColumnCount(): number {
     this.sweep();

@@ -27,12 +27,20 @@
 import { installScenarioCertificationGate } from './scenario-certification';
 import { CANONICAL_SCENARIO_ID } from '@/packages/contracts/src/canonical-scenario-model';
 import { CURATED_SCENARIO_PACK_IDS } from '@/packages/contracts/src/scenario-packs';
-import { authoredScenarioOwner } from '@/lib/scenario-authoring/authored-scenario-ownership';
+import {
+  authoredScenarioOwner,
+  isAuthoredScenarioSuperseded,
+  removeAuthoredScenarioOwner
+} from '@/lib/scenario-authoring/authored-scenario-ownership';
+import { scenarioDraftStore } from '@/lib/scenario-authoring/draft-store';
+import { attestedUploadStore } from '@/lib/scenario-authoring/attested-upload-store';
 import {
   scenarioCatalogue as registryCatalogue,
   isScenarioRegistered as registryHas,
   resolveScenario as registryResolve,
   requireScenarioId as registryRequire,
+  getActiveScenarioId as registryActiveId,
+  activateScenario as registryActivate,
   ScenarioResolutionError as RegistryResolutionError,
   type ScenarioRegistryEntry as RegistryEntry
 } from '@/packages/contracts/src/scenario-registry';
@@ -92,12 +100,16 @@ export function isScenarioVisibleToTenant(scenarioId: string, tenantId: string):
   if (!registryHas(scenarioId)) return false;
   if (isCompiledScenario(scenarioId)) return true;
   const owner = authoredScenarioOwner(scenarioId);
-  return owner !== undefined && owner === tenantId;
+  if (owner === undefined || owner !== tenantId) return false;
+  if (isAuthoredScenarioSuperseded(scenarioId) && registryActiveId() !== scenarioId) return false;
+  return true;
 }
 
 /** The catalogue a selector renders for this tenant. */
 export function scenarioCatalogueForTenant(tenantId: string): RegistryEntry[] {
-  return registryCatalogue().filter(entry => isScenarioVisibleToTenant(entry.scenario_id, tenantId));
+  return registryCatalogue().filter(
+    entry => isScenarioVisibleToTenant(entry.scenario_id, tenantId) && !isAuthoredScenarioSuperseded(entry.scenario_id)
+  );
 }
 
 /**
@@ -125,3 +137,75 @@ export function requireScenarioForTenant(
   if (!scenarioId || !scenarioId.trim()) return registryRequire(scenarioId, requestContext);
   return resolveScenarioForTenant(scenarioId, tenantId);
 }
+
+/** Raised when a caller attempts to delete a compiled/governed reference scenario. */
+export class ScenarioDeletionRefusedError extends Error {
+  readonly requested: string;
+  constructor(scenarioId: string, message?: string) {
+    super(message ?? `Scenario "${scenarioId}" is a governed reference pack and cannot be deleted.`);
+    this.name = 'ScenarioDeletionRefusedError';
+    this.requested = scenarioId;
+  }
+}
+
+export interface ScenarioDeletionOutcome {
+  deleted_scenario_id: string;
+  removed_scenario_ids: string[];
+  removed_draft_ids: string[];
+  was_active: boolean;
+  active_scenario_id: string;
+  active_scenario: CanonicalScenario;
+}
+
+/**
+ * Authoritatively remove a tenant's user-created scenario from session-scoped ownership and authoring stores.
+ *
+ *  - Governed reference scenarios are structurally refused with `ScenarioDeletionRefusedError`.
+ *  - Unknown or foreign-tenant scenarios are refused with `ScenarioResolutionError`.
+ *  - If the deleted scenario (or an ancestor in its revision lineage) was currently active, the estate safely
+ *    returns to the default curated reference scenario (`CANONICAL_SCENARIO_ID`).
+ */
+export function deleteAuthoredScenarioForTenant(
+  scenarioId: string | null | undefined,
+  tenantId: string
+): ScenarioDeletionOutcome {
+  const cleanId = typeof scenarioId === 'string' ? scenarioId.trim() : '';
+  if (!cleanId) {
+    throw new RegistryResolutionError('An explicit scenario_id is required to delete a scenario.', scenarioId);
+  }
+  if (isCompiledScenario(cleanId)) {
+    throw new ScenarioDeletionRefusedError(
+      cleanId,
+      `Scenario "${cleanId}" is a governed reference pack and cannot be deleted.`
+    );
+  }
+  if (!registryHas(cleanId) || authoredScenarioOwner(cleanId) !== tenantId) {
+    throw new RegistryResolutionError(`Scenario "${cleanId}" is not registered.`, cleanId);
+  }
+
+  const removedScenarioIds = removeAuthoredScenarioOwner(cleanId, tenantId);
+  const removedDraftIds: string[] = [];
+  for (const id of removedScenarioIds) {
+    removedDraftIds.push(...scenarioDraftStore.deleteByScenarioId(tenantId, id));
+  }
+  attestedUploadStore.sweep();
+
+  const currentActiveId = registryActiveId();
+  const wasActive =
+    currentActiveId === cleanId ||
+    (currentActiveId !== null && removedScenarioIds.includes(currentActiveId));
+  const activeScenario =
+    wasActive || !currentActiveId
+      ? registryActivate(CANONICAL_SCENARIO_ID)
+      : registryResolve(currentActiveId);
+
+  return {
+    deleted_scenario_id: cleanId,
+    removed_scenario_ids: removedScenarioIds,
+    removed_draft_ids: removedDraftIds,
+    was_active: wasActive,
+    active_scenario_id: activeScenario.identity.scenario_id,
+    active_scenario: activeScenario
+  };
+}
+

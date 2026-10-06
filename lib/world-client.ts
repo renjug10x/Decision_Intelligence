@@ -15,7 +15,22 @@
  * families are taxonomy now; the catalogue is the scenario registry (ADR-077).
  */
 
-import { ScenarioRegistryEntry, TemporalDataPoint } from '@/packages/contracts/src/index';
+import {
+  CANONICAL_SCENARIO_ID,
+  ScenarioRegistryEntry,
+  TemporalDataPoint
+} from '@/packages/contracts/src/index';
+import { CURATED_SCENARIO_PACK_IDS } from '@/packages/contracts/src/scenario-packs';
+
+const GOVERNED_REFERENCE_SCENARIO_IDS: ReadonlySet<string> = new Set([
+  CANONICAL_SCENARIO_ID,
+  ...CURATED_SCENARIO_PACK_IDS
+]);
+
+/** Whether a scenario id belongs to a governed reference pack compiled into CogniX. */
+export function isGovernedReferenceScenario(scenarioId: string): boolean {
+  return GOVERNED_REFERENCE_SCENARIO_IDS.has(scenarioId);
+}
 
 export interface ScenarioCatalogueEntry extends ScenarioRegistryEntry {
   /** The family's declared shape over `T-90 … T+30`. Evidence, never an economic baseline. */
@@ -123,3 +138,58 @@ export async function activateScenarioOnServer(
     };
   }
 }
+
+export interface ScenarioDeletionResult {
+  success: boolean;
+  deleted_scenario_id?: string;
+  was_active?: boolean;
+  active_scenario_id?: string;
+  error?: string;
+}
+
+/**
+ * Authoritatively delete a user-created scenario for the current tenant/session.
+ * Governed reference scenarios are structurally refused by the server.
+ */
+export async function deleteScenarioOnServer(
+  scenarioId: string,
+  sessionId?: string,
+  tenantId: string = 'tenant_uk_retail_01'
+): Promise<ScenarioDeletionResult> {
+  try {
+    const response = await fetch('/api/v1/scenarios', {
+      method: 'DELETE',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+        'X-Tenant-ID': tenantId
+      },
+      body: JSON.stringify({
+        scenario_id: scenarioId,
+        session_id: sessionId,
+        tenant_id: tenantId
+      })
+    });
+
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok || payload.status === 'error') {
+      return {
+        success: false,
+        error: payload.message || `Deletion refused (HTTP ${response.status})`
+      };
+    }
+
+    return {
+      success: true,
+      deleted_scenario_id: payload.deleted_scenario_id,
+      was_active: Boolean(payload.was_active),
+      active_scenario_id: payload.active_scenario_id
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error: error?.message || 'Network error during scenario deletion'
+    };
+  }
+}
+

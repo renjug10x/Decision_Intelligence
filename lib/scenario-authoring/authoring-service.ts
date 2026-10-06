@@ -46,7 +46,8 @@ import {
   type ScenarioDraftProposal,
   type ScenarioSituationId
 } from '@/packages/contracts/src/scenario-draft-model';
-import { CanonicalScenario } from '@/packages/contracts/src/canonical-scenario-model';
+import { CANONICAL_SCENARIO_ID, CanonicalScenario } from '@/packages/contracts/src/canonical-scenario-model';
+import { CURATED_SCENARIO_PACK_IDS } from '@/packages/contracts/src/scenario-packs';
 import { isScenarioRegistered, registerScenario, resolveScenario } from '@/packages/contracts/src/scenario-registry';
 import { certifyScenario } from '@/lib/scenario-certification';
 import {
@@ -63,15 +64,22 @@ import {
 import { assessDecisionCaseCoherence } from './draft-coherence';
 import { assessCapabilityReadiness, describeScenarioProvenance } from './draft-readiness';
 import { scenarioDraftStore } from './draft-store';
-import { liveAdmissionsFor } from './attested-upload-store';
+import { attestedUploadStore, liveAdmissionsFor } from './attested-upload-store';
 import { describeReduction } from './attested-upload-validation';
 import {
   AuthoredScenarioOwnershipError,
   assertAuthoredScenarioAssignable,
+  authoredScenarioOwner,
+  markAuthoredScenarioSuperseded,
   recordAuthoredScenarioOwner
 } from './authored-scenario-ownership';
 
 export const SCENARIO_AUTHORING_VERSION = 'sci07_scenario_authoring_v1.0.0';
+
+const GOVERNED_REFERENCE_SCENARIO_IDS: ReadonlySet<string> = new Set([
+  CANONICAL_SCENARIO_ID,
+  ...CURATED_SCENARIO_PACK_IDS
+]);
 
 /** Raised where an authoring request cannot be honoured. Carries a field so a caller can point at it. */
 export class ScenarioAuthoringError extends Error {
@@ -166,6 +174,94 @@ export function createDraft(request: CreateDraftRequest): ScenarioDraftAssessmen
 
   scenarioDraftStore.put(draft);
   return assessDraft(draft);
+}
+
+function reconstructInputsFromScenario(scenario: CanonicalScenario): ScenarioDraftInputs {
+  const situationByFamily: Record<string, ScenarioSituationId> = {
+    promotion_surge: 'PROMOTION_DEMAND_SURGE',
+    supplier_breach: 'SUPPLIER_LEAD_TIME_RISK',
+    fresh_perishable_waste: 'SHORT_LIFE_WASTE_EXPOSURE',
+    competitor_price_shock: 'COMPETITIVE_PRICE_RESPONSE'
+  };
+  const runRatePerDay = Math.max(1, scenario.demand.base_demand_units_per_week / 7);
+  return {
+    situation: situationByFamily[scenario.taxonomy.family_id] ?? 'PROMOTION_DEMAND_SURGE',
+    sku_id: scenario.identity.sku_id,
+    scenario_name: scenario.identity.scenario_name,
+    decision_question: scenario.identity.decision_question,
+    family_rationale: scenario.taxonomy.family_rationale,
+    differentiation_statement: scenario.differentiation.statement,
+    market_scope: scenario.identity.market_scope,
+    focus_region: scenario.identity.focus_region,
+    channels: [...scenario.identity.channels],
+    national_store_count: scenario.estate.national_store_count,
+    online_demand_share_pct: scenario.estate.online_demand_share_pct,
+    forecast_horizon_days: scenario.calendar.forecast_horizon_days,
+    supplier_lead_time_days: scenario.calendar.supplier_lead_time_days,
+    observed_history_end_date: scenario.calendar.observed_history_end_date,
+    promotion_depth_pct: scenario.economics.promotion_depth_pct,
+    promotion_participation_pct: scenario.economics.promotion_participation_pct,
+    promotion_duration_days: scenario.calendar.promotion_duration_days,
+    base_demand_units_per_week: scenario.demand.base_demand_units_per_week,
+    total_demand_movement_pct: scenario.demand.total_demand_movement_pct,
+    supplier_capacity_index: scenario.supply.supplier_capacity_index,
+    supplier_flex_rate_pct: scenario.supply.supplier_flex_rate_pct,
+    flex_premium_rate_pct: scenario.supply.flex_premium_rate_pct,
+    store_cover_days: Math.round((scenario.inventory.store_units / runRatePerDay) * 100) / 100,
+    distribution_centre_cover_days: Math.round((scenario.inventory.distribution_centre_units / runRatePerDay) * 100) / 100,
+    on_order_cover_days: Math.round((scenario.inventory.on_order_units / runRatePerDay) * 100) / 100,
+    gross_margin_rate_pct: scenario.economics.gross_margin_rate_pct,
+    supplier_promotional_funding_pct: scenario.economics.supplier_promotional_funding_pct,
+    promotional_response_pp_per_depth_point: scenario.economics.promotional_response_pp_per_depth_point,
+    waste_units_per_week: scenario.economics.waste_units_per_week,
+    cannibalisation_rate_pct: scenario.economics.cannibalisation_rate_pct,
+    substitution_recovery_pct: scenario.economics.substitution_recovery_pct
+  };
+}
+
+/**
+ * Open a new revision draft pre-populated from a tenant's confirmed authored scenario.
+ *
+ * Editing never mutates the existing certified scenario in place: a fresh `DRAFT` is opened with the
+ * originating inputs and any admitted upload provenance so the author can revise, update assessment,
+ * review, and confirm through the full certification gate. Governed reference scenarios are refused
+ * structurally.
+ */
+export function openRevisionDraft(tenantId: string, scenarioId: string): ScenarioDraftAssessment {
+  const targetId = typeof scenarioId === 'string' ? scenarioId.trim() : '';
+  if (!targetId) {
+    throw new ScenarioAuthoringError('Choose a user-created scenario to revise.', 'scenario_id');
+  }
+  if (GOVERNED_REFERENCE_SCENARIO_IDS.has(targetId)) {
+    throw new ScenarioAuthoringError(
+      'Governed reference scenarios are protected and cannot be edited.',
+      'scenario_id'
+    );
+  }
+  const owner = authoredScenarioOwner(targetId);
+  if (!owner || owner !== tenantId || !isScenarioRegistered(targetId)) {
+    throw new ScenarioAuthoringError(
+      'This scenario was not found in your workspace and cannot be revised.',
+      'scenario_id'
+    );
+  }
+
+  const priorDraft = scenarioDraftStore.findByScenarioId(tenantId, targetId);
+  const inputs: ScenarioDraftInputs = priorDraft
+    ? { ...priorDraft.inputs }
+    : reconstructInputsFromScenario(resolveScenario(targetId));
+
+  const revision = createDraft({ tenant_id: tenantId, inputs });
+  if (priorDraft) {
+    attestedUploadStore.copyAdmittedForDraft(tenantId, priorDraft.draft_id, revision.draft.draft_id);
+    const draftedFields = new Map(
+      priorDraft.field_provenance
+        .filter(p => p.drafted_by_model)
+        .map(p => [p.field as string, p.drafted_by_model!])
+    );
+    return assessDraft(revision.draft, draftedFields);
+  }
+  return revision;
 }
 
 // ── Update ────────────────────────────────────────────────────────────────────
@@ -446,6 +542,12 @@ export interface ConfirmDraftRequest {
    * for.
    */
   expected_content_hash?: string;
+  /**
+   * Optional authored scenario id that this confirmation revises and supersedes in the tenant's
+   * catalogue once certification succeeds. Never mutates or removes the prior scenario before the
+   * revised scenario passes certification.
+   */
+  supersedes_scenario_id?: string;
 }
 
 export interface ConfirmDraftResult {
@@ -458,6 +560,8 @@ export interface ConfirmDraftResult {
   provenance_statement: string;
   /** Said plainly, because a confirmed scenario is NOT yet the one the estate is running. */
   activation_note: string;
+  /** When this confirmation superseded a prior authored scenario, its scenario id. */
+  superseded_scenario_id?: string;
 }
 
 /*
@@ -495,6 +599,25 @@ export function confirmDraft(request: ConfirmDraftRequest): ConfirmDraftResult {
       'This draft has changed since you last read it. Review it again before confirming.',
       'content_hash'
     );
+  }
+
+  const supersedesId = typeof request.supersedes_scenario_id === 'string' && request.supersedes_scenario_id.trim()
+    ? request.supersedes_scenario_id.trim()
+    : undefined;
+  if (supersedesId) {
+    if (GOVERNED_REFERENCE_SCENARIO_IDS.has(supersedesId)) {
+      throw new ScenarioAuthoringError(
+        'Governed reference scenarios are protected and cannot be replaced.',
+        'supersedes_scenario_id'
+      );
+    }
+    const priorOwner = authoredScenarioOwner(supersedesId);
+    if (!priorOwner || priorOwner !== draft.tenant_id || !isScenarioRegistered(supersedesId)) {
+      throw new ScenarioAuthoringError(
+        'The scenario being revised was not found in your workspace.',
+        'supersedes_scenario_id'
+      );
+    }
   }
 
   const assessment = assessDraft(draft);
@@ -646,6 +769,14 @@ export function confirmDraft(request: ConfirmDraftRequest): ConfirmDraftResult {
   };
   scenarioDraftStore.put(confirmed);
 
+  let supersededScenarioId: string | undefined;
+  if (supersedesId && supersedesId !== resolved.scenario.identity.scenario_id) {
+    markAuthoredScenarioSuperseded(supersedesId, draft.tenant_id, resolved.scenario.identity.scenario_id);
+    scenarioDraftStore.deleteByScenarioId(draft.tenant_id, supersedesId);
+    attestedUploadStore.sweep();
+    supersededScenarioId = supersedesId;
+  }
+
   return {
     draft: confirmed,
     scenario: resolved.scenario,
@@ -654,7 +785,8 @@ export function confirmDraft(request: ConfirmDraftRequest): ConfirmDraftResult {
     failed_dimensions: [],
     readiness: assessment.readiness,
     provenance_statement: assessment.provenance_statement,
-    activation_note: CONFIRMED_NOT_ACTIVE_NOTE
+    activation_note: CONFIRMED_NOT_ACTIVE_NOTE,
+    superseded_scenario_id: supersededScenarioId
   };
 }
 
@@ -731,3 +863,4 @@ function requireDraft(tenantId: string, draftId: string): ScenarioDraft {
   }
   return draft;
 }
+

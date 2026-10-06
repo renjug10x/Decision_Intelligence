@@ -32,6 +32,7 @@ import {
   fetchEvaluatedDecision,
   importScenarioDraft,
   listScenarioDrafts,
+  openScenarioRevision,
   requestDraftAssistance,
   updateScenarioDraft,
   type AuthoringField,
@@ -98,13 +99,23 @@ const CERTIFICATION_REFUSAL =
 
 type FormValue = string | string[] | number | undefined;
 
+export interface ScenarioRevisionTarget {
+  targetId: string;
+  targetName: string;
+  requestedAt: number;
+}
+
 export default function ScenarioAuthoringStudio({
   isOpen = true,
   onClose = () => {},
   mode = 'modal',
   onScenarioConfirmed,
   onExploreCompetitivePriceResponse,
-  onCompetitiveScenarios
+  onCompetitiveScenarios,
+  onAttestedScenarios,
+  revisionTarget = null,
+  onCancelRevision,
+  deletedTargetId = null
 }: {
   isOpen?: boolean;
   onClose?: () => void;
@@ -120,6 +131,13 @@ export default function ScenarioAuthoringStudio({
    * The certified scenario record does not carry the situation, so Explore asks here.
    */
   onCompetitiveScenarios?: (scenarioIds: string[]) => void;
+  /** Scenario ids whose confirmed draft includes attested upload provenance. */
+  onAttestedScenarios?: (scenarioIds: string[]) => void;
+  /** When set, opens the authoring experience in revision mode pre-populated from the confirmed draft. */
+  revisionTarget?: ScenarioRevisionTarget | null;
+  onCancelRevision?: () => void;
+  /** When a scenario is deleted from the catalogue, resets Build if it was displaying that scenario. */
+  deletedTargetId?: string | null;
 }) {
   const { refreshState } = useDecisionState();
   const { money } = useCurrency();
@@ -143,21 +161,23 @@ export default function ScenarioAuthoringStudio({
   const [busy, setBusy] = useState<string | null>(null);
   const [problem, setProblem] = useState<{ message: string; issues: ScenarioDraftIssue[] } | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [revisingTarget, setRevisingTarget] = useState<{ targetId: string; targetName: string } | null>(null);
 
   useEffect(() => setMounted(true), []);
 
   const reset = useCallback(() => {
     setStage('create'); setSituation(''); setSkuId(''); setAssessment(null); setForm({}); setDirty(false);
     setDescription(''); setProposals([]); setKept([]); setConfirmedBy(''); setReviewed(false);
-    setConfirmed(null); setDecision(null); setProblem(null); setNotice(null);
+    setConfirmed(null); setDecision(null); setProblem(null); setNotice(null); setRevisingTarget(null);
   }, []);
 
   const handleDismiss = useCallback(() => {
     if (mode === 'inline') {
       reset();
     }
+    onCancelRevision?.();
     onClose();
-  }, [mode, onClose, reset]);
+  }, [mode, onCancelRevision, onClose, reset]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -168,14 +188,20 @@ export default function ScenarioAuthoringStudio({
   }, [isOpen, reset]);
 
   useEffect(() => {
-    if (!isOpen || !onCompetitiveScenarios) return;
+    if (!isOpen || (!onCompetitiveScenarios && !onAttestedScenarios)) return;
     let cancelled = false;
     listScenarioDrafts()
       .then(drafts => {
         if (cancelled) return;
-        onCompetitiveScenarios(
-          drafts
-            .filter(draft => draft.state === 'CONFIRMED' && draft.inputs.situation === 'COMPETITIVE_PRICE_RESPONSE')
+        const confirmedDrafts = drafts.filter(draft => draft.state === 'CONFIRMED');
+        onCompetitiveScenarios?.(
+          confirmedDrafts
+            .filter(draft => draft.inputs.situation === 'COMPETITIVE_PRICE_RESPONSE')
+            .map(draft => draft.scenario_id)
+        );
+        onAttestedScenarios?.(
+          confirmedDrafts
+            .filter(draft => (draft.field_provenance ?? []).some(p => p.descriptor.origin === 'attested'))
             .map(draft => draft.scenario_id)
         );
       })
@@ -183,7 +209,49 @@ export default function ScenarioAuthoringStudio({
     return () => {
       cancelled = true;
     };
-  }, [isOpen, onCompetitiveScenarios, confirmed]);
+  }, [isOpen, onCompetitiveScenarios, onAttestedScenarios, confirmed]);
+
+  useEffect(() => {
+    if (!isOpen || !revisionTarget?.targetId) return;
+    setRevisingTarget({ targetId: revisionTarget.targetId, targetName: revisionTarget.targetName });
+    setConfirmed(null);
+    setDecision(null);
+    setReviewed(false);
+    setConfirmedBy('');
+    setProposals([]);
+    setKept([]);
+    setProblem(null);
+    setNotice(null);
+    setBusy('revise');
+    openScenarioRevision(revisionTarget.targetId)
+      .then(opened => {
+        setAssessment(opened);
+        setForm({ ...(opened.draft.inputs as Record<string, FormValue>) });
+        setDirty(false);
+        setKept([]);
+        setSituation(String(opened.draft.inputs.situation ?? ''));
+        setSkuId(String(opened.draft.inputs.sku_id ?? ''));
+        setDescription(String(opened.draft.inputs.business_situation ?? ''));
+        setStage('review');
+      })
+      .catch((e: AuthoringRequestError) => {
+        const issues = (e.issues ?? []).filter(i => !CASCADE_ONLY.test(i.message));
+        setProblem({ message: withoutCode(e.message), issues });
+      })
+      .finally(() => {
+        setBusy(null);
+      });
+  }, [isOpen, revisionTarget?.requestedAt, revisionTarget?.targetId, revisionTarget?.targetName]);
+
+  useEffect(() => {
+    if (!deletedTargetId) return;
+    const matchesRevising = revisingTarget?.targetId === deletedTargetId;
+    const matchesConfirmed = confirmed?.scenario.scenario_id === deletedTargetId;
+    const matchesAssessment = assessment?.draft.scenario_id === deletedTargetId;
+    if (matchesRevising || matchesConfirmed || matchesAssessment) {
+      reset();
+    }
+  }, [deletedTargetId, revisingTarget?.targetId, confirmed?.scenario.scenario_id, assessment?.draft.scenario_id, reset]);
 
   useEffect(() => {
     if (!isOpen || mode === 'inline') return;
@@ -233,6 +301,7 @@ export default function ScenarioAuthoringStudio({
 
   // ── Create ──────────────────────────────────────────────────────────────────
   const start = () => run('start', async () => {
+    setRevisingTarget(null);
     const created = await createScenarioDraft(situation, { sku_id: skuId });
     adopt(created);
     setStage('review');
@@ -321,8 +390,14 @@ export default function ScenarioAuthoringStudio({
   // ── Confirm ─────────────────────────────────────────────────────────────────
   const confirm = () => run('confirm', async () => {
     if (!assessment) return;
-    const result = await confirmScenarioDraft(assessment.draft.draft_id, confirmedBy.trim(), assessment.draft.content_hash);
+    const result = await confirmScenarioDraft(
+      assessment.draft.draft_id,
+      confirmedBy.trim(),
+      assessment.draft.content_hash,
+      revisingTarget?.targetId
+    );
     setConfirmed(result);
+    setRevisingTarget(null);
     setStage('confirmed');
     onScenarioConfirmed?.(result);
   });
@@ -363,7 +438,7 @@ export default function ScenarioAuthoringStudio({
             </button>
           ) : stage !== 'create' ? (
             <button type="button" className="sci08-button is-secondary" onClick={handleDismiss} disabled={!!busy}>
-              Start another scenario
+              {revisingTarget && (stage === 'review' || stage === 'confirm') ? 'Cancel revision' : 'Start another scenario'}
             </button>
           ) : null}
         </header>
@@ -448,6 +523,16 @@ export default function ScenarioAuthoringStudio({
           {options && assessment && stage === 'review' && (
             <div className="sci08-review">
               <section className="sci08-review-main">
+                {revisingTarget && (
+                  <div className="sci08-alert is-info" data-testid="sci08-revision-banner">
+                    <div>
+                      <div className="sci08-alert-title">Revising “{revisingTarget.targetName}”</div>
+                      <div>
+                        Your previous inputs are loaded below. The existing certified scenario stays unchanged until you update the assessment, review, and confirm this revised version.
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <p className="sci08-summary">
                   <strong>{product?.sku_name}</strong> · {situationSpec?.label}
                 </p>
@@ -526,7 +611,7 @@ export default function ScenarioAuthoringStudio({
                   );
                 })}
 
-                <details className="sci08-details">
+                <details className="sci08-details" open={Boolean(revisingTarget)}>
                   <summary>Your own figures (optional)</summary>
                   <p className="sci08-muted">
                     Leave a box empty and CogniX uses a declared assumption for it, shown as “modelled” in readiness.
@@ -594,6 +679,11 @@ export default function ScenarioAuthoringStudio({
           {assessment && stage === 'confirm' && (
             <section className="sci08-confirm">
               <h3 className="sci08-section-title">Confirm “{scenarioName}”</h3>
+              {revisingTarget && (
+                <p className="sci08-muted">
+                  Confirming replaces “{revisingTarget.targetName}” in your catalogue once certification succeeds.
+                </p>
+              )}
               <dl className="sci08-facts">
                 <div><dt>Product</dt><dd>{product?.sku_name} — {product?.supplier_name}</dd></div>
                 <div><dt>Situation</dt><dd>{situationSpec?.label}</dd></div>

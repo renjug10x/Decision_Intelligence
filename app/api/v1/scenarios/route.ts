@@ -54,13 +54,22 @@ import {
   isScenarioVisibleToTenant,
   getActiveScenarioId,
   activateScenario,
+  deleteAuthoredScenarioForTenant,
   certifyRegisteredScenarios,
   summariseCertification,
   toScenarioRegistryEntry,
   ScenarioResolutionError,
+  ScenarioDeletionRefusedError,
   type CertificationState
 } from '@/lib/scenario-runtime';
 import { decisionStateStore } from '@/lib/decision-state-store';
+import { clearCampaignIntents } from '@/lib/campaign-intent-store';
+import { clearCommercialIntents } from '@/lib/commercial-intent-store';
+import { decisionContractStore } from '@/lib/decision-contract-store';
+import { preMortemStore } from '@/lib/pre-mortem-store';
+import { learningCandidateStore } from '@/lib/learning-candidate-store';
+import { plannedInterventionStore } from '@/lib/planned-intervention-store';
+import { campaignExperimentStore } from '@/lib/campaign-experiment-store';
 import { DEFAULT_TENANT_ID, requestTenantId } from '@/app/api/v1/_shared/scenario-request';
 
 /**
@@ -249,3 +258,123 @@ export async function POST(request: NextRequest) {
     );
   }
 }
+
+/**
+ * Scenario Deletion (BFF Route)
+ *
+ * Authoritatively deletes a tenant's user-created scenario from the session-scoped registry ownership
+ * and authoring stores. Governed reference scenarios are structurally protected from deletion.
+ * If the deleted scenario was active, returns the estate and the tenant's sessions to the default
+ * curated reference scenario and clears any Promotion/What-If/Campaign session state from the deleted scenario.
+ */
+export async function DELETE(request: NextRequest) {
+  const correlationId = request.headers.get('x-correlation-id') || `corr_del_${Math.random().toString(36).slice(2, 11)}`;
+  try {
+    const { searchParams } = new URL(request.url);
+    const body = await request.json().catch(() => ({}));
+    const scenarioId = body.scenario_id ?? searchParams.get('scenario_id');
+    const sessionId = body.session_id ?? searchParams.get('session_id');
+    const tenantId =
+      (typeof body.tenant_id === 'string' && body.tenant_id.trim() ? body.tenant_id.trim() : null)
+      || requestTenantId(searchParams, request.headers.get('x-tenant-id'));
+
+    if (!scenarioId || typeof scenarioId !== 'string' || !scenarioId.trim()) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          error: 'BadRequest',
+          message: 'An explicit scenario_id is required to delete a scenario.',
+          timestamp: platformReceiptNowIso()
+        },
+        { status: 400 }
+      );
+    }
+
+    const outcome = deleteAuthoredScenarioForTenant(scenarioId.trim(), tenantId);
+
+    const affectedSessions = new Set<string>(
+      decisionStateStore.switchSessionsForScenario(
+        tenantId,
+        outcome.removed_scenario_ids,
+        outcome.active_scenario.identity.scenario_id,
+        outcome.active_scenario.taxonomy.family_id
+      )
+    );
+
+    if (outcome.was_active) {
+      if (sessionId && typeof sessionId === 'string' && sessionId.trim()) {
+        const cleanSessionId = sessionId.trim();
+        affectedSessions.add(cleanSessionId);
+        decisionStateStore.switchScenarioForSession(
+          tenantId,
+          cleanSessionId,
+          outcome.active_scenario.identity.scenario_id,
+          outcome.active_scenario.taxonomy.family_id
+        );
+      }
+      affectedSessions.add('sess_001');
+    }
+
+    for (const sid of affectedSessions) {
+      decisionContractStore.clear(tenantId, sid);
+      preMortemStore.clear(tenantId, sid);
+      learningCandidateStore.clear(tenantId, sid);
+      clearCommercialIntents(tenantId, sid);
+      clearCampaignIntents(tenantId, sid);
+      plannedInterventionStore.clear(tenantId, sid);
+      campaignExperimentStore.closeActiveExperiment(tenantId, sid);
+    }
+
+    return NextResponse.json({
+      status: 'success',
+      service: 'cognix-web-bff',
+      authority: 'scenario-runtime',
+      tenant_id: tenantId,
+      correlation_id: correlationId,
+      deleted_scenario_id: outcome.deleted_scenario_id,
+      was_active: outcome.was_active,
+      active_scenario_id: outcome.active_scenario_id,
+      scenario: toScenarioRegistryEntry(outcome.active_scenario),
+      timestamp: platformReceiptNowIso()
+    });
+  } catch (error: any) {
+    if (error instanceof ScenarioDeletionRefusedError) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          error: 'ScenarioDeletionRefused',
+          reason: 'GOVERNED_SCENARIO_PROTECTED',
+          message: error.message,
+          requested_scenario_id: error.requested,
+          timestamp: platformReceiptNowIso()
+        },
+        { status: 403 }
+      );
+    }
+
+    if (error instanceof ScenarioResolutionError) {
+      return NextResponse.json(
+        {
+          status: 'error',
+          error: 'ScenarioDeletionRefused',
+          reason: 'SCENARIO_NOT_FOUND',
+          message: error.message,
+          requested_scenario_id: error.requested ?? null,
+          timestamp: platformReceiptNowIso()
+        },
+        { status: 422 }
+      );
+    }
+
+    return NextResponse.json(
+      {
+        status: 'error',
+        error: 'InternalError',
+        message: error?.message || 'Failed to delete scenario',
+        timestamp: platformReceiptNowIso()
+      },
+      { status: 500 }
+    );
+  }
+}
+

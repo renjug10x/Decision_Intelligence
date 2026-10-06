@@ -11,6 +11,7 @@ export {
   ScenarioAuthoringError,
   CONFIRMED_NOT_ACTIVE_NOTE,
   createDraft,
+  openRevisionDraft,
   updateDraft,
   assessDraft,
   getDraftAssessment,

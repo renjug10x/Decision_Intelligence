@@ -76,6 +76,7 @@ export interface ConfirmedScenario {
   certification_summary: string;
   provenance_statement: string;
   activation_note: string;
+  superseded_scenario_id?: string | null;
 }
 
 export interface AssistResult {
@@ -141,6 +142,12 @@ export const listScenarioDrafts = () => {
 export const createScenarioDraft = (situation: string, inputs: ScenarioDraftInputs) =>
   post<DraftAssessment>('/api/v1/scenarios/drafts', { tenant_id: AUTHORING_TENANT_ID, situation, inputs });
 
+export const openScenarioRevision = (scenarioId: string) =>
+  post<DraftAssessment>('/api/v1/scenarios/drafts', {
+    tenant_id: AUTHORING_TENANT_ID,
+    revise_scenario_id: scenarioId
+  });
+
 export const importScenarioDraft = (file: unknown) =>
   post<DraftAssessment>('/api/v1/scenarios/drafts', { tenant_id: AUTHORING_TENANT_ID, import: file });
 
@@ -171,12 +178,18 @@ export const requestDraftAssistance = (draftId: string, businessSituation: strin
     business_situation: businessSituation
   });
 
-export const confirmScenarioDraft = (draftId: string, confirmedBy: string, expectedContentHash: string) =>
+export const confirmScenarioDraft = (
+  draftId: string,
+  confirmedBy: string,
+  expectedContentHash: string,
+  supersedesScenarioId?: string
+) =>
   post<ConfirmedScenario>(`/api/v1/scenarios/drafts/${encodeURIComponent(draftId)}/confirm`, {
     tenant_id: AUTHORING_TENANT_ID,
     confirm: true,
     confirmed_by: confirmedBy,
-    expected_content_hash: expectedContentHash
+    expected_content_hash: expectedContentHash,
+    ...(supersedesScenarioId ? { supersedes_scenario_id: supersedesScenarioId } : {})
   });
 
 // ── Attested upload (`SCI-10`, ADR-086) ─────────────────────────────────────────

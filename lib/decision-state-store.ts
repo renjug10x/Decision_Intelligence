@@ -50,6 +50,13 @@ export interface IDecisionStateStore {
 
   switchScenarioForSession(tenantId: string, sessionId: string, scenarioId: string, scenarioFamily?: string): DecisionState;
 
+  switchSessionsForScenario(
+    tenantId: string,
+    fromScenarioIds: readonly string[],
+    toScenarioId: string,
+    toScenarioFamily?: string
+  ): string[];
+
   getStateHistory(id: string): any[];
 
   clearStore(): void;
@@ -521,6 +528,26 @@ class InMemoryDecisionStateStore implements IDecisionStateStore {
       scenario_id: scenarioId,
       scenario_family: scenarioFamily
     });
+  }
+
+  public switchSessionsForScenario(
+    tenantId: string,
+    fromScenarioIds: readonly string[],
+    toScenarioId: string,
+    toScenarioFamily?: string
+  ): string[] {
+    const targetSet = new Set(fromScenarioIds);
+    const switchedSessions: string[] = [];
+    const prefix = `${tenantId}::`;
+    for (const [sessionKey, stateId] of [...this.sessionIndexMap.entries()]) {
+      if (!sessionKey.startsWith(prefix)) continue;
+      const state = this.statesMap.get(stateId);
+      if (!state || !targetSet.has(state.scenario_id)) continue;
+      const sessionId = sessionKey.slice(prefix.length);
+      this.switchScenarioForSession(tenantId, sessionId, toScenarioId, toScenarioFamily);
+      switchedSessions.push(sessionId);
+    }
+    return switchedSessions;
   }
 
   public getStateHistory(id: string): any[] {

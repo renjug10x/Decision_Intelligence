@@ -16,7 +16,7 @@ import type {
   ScenarioDraftInputs,
   ScenarioSituationId
 } from '@/packages/contracts/src/scenario-draft-model';
-import { createDraft, importDraft, listDrafts } from '@/lib/scenario-authoring';
+import { createDraft, importDraft, listDrafts, openRevisionDraft } from '@/lib/scenario-authoring';
 import { authoringError, requireTenant } from '@/app/api/v1/_shared/authoring-request';
 
 export const runtime = 'nodejs';
@@ -43,11 +43,13 @@ export async function POST(request: NextRequest) {
   try {
     const assessment = payload.import
       ? importDraft(tenant.tenantId, payload.import)
-      : createDraft({
-        tenant_id: tenant.tenantId,
-        situation: payload.situation as ScenarioSituationId | undefined,
-        inputs: (payload.inputs ?? {}) as ScenarioDraftInputs
-      });
+      : typeof payload.revise_scenario_id === 'string'
+        ? openRevisionDraft(tenant.tenantId, payload.revise_scenario_id)
+        : createDraft({
+          tenant_id: tenant.tenantId,
+          situation: payload.situation as ScenarioSituationId | undefined,
+          inputs: (payload.inputs ?? {}) as ScenarioDraftInputs
+        });
 
     return NextResponse.json({
       status: 'success',
@@ -61,3 +63,4 @@ export async function POST(request: NextRequest) {
     return authoringError(error);
   }
 }
+

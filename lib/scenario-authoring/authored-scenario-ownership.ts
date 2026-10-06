@@ -24,6 +24,7 @@
  */
 
 const ownerByScenarioId = new Map<string, string>();
+const supersededByScenarioId = new Map<string, string>();
 
 /** Raised when an authored scenario id is already owned by a different tenant. */
 export class AuthoredScenarioOwnershipError extends Error {
@@ -51,6 +52,7 @@ export function assertAuthoredScenarioAssignable(scenarioId: string, tenantId: s
 export function recordAuthoredScenarioOwner(scenarioId: string, tenantId: string): void {
   assertAuthoredScenarioAssignable(scenarioId, tenantId);
   ownerByScenarioId.set(scenarioId, tenantId);
+  supersededByScenarioId.delete(scenarioId);
 }
 
 /** The tenant that confirmed this scenario, or `undefined` if it was not authored here. */
@@ -58,7 +60,66 @@ export function authoredScenarioOwner(scenarioId: string): string | undefined {
   return ownerByScenarioId.get(scenarioId);
 }
 
+/**
+ * Mark an authored scenario as superseded by a newly confirmed revision for the same tenant.
+ * Superseded entries are omitted from the tenant's catalogue while remaining resolvable for any
+ * active session until the revision is run or the scenario is deleted.
+ */
+export function markAuthoredScenarioSuperseded(
+  priorScenarioId: string,
+  tenantId: string,
+  replacementScenarioId: string
+): boolean {
+  const owner = ownerByScenarioId.get(priorScenarioId);
+  if (owner === undefined || owner !== tenantId || priorScenarioId === replacementScenarioId) {
+    return false;
+  }
+  supersededByScenarioId.set(priorScenarioId, replacementScenarioId);
+  return true;
+}
+
+/** Whether an authored scenario has been superseded by a newer confirmed revision. */
+export function isAuthoredScenarioSuperseded(scenarioId: string): boolean {
+  return supersededByScenarioId.has(scenarioId);
+}
+
+/** Follow the superseding chain to the current scenario id, if this scenario was revised. */
+export function authoredScenarioCurrentRevision(scenarioId: string): string {
+  let current = scenarioId;
+  const visited = new Set<string>();
+  while (supersededByScenarioId.has(current) && !visited.has(current)) {
+    visited.add(current);
+    current = supersededByScenarioId.get(current)!;
+  }
+  return current;
+}
+
+/**
+ * Remove the tenant ownership record for an authored scenario (and any prior revisions in its
+ * lineage) when that tenant deletes it. Returns all removed scenario ids, or an empty array if
+ * the scenario was not owned by `tenantId`.
+ */
+export function removeAuthoredScenarioOwner(scenarioId: string, tenantId: string): string[] {
+  const owner = ownerByScenarioId.get(scenarioId);
+  if (owner === undefined || owner !== tenantId) {
+    return [];
+  }
+  const targetRevision = authoredScenarioCurrentRevision(scenarioId);
+  const removed: string[] = [];
+  for (const [id, idOwner] of [...ownerByScenarioId.entries()]) {
+    if (idOwner !== tenantId) continue;
+    if (id === scenarioId || id === targetRevision || authoredScenarioCurrentRevision(id) === targetRevision) {
+      ownerByScenarioId.delete(id);
+      supersededByScenarioId.delete(id);
+      removed.push(id);
+    }
+  }
+  return removed;
+}
+
 /** Test support only — the registry has its own reset, and this one mirrors it. */
 export function resetAuthoredScenarioOwnership(): void {
   ownerByScenarioId.clear();
+  supersededByScenarioId.clear();
 }
+

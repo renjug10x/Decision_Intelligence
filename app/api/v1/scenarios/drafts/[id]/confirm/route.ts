@@ -52,6 +52,9 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
       confirm: true,
       expected_content_hash: typeof payload.expected_content_hash === 'string'
         ? payload.expected_content_hash
+        : undefined,
+      supersedes_scenario_id: typeof payload.supersedes_scenario_id === 'string'
+        ? payload.supersedes_scenario_id
         : undefined
     });
 
@@ -69,6 +72,7 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
         readiness: result.readiness,
         provenance_statement: result.provenance_statement,
         activation_note: result.activation_note,
+        superseded_scenario_id: result.superseded_scenario_id ?? null,
         // Said as data as well as in words, so a client cannot render it as active by accident.
         demo_active: false
       }
@@ -77,3 +81,4 @@ export async function POST(request: NextRequest, context: { params: Promise<{ id
     return authoringError(error);
   }
 }
+

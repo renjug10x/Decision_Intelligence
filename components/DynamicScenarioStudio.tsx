@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import {
   Crosshair,
   Hammer,
@@ -25,6 +26,8 @@ import {
 import {
   fetchScenarioCatalogue,
   activateScenarioOnServer,
+  deleteScenarioOnServer,
+  isGovernedReferenceScenario,
   type ScenarioCatalogueEntry
 } from '@/lib/world-client';
 import {
@@ -35,7 +38,9 @@ import { useDecisionState } from '@/context/DecisionStateContext';
 import { useCurrency } from '@/context/CurrencyContext';
 import { getOrCreateSessionId } from '@/lib/journey-client';
 import ScenarioSelectorModal from '@/components/ScenarioSelectorModal';
-import ScenarioAuthoringStudio from '@/components/scenario-authoring/ScenarioAuthoringStudio';
+import ScenarioAuthoringStudio, {
+  type ScenarioRevisionTarget
+} from '@/components/scenario-authoring/ScenarioAuthoringStudio';
 import { STUDIO_COMPETITIVE_WHAT_IF_HANDOFF_KEY } from '@/lib/competitive-price-response';
 
 export type StudioAreaId = 'build' | 'explore' | 'observe' | 'discover';
@@ -161,6 +166,11 @@ export default function DynamicScenarioStudio({ onNavigate }: DynamicScenarioStu
   const [activatingId, setActivatingId] = useState<string | null>(null);
   const [attestedScenarioIds, setAttestedScenarioIds] = useState<Record<string, boolean>>({});
   const [competitiveScenarioIds, setCompetitiveScenarioIds] = useState<Record<string, true>>({});
+  const [revisionTarget, setRevisionTarget] = useState<ScenarioRevisionTarget | null>(null);
+  const [deletedTargetId, setDeletedTargetId] = useState<string | null>(null);
+  const [deleteCandidate, setDeleteCandidate] = useState<ScenarioCatalogueEntry | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const activeScenario = (() => {
     try {
@@ -200,6 +210,21 @@ export default function DynamicScenarioStudio({ onNavigate }: DynamicScenarioStu
   const rememberCompetitiveScenarios = useCallback((scenarioIds: string[]) => {
     if (scenarioIds.length === 0) return;
     setCompetitiveScenarioIds(prev => {
+      let changed = false;
+      const next = { ...prev };
+      for (const id of scenarioIds) {
+        if (!next[id]) {
+          next[id] = true;
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, []);
+
+  const rememberAttestedScenarios = useCallback((scenarioIds: string[]) => {
+    if (scenarioIds.length === 0) return;
+    setAttestedScenarioIds(prev => {
       let changed = false;
       const next = { ...prev };
       for (const id of scenarioIds) {
@@ -252,28 +277,107 @@ export default function DynamicScenarioStudio({ onNavigate }: DynamicScenarioStu
 
   const handleScenarioConfirmed = (confirmed: {
     scenario: { scenario_id: string };
+    superseded_scenario_id?: string | null;
     draft: {
       scenario_id: string;
       inputs: { situation?: string };
       field_provenance?: Array<{ descriptor: { origin: string } }>;
     };
   }) => {
+    setRevisionTarget(null);
     const hasAttested = (confirmed.draft.field_provenance ?? []).some(
       p => p.descriptor.origin === 'attested'
     );
-    if (hasAttested) {
-      setAttestedScenarioIds(prev => ({
-        ...prev,
-        [confirmed.scenario.scenario_id]: true
-      }));
-    }
-    if (confirmed.draft.inputs.situation === 'COMPETITIVE_PRICE_RESPONSE') {
-      setCompetitiveScenarioIds(prev => ({
-        ...prev,
-        [confirmed.draft.scenario_id]: true
-      }));
-    }
+    setAttestedScenarioIds(prev => {
+      const next = { ...prev };
+      if (confirmed.superseded_scenario_id) {
+        delete next[confirmed.superseded_scenario_id];
+      }
+      if (hasAttested) {
+        next[confirmed.scenario.scenario_id] = true;
+      }
+      return next;
+    });
+    setCompetitiveScenarioIds(prev => {
+      const next = { ...prev };
+      if (confirmed.superseded_scenario_id) {
+        delete next[confirmed.superseded_scenario_id];
+      }
+      if (confirmed.draft.inputs.situation === 'COMPETITIVE_PRICE_RESPONSE') {
+        next[confirmed.scenario.scenario_id] = true;
+      }
+      return next;
+    });
     void loadStudioState(identity.scenario_id);
+  };
+
+  const handleEditScenario = (item: ScenarioCatalogueEntry) => {
+    if (isGovernedReferenceScenario(item.scenario_id)) return;
+    setFocusedArea('build');
+    setRevisionTarget({
+      targetId: item.scenario_id,
+      targetName: item.scenario_name,
+      requestedAt: Date.now()
+    });
+    const el = document.getElementById('dss-area-build');
+    el?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const handleRequestDeleteScenario = (item: ScenarioCatalogueEntry) => {
+    if (isGovernedReferenceScenario(item.scenario_id)) return;
+    setDeleteError(null);
+    setDeleteCandidate(item);
+  };
+
+  const handleConfirmDeleteScenario = async () => {
+    if (!deleteCandidate || deleting) return;
+    const targetId = deleteCandidate.scenario_id;
+    const wasCurrent = targetId === identity.scenario_id;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const res = await deleteScenarioOnServer(targetId, getOrCreateSessionId());
+      if (!res.success) {
+        setDeleteError(res.error || 'CogniX could not remove this scenario.');
+        return;
+      }
+      setDeleteCandidate(null);
+      setDeletedTargetId(targetId);
+      if (revisionTarget?.targetId === targetId) {
+        setRevisionTarget(null);
+      }
+      setAttestedScenarioIds(prev => {
+        if (!prev[targetId]) return prev;
+        const next = { ...prev };
+        delete next[targetId];
+        return next;
+      });
+      setCompetitiveScenarioIds(prev => {
+        if (!prev[targetId]) return prev;
+        const next = { ...prev };
+        delete next[targetId];
+        return next;
+      });
+      const nextActiveId = res.active_scenario_id || identity.scenario_id;
+      const shouldSwitchActive = Boolean(
+        res.was_active ||
+          wasCurrent ||
+          (res.active_scenario_id && res.active_scenario_id !== identity.scenario_id)
+      );
+      if (shouldSwitchActive) {
+        try {
+          window.sessionStorage.removeItem(STUDIO_COMPETITIVE_WHAT_IF_HANDOFF_KEY);
+        } catch {
+          // ignore storage errors
+        }
+        await projectScenarioFromServer(nextActiveId);
+        syncActiveScenario(nextActiveId);
+        await refreshState();
+      }
+      await loadStudioState(shouldSwitchActive ? nextActiveId : identity.scenario_id);
+    } finally {
+      setDeleting(false);
+    }
   };
 
   const openCompetitivePriceResponse = () => {
@@ -285,7 +389,7 @@ export default function DynamicScenarioStudio({ onNavigate }: DynamicScenarioStu
     if (attestedScenarioIds[item.scenario_id]) {
       return SCENARIO_PROVENANCE_FOUNDATION.uploaded_evidence;
     }
-    if (item.scenario_id.startsWith('SCN-USR-')) {
+    if (!isGovernedReferenceScenario(item.scenario_id)) {
       return SCENARIO_PROVENANCE_FOUNDATION.created_by_you;
     }
     return SCENARIO_PROVENANCE_FOUNDATION.curated_pack;
@@ -418,8 +522,12 @@ export default function DynamicScenarioStudio({ onNavigate }: DynamicScenarioStu
           <ScenarioAuthoringStudio
             isOpen={true}
             mode="inline"
+            revisionTarget={revisionTarget}
+            onCancelRevision={() => setRevisionTarget(null)}
+            deletedTargetId={deletedTargetId}
             onScenarioConfirmed={handleScenarioConfirmed}
             onCompetitiveScenarios={rememberCompetitiveScenarios}
+            onAttestedScenarios={rememberAttestedScenarios}
             onExploreCompetitivePriceResponse={onNavigate ? openCompetitivePriceResponse : undefined}
           />
         </section>
@@ -564,6 +672,7 @@ export default function DynamicScenarioStudio({ onNavigate }: DynamicScenarioStu
             <div className="dss-catalogue-list" role="list">
               {catalogue.map(item => {
                 const isCurrent = item.scenario_id === identity.scenario_id;
+                const isUserCreated = !isGovernedReferenceScenario(item.scenario_id);
                 const prov = resolveProvenance(item);
                 const isActivating = activatingId === item.scenario_id;
                 return (
@@ -585,6 +694,26 @@ export default function DynamicScenarioStudio({ onNavigate }: DynamicScenarioStu
                     </div>
 
                     <div className="dss-catalogue-action">
+                      {isUserCreated && (
+                        <>
+                          <button
+                            type="button"
+                            className="dss-row-action-btn"
+                            disabled={Boolean(activatingId) || deleting}
+                            onClick={() => handleEditScenario(item)}
+                          >
+                            Edit
+                          </button>
+                          <button
+                            type="button"
+                            className="dss-row-action-btn is-danger"
+                            disabled={Boolean(activatingId) || deleting}
+                            onClick={() => handleRequestDeleteScenario(item)}
+                          >
+                            Delete
+                          </button>
+                        </>
+                      )}
                       {isCurrent ? (
                         <span className="dss-current-indicator">
                           <Check size={12} /> Active
@@ -593,7 +722,7 @@ export default function DynamicScenarioStudio({ onNavigate }: DynamicScenarioStu
                         <button
                           type="button"
                           className="dss-run-btn"
-                          disabled={Boolean(activatingId)}
+                          disabled={Boolean(activatingId) || deleting}
                           onClick={() => void handleActivateScenario(item.scenario_id)}
                         >
                           {isActivating ? (
@@ -697,6 +826,65 @@ export default function DynamicScenarioStudio({ onNavigate }: DynamicScenarioStu
           </div>
         </section>
       </div>
+
+      {deleteCandidate && typeof document !== 'undefined' && createPortal(
+        <div
+          className="dss-delete-backdrop"
+          role="presentation"
+          onClick={() => {
+            if (!deleting) {
+              setDeleteCandidate(null);
+              setDeleteError(null);
+            }
+          }}
+        >
+          <div
+            className="dss-delete-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="dss-delete-dialog-title"
+            onClick={e => e.stopPropagation()}
+          >
+            <h3 id="dss-delete-dialog-title" className="dss-delete-title">
+              Delete “{deleteCandidate.scenario_name}”?
+            </h3>
+            <p className="dss-delete-copy">
+              This scenario created by you will be removed from the current session, along with its session-scoped authoring state.
+              {deleteCandidate.scenario_id === identity.scenario_id
+                ? ' Because it is currently running, CogniX will return to the default governed reference scenario.'
+                : ''}
+            </p>
+            {deleteError && (
+              <div className="dss-delete-error" role="alert">
+                {deleteError}
+              </div>
+            )}
+            <div className="dss-delete-actions">
+              <button
+                type="button"
+                className="dss-row-action-btn"
+                disabled={deleting}
+                onClick={() => {
+                  setDeleteCandidate(null);
+                  setDeleteError(null);
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="dss-delete-confirm-btn"
+                disabled={deleting}
+                onClick={() => void handleConfirmDeleteScenario()}
+              >
+                {deleting ? <Loader2 size={12} className="spin" /> : null}
+                <span>Confirm delete</span>
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
 
       <ScenarioSelectorModal
         isOpen={selectorOpen}

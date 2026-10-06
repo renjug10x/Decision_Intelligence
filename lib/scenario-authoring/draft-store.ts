@@ -70,6 +70,35 @@ class ScenarioDraftStore {
     return this.byTenant.get(tenantId)?.get(draftId);
   }
 
+  findByScenarioId(tenantId: string, scenarioId: string): ScenarioDraft | undefined {
+    const drafts = this.byTenant.get(tenantId);
+    if (!drafts) return undefined;
+    let found: ScenarioDraft | undefined;
+    for (const draft of drafts.values()) {
+      if (draft.scenario_id === scenarioId) {
+        found = draft;
+      }
+    }
+    return found;
+  }
+
+  delete(tenantId: string, draftId: string): boolean {
+    return this.byTenant.get(tenantId)?.delete(draftId) ?? false;
+  }
+
+  deleteByScenarioId(tenantId: string, scenarioId: string): string[] {
+    const drafts = this.byTenant.get(tenantId);
+    if (!drafts) return [];
+    const removed: string[] = [];
+    for (const [draftId, draft] of [...drafts.entries()]) {
+      if (draft.scenario_id === scenarioId) {
+        drafts.delete(draftId);
+        removed.push(draftId);
+      }
+    }
+    return removed;
+  }
+
   list(tenantId: string): ScenarioDraft[] {
     return [...(this.byTenant.get(tenantId)?.values() ?? [])];
   }
@@ -82,3 +111,4 @@ class ScenarioDraftStore {
 }
 
 export const scenarioDraftStore = new ScenarioDraftStore();
+
