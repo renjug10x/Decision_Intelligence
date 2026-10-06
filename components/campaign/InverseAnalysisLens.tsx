@@ -24,6 +24,8 @@ import {
   elasticitySensitivityProposal,
   highestYieldOpportunityRegion,
   describeInverseConditionDecision,
+  findRecommendedElasticityPoint,
+  findContributionFlipPoint,
   buildCompetitiveResponseCandidateIntervention,
   ActiveIntervention
 } from '@/lib/campaign-candidate-intervention';
@@ -78,6 +80,7 @@ export default function InverseAnalysisLens({
   const { money, localise } = useCurrency();
   const [testedHypothesis, setTestedHypothesis] = useState<Record<string, boolean>>({});
   const [selectedConditionId, setSelectedConditionId] = useState<string | null>(null);
+  const [expandedConditionId, setExpandedConditionId] = useState<string | null>(null);
 
   const resolvedScenario = useMemo(() => scenario ?? scenarioInScope(), [scenario]);
   const activeDepthPct = currentDiscount ?? archetype.default_discount_pct;
@@ -106,6 +109,7 @@ export default function InverseAnalysisLens({
   useEffect(() => {
     if (matchingInitialWhatIf && !evaluatedAssumption) {
       setIsCompetitiveOpen(true);
+      setExpandedConditionId(null);
       setBenchmarkPriceInput(String(matchingInitialWhatIf.assumption.assumed_competitive_price_gbp));
       setSensitivityGammaInput(
         String(matchingInitialWhatIf.assumption.competitive_response_pp_per_disadvantage_point)
@@ -122,6 +126,8 @@ export default function InverseAnalysisLens({
     if (previousScenarioIdRef.current !== resolvedScenario.identity.scenario_id) {
       previousScenarioIdRef.current = resolvedScenario.identity.scenario_id;
       setIsCompetitiveOpen(false);
+      setExpandedConditionId(null);
+      setSelectedConditionId(null);
       setBenchmarkPriceInput('');
       setSensitivityGammaInput('');
       setEvaluatedAssumption(null);
@@ -257,6 +263,7 @@ export default function InverseAnalysisLens({
 
   const handleModelCondition = (cond: InverseCondition) => {
     setSelectedConditionId(cond.id);
+    setSelectedCompetitiveOptionType(null);
     const defaultScope = inScopeStoreCount(currentRegion ?? archetype.default_region);
     let disc = currentDiscount ?? archetype.default_discount_pct;
     let scope = defaultScope;
@@ -275,18 +282,22 @@ export default function InverseAnalysisLens({
       currentDurationDays
     });
 
+    let candidateTitle = `Stage Response: ${cond.condition_text}`;
+
     if (cond.target_parameter === 'DISCOUNT_DEPTH') {
-      disc = cond.target_value;
+      disc = decisionSummary.proposed_discount_pct;
+      candidateTitle = `Adopt ${disc}% Promotional Depth`;
       notes.push(
         `Tested condition: ${decisionSummary.tested_condition} vs current ${decisionSummary.current_assumption}.`,
-        `Applies ${cond.target_value}% discount depth to the planner on Accept.`
+        `Applies ${disc}% discount depth to the planner on Accept.`
       );
     } else if (cond.target_parameter === 'STORE_SCOPE') {
-      scope = cond.target_value;
       region = highestYieldOpportunityRegion(archetype);
+      scope = decisionSummary.proposed_scope_stores;
+      candidateTitle = `Focus Campaign on ${region} (${scope.toLocaleString('en-GB')} Stores)`;
       notes.push(
         `Tested condition: ${decisionSummary.tested_condition} vs current ${decisionSummary.current_assumption}.`,
-        `Scopes the campaign to ${scope} stores in ${region} (highest seeded regional opportunity index).`
+        `Scopes the campaign to ${scope.toLocaleString('en-GB')} stores in ${region} (highest regional opportunity index).`
       );
     } else if (cond.target_parameter === 'DEMAND_UPLIFT') {
       const sensitivity = elasticitySensitivityProposal(
@@ -296,9 +307,14 @@ export default function InverseAnalysisLens({
       disc = sensitivity.discount_pct;
       flipPct = sensitivity.flip_discount_pct;
       recommendedPct = sensitivity.recommended_discount_pct;
+      candidateTitle = `Align Plan to ${disc}% Depth (Demand Response)`;
       notes.push(...sensitivity.notes);
     } else if (cond.target_parameter === 'SUPPLIER_FUNDING') {
       fundingOverlay = cond.target_value;
+      candidateTitle =
+        cond.target_value > 0
+          ? `Retain ${disc}% Depth with Supplier Co-Funding (${cond.target_display})`
+          : `Retain ${disc}% Depth (No Funding Required)`;
       notes.push(
         cond.target_value === 0
           ? 'Evaluation overlay: trade funding is not required for this configuration.'
@@ -317,7 +333,7 @@ export default function InverseAnalysisLens({
         : economics.net_contribution_delta_gbp;
 
     onProposeIntervention({
-      title: `Model Condition: ${cond.condition_text}`,
+      title: candidateTitle,
       type: 'INVERSE_CONDITION_MODEL',
       description: `${decisionSummary.decision_question} — ${decisionSummary.recommendation_implication}`,
       proposed_discount: disc,
@@ -406,7 +422,7 @@ export default function InverseAnalysisLens({
             What Would Have To Be True?
           </h3>
           <p style={{ fontSize: '0.8rem', color: '#64748B', margin: '4px 0 0 0' }}>
-            Decision-condition analysis across discount depth, regional store scope, supplier funding overlay, elasticity sensitivity, and counterfactual competitive price response.
+            Explore the five commercial What-If questions governing promotional depth, supplier co-funding, regional store scope, customer demand response, and competitive pricing.
           </p>
         </div>
 
@@ -486,7 +502,13 @@ export default function InverseAnalysisLens({
                   type="button"
                   data-testid="btn-open-competitive-what-if"
                   aria-expanded={isCompetitiveOpen}
-                  onClick={() => setIsCompetitiveOpen(prev => !prev)}
+                  onClick={() =>
+                    setIsCompetitiveOpen(prev => {
+                      const next = !prev;
+                      if (next) setExpandedConditionId(null);
+                      return next;
+                    })
+                  }
                   style={{
                     background: isCompetitiveOpen ? '#1E40AF' : '#2563EB',
                     color: '#FFFFFF',
@@ -2208,7 +2230,7 @@ export default function InverseAnalysisLens({
             )}
           </div>
 
-          {archetype.inverse_conditions.map((cond, idx) => {
+          {archetype.inverse_conditions.map(cond => {
             const summary = describeInverseConditionDecision({
               archetype,
               condition: cond,
@@ -2217,20 +2239,123 @@ export default function InverseAnalysisLens({
               currentDurationDays
             });
             const isSelected = selectedConditionId === cond.id;
+            const isExpanded = expandedConditionId === cond.id;
+            const paramKey = cond.target_parameter.toLowerCase();
+
+            const activeStoresCount = inScopeStoreCount(activeRegion);
+            const currentEcon = estimateInterventionEconomics(archetype, {
+              discount_pct: activeDepthPct,
+              stores: activeStoresCount,
+              duration_days: activeDurationDays
+            });
+            const recPoint =
+              findRecommendedElasticityPoint(archetype.elasticity_curve) ??
+              archetype.elasticity_curve[0];
+            const recDepthPct = recPoint.discount_pct;
+            const recEcon = estimateInterventionEconomics(archetype, {
+              discount_pct: recDepthPct,
+              stores: activeStoresCount,
+              duration_days: activeDurationDays
+            });
+            const flipPoint = findContributionFlipPoint(archetype.elasticity_curve, activeDepthPct);
+            const bestRegion = highestYieldOpportunityRegion(archetype);
+            const bestCell = archetype.opportunity_matrix.find(c => c.region === bestRegion);
+            const sortedRegions = [...archetype.opportunity_matrix].sort(
+              (a, b) => b.opportunity_index - a.opportunity_index
+            );
+
+            // Condition-specific commercial metadata
+            let categoryPill = 'DECISION CONDITION';
+            let commercialQuestion = summary.decision_question;
+            let verdictBadgeLabel = summary.recommendation_changes
+              ? 'CHANGE RECOMMENDED'
+              : 'DECISION STILL HOLDS';
+            let verdictIsChange = summary.recommendation_changes;
+            let collapsedConclusion = '';
+            let collapsedBoundarySummary = '';
+
+            if (cond.target_parameter === 'SUPPLIER_FUNDING') {
+              const requiredFunding = summary.funding_gap_gbp ?? cond.target_value;
+              categoryPill = 'SUPPLIER FUNDING';
+              commercialQuestion =
+                'Does additional supplier co-funding make the current promotional depth economically preferable?';
+              verdictIsChange = false;
+              verdictBadgeLabel = 'DECISION STILL HOLDS';
+              collapsedConclusion =
+                requiredFunding > 0
+                  ? `Without supplier support, the current ${activeDepthPct}% promotion (${money(currentEcon.net_contribution_delta_gbp, { signed: true })}) remains less attractive than ${recDepthPct}% (${money(recEcon.net_contribution_delta_gbp, { signed: true })}).`
+                  : `At ${activeDepthPct}% depth, the promotion already sits at the contribution peak (${money(currentEcon.net_contribution_delta_gbp, { signed: true })}) without extra trade funding.`;
+              collapsedBoundarySummary =
+                requiredFunding > 0
+                  ? `The current promotion becomes preferable when supplier funding reaches approximately ${money(requiredFunding)}.`
+                  : `No supplier co-funding gap exists at ${activeDepthPct}% depth.`;
+            } else if (cond.target_parameter === 'DISCOUNT_DEPTH') {
+              categoryPill = 'DISCOUNT DEPTH';
+              commercialQuestion =
+                'Does a shallower promotional discount deliver higher net contribution than the current plan?';
+              verdictIsChange = summary.recommendation_changes;
+              verdictBadgeLabel = verdictIsChange ? 'CHANGE RECOMMENDED' : 'DECISION STILL HOLDS';
+              collapsedConclusion = verdictIsChange
+                ? `Moderating discount depth from ${activeDepthPct}% to ${summary.proposed_discount_pct}% improves net contribution by ${money(summary.economic_delta_vs_current_gbp, { signed: true })} (${money(summary.economic_effect_gbp, { signed: true })} vs ${money(currentEcon.net_contribution_delta_gbp, { signed: true })}).`
+                : `Active ${activeDepthPct}% discount depth is already positioned at the scenario contribution peak (${money(currentEcon.net_contribution_delta_gbp, { signed: true })}).`;
+              collapsedBoundarySummary = `Contribution peaks at ${recDepthPct}% discount${
+                flipPoint
+                  ? ` and turns negative from ${flipPoint.discount_pct}% (${money(flipPoint.net_contribution_delta_gbp, { signed: true })}).`
+                  : ' across the tested promotional range.'
+              }`;
+            } else if (cond.target_parameter === 'STORE_SCOPE') {
+              categoryPill = 'STORE SCOPE';
+              commercialQuestion =
+                'Does focusing the campaign on our highest-opportunity regional store cluster outperform the broader estate?';
+              verdictIsChange = summary.recommendation_changes;
+              verdictBadgeLabel = verdictIsChange ? 'CHANGE RECOMMENDED' : 'DECISION STILL HOLDS';
+              collapsedConclusion = verdictIsChange
+                ? `Focusing execution on ${summary.proposed_region} (${summary.proposed_scope_stores.toLocaleString('en-GB')} stores) concentrates promotional investment in our highest-propensity regional cluster.`
+                : `Campaign scope is already focused on the highest-opportunity regional cluster (${summary.proposed_region}, ${summary.proposed_scope_stores.toLocaleString('en-GB')} stores).`;
+              collapsedBoundarySummary = `Why this scope performs better: ${bestRegion} leads regional propensity (Index ${bestCell?.opportunity_index ?? 91}/100 · ${bestCell?.tier ?? 'PREFERRED'} tier), while ${resolvedScenario.estate.high_opportunity_store_count.toLocaleString('en-GB')} high-opportunity stores drive ${resolvedScenario.estate.high_opportunity_incremental_share_pct}% of incremental demand.`;
+            } else if (cond.target_parameter === 'DEMAND_UPLIFT') {
+              const refDepth =
+                activeDepthPct === recDepthPct && archetype.default_discount_pct !== recDepthPct
+                  ? archetype.default_discount_pct
+                  : activeDepthPct;
+              const nearestRef = archetype.elasticity_curve.reduce((best, pt) =>
+                Math.abs(pt.discount_pct - refDepth) < Math.abs(best.discount_pct - refDepth)
+                  ? pt
+                  : best
+              );
+              const upliftGapPp = Number(
+                (cond.target_value - nearestRef.expected_demand_uplift_pct).toFixed(1)
+              );
+              categoryPill = 'DEMAND RESPONSE';
+              commercialQuestion =
+                'How much stronger would customer demand response need to be to justify the deeper discount?';
+              verdictIsChange = summary.recommendation_changes;
+              verdictBadgeLabel = verdictIsChange ? 'CHANGE RECOMMENDED' : 'DECISION STILL HOLDS';
+              collapsedConclusion = verdictIsChange
+                ? `Expected customer demand at ${refDepth}% (+${nearestRef.expected_demand_uplift_pct.toFixed(1)}%) falls ${upliftGapPp.toFixed(1)}pp short of the +${cond.target_value.toFixed(1)}% uplift required to outperform ${recDepthPct}%.`
+                : `Active ${activeDepthPct}% depth aligns with expected customer demand response (+${recPoint.expected_demand_uplift_pct.toFixed(1)}% uplift).`;
+              collapsedBoundarySummary = `To justify ${refDepth}% over ${recDepthPct}%, customer demand uplift would need to reach +${cond.target_value.toFixed(1)}% (+${upliftGapPp.toFixed(1)}pp above expected response).`;
+            }
 
             return (
               <div
                 key={cond.id}
+                data-testid={`what-if-card-${paramKey}`}
                 style={{
-                  background: isSelected ? '#EFF6FF' : '#F8FAFC',
-                  border: isSelected ? '1.5px solid #2563EB' : '1px solid #E2E8F0',
+                  background: isExpanded ? '#F8FAFC' : '#FFFFFF',
+                  border: isExpanded
+                    ? '1.5px solid #2563EB'
+                    : isSelected
+                      ? '1.5px solid #059669'
+                      : '1px solid #CBD5E1',
                   borderRadius: 8,
-                  padding: '14px 16px',
+                  padding: '16px 18px',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: 10
+                  gap: 14
                 }}
               >
+                {/* ── Card Header & Collapsed Decision Summary ── */}
                 <div
                   style={{
                     display: 'flex',
@@ -2240,148 +2365,2761 @@ export default function InverseAnalysisLens({
                     gap: 12
                   }}
                 >
-                  <div style={{ flex: 1, minWidth: 260 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4, flexWrap: 'wrap' }}>
+                  <div style={{ flex: 1, minWidth: 250 }}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 8,
+                        marginBottom: 6,
+                        flexWrap: 'wrap'
+                      }}
+                    >
                       <span
                         style={{
                           fontSize: '0.68rem',
                           fontWeight: 700,
-                          color: '#2563EB',
+                          color: '#1E40AF',
                           background: '#DBEAFE',
                           border: '1px solid #BFDBFE',
-                          padding: '2px 6px',
-                          borderRadius: 4
+                          padding: '2px 7px',
+                          borderRadius: 4,
+                          letterSpacing: '0.02em'
                         }}
                       >
-                        CONDITION {idx + 1} · {cond.target_parameter.replace(/_/g, ' ')}
+                        {categoryPill}
                       </span>
                       <span
+                        data-testid={`what-if-verdict-badge-${paramKey}`}
                         style={{
                           fontSize: '0.66rem',
                           fontWeight: 700,
-                          color: summary.recommendation_changes ? '#065F46' : '#92400E',
-                          background: summary.recommendation_changes ? '#ECFDF5' : '#FFFBEB',
-                          border: `1px solid ${summary.recommendation_changes ? '#A7F3D0' : '#FDE68A'}`,
-                          padding: '2px 6px',
+                          color: verdictIsChange ? '#92400E' : '#065F46',
+                          background: verdictIsChange ? '#FFFBEB' : '#ECFDF5',
+                          border: `1px solid ${verdictIsChange ? '#FDE68A' : '#A7F3D0'}`,
+                          padding: '2px 7px',
                           borderRadius: 4
                         }}
                       >
-                        {summary.recommendation_changes
-                          ? 'RECOMMENDATION CHANGES ON ACCEPT'
-                          : 'EVALUATION OVERLAY · PLANNER DEPTH UNCHANGED'}
+                        {verdictBadgeLabel}
                       </span>
+                      {isSelected && (
+                        <span
+                          data-testid={`what-if-staged-badge-${paramKey}`}
+                          style={{
+                            fontSize: '0.66rem',
+                            fontWeight: 700,
+                            color: '#065F46',
+                            background: '#D1FAE5',
+                            border: '1px solid #6EE7B7',
+                            padding: '2px 7px',
+                            borderRadius: 4
+                          }}
+                        >
+                          Selected as candidate ✓
+                        </span>
+                      )}
                     </div>
-                    <div style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0F172A', marginBottom: 2 }}>
-                      {cond.condition_text}
+
+                    <div
+                      data-testid={`what-if-question-${paramKey}`}
+                      style={{
+                        fontSize: '0.96rem',
+                        fontWeight: 700,
+                        color: '#0F172A',
+                        marginBottom: 4
+                      }}
+                    >
+                      {localise(commercialQuestion)}
                     </div>
-                    <div style={{ fontSize: '0.78rem', fontWeight: 600, color: '#1E40AF', marginBottom: 4 }}>
-                      Decision question: {localise(summary.decision_question)}
-                    </div>
-                    <div style={{ fontSize: '0.78rem', color: '#475569', lineHeight: 1.4 }}>
-                      {localise(cond.explanation)}
+
+                    <div
+                      data-testid={`what-if-collapsed-summary-${paramKey}`}
+                      style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: 4,
+                        fontSize: '0.78rem',
+                        color: '#475569',
+                        lineHeight: 1.45
+                      }}
+                    >
+                      <div>{localise(collapsedConclusion)}</div>
+                      <div
+                        style={{
+                          fontSize: '0.74rem',
+                          color: '#1E40AF',
+                          fontWeight: 600
+                        }}
+                      >
+                        {localise(collapsedBoundarySummary)}
+                      </div>
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6 }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                     <button
-                      onClick={() => handleModelCondition(cond)}
+                      type="button"
+                      data-testid={`btn-toggle-what-if-${paramKey}`}
+                      aria-expanded={isExpanded}
+                      onClick={() =>
+                        setExpandedConditionId(prev => {
+                          const next = prev === cond.id ? null : cond.id;
+                          if (next) setIsCompetitiveOpen(false);
+                          return next;
+                        })
+                      }
                       style={{
-                        background: isSelected ? '#2563EB' : '#FFFFFF',
-                        color: isSelected ? '#FFFFFF' : '#2563EB',
-                        border: '1px solid #2563EB',
+                        background: isExpanded ? '#1E40AF' : '#FFFFFF',
+                        color: isExpanded ? '#FFFFFF' : '#1E40AF',
+                        border: '1px solid #1E40AF',
                         padding: '7px 14px',
                         borderRadius: 6,
                         fontSize: '0.8rem',
                         fontWeight: 600,
                         cursor: 'pointer',
-                        display: 'flex',
+                        display: 'inline-flex',
                         alignItems: 'center',
-                        gap: 6,
-                        transition: 'all 0.15s ease'
+                        gap: 6
                       }}
                     >
-                      <span>{cond.modelling_action_label}</span>
+                      <span>{isExpanded ? 'Hide analysis' : 'Open analysis →'}</span>
                     </button>
-                    {cond.target_parameter === 'DEMAND_UPLIFT' && onOpenDemandLens && (
-                      <button
-                        type="button"
-                        onClick={() => onOpenDemandLens()}
-                        style={{
-                          background: 'transparent',
-                          color: '#475569',
-                          border: 'none',
-                          padding: '2px 4px',
-                          fontSize: '0.72rem',
-                          fontWeight: 600,
-                          cursor: 'pointer',
-                          textDecoration: 'underline'
-                        }}
-                      >
-                        Inspect Demand &amp; Elasticity Curve →
-                      </button>
-                    )}
                   </div>
                 </div>
 
-                {/* Structured Decision Condition Breakdown */}
-                <div
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                    gap: 8,
-                    background: '#FFFFFF',
-                    border: '1px solid #E2E8F0',
-                    borderRadius: 6,
-                    padding: '8px 10px',
-                    fontSize: '0.74rem'
-                  }}
-                >
-                  <div>
-                    <div style={{ fontSize: '0.64rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
-                      Current Assumption
-                    </div>
-                    <div style={{ fontWeight: 600, color: '#0F172A', marginTop: 2 }}>
-                      {localise(summary.current_assumption)}
-                    </div>
+                {/* ── Expanded 3-Question Decision Analysis ── */}
+                {isExpanded && (
+                  <div
+                    data-testid={`what-if-panel-${paramKey}`}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 16,
+                      paddingTop: 12,
+                      borderTop: '1px solid #E2E8F0'
+                    }}
+                  >
+                    {/* ═══════════════════════════════════════════════════════
+                        CONDITION A: SUPPLIER FUNDING (Classification B)
+                       ═══════════════════════════════════════════════════════ */}
+                    {cond.target_parameter === 'SUPPLIER_FUNDING' &&
+                      (() => {
+                        const requiredFunding = summary.funding_gap_gbp ?? cond.target_value;
+                        const fundedNet =
+                          currentEcon.net_contribution_delta_gbp + requiredFunding;
+                        const depthCond = archetype.inverse_conditions.find(
+                          c => c.target_parameter === 'DISCOUNT_DEPTH'
+                        );
+                        const isDepthSelected =
+                          depthCond != null && selectedConditionId === depthCond.id;
+
+                        return (
+                          <>
+                            {/* 1. What Changed? */}
+                            <div
+                              data-testid="what-if-what-changed-supplier_funding"
+                              style={{
+                                background: '#FFFFFF',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: 8,
+                                padding: '14px 16px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 10
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  flexWrap: 'wrap',
+                                  gap: 8
+                                }}
+                              >
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.68rem',
+                                      fontWeight: 700,
+                                      color: '#2563EB',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.04em'
+                                    }}
+                                  >
+                                    1. What Changed?
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.9rem',
+                                      fontWeight: 700,
+                                      color: '#0F172A'
+                                    }}
+                                  >
+                                    Supplier co-funding support
+                                  </div>
+                                </div>
+                                <span
+                                  style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 600,
+                                    color: '#475569',
+                                    background: '#F1F5F9',
+                                    border: '1px solid #CBD5E1',
+                                    padding: '2px 8px',
+                                    borderRadius: 4
+                                  }}
+                                >
+                                  Derived from scenario curve
+                                </span>
+                              </div>
+
+                              <div
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                                  gap: 10
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    background: '#F8FAFC',
+                                    border: '1px solid #E2E8F0',
+                                    borderRadius: 6,
+                                    padding: '10px 12px'
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: '0.7rem',
+                                      color: '#64748B',
+                                      fontWeight: 600
+                                    }}
+                                  >
+                                    Current supplier support
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '1.02rem',
+                                      fontWeight: 700,
+                                      color: '#0F172A',
+                                      fontFamily: 'monospace',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    Standard terms ({money(0)})
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.69rem',
+                                      color: '#64748B',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    {activeDepthPct}% depth delivers{' '}
+                                    {money(currentEcon.net_contribution_delta_gbp, {
+                                      signed: true
+                                    })}{' '}
+                                    contribution
+                                  </div>
+                                </div>
+
+                                <div
+                                  style={{
+                                    background: '#F8FAFC',
+                                    border: '1px solid #E2E8F0',
+                                    borderRadius: 6,
+                                    padding: '10px 12px'
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: '0.7rem',
+                                      color: '#64748B',
+                                      fontWeight: 600
+                                    }}
+                                  >
+                                    Tested supplier co-funding
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '1.02rem',
+                                      fontWeight: 700,
+                                      color: '#1E40AF',
+                                      fontFamily: 'monospace',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    {requiredFunding > 0
+                                      ? `${money(requiredFunding)} co-funding`
+                                      : 'No extra funding needed'}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.69rem',
+                                      color: '#64748B',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    {requiredFunding > 0
+                                      ? `Trade rebate applied to ${activeDepthPct}% promotion`
+                                      : `Committed ${activeDepthPct}% depth is already optimal`}
+                                  </div>
+                                </div>
+
+                                <div
+                                  style={{
+                                    background: '#F8FAFC',
+                                    border: '1px solid #E2E8F0',
+                                    borderRadius: 6,
+                                    padding: '10px 12px'
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: '0.7rem',
+                                      color: '#64748B',
+                                      fontWeight: 600
+                                    }}
+                                  >
+                                    Funded net contribution
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '1.02rem',
+                                      fontWeight: 700,
+                                      color: fundedNet >= 0 ? '#059669' : '#DC2626',
+                                      fontFamily: 'monospace',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    {money(fundedNet, { signed: true })}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.69rem',
+                                      color: '#64748B',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    {requiredFunding > 0
+                                      ? `${money(requiredFunding, { signed: true })} vs unfunded ${activeDepthPct}% plan`
+                                      : `Matches ${recDepthPct}% curve peak`}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 2. Does Our Decision Still Hold? */}
+                            <div
+                              data-testid="what-if-decision-holds-supplier_funding"
+                              style={{
+                                background: '#FFFFFF',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: 8,
+                                padding: '14px 16px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 12
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  flexWrap: 'wrap',
+                                  gap: 8
+                                }}
+                              >
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.68rem',
+                                      fontWeight: 700,
+                                      color: '#2563EB',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.04em'
+                                    }}
+                                  >
+                                    2. Does Our Decision Still Hold?
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.9rem',
+                                      fontWeight: 700,
+                                      color: '#0F172A'
+                                    }}
+                                  >
+                                    {requiredFunding > 0
+                                      ? `Current ${activeDepthPct}% promotion remains less attractive without ${money(requiredFunding)} supplier support`
+                                      : `Current ${activeDepthPct}% promotion holds without additional supplier support`}
+                                  </div>
+                                </div>
+                                <span
+                                  style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 700,
+                                    color: '#065F46',
+                                    background: '#ECFDF5',
+                                    border: '1px solid #A7F3D0',
+                                    padding: '3px 8px',
+                                    borderRadius: 4
+                                  }}
+                                >
+                                  DECISION STILL HOLDS
+                                </span>
+                              </div>
+
+                              <div
+                                data-testid="what-if-boundary-supplier_funding"
+                                style={{
+                                  background: '#F8FAFC',
+                                  border: '1px solid #E2E8F0',
+                                  borderRadius: 6,
+                                  padding: '10px 12px',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 6
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    color: '#0F172A'
+                                  }}
+                                >
+                                  Decision boundary
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: '0.78rem',
+                                    color: '#334155',
+                                    lineHeight: 1.45
+                                  }}
+                                >
+                                  {requiredFunding > 0 ? (
+                                    <>
+                                      The current <strong>{activeDepthPct}%</strong> promotion
+                                      becomes preferable when supplier funding reaches
+                                      approximately <strong>{money(requiredFunding)}</strong>.
+                                      Below that support level, moderating depth to{' '}
+                                      <strong>{recDepthPct}%</strong> delivers{' '}
+                                      <strong>
+                                        {money(requiredFunding, { signed: true })}
+                                      </strong>{' '}
+                                      more net contribution.
+                                    </>
+                                  ) : (
+                                    <>
+                                      At <strong>{activeDepthPct}%</strong> depth, the campaign
+                                      already achieves maximum contribution on the scenario curve (
+                                      <strong>
+                                        {money(currentEcon.net_contribution_delta_gbp, {
+                                          signed: true
+                                        })}
+                                      </strong>
+                                      ); no additional supplier funding threshold is required.
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 3. What Should We Do? */}
+                            <div
+                              data-testid="what-if-what-should-we-do-supplier_funding"
+                              style={{
+                                background: '#FFFFFF',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: 8,
+                                padding: '14px 16px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 12
+                              }}
+                            >
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 700,
+                                    color: '#2563EB',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.04em'
+                                  }}
+                                >
+                                  3. What Should We Do?
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: '0.9rem',
+                                    fontWeight: 700,
+                                    color: '#0F172A'
+                                  }}
+                                >
+                                  Compare supplier-funded depth against unfunded moderation
+                                </div>
+                              </div>
+
+                              <div
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+                                  gap: 10
+                                }}
+                              >
+                                {/* Option 1: Retain depth with supplier funding */}
+                                <div
+                                  style={{
+                                    background: isSelected ? '#EFF6FF' : '#F8FAFC',
+                                    border: isSelected
+                                      ? '2px solid #2563EB'
+                                      : '1px solid #CBD5E1',
+                                    borderRadius: 8,
+                                    padding: '12px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    justifyContent: 'space-between',
+                                    gap: 10
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: 6
+                                    }}
+                                  >
+                                    <div>
+                                      <span
+                                        style={{
+                                          fontSize: '0.62rem',
+                                          fontWeight: 700,
+                                          color: '#1E40AF',
+                                          background: '#DBEAFE',
+                                          border: '1px solid #BFDBFE',
+                                          padding: '2px 6px',
+                                          borderRadius: 4
+                                        }}
+                                      >
+                                        SUPPLIER-FUNDED OPTION
+                                      </span>
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: '0.84rem',
+                                        fontWeight: 700,
+                                        color: '#0F172A'
+                                      }}
+                                    >
+                                      Retain {activeDepthPct}% Depth with Supplier Support
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: '0.78rem',
+                                        fontWeight: 700,
+                                        color: '#1E293B',
+                                        fontFamily: 'monospace'
+                                      }}
+                                    >
+                                      {activeDepthPct}% · {activeRegion} · {activeDurationDays}{' '}
+                                      days · +{money(requiredFunding)} support
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: '1.02rem',
+                                        fontWeight: 800,
+                                        color: fundedNet >= 0 ? '#059669' : '#DC2626',
+                                        fontFamily: 'monospace'
+                                      }}
+                                    >
+                                      {money(fundedNet, { signed: true })} contribution
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: '0.74rem',
+                                        color: '#475569',
+                                        lineHeight: 1.4
+                                      }}
+                                    >
+                                      Keeps the {activeDepthPct}% promotion (+
+                                      {currentEcon.expected_demand_uplift_pct.toFixed(1)}% demand
+                                      uplift) contingent on {money(requiredFunding)} supplier
+                                      co-funding.
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    data-testid="btn-stage-what-if-supplier_funding"
+                                    onClick={() => handleModelCondition(cond)}
+                                    style={{
+                                      width: '100%',
+                                      background: isSelected ? '#1E40AF' : '#2563EB',
+                                      color: '#FFFFFF',
+                                      border: 'none',
+                                      padding: '8px 12px',
+                                      borderRadius: 6,
+                                      fontSize: '0.76rem',
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: 6
+                                    }}
+                                  >
+                                    {isSelected ? (
+                                      <>
+                                        <CheckCircle2 size={13} />
+                                        <span>Selected as candidate ✓</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span>Stage as candidate</span>
+                                        <ArrowRight size={13} />
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+
+                                {/* Option 2: Unfunded optimal depth */}
+                                {depthCond && recDepthPct !== activeDepthPct && (
+                                  <div
+                                    style={{
+                                      background: isDepthSelected ? '#EFF6FF' : '#FFFFFF',
+                                      border: isDepthSelected
+                                        ? '2px solid #2563EB'
+                                        : '1.5px solid #059669',
+                                      borderRadius: 8,
+                                      padding: '12px',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      justifyContent: 'space-between',
+                                      gap: 10
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 6
+                                      }}
+                                    >
+                                      <div>
+                                        <span
+                                          style={{
+                                            fontSize: '0.62rem',
+                                            fontWeight: 700,
+                                            color: '#065F46',
+                                            background: '#ECFDF5',
+                                            border: '1px solid #A7F3D0',
+                                            padding: '2px 6px',
+                                            borderRadius: 4
+                                          }}
+                                        >
+                                          {COMPETITIVE_PREFERRED_RESPONSE_BADGE} (UNFUNDED)
+                                        </span>
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.84rem',
+                                          fontWeight: 700,
+                                          color: '#0F172A'
+                                        }}
+                                      >
+                                        Moderate Depth to {recDepthPct}% Without Extra Funding
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.78rem',
+                                          fontWeight: 700,
+                                          color: '#1E293B',
+                                          fontFamily: 'monospace'
+                                        }}
+                                      >
+                                        {recDepthPct}% · {activeRegion} · {activeDurationDays} days
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: '1.02rem',
+                                          fontWeight: 800,
+                                          color:
+                                            recEcon.net_contribution_delta_gbp >= 0
+                                              ? '#059669'
+                                              : '#DC2626',
+                                          fontFamily: 'monospace'
+                                        }}
+                                      >
+                                        {money(recEcon.net_contribution_delta_gbp, {
+                                          signed: true
+                                        })}{' '}
+                                        contribution
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.74rem',
+                                          color: '#475569',
+                                          lineHeight: 1.4
+                                        }}
+                                      >
+                                        Secures {money(requiredFunding, { signed: true })} higher
+                                        net contribution immediately without waiting on supplier
+                                        rebate terms.
+                                      </div>
+                                    </div>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleModelCondition(depthCond)}
+                                      style={{
+                                        width: '100%',
+                                        background: isDepthSelected ? '#1E40AF' : '#059669',
+                                        color: '#FFFFFF',
+                                        border: 'none',
+                                        padding: '8px 12px',
+                                        borderRadius: 6,
+                                        fontSize: '0.76rem',
+                                        fontWeight: 600,
+                                        cursor: 'pointer',
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: 6
+                                      }}
+                                    >
+                                      {isDepthSelected ? (
+                                        <>
+                                          <CheckCircle2 size={13} />
+                                          <span>Selected as candidate ✓</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <span>Stage {recDepthPct}% depth as candidate</span>
+                                          <ArrowRight size={13} />
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Progressive Disclosure: Analysis Details */}
+                            <details
+                              data-testid="what-if-details-supplier_funding"
+                              style={{
+                                background: '#FFFFFF',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: 8,
+                                padding: '10px 14px'
+                              }}
+                            >
+                              <summary
+                                style={{
+                                  cursor: 'pointer',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 700,
+                                  color: '#1E40AF',
+                                  userSelect: 'none'
+                                }}
+                              >
+                                View analysis details (How CogniX evaluated this)
+                              </summary>
+                              <div
+                                style={{
+                                  marginTop: 10,
+                                  fontSize: '0.75rem',
+                                  color: '#334155',
+                                  lineHeight: 1.5
+                                }}
+                              >
+                                CogniX derives the supplier funding boundary as the contribution
+                                difference between the scenario curve optimum ({recDepthPct}% at{' '}
+                                {money(recEcon.net_contribution_delta_gbp, { signed: true })}) and
+                                the active depth ({activeDepthPct}% at{' '}
+                                {money(currentEcon.net_contribution_delta_gbp, { signed: true })}).
+                                Staging the supplier-funded option preserves {activeDepthPct}% in
+                                planner controls and attaches a {money(requiredFunding)} co-funding
+                                condition to the candidate workspace.
+                              </div>
+                            </details>
+                          </>
+                        );
+                      })()}
+
+                    {/* ═══════════════════════════════════════════════════════
+                        CONDITION B: DISCOUNT DEPTH (Classification A)
+                       ═══════════════════════════════════════════════════════ */}
+                    {cond.target_parameter === 'DISCOUNT_DEPTH' &&
+                      (() => {
+                        const targetDepth = summary.proposed_discount_pct;
+                        const targetPromotedPriceGbp = scenarioPromotedPriceAtDepthGbp(
+                          resolvedScenario,
+                          targetDepth
+                        );
+
+                        return (
+                          <>
+                            {/* 1. What Changed? */}
+                            <div
+                              data-testid="what-if-what-changed-discount_depth"
+                              style={{
+                                background: '#FFFFFF',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: 8,
+                                padding: '14px 16px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 10
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  flexWrap: 'wrap',
+                                  gap: 8
+                                }}
+                              >
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.68rem',
+                                      fontWeight: 700,
+                                      color: '#2563EB',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.04em'
+                                    }}
+                                  >
+                                    1. What Changed?
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.9rem',
+                                      fontWeight: 700,
+                                      color: '#0F172A'
+                                    }}
+                                  >
+                                    Promotional discount depth
+                                  </div>
+                                </div>
+                                <span
+                                  style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 600,
+                                    color: '#475569',
+                                    background: '#F1F5F9',
+                                    border: '1px solid #CBD5E1',
+                                    padding: '2px 8px',
+                                    borderRadius: 4
+                                  }}
+                                >
+                                  Derived from scenario curve
+                                </span>
+                              </div>
+
+                              <div
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                                  gap: 10
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    background: '#F8FAFC',
+                                    border: '1px solid #E2E8F0',
+                                    borderRadius: 6,
+                                    padding: '10px 12px'
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: '0.7rem',
+                                      color: '#64748B',
+                                      fontWeight: 600
+                                    }}
+                                  >
+                                    Current promotional depth
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '1.02rem',
+                                      fontWeight: 700,
+                                      color: '#0F172A',
+                                      fontFamily: 'monospace',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    {activeDepthPct}% discount (
+                                    {money(activePromotedPriceGbp, {
+                                      decimals: 2,
+                                      compact: false
+                                    })}
+                                    )
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.69rem',
+                                      color: '#64748B',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    +{currentEcon.expected_demand_uplift_pct.toFixed(1)}% demand ·{' '}
+                                    {money(currentEcon.net_contribution_delta_gbp, {
+                                      signed: true
+                                    })}{' '}
+                                    contribution
+                                  </div>
+                                </div>
+
+                                <div
+                                  style={{
+                                    background: '#F8FAFC',
+                                    border: '1px solid #E2E8F0',
+                                    borderRadius: 6,
+                                    padding: '10px 12px'
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: '0.7rem',
+                                      color: '#64748B',
+                                      fontWeight: 600
+                                    }}
+                                  >
+                                    Tested optimal depth
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '1.02rem',
+                                      fontWeight: 700,
+                                      color: '#1E40AF',
+                                      fontFamily: 'monospace',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    {targetDepth}% discount (
+                                    {money(targetPromotedPriceGbp, {
+                                      decimals: 2,
+                                      compact: false
+                                    })}
+                                    )
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.69rem',
+                                      color: '#64748B',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    +{summary.expected_uplift_pct.toFixed(1)}% demand ·{' '}
+                                    {money(summary.economic_effect_gbp, { signed: true })}{' '}
+                                    contribution
+                                  </div>
+                                </div>
+
+                                <div
+                                  style={{
+                                    background: '#F8FAFC',
+                                    border: '1px solid #E2E8F0',
+                                    borderRadius: 6,
+                                    padding: '10px 12px'
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: '0.7rem',
+                                      color: '#64748B',
+                                      fontWeight: 600
+                                    }}
+                                  >
+                                    Contribution difference
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '1.02rem',
+                                      fontWeight: 700,
+                                      color:
+                                        summary.economic_delta_vs_current_gbp >= 0
+                                          ? '#059669'
+                                          : '#DC2626',
+                                      fontFamily: 'monospace',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    {money(summary.economic_delta_vs_current_gbp, {
+                                      signed: true
+                                    })}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.69rem',
+                                      color: '#64748B',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    Across {activeStoresCount.toLocaleString('en-GB')} stores in{' '}
+                                    {activeRegion}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 2. Does Our Decision Still Hold? */}
+                            <div
+                              data-testid="what-if-decision-holds-discount_depth"
+                              style={{
+                                background: '#FFFFFF',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: 8,
+                                padding: '14px 16px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 12
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  flexWrap: 'wrap',
+                                  gap: 8
+                                }}
+                              >
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.68rem',
+                                      fontWeight: 700,
+                                      color: '#2563EB',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.04em'
+                                    }}
+                                  >
+                                    2. Does Our Decision Still Hold?
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.9rem',
+                                      fontWeight: 700,
+                                      color: '#0F172A'
+                                    }}
+                                  >
+                                    {summary.recommendation_changes
+                                      ? `No — moderating depth from ${activeDepthPct}% to ${targetDepth}% delivers ${money(summary.economic_delta_vs_current_gbp, { signed: true })} higher net contribution`
+                                      : `Yes — ${activeDepthPct}% depth is already positioned at the scenario contribution peak`}
+                                  </div>
+                                </div>
+                                <span
+                                  style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 700,
+                                    color: summary.recommendation_changes ? '#92400E' : '#065F46',
+                                    background: summary.recommendation_changes
+                                      ? '#FFFBEB'
+                                      : '#ECFDF5',
+                                    border: `1px solid ${summary.recommendation_changes ? '#FDE68A' : '#A7F3D0'}`,
+                                    padding: '3px 8px',
+                                    borderRadius: 4
+                                  }}
+                                >
+                                  {summary.recommendation_changes
+                                    ? 'CHANGE RECOMMENDED'
+                                    : 'DECISION STILL HOLDS'}
+                                </span>
+                              </div>
+
+                              <div
+                                data-testid="what-if-boundary-discount_depth"
+                                style={{
+                                  background: '#F8FAFC',
+                                  border: '1px solid #E2E8F0',
+                                  borderRadius: 6,
+                                  padding: '10px 12px',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 8
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    color: '#0F172A'
+                                  }}
+                                >
+                                  Decision boundary
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: '0.78rem',
+                                    color: '#334155',
+                                    lineHeight: 1.45
+                                  }}
+                                >
+                                  Contribution peaks at <strong>{recDepthPct}%</strong> discount (
+                                  <strong>
+                                    {money(recEcon.net_contribution_delta_gbp, { signed: true })}
+                                  </strong>
+                                  , +{recPoint.expected_demand_uplift_pct.toFixed(1)}% demand).
+                                  Deeper discounts erode baseline margin faster than incremental
+                                  volume recovers
+                                  {flipPoint ? (
+                                    <>
+                                      , turning total contribution negative from{' '}
+                                      <strong>{flipPoint.discount_pct}%</strong> (
+                                      <strong>
+                                        {money(flipPoint.net_contribution_delta_gbp, {
+                                          signed: true
+                                        })}
+                                      </strong>
+                                      ).
+                                    </>
+                                  ) : (
+                                    '.'
+                                  )}
+                                </div>
+
+                                {/* Compact Curve Tier Strip */}
+                                <div
+                                  style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fit, minmax(105px, 1fr))',
+                                    gap: 6,
+                                    marginTop: 2
+                                  }}
+                                >
+                                  {archetype.elasticity_curve.map(pt => {
+                                    const isPeak = pt.discount_pct === recDepthPct;
+                                    const isActive = pt.discount_pct === activeDepthPct;
+                                    const isFlip =
+                                      flipPoint != null &&
+                                      pt.discount_pct === flipPoint.discount_pct;
+                                    return (
+                                      <div
+                                        key={pt.discount_pct}
+                                        style={{
+                                          background: isPeak
+                                            ? '#ECFDF5'
+                                            : isActive
+                                              ? '#EFF6FF'
+                                              : isFlip
+                                                ? '#FEF2F2'
+                                                : '#FFFFFF',
+                                          border: isPeak
+                                            ? '1.5px solid #059669'
+                                            : isActive
+                                              ? '1.5px solid #2563EB'
+                                              : isFlip
+                                                ? '1px solid #FECACA'
+                                                : '1px solid #E2E8F0',
+                                          borderRadius: 6,
+                                          padding: '6px 8px',
+                                          fontSize: '0.7rem'
+                                        }}
+                                      >
+                                        <div
+                                          style={{
+                                            fontWeight: 700,
+                                            color: '#0F172A',
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            gap: 4
+                                          }}
+                                        >
+                                          <span>{pt.discount_pct}%</span>
+                                          {isPeak && (
+                                            <span style={{ color: '#059669', fontSize: '0.62rem' }}>
+                                              PEAK
+                                            </span>
+                                          )}
+                                          {!isPeak && isActive && (
+                                            <span style={{ color: '#2563EB', fontSize: '0.62rem' }}>
+                                              CURRENT
+                                            </span>
+                                          )}
+                                        </div>
+                                        <div
+                                          style={{
+                                            fontFamily: 'monospace',
+                                            fontWeight: 700,
+                                            color:
+                                              pt.net_contribution_delta_gbp >= 0
+                                                ? '#059669'
+                                                : '#DC2626',
+                                            marginTop: 2
+                                          }}
+                                        >
+                                          {money(pt.net_contribution_delta_gbp, { signed: true })}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 3. What Should We Do? */}
+                            <div
+                              data-testid="what-if-what-should-we-do-discount_depth"
+                              style={{
+                                background: '#FFFFFF',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: 8,
+                                padding: '14px 16px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 12
+                              }}
+                            >
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 700,
+                                    color: '#2563EB',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.04em'
+                                  }}
+                                >
+                                  3. What Should We Do?
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: '0.9rem',
+                                    fontWeight: 700,
+                                    color: '#0F172A'
+                                  }}
+                                >
+                                  Compare recommended promotional depth with the current plan
+                                </div>
+                              </div>
+
+                              <div
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+                                  gap: 10
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    background: isSelected ? '#EFF6FF' : '#FFFFFF',
+                                    border: isSelected
+                                      ? '2px solid #2563EB'
+                                      : '1.5px solid #059669',
+                                    borderRadius: 8,
+                                    padding: '12px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    justifyContent: 'space-between',
+                                    gap: 10
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: 6
+                                    }}
+                                  >
+                                    <div>
+                                      <span
+                                        style={{
+                                          fontSize: '0.62rem',
+                                          fontWeight: 700,
+                                          color: '#065F46',
+                                          background: '#ECFDF5',
+                                          border: '1px solid #A7F3D0',
+                                          padding: '2px 6px',
+                                          borderRadius: 4
+                                        }}
+                                      >
+                                        {COMPETITIVE_PREFERRED_RESPONSE_BADGE}
+                                      </span>
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: '0.84rem',
+                                        fontWeight: 700,
+                                        color: '#0F172A'
+                                      }}
+                                    >
+                                      Adopt {targetDepth}% Promotional Depth
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: '0.78rem',
+                                        fontWeight: 700,
+                                        color: '#1E293B',
+                                        fontFamily: 'monospace'
+                                      }}
+                                    >
+                                      {targetDepth}% · {activeRegion} · {activeDurationDays} days
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: '1.02rem',
+                                        fontWeight: 800,
+                                        color:
+                                          summary.economic_effect_gbp >= 0 ? '#059669' : '#DC2626',
+                                        fontFamily: 'monospace'
+                                      }}
+                                    >
+                                      {money(summary.economic_effect_gbp, { signed: true })}{' '}
+                                      contribution
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: '0.74rem',
+                                        color: '#475569',
+                                        lineHeight: 1.4
+                                      }}
+                                    >
+                                      Protects unit margin across{' '}
+                                      {activeStoresCount.toLocaleString('en-GB')} stores while
+                                      delivering +{summary.expected_uplift_pct.toFixed(1)}% demand
+                                      uplift.
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    data-testid="btn-stage-what-if-discount_depth"
+                                    onClick={() => handleModelCondition(cond)}
+                                    style={{
+                                      width: '100%',
+                                      background: isSelected ? '#1E40AF' : '#059669',
+                                      color: '#FFFFFF',
+                                      border: 'none',
+                                      padding: '8px 12px',
+                                      borderRadius: 6,
+                                      fontSize: '0.76rem',
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: 6
+                                    }}
+                                  >
+                                    {isSelected ? (
+                                      <>
+                                        <CheckCircle2 size={13} />
+                                        <span>Selected as candidate ✓</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span>Stage as candidate</span>
+                                        <ArrowRight size={13} />
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+
+                                {summary.recommendation_changes && (
+                                  <div
+                                    style={{
+                                      background: '#F8FAFC',
+                                      border: '1px solid #CBD5E1',
+                                      borderRadius: 8,
+                                      padding: '12px',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      justifyContent: 'space-between',
+                                      gap: 10
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 6
+                                      }}
+                                    >
+                                      <div>
+                                        <span
+                                          style={{
+                                            fontSize: '0.62rem',
+                                            fontWeight: 700,
+                                            color: '#475569',
+                                            background: '#E2E8F0',
+                                            padding: '2px 6px',
+                                            borderRadius: 4
+                                          }}
+                                        >
+                                          CURRENT PLAN
+                                        </span>
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.84rem',
+                                          fontWeight: 700,
+                                          color: '#0F172A'
+                                        }}
+                                      >
+                                        Hold Current {activeDepthPct}% Depth
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.78rem',
+                                          fontWeight: 700,
+                                          color: '#1E293B',
+                                          fontFamily: 'monospace'
+                                        }}
+                                      >
+                                        {activeDepthPct}% · {activeRegion} · {activeDurationDays}{' '}
+                                        days
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: '1.02rem',
+                                          fontWeight: 800,
+                                          color:
+                                            currentEcon.net_contribution_delta_gbp >= 0
+                                              ? '#059669'
+                                              : '#DC2626',
+                                          fontFamily: 'monospace'
+                                        }}
+                                      >
+                                        {money(currentEcon.net_contribution_delta_gbp, {
+                                          signed: true
+                                        })}{' '}
+                                        contribution
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.74rem',
+                                          color: '#475569',
+                                          lineHeight: 1.4
+                                        }}
+                                      >
+                                        Generates +
+                                        {currentEcon.expected_demand_uplift_pct.toFixed(1)}% volume
+                                        uplift but sacrifices{' '}
+                                        {money(Math.abs(summary.economic_delta_vs_current_gbp))} of
+                                        net contribution vs {targetDepth}%.
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Progressive Disclosure: Analysis Details */}
+                            <details
+                              data-testid="what-if-details-discount_depth"
+                              style={{
+                                background: '#FFFFFF',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: 8,
+                                padding: '10px 14px'
+                              }}
+                            >
+                              <summary
+                                style={{
+                                  cursor: 'pointer',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 700,
+                                  color: '#1E40AF',
+                                  userSelect: 'none'
+                                }}
+                              >
+                                View analysis details (How CogniX evaluated this)
+                              </summary>
+                              <div
+                                style={{
+                                  marginTop: 10,
+                                  fontSize: '0.75rem',
+                                  color: '#334155',
+                                  lineHeight: 1.5
+                                }}
+                              >
+                                Evaluated across the scenario&apos;s 7 promotional depth tiers (0%
+                                to 25%) for <strong>{resolvedScenario.identity.sku_name}</strong>{' '}
+                                (list price{' '}
+                                {money(resolvedScenario.economics.list_price_gbp, {
+                                  decimals: 2,
+                                  compact: false
+                                })}
+                                , implied unit cost{' '}
+                                {money(archetype.cost_price, { decimals: 2, compact: false })}).
+                                Accepting the {targetDepth}% candidate updates the planner discount
+                                slider directly and triggers a live CDI reassessment.
+                              </div>
+                            </details>
+                          </>
+                        );
+                      })()}
+
+                    {/* ═══════════════════════════════════════════════════════
+                        CONDITION C: STORE SCOPE (Classification C)
+                       ═══════════════════════════════════════════════════════ */}
+                    {cond.target_parameter === 'STORE_SCOPE' &&
+                      (() => {
+                        const targetRegion = summary.proposed_region;
+                        const targetStores = summary.proposed_scope_stores;
+
+                        return (
+                          <>
+                            {/* 1. What Changed? */}
+                            <div
+                              data-testid="what-if-what-changed-store_scope"
+                              style={{
+                                background: '#FFFFFF',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: 8,
+                                padding: '14px 16px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 10
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  flexWrap: 'wrap',
+                                  gap: 8
+                                }}
+                              >
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.68rem',
+                                      fontWeight: 700,
+                                      color: '#2563EB',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.04em'
+                                    }}
+                                  >
+                                    1. What Changed?
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.9rem',
+                                      fontWeight: 700,
+                                      color: '#0F172A'
+                                    }}
+                                  >
+                                    Geographic &amp; regional store scope
+                                  </div>
+                                </div>
+                                <span
+                                  style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 600,
+                                    color: '#475569',
+                                    background: '#F1F5F9',
+                                    border: '1px solid #CBD5E1',
+                                    padding: '2px 8px',
+                                    borderRadius: 4
+                                  }}
+                                >
+                                  Regional opportunity matrix
+                                </span>
+                              </div>
+
+                              <div
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                                  gap: 10
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    background: '#F8FAFC',
+                                    border: '1px solid #E2E8F0',
+                                    borderRadius: 6,
+                                    padding: '10px 12px'
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: '0.7rem',
+                                      color: '#64748B',
+                                      fontWeight: 600
+                                    }}
+                                  >
+                                    Current campaign scope
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '1.02rem',
+                                      fontWeight: 700,
+                                      color: '#0F172A',
+                                      fontFamily: 'monospace',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    {activeRegion} ({activeStoresCount.toLocaleString('en-GB')}{' '}
+                                    stores)
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.69rem',
+                                      color: '#64748B',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    {activeDepthPct}% depth ·{' '}
+                                    {money(currentEcon.net_contribution_delta_gbp, {
+                                      signed: true
+                                    })}{' '}
+                                    contribution
+                                  </div>
+                                </div>
+
+                                <div
+                                  style={{
+                                    background: '#F8FAFC',
+                                    border: '1px solid #E2E8F0',
+                                    borderRadius: 6,
+                                    padding: '10px 12px'
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: '0.7rem',
+                                      color: '#64748B',
+                                      fontWeight: 600
+                                    }}
+                                  >
+                                    Tested high-propensity cluster
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '1.02rem',
+                                      fontWeight: 700,
+                                      color: '#1E40AF',
+                                      fontFamily: 'monospace',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    {targetRegion} ({targetStores.toLocaleString('en-GB')} stores)
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.69rem',
+                                      color: '#64748B',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    Opportunity Index {bestCell?.opportunity_index ?? 91}/100 (
+                                    {bestCell?.tier ?? 'PREFERRED'})
+                                  </div>
+                                </div>
+
+                                <div
+                                  style={{
+                                    background: '#F8FAFC',
+                                    border: '1px solid #E2E8F0',
+                                    borderRadius: 6,
+                                    padding: '10px 12px'
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: '0.7rem',
+                                      color: '#64748B',
+                                      fontWeight: 600
+                                    }}
+                                  >
+                                    Cluster contribution at {activeDepthPct}%
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '1.02rem',
+                                      fontWeight: 700,
+                                      color:
+                                        summary.economic_effect_gbp >= 0 ? '#059669' : '#DC2626',
+                                      fontFamily: 'monospace',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    {money(summary.economic_effect_gbp, { signed: true })}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.69rem',
+                                      color: '#64748B',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    +{summary.expected_uplift_pct.toFixed(1)}% demand uplift in{' '}
+                                    {targetRegion}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 2. Does Our Decision Still Hold? */}
+                            <div
+                              data-testid="what-if-decision-holds-store_scope"
+                              style={{
+                                background: '#FFFFFF',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: 8,
+                                padding: '14px 16px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 12
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  flexWrap: 'wrap',
+                                  gap: 8
+                                }}
+                              >
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.68rem',
+                                      fontWeight: 700,
+                                      color: '#2563EB',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.04em'
+                                    }}
+                                  >
+                                    2. Does Our Decision Still Hold?
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.9rem',
+                                      fontWeight: 700,
+                                      color: '#0F172A'
+                                    }}
+                                  >
+                                    {summary.recommendation_changes
+                                      ? `Targeted execution in ${targetRegion} (${targetStores.toLocaleString('en-GB')} stores) avoids low-propensity regional dilution`
+                                      : `Yes — the campaign is already focused on the highest-ranking ${targetRegion} cluster`}
+                                  </div>
+                                </div>
+                                <span
+                                  style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 700,
+                                    color: summary.recommendation_changes ? '#92400E' : '#065F46',
+                                    background: summary.recommendation_changes
+                                      ? '#FFFBEB'
+                                      : '#ECFDF5',
+                                    border: `1px solid ${summary.recommendation_changes ? '#FDE68A' : '#A7F3D0'}`,
+                                    padding: '3px 8px',
+                                    borderRadius: 4
+                                  }}
+                                >
+                                  {summary.recommendation_changes
+                                    ? 'CHANGE RECOMMENDED'
+                                    : 'DECISION STILL HOLDS'}
+                                </span>
+                              </div>
+
+                              {/* Why this scope performs better (Honest Regional Evidence — No Fabricated Store-Count Boundary) */}
+                              <div
+                                data-testid="what-if-why-scope-performs-better"
+                                style={{
+                                  background: '#F8FAFC',
+                                  border: '1px solid #E2E8F0',
+                                  borderRadius: 6,
+                                  padding: '10px 12px',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 8
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    color: '#0F172A'
+                                  }}
+                                >
+                                  Why this scope performs better
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: '0.78rem',
+                                    color: '#334155',
+                                    lineHeight: 1.45
+                                  }}
+                                >
+                                  Across the estate,{' '}
+                                  <strong>
+                                    {
+                                      resolvedScenario.estate
+                                        .high_opportunity_incremental_share_pct
+                                    }
+                                    %
+                                  </strong>{' '}
+                                  of incremental promotional demand comes from{' '}
+                                  <strong>
+                                    {resolvedScenario.estate.high_opportunity_store_count.toLocaleString(
+                                      'en-GB'
+                                    )}{' '}
+                                    high-opportunity stores
+                                  </strong>
+                                  . In the regional opportunity ranking,{' '}
+                                  <strong>{targetRegion}</strong> ranks #1 (Index{' '}
+                                  <strong>{bestCell?.opportunity_index ?? 91}/100</strong>) due to
+                                  strong category propensity and regional DC stock headroom, while
+                                  lower-scoring regions dilute unit margin.
+                                </div>
+
+                                <div
+                                  style={{
+                                    display: 'grid',
+                                    gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))',
+                                    gap: 6,
+                                    marginTop: 2
+                                  }}
+                                >
+                                  {sortedRegions.map(cell => {
+                                    const isBest = cell.region === targetRegion;
+                                    return (
+                                      <div
+                                        key={cell.region}
+                                        style={{
+                                          background: isBest ? '#EFF6FF' : '#FFFFFF',
+                                          border: isBest
+                                            ? '1.5px solid #2563EB'
+                                            : '1px solid #E2E8F0',
+                                          borderRadius: 6,
+                                          padding: '6px 8px',
+                                          fontSize: '0.7rem'
+                                        }}
+                                      >
+                                        <div
+                                          style={{
+                                            fontWeight: 700,
+                                            color: '#0F172A',
+                                            display: 'flex',
+                                            justifyContent: 'space-between',
+                                            gap: 4
+                                          }}
+                                        >
+                                          <span>{cell.region}</span>
+                                          <span
+                                            style={{
+                                              fontFamily: 'monospace',
+                                              color: isBest ? '#1E40AF' : '#64748B'
+                                            }}
+                                          >
+                                            {cell.opportunity_index}/100
+                                          </span>
+                                        </div>
+                                        <div
+                                          style={{
+                                            fontSize: '0.66rem',
+                                            color: '#475569',
+                                            marginTop: 2
+                                          }}
+                                        >
+                                          {cell.store_count.toLocaleString('en-GB')} stores ·{' '}
+                                          {cell.tier}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 3. What Should We Do? */}
+                            <div
+                              data-testid="what-if-what-should-we-do-store_scope"
+                              style={{
+                                background: '#FFFFFF',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: 8,
+                                padding: '14px 16px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 12
+                              }}
+                            >
+                              <div>
+                                <div
+                                  style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 700,
+                                    color: '#2563EB',
+                                    textTransform: 'uppercase',
+                                    letterSpacing: '0.04em'
+                                  }}
+                                >
+                                  3. What Should We Do?
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: '0.9rem',
+                                    fontWeight: 700,
+                                    color: '#0F172A'
+                                  }}
+                                >
+                                  Compare targeted regional cluster execution with current scope
+                                </div>
+                              </div>
+
+                              <div
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+                                  gap: 10
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    background: isSelected ? '#EFF6FF' : '#FFFFFF',
+                                    border: isSelected
+                                      ? '2px solid #2563EB'
+                                      : '1.5px solid #059669',
+                                    borderRadius: 8,
+                                    padding: '12px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    justifyContent: 'space-between',
+                                    gap: 10
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: 6
+                                    }}
+                                  >
+                                    <div>
+                                      <span
+                                        style={{
+                                          fontSize: '0.62rem',
+                                          fontWeight: 700,
+                                          color: '#065F46',
+                                          background: '#ECFDF5',
+                                          border: '1px solid #A7F3D0',
+                                          padding: '2px 6px',
+                                          borderRadius: 4
+                                        }}
+                                      >
+                                        HIGH-OPPORTUNITY CLUSTER
+                                      </span>
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: '0.84rem',
+                                        fontWeight: 700,
+                                        color: '#0F172A'
+                                      }}
+                                    >
+                                      Focus Scope on {targetRegion} (
+                                      {targetStores.toLocaleString('en-GB')} Stores)
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: '0.78rem',
+                                        fontWeight: 700,
+                                        color: '#1E293B',
+                                        fontFamily: 'monospace'
+                                      }}
+                                    >
+                                      {activeDepthPct}% · {targetRegion} · {activeDurationDays}{' '}
+                                      days
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: '1.02rem',
+                                        fontWeight: 800,
+                                        color:
+                                          summary.economic_effect_gbp >= 0 ? '#059669' : '#DC2626',
+                                        fontFamily: 'monospace'
+                                      }}
+                                    >
+                                      {money(summary.economic_effect_gbp, { signed: true })}{' '}
+                                      contribution
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: '0.74rem',
+                                        color: '#475569',
+                                        lineHeight: 1.4
+                                      }}
+                                    >
+                                      Concentrates execution in {targetRegion} (Index{' '}
+                                      {bestCell?.opportunity_index ?? 91}/100) to avoid low-yield
+                                      store margin drag and protect supply headroom.
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    data-testid="btn-stage-what-if-store_scope"
+                                    onClick={() => handleModelCondition(cond)}
+                                    style={{
+                                      width: '100%',
+                                      background: isSelected ? '#1E40AF' : '#059669',
+                                      color: '#FFFFFF',
+                                      border: 'none',
+                                      padding: '8px 12px',
+                                      borderRadius: 6,
+                                      fontSize: '0.76rem',
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: 6
+                                    }}
+                                  >
+                                    {isSelected ? (
+                                      <>
+                                        <CheckCircle2 size={13} />
+                                        <span>Selected as candidate ✓</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span>Stage as candidate</span>
+                                        <ArrowRight size={13} />
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+
+                                {summary.recommendation_changes && (
+                                  <div
+                                    style={{
+                                      background: '#F8FAFC',
+                                      border: '1px solid #CBD5E1',
+                                      borderRadius: 8,
+                                      padding: '12px',
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      justifyContent: 'space-between',
+                                      gap: 10
+                                    }}
+                                  >
+                                    <div
+                                      style={{
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        gap: 6
+                                      }}
+                                    >
+                                      <div>
+                                        <span
+                                          style={{
+                                            fontSize: '0.62rem',
+                                            fontWeight: 700,
+                                            color: '#475569',
+                                            background: '#E2E8F0',
+                                            padding: '2px 6px',
+                                            borderRadius: 4
+                                          }}
+                                        >
+                                          CURRENT SCOPE
+                                        </span>
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.84rem',
+                                          fontWeight: 700,
+                                          color: '#0F172A'
+                                        }}
+                                      >
+                                        Retain {activeRegion} Scope (
+                                        {activeStoresCount.toLocaleString('en-GB')} Stores)
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.78rem',
+                                          fontWeight: 700,
+                                          color: '#1E293B',
+                                          fontFamily: 'monospace'
+                                        }}
+                                      >
+                                        {activeDepthPct}% · {activeRegion} · {activeDurationDays}{' '}
+                                        days
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: '1.02rem',
+                                          fontWeight: 800,
+                                          color:
+                                            currentEcon.net_contribution_delta_gbp >= 0
+                                              ? '#059669'
+                                              : '#DC2626',
+                                          fontFamily: 'monospace'
+                                        }}
+                                      >
+                                        {money(currentEcon.net_contribution_delta_gbp, {
+                                          signed: true
+                                        })}{' '}
+                                        contribution
+                                      </div>
+                                      <div
+                                        style={{
+                                          fontSize: '0.74rem',
+                                          color: '#475569',
+                                          lineHeight: 1.4
+                                        }}
+                                      >
+                                        Applies {activeDepthPct}% across all{' '}
+                                        {activeStoresCount.toLocaleString('en-GB')} stores in{' '}
+                                        {activeRegion}, including lower-propensity regional
+                                        clusters.
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Progressive Disclosure: Analysis Details */}
+                            <details
+                              data-testid="what-if-details-store_scope"
+                              style={{
+                                background: '#FFFFFF',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: 8,
+                                padding: '10px 14px'
+                              }}
+                            >
+                              <summary
+                                style={{
+                                  cursor: 'pointer',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 700,
+                                  color: '#1E40AF',
+                                  userSelect: 'none'
+                                }}
+                              >
+                                View analysis details (How CogniX evaluated this)
+                              </summary>
+                              <div
+                                style={{
+                                  marginTop: 10,
+                                  fontSize: '0.75rem',
+                                  color: '#334155',
+                                  lineHeight: 1.5,
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 6
+                                }}
+                              >
+                                <div>
+                                  CogniX evaluates store scope across discrete regional clusters in
+                                  the Opportunity Matrix rather than a continuous store-count sweep.{' '}
+                                  <strong>{targetRegion}</strong> scores{' '}
+                                  <strong>{bestCell?.opportunity_index ?? 91}/100</strong> across
+                                  five weighted factors:
+                                </div>
+                                {bestCell && (
+                                  <div
+                                    style={{
+                                      display: 'grid',
+                                      gridTemplateColumns:
+                                        'repeat(auto-fit, minmax(170px, 1fr))',
+                                      gap: 6
+                                    }}
+                                  >
+                                    {bestCell.factors.map(f => (
+                                      <div
+                                        key={f.factor_id}
+                                        style={{
+                                          background: '#F8FAFC',
+                                          border: '1px solid #E2E8F0',
+                                          borderRadius: 6,
+                                          padding: '6px 8px',
+                                          fontSize: '0.71rem'
+                                        }}
+                                      >
+                                        <div style={{ fontWeight: 700, color: '#0F172A' }}>
+                                          {f.label} ({f.points} pts)
+                                        </div>
+                                        <div style={{ color: '#475569', marginTop: 2 }}>
+                                          {f.rationale}
+                                        </div>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            </details>
+                          </>
+                        );
+                      })()}
+
+                    {/* ═══════════════════════════════════════════════════════
+                        CONDITION D: DEMAND RESPONSE (Classification A/B)
+                       ═══════════════════════════════════════════════════════ */}
+                    {cond.target_parameter === 'DEMAND_UPLIFT' &&
+                      (() => {
+                        const refDepth =
+                          activeDepthPct === recDepthPct &&
+                          archetype.default_discount_pct !== recDepthPct
+                            ? archetype.default_discount_pct
+                            : activeDepthPct;
+                        const nearestRef = archetype.elasticity_curve.reduce((best, pt) =>
+                          Math.abs(pt.discount_pct - refDepth) <
+                          Math.abs(best.discount_pct - refDepth)
+                            ? pt
+                            : best
+                        );
+                        const upliftGapPp = Number(
+                          (cond.target_value - nearestRef.expected_demand_uplift_pct).toFixed(1)
+                        );
+                        const targetDepth = summary.proposed_discount_pct;
+
+                        return (
+                          <>
+                            {/* 1. What Changed? */}
+                            <div
+                              data-testid="what-if-what-changed-demand_uplift"
+                              style={{
+                                background: '#FFFFFF',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: 8,
+                                padding: '14px 16px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 10
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  flexWrap: 'wrap',
+                                  gap: 8
+                                }}
+                              >
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.68rem',
+                                      fontWeight: 700,
+                                      color: '#2563EB',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.04em'
+                                    }}
+                                  >
+                                    1. What Changed?
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.9rem',
+                                      fontWeight: 700,
+                                      color: '#0F172A'
+                                    }}
+                                  >
+                                    Customer demand response sensitivity
+                                  </div>
+                                </div>
+                                <span
+                                  style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 600,
+                                    color: '#475569',
+                                    background: '#F1F5F9',
+                                    border: '1px solid #CBD5E1',
+                                    padding: '2px 8px',
+                                    borderRadius: 4
+                                  }}
+                                >
+                                  Derived from scenario curve
+                                </span>
+                              </div>
+
+                              <div
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                                  gap: 10
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    background: '#F8FAFC',
+                                    border: '1px solid #E2E8F0',
+                                    borderRadius: 6,
+                                    padding: '10px 12px'
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: '0.7rem',
+                                      color: '#64748B',
+                                      fontWeight: 600
+                                    }}
+                                  >
+                                    Expected demand response ({refDepth}%)
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '1.02rem',
+                                      fontWeight: 700,
+                                      color: '#0F172A',
+                                      fontFamily: 'monospace',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    +{nearestRef.expected_demand_uplift_pct.toFixed(1)}% uplift
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.69rem',
+                                      color: '#64748B',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    Expected volume response on scenario curve
+                                  </div>
+                                </div>
+
+                                <div
+                                  style={{
+                                    background: '#F8FAFC',
+                                    border: '1px solid #E2E8F0',
+                                    borderRadius: 6,
+                                    padding: '10px 12px'
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: '0.7rem',
+                                      color: '#64748B',
+                                      fontWeight: 600
+                                    }}
+                                  >
+                                    Required uplift to justify {refDepth}%
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '1.02rem',
+                                      fontWeight: 700,
+                                      color: '#1E40AF',
+                                      fontFamily: 'monospace',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    +{cond.target_value.toFixed(1)}% uplift
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.69rem',
+                                      color: '#64748B',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    +{upliftGapPp.toFixed(1)}pp stronger customer response needed
+                                  </div>
+                                </div>
+
+                                <div
+                                  style={{
+                                    background: '#F8FAFC',
+                                    border: '1px solid #E2E8F0',
+                                    borderRadius: 6,
+                                    padding: '10px 12px'
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      fontSize: '0.7rem',
+                                      color: '#64748B',
+                                      fontWeight: 600
+                                    }}
+                                  >
+                                    Contribution at optimal {targetDepth}%
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '1.02rem',
+                                      fontWeight: 700,
+                                      color:
+                                        summary.economic_effect_gbp >= 0 ? '#059669' : '#DC2626',
+                                      fontFamily: 'monospace',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    {money(summary.economic_effect_gbp, { signed: true })}
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.69rem',
+                                      color: '#64748B',
+                                      marginTop: 2
+                                    }}
+                                  >
+                                    {money(summary.economic_delta_vs_current_gbp, {
+                                      signed: true
+                                    })}{' '}
+                                    vs {activeDepthPct}% plan
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 2. Does Our Decision Still Hold? */}
+                            <div
+                              data-testid="what-if-decision-holds-demand_uplift"
+                              style={{
+                                background: '#FFFFFF',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: 8,
+                                padding: '14px 16px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 12
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  flexWrap: 'wrap',
+                                  gap: 8
+                                }}
+                              >
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.68rem',
+                                      fontWeight: 700,
+                                      color: '#2563EB',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.04em'
+                                    }}
+                                  >
+                                    2. Does Our Decision Still Hold?
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.9rem',
+                                      fontWeight: 700,
+                                      color: '#0F172A'
+                                    }}
+                                  >
+                                    {summary.recommendation_changes
+                                      ? `No — expected demand response (+${nearestRef.expected_demand_uplift_pct.toFixed(1)}%) does not offset ${refDepth}% margin erosion; ${targetDepth}% is recommended`
+                                      : `Yes — ${activeDepthPct}% depth is aligned with expected customer demand response`}
+                                  </div>
+                                </div>
+                                <span
+                                  style={{
+                                    fontSize: '0.68rem',
+                                    fontWeight: 700,
+                                    color: summary.recommendation_changes ? '#92400E' : '#065F46',
+                                    background: summary.recommendation_changes
+                                      ? '#FFFBEB'
+                                      : '#ECFDF5',
+                                    border: `1px solid ${summary.recommendation_changes ? '#FDE68A' : '#A7F3D0'}`,
+                                    padding: '3px 8px',
+                                    borderRadius: 4
+                                  }}
+                                >
+                                  {summary.recommendation_changes
+                                    ? 'CHANGE RECOMMENDED'
+                                    : 'DECISION STILL HOLDS'}
+                                </span>
+                              </div>
+
+                              <div
+                                data-testid="what-if-boundary-demand_uplift"
+                                style={{
+                                  background: '#F8FAFC',
+                                  border: '1px solid #E2E8F0',
+                                  borderRadius: 6,
+                                  padding: '10px 12px',
+                                  display: 'flex',
+                                  flexDirection: 'column',
+                                  gap: 6
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    fontSize: '0.72rem',
+                                    fontWeight: 700,
+                                    color: '#0F172A'
+                                  }}
+                                >
+                                  Decision boundary
+                                </div>
+                                <div
+                                  style={{
+                                    fontSize: '0.78rem',
+                                    color: '#334155',
+                                    lineHeight: 1.45
+                                  }}
+                                >
+                                  To justify a <strong>{refDepth}%</strong> discount over{' '}
+                                  <strong>{recDepthPct}%</strong>, customer demand uplift would
+                                  need to reach at least{' '}
+                                  <strong>+{cond.target_value.toFixed(1)}%</strong> (
+                                  <strong>+{upliftGapPp.toFixed(1)}pp</strong> above the expected{' '}
+                                  <strong>
+                                    +{nearestRef.expected_demand_uplift_pct.toFixed(1)}%
+                                  </strong>{' '}
+                                  response). Under expected customer demand, net contribution peaks
+                                  at <strong>{recDepthPct}%</strong>
+                                  {flipPoint ? (
+                                    <>
+                                      {' '}
+                                      and turns negative from{' '}
+                                      <strong>{flipPoint.discount_pct}%</strong>.
+                                    </>
+                                  ) : (
+                                    '.'
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* 3. What Should We Do? */}
+                            <div
+                              data-testid="what-if-what-should-we-do-demand_uplift"
+                              style={{
+                                background: '#FFFFFF',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: 8,
+                                padding: '14px 16px',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: 12
+                              }}
+                            >
+                              <div
+                                style={{
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'space-between',
+                                  flexWrap: 'wrap',
+                                  gap: 8
+                                }}
+                              >
+                                <div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.68rem',
+                                      fontWeight: 700,
+                                      color: '#2563EB',
+                                      textTransform: 'uppercase',
+                                      letterSpacing: '0.04em'
+                                    }}
+                                  >
+                                    3. What Should We Do?
+                                  </div>
+                                  <div
+                                    style={{
+                                      fontSize: '0.9rem',
+                                      fontWeight: 700,
+                                      color: '#0F172A'
+                                    }}
+                                  >
+                                    Align promotional depth with expected customer demand response
+                                  </div>
+                                </div>
+                                {onOpenDemandLens && (
+                                  <button
+                                    type="button"
+                                    onClick={() => onOpenDemandLens()}
+                                    style={{
+                                      background: 'transparent',
+                                      color: '#1E40AF',
+                                      border: 'none',
+                                      padding: '2px 4px',
+                                      fontSize: '0.75rem',
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      textDecoration: 'underline'
+                                    }}
+                                  >
+                                    Inspect Demand &amp; Elasticity Curve →
+                                  </button>
+                                )}
+                              </div>
+
+                              <div
+                                style={{
+                                  display: 'grid',
+                                  gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+                                  gap: 10
+                                }}
+                              >
+                                <div
+                                  style={{
+                                    background: isSelected ? '#EFF6FF' : '#FFFFFF',
+                                    border: isSelected
+                                      ? '2px solid #2563EB'
+                                      : '1.5px solid #059669',
+                                    borderRadius: 8,
+                                    padding: '12px',
+                                    display: 'flex',
+                                    flexDirection: 'column',
+                                    justifyContent: 'space-between',
+                                    gap: 10
+                                  }}
+                                >
+                                  <div
+                                    style={{
+                                      display: 'flex',
+                                      flexDirection: 'column',
+                                      gap: 6
+                                    }}
+                                  >
+                                    <div>
+                                      <span
+                                        style={{
+                                          fontSize: '0.62rem',
+                                          fontWeight: 700,
+                                          color: '#065F46',
+                                          background: '#ECFDF5',
+                                          border: '1px solid #A7F3D0',
+                                          padding: '2px 6px',
+                                          borderRadius: 4
+                                        }}
+                                      >
+                                        {COMPETITIVE_PREFERRED_RESPONSE_BADGE}
+                                      </span>
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: '0.84rem',
+                                        fontWeight: 700,
+                                        color: '#0F172A'
+                                      }}
+                                    >
+                                      Align Plan to {targetDepth}% Depth
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: '0.78rem',
+                                        fontWeight: 700,
+                                        color: '#1E293B',
+                                        fontFamily: 'monospace'
+                                      }}
+                                    >
+                                      {targetDepth}% · {activeRegion} · {activeDurationDays} days
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: '1.02rem',
+                                        fontWeight: 800,
+                                        color:
+                                          summary.economic_effect_gbp >= 0 ? '#059669' : '#DC2626',
+                                        fontFamily: 'monospace'
+                                      }}
+                                    >
+                                      {money(summary.economic_effect_gbp, { signed: true })}{' '}
+                                      contribution
+                                    </div>
+                                    <div
+                                      style={{
+                                        fontSize: '0.74rem',
+                                        color: '#475569',
+                                        lineHeight: 1.4
+                                      }}
+                                    >
+                                      Captures +{summary.expected_uplift_pct.toFixed(1)}% demand
+                                      uplift at the contribution peak rather than relying on an
+                                      unattained +{cond.target_value.toFixed(1)}% surge at{' '}
+                                      {refDepth}%.
+                                    </div>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    data-testid="btn-stage-what-if-demand_uplift"
+                                    onClick={() => handleModelCondition(cond)}
+                                    style={{
+                                      width: '100%',
+                                      background: isSelected ? '#1E40AF' : '#059669',
+                                      color: '#FFFFFF',
+                                      border: 'none',
+                                      padding: '8px 12px',
+                                      borderRadius: 6,
+                                      fontSize: '0.76rem',
+                                      fontWeight: 600,
+                                      cursor: 'pointer',
+                                      display: 'inline-flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'center',
+                                      gap: 6
+                                    }}
+                                  >
+                                    {isSelected ? (
+                                      <>
+                                        <CheckCircle2 size={13} />
+                                        <span>Selected as candidate ✓</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <span>Stage as candidate</span>
+                                        <ArrowRight size={13} />
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Progressive Disclosure: Analysis Details */}
+                            <details
+                              data-testid="what-if-details-demand_uplift"
+                              style={{
+                                background: '#FFFFFF',
+                                border: '1px solid #E2E8F0',
+                                borderRadius: 8,
+                                padding: '10px 14px'
+                              }}
+                            >
+                              <summary
+                                style={{
+                                  cursor: 'pointer',
+                                  fontSize: '0.8rem',
+                                  fontWeight: 700,
+                                  color: '#1E40AF',
+                                  userSelect: 'none'
+                                }}
+                              >
+                                View analysis details (How CogniX evaluated this)
+                              </summary>
+                              <div
+                                style={{
+                                  marginTop: 10,
+                                  fontSize: '0.75rem',
+                                  color: '#334155',
+                                  lineHeight: 1.5
+                                }}
+                              >
+                                Evaluated using the scenario&apos;s own-price promotional demand
+                                response parameter ({archetype.price_elasticity}pp per discount
+                                point) and {(archetype.cannibalisation_rate * 100).toFixed(1)}%
+                                cannibalisation rate across{' '}
+                                {activeStoresCount.toLocaleString('en-GB')} stores. The candidate
+                                proposal selects the curve&apos;s highest-contribution tier (
+                                {recDepthPct}%) and records the negative sign-flip boundary
+                                {flipPoint ? ` at ${flipPoint.discount_pct}%` : ''}.
+                              </div>
+                            </details>
+                          </>
+                        );
+                      })()}
                   </div>
-                  <div>
-                    <div style={{ fontSize: '0.64rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
-                      Tested Condition
-                    </div>
-                    <div style={{ fontWeight: 700, color: '#2563EB', marginTop: 2 }}>
-                      {localise(summary.tested_condition)}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.64rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
-                      Economic / Decision Effect
-                    </div>
-                    <div
-                      style={{
-                        fontWeight: 700,
-                        color: summary.economic_effect_gbp >= 0 ? '#059669' : '#DC2626',
-                        marginTop: 2,
-                        fontFamily: 'monospace'
-                      }}
-                    >
-                      {summary.economic_effect_gbp >= 0 ? '+' : ''}
-                      {money(summary.economic_effect_gbp)} net (
-                      {summary.economic_delta_vs_current_gbp >= 0 ? '+' : ''}
-                      {money(summary.economic_delta_vs_current_gbp)} vs current)
-                    </div>
-                    <div style={{ fontSize: '0.68rem', color: '#475569', marginTop: 1 }}>
-                      {localise(summary.decision_boundary)}
-                    </div>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '0.64rem', fontWeight: 700, color: '#64748B', textTransform: 'uppercase' }}>
-                      Recommendation Implication
-                    </div>
-                    <div style={{ color: '#334155', marginTop: 2, lineHeight: 1.35 }}>
-                      {localise(summary.recommendation_implication)}
-                    </div>
-                  </div>
-                </div>
+                )}
               </div>
             );
           })}

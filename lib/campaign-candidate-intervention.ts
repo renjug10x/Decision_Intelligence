@@ -639,10 +639,10 @@ export function describeInverseConditionDecision(args: {
 
   return {
     parameter_kind: 'DEMAND_UPLIFT',
-    condition_label: 'Elasticity & Demand-Flip Threshold',
-    decision_question: 'What has to change on the demand response curve before we should make a different depth decision?',
-    current_assumption: `At ${activeDiscount}% cut, declared elasticity (ε = ${archetype.price_elasticity}) delivers +${nearestCurrent.expected_demand_uplift_pct.toFixed(1)}% uplift`,
-    tested_condition: `Requires +${condition.target_value.toFixed(1)}% uplift at ${referenceDepth}% (${upliftGapPp >= 0 ? '+' : ''}${upliftGapPp}pp above the curve) to justify ${referenceDepth}% over ${recommended.discount_pct}%`,
+    condition_label: 'Demand Response & Uplift Threshold',
+    decision_question: 'How much stronger would customer demand response need to be to justify the deeper discount?',
+    current_assumption: `At ${activeDiscount}% cut, expected demand response delivers +${nearestCurrent.expected_demand_uplift_pct.toFixed(1)}% uplift`,
+    tested_condition: `Requires +${condition.target_value.toFixed(1)}% uplift at ${referenceDepth}% (${upliftGapPp >= 0 ? '+' : ''}${upliftGapPp}pp above expected response) to justify ${referenceDepth}% over ${recommended.discount_pct}%`,
     economic_effect_gbp: testedEcon.net_contribution_delta_gbp,
     economic_delta_vs_current_gbp: deltaGbp,
     expected_uplift_pct: testedEcon.expected_demand_uplift_pct,
@@ -651,7 +651,7 @@ export function describeInverseConditionDecision(args: {
       : `Recommended point: ${recommended.discount_pct}% (+${recommended.expected_demand_uplift_pct.toFixed(1)}%) · No negative sign-flip beyond ${activeDiscount}%`,
     recommendation_changes: changes,
     recommendation_implication: changes
-      ? `Because +${condition.target_value.toFixed(1)}% uplift exceeds the declared ε = ${archetype.price_elasticity} curve (+${nearestCurrent.expected_demand_uplift_pct.toFixed(1)}%), recommendation moves from ${activeDiscount}% to ${targetDepth}%.`
+      ? `Because +${condition.target_value.toFixed(1)}% uplift exceeds the expected demand curve (+${nearestCurrent.expected_demand_uplift_pct.toFixed(1)}%), recommendation moves from ${activeDiscount}% to ${targetDepth}%.`
       : `Current ${activeDiscount}% depth already aligns with the curve's optimal point.`,
     recommended_discount_pct: recommended.discount_pct,
     flip_discount_pct: flip?.discount_pct,

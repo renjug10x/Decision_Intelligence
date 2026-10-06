@@ -2718,37 +2718,106 @@ function buildScenarioArchetypeProjection(scenario: CanonicalScenario): Campaign
 
     /* The same funding rule `withCanonicalEconomics` applies, against this scenario's own gap. */
     inverse_conditions: archetype.inverse_conditions.map(condition => {
-      if (condition.target_parameter !== 'SUPPLIER_FUNDING') return condition;
-      const required = Math.max(
-        0,
-        Math.round(recommended.net_contribution_delta_gbp - current.net_contribution_delta_gbp)
-      );
-      if (required === 0) {
+      if (condition.target_parameter === 'SUPPLIER_FUNDING') {
+        const required = Math.max(
+          0,
+          Math.round(recommended.net_contribution_delta_gbp - current.net_contribution_delta_gbp)
+        );
+        if (required === 0) {
+          return {
+            ...condition,
+            target_value: 0,
+            target_display: 'no funding needed',
+            condition_text: 'Supplier co-funding is not what decides this',
+            explanation:
+              `At ${current.discount_pct}% the committed depth is already the best point on this curve, `
+              + 'so trade funding would improve the return without changing the decision.'
+          };
+        }
         return {
           ...condition,
-          target_value: 0,
-          target_display: 'no funding needed',
-          condition_text: 'Supplier co-funding is not what decides this',
+          target_value: required,
+          target_display: `${formatGbpShort(required)} funding`,
+          condition_text: `Supplier co-funding >= ${formatGbpShort(required)}`,
           explanation:
-            `At ${current.discount_pct}% the committed depth is already the best point on this curve, `
-            + 'so trade funding would improve the return without changing the decision.'
+            `${formatGbpShort(required)} of trade funding would make the committed ${current.discount_pct}% depth worth as much as `
+            + `reducing to ${recommended.discount_pct}%. Below that, the shallower cut is the better decision.`
         };
       }
-      return {
-        ...condition,
-        target_value: required,
-        target_display: `${formatGbpShort(required)} funding`,
-        condition_text: `Supplier co-funding >= ${formatGbpShort(required)}`,
-        explanation:
-          `${formatGbpShort(required)} of trade funding would make the committed ${current.discount_pct}% depth worth as much as `
-          + `reducing to ${recommended.discount_pct}%. Below that, the shallower cut is the better decision.`
-      };
+
+      if (condition.target_parameter === 'DISCOUNT_DEPTH') {
+        const targetDepth = recommended.discount_pct;
+        return {
+          ...condition,
+          target_value: targetDepth,
+          target_display: `${targetDepth}% discount`,
+          condition_text: `Promotional discount depth <= ${targetDepth}%`,
+          explanation:
+            targetDepth === current.discount_pct
+              ? `At ${current.discount_pct}% the committed depth is already the highest-contribution tier on this curve (${recommended.net_contribution_delta_gbp >= 0 ? '+' : ''}${formatGbpShort(recommended.net_contribution_delta_gbp)}).`
+              : `Reducing discount from ${current.discount_pct}% to ${targetDepth}% prevents margin compression and produces ${recommended.net_contribution_delta_gbp >= 0 ? '+' : ''}${formatGbpShort(recommended.net_contribution_delta_gbp)} net contribution.`,
+          modelling_action_label: `Stage ${targetDepth}% Discount →`
+        };
+      }
+
+      if (condition.target_parameter === 'STORE_SCOPE') {
+        const focusRegion = scenario.identity.focus_region || 'North West';
+        const focusStores = scenarioStoreCount(scenario, focusRegion);
+        return {
+          ...condition,
+          target_value: focusStores,
+          target_display: `${focusStores.toLocaleString('en-GB')} stores`,
+          condition_text: `Campaign store scope <= ${focusStores.toLocaleString('en-GB')} high-yield stores (${focusRegion})`,
+          explanation:
+            `Concentrating execution in the ${focusRegion} cluster (${focusStores.toLocaleString('en-GB')} stores, `
+            + `within the ${scenario.estate.high_opportunity_store_count.toLocaleString('en-GB')} high-propensity stores generating `
+            + `${scenario.estate.high_opportunity_incremental_share_pct}% of incremental demand) avoids low-yield store margin leakage.`,
+          modelling_action_label: `Stage ${focusRegion} Scope →`
+        };
+      }
+
+      if (condition.target_parameter === 'DEMAND_UPLIFT') {
+        return {
+          ...condition,
+          explanation:
+            `Volume at ${current.discount_pct}% depth would need to increase by ${condition.target_value.toFixed(1)}% `
+            + `rather than ${current.expected_demand_uplift_pct.toFixed(1)}% to offset the price erosion relative to ${recommended.discount_pct}%.`
+        };
+      }
+
+      return condition;
     }),
+
+    change_triggers: isForeignSku
+      ? archetype.change_triggers.map(trig => {
+          if (trig.trigger_id === 'trig_1') {
+            return {
+              ...trig,
+              monitored_signal: `${scenario.supply.supplier_id} Weekly Factory Headroom`
+            };
+          }
+          if (trig.trigger_id === 'trig_3') {
+            const required = Math.max(
+              0,
+              Math.round(recommended.net_contribution_delta_gbp - current.net_contribution_delta_gbp)
+            );
+            return {
+              ...trig,
+              boundary_condition: `Supplier promotional rebate confirmed >= ${formatGbpShort(required)}`,
+              decision_shift: `National ${current.discount_pct}% campaign matches ${recommended.discount_pct}% contribution`
+            };
+          }
+          return trig;
+        })
+      : archetype.change_triggers,
 
     /* Play SHAPES are the archetype's; what each one is worth is this scenario's arithmetic. */
     opportunity_matrix: archetype.opportunity_matrix.map(cell => ({
       ...cell,
-      store_count: scenarioStoreCount(scenario, cell.region),
+      store_count:
+        cell.region in scenario.estate.region_store_counts
+          ? scenarioStoreCount(scenario, cell.region)
+          : Math.round(scenario.estate.national_store_count * 0.08),
       factors: isForeignSku
         ? cell.factors.map(f => ({
             ...f,
@@ -2763,9 +2832,31 @@ function buildScenarioArchetypeProjection(scenario: CanonicalScenario): Campaign
             ? {
                 ...sig,
                 signal_headline: `Rival supermarket launched 15% discount on competing ${subcatLower} line.`,
-                observed_metric: `Rival price £${sampleCompPrice} (-12%)`
+                observed_metric: `Rival price £${sampleCompPrice} (-12%)`,
+                hypothesis_statement: `Matching competitor at ${current.discount_pct}% nationally triggers severe margin erosion; ${recommended.discount_pct}% selective promo retains shopper share safely.`,
+                test_result: {
+                  ...sig.test_result,
+                  explanation: `${recommended.discount_pct}% targeted discount defends brand volume against rival without entering unprofitable price erosion.`,
+                  proposed_intervention: {
+                    ...sig.test_result.proposed_intervention,
+                    discount: recommended.discount_pct
+                  }
+                }
               }
-            : sig
+            : sig.signal_id === 'SIG-CHILLED-01'
+              ? {
+                  ...sig,
+                  hypothesis_statement: `A concentrated ${recommended.discount_pct}% promotion across North West / Midlands stores will drain depot buffer without national margin sacrifice.`,
+                  test_result: {
+                    ...sig.test_result,
+                    explanation: `Regional simulation confirms North West and Midlands stores absorb depot buffer while delivering ${recommended.net_contribution_delta_gbp >= 0 ? '+' : ''}${formatGbpShort(recommended.net_contribution_delta_gbp)} net contribution at ${recommended.discount_pct}% depth.`,
+                    proposed_intervention: {
+                      ...sig.test_result.proposed_intervention,
+                      discount: recommended.discount_pct
+                    }
+                  }
+                }
+              : sig
         )
       : archetype.signal_hypotheses,
 

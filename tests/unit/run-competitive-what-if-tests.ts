@@ -785,6 +785,86 @@ async function runTests() {
         inverseLensSource.includes('COMPETITIVE_PREFERRED_RESPONSE_BADGE'),
       'L-L/M Response option cards present concise comparison hierarchy, Stage as candidate CTA, View details progressive disclosure, and COGNIX PREFERRED RESPONSE',
     );
+
+    // M1: Legacy CONDITION 1..4 card chrome and dense 4-column diagnostic headers are removed from InverseAnalysisLens
+    assert(
+      !/CONDITION\s*\{idx\s*\+\s*1\}/.test(inverseLensSource) &&
+        !/RECOMMENDATION CHANGES ON ACCEPT/.test(inverseLensSource) &&
+        !/EVALUATION OVERLAY · PLANNER DEPTH UNCHANGED/.test(inverseLensSource) &&
+        !/Current Assumption/.test(inverseLensSource) &&
+        !/Tested Condition/.test(inverseLensSource) &&
+        !/Economic \/ Decision Effect/.test(inverseLensSource) &&
+        !/Recommendation Implication/.test(inverseLensSource),
+      'M1 Legacy CONDITION 1..4 headers and Current Assumption / Tested Condition / Economic Effect / Recommendation Implication grid labels are removed',
+    );
+
+    // M2: Technical symbol ε is absent from InverseAnalysisLens and describeInverseConditionDecision
+    assert(
+      !inverseLensSource.includes('ε'),
+      'M2 InverseAnalysisLens contains zero technical elasticity symbol (ε) references',
+    );
+    for (const cond of washingUpProjection.inverse_conditions) {
+      const desc = describeInverseConditionDecision({
+        archetype: washingUpProjection,
+        condition: cond,
+        currentDiscountPct: washingUpProjection.default_discount_pct,
+        currentRegion: washingUpProjection.default_region,
+        currentDurationDays: washingUpProjection.default_duration_days,
+      });
+      assert(
+        !JSON.stringify(desc).includes('ε') && !JSON.stringify(desc).includes('γ'),
+        `M2b [${cond.target_parameter}] describeInverseConditionDecision output contains no ε or γ symbols`,
+      );
+    }
+
+    // M3: Single-expanded-question accordion behavior
+    assert(
+      inverseLensSource.includes('expandedConditionId') &&
+        inverseLensSource.includes('if (next) setExpandedConditionId(null)') &&
+        inverseLensSource.includes('if (next) setIsCompetitiveOpen(false)'),
+      'M3 What-If accordion enforces mutual exclusion so only one of the five What-If questions is expanded at a time',
+    );
+
+    // M4: All four conditions render collapsed summaries, Open analysis -> toggles, 3-question hierarchy, and Stage as candidate CTAs
+    for (const paramKey of ['supplier_funding', 'discount_depth', 'store_scope', 'demand_uplift']) {
+      assert(
+        inverseLensSource.includes(`what-if-what-changed-${paramKey}`) &&
+          inverseLensSource.includes(`what-if-decision-holds-${paramKey}`) &&
+          inverseLensSource.includes(`what-if-what-should-we-do-${paramKey}`) &&
+          inverseLensSource.includes(`btn-stage-what-if-${paramKey}`) &&
+          inverseLensSource.includes(`what-if-details-${paramKey}`),
+        `M4 [${paramKey}] Condition renders 1. What Changed?, 2. Does Our Decision Still Hold?, 3. What Should We Do?, Stage as candidate CTA, and View analysis details`,
+      );
+    }
+
+    // M5: Boundary honesty — Store Scope renders "Why this scope performs better" while Supplier Funding, Discount Depth, and Demand Response render Decision boundary
+    assert(
+      inverseLensSource.includes('data-testid="what-if-why-scope-performs-better"') &&
+        inverseLensSource.includes('Why this scope performs better') &&
+        inverseLensSource.includes('data-testid="what-if-boundary-supplier_funding"') &&
+        inverseLensSource.includes('data-testid="what-if-boundary-discount_depth"') &&
+        inverseLensSource.includes('data-testid="what-if-boundary-demand_uplift"'),
+      'M5 Store Scope uses honest "Why this scope performs better" regional comparison while Supplier Funding, Discount Depth, and Demand Response use derived/computed Decision boundary blocks',
+    );
+
+    // M6: Scenario projection aligns Washing Up Liquid (P041) inverse conditions and triggers to its own curve and supplier
+    const wuFunding = washingUpProjection.inverse_conditions.find(
+      (c) => c.target_parameter === 'SUPPLIER_FUNDING',
+    )!;
+    const wuDepth = washingUpProjection.inverse_conditions.find(
+      (c) => c.target_parameter === 'DISCOUNT_DEPTH',
+    )!;
+    const wuScope = washingUpProjection.inverse_conditions.find(
+      (c) => c.target_parameter === 'STORE_SCOPE',
+    )!;
+    assert(
+      wuFunding.target_value === 15442 &&
+        wuDepth.target_value === 5 &&
+        wuScope.target_value === 196 &&
+        !washingUpNarrativeDump.includes('SUP002') &&
+        !washingUpNarrativeDump.includes('Pruning 32 low-yield stores'),
+      `M6 Washing Up Liquid (P041) projects Supplier Funding=${wuFunding.target_value}, Optimal Depth=${wuDepth.target_value}%, Focus Scope=${wuScope.target_value} stores, with zero SUP002 or retired 50-store estate strings`,
+    );
   }
 
   console.log('\n══════════════════════════════════════════════════════════');
