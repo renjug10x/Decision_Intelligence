@@ -33,6 +33,8 @@ export default function DecisionFrontierLens({
 
   /* Signed money in the reader's currency, converted once from the modelled GBP amount. */
   const formatGbp = (v: number) => money(v, { signed: true });
+  const isNonFoodCategory = /non-food|household|cleaning/i.test(archetype.category);
+  const wasteOrHoldingLabel = isNonFoodCategory ? 'Stock Holding Impact' : 'Waste Impact';
 
   const handleAdoptPlay = (play: FrontierPlay) => {
     onProposeIntervention({
@@ -53,7 +55,7 @@ export default function DecisionFrontierLens({
         notes: [
           play.is_current ? 'This is the committed plan on the scenario curve.' : '',
           play.is_recommended ? 'Curve-recommended point — not a CDI-06 Pareto survivor.' : '',
-          `Supply exposure (${play.supply_exposure}) and waste (${play.waste_impact_pct}%) are seeded play labels.`
+          `Supply exposure (${play.supply_exposure}) and ${wasteOrHoldingLabel.toLowerCase()} (${play.waste_impact_pct}%) are seeded play labels.`
         ].filter(Boolean)
       }
     });
@@ -150,10 +152,10 @@ export default function DecisionFrontierLens({
                 note: 'Current play supply posture'
               },
               {
-                dim: 'Waste Impact',
+                dim: wasteOrHoldingLabel,
                 rating: `${currentPlay.waste_impact_pct >= 0 ? '+' : ''}${currentPlay.waste_impact_pct}%`,
                 color: currentPlay.waste_impact_pct <= 0 ? '#10B981' : '#F59E0B',
-                note: 'Current play waste effect'
+                note: isNonFoodCategory ? 'Current play stock-cover effect' : 'Current play waste effect'
               },
               {
                 dim: 'Decision Confidence',
@@ -337,7 +339,7 @@ export default function DecisionFrontierLens({
               <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: 4, display: 'flex', gap: 12 }}>
                 <span>Supply Exposure: <strong>{selectedPlay.supply_exposure}</strong></span>
                 <span>·</span>
-                <span>Waste Impact: <strong>{selectedPlay.waste_impact_pct}%</strong></span>
+                <span>{wasteOrHoldingLabel}: <strong>{selectedPlay.waste_impact_pct}%</strong></span>
               </div>
             </div>
 

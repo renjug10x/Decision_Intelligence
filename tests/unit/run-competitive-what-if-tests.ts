@@ -27,6 +27,7 @@ import {
   SCENARIO_SITUATIONS,
   SCENARIO_SITUATIONS_NOT_SUPPORTED,
 } from '../../packages/contracts/src/index';
+import { resolveScenarioDraft } from '../../lib/scenario-authoring/index';
 import {
   scenarioArchetypeProjection,
   scenarioElasticityCurve,
@@ -199,11 +200,15 @@ async function runTests() {
       'B5 InverseAnalysisLens UI source never contains prohibited "Observed competitor price", "Market price", or "Competitor signal" copy',
     );
     assert(
-      /Demand sensitivity to competitive price difference/.test(inverseLensSource) &&
-        /Modelled demand impact for each percentage-point that our price is above or below the competitive benchmark\./.test(
+      /Competitive benchmark price/.test(inverseLensSource) &&
+        /The competitive shelf price you want to test\./.test(inverseLensSource) &&
+        /Expected demand response/.test(inverseLensSource) &&
+        /How strongly we expect customer demand to react when our price differs from the competitive benchmark\./.test(
           inverseLensSource,
-        ),
-      'B6 Sensitivity input is explained in plain business language with technical coefficient γ in secondary detail',
+        ) &&
+        !inverseLensSource.includes('γ') &&
+        !/Technical coefficient/i.test(inverseLensSource),
+      'B6 Inputs use commercial language ("Competitive benchmark price" and "Expected demand response") without γ or technical coefficient vocabulary',
     );
   }
 
@@ -657,6 +662,128 @@ async function runTests() {
     assert(
       /scenario=\{activeScenario\}/.test(plannerSource),
       'K6 PromotionPlanner binds activeScenario into InverseAnalysisLens',
+    );
+  }
+
+  // ── L. UX RECONCILIATION & COMMERCIAL EXPERIENCE POLISH (A–Q) ─────────────
+  console.log('\n── L. UX RECONCILIATION & COMMERCIAL EXPERIENCE POLISH (A–Q) ──');
+  {
+    const workspaceSource = readFileSync(
+      join(ROOT, 'components', 'campaign', 'InterventionWorkspace.tsx'),
+      'utf8',
+    );
+    const flightActivationSource = readFileSync(
+      join(ROOT, 'components', 'campaign', 'FlightActivationPanel.tsx'),
+      'utf8',
+    );
+    const frontierLensSource = readFileSync(
+      join(ROOT, 'components', 'campaign', 'DecisionFrontierLens.tsx'),
+      'utf8',
+    );
+    const graphLensSource = readFileSync(
+      join(ROOT, 'components', 'campaign', 'DecisionGraphLens.tsx'),
+      'utf8',
+    );
+
+    // L-A: Certified/authored scenario does not display an unrelated selected Campaign Archetype
+    assert(
+      plannerSource.includes('data-testid="active-scenario-context-bar"') &&
+        plannerSource.includes('Boolean(activeScenario?.identity?.scenario_id)'),
+      'L-A Certified/authored scenario presents Active Scenario Context Bar instead of unrelated simulated Campaign Archetype selector',
+    );
+
+    // L-B: Non-food scenario does not display dairy/cheddar/cheese/waste narrative
+    const washingUpResolved = resolveScenarioDraft(
+      {
+        scenario_name: 'Competitive Price Response – Washing Up Liquid',
+        sku_id: 'P041',
+        situation: 'COMPETITIVE_PRICE_RESPONSE',
+        market_scope: 'NATIONAL',
+        promotion_depth_pct: 20,
+        forecast_horizon_days: 14,
+      },
+      'SCN-P041-UX-TEST',
+    );
+    const washingUpProjection = scenarioArchetypeProjection(washingUpResolved.scenario);
+    const washingUpNarrativeDump = JSON.stringify(washingUpProjection);
+    assert(
+      !/Chilled Dairy|dairy demand|Mild Cheddar|chilled cheese|private label cheese|SKU P004/i.test(
+        washingUpNarrativeDump,
+      ) &&
+        frontierLensSource.includes('Stock Holding Impact'),
+      'L-B Non-food scenario (Washing Up Liquid P041) contains zero dairy/cheddar/cheese/P004 narrative leaks and uses Stock Holding Impact',
+    );
+
+    // L-C: γ and internal field names do not appear in user-facing UI
+    assert(
+      !inverseLensSource.includes('γ') &&
+        !workspaceSource.includes('γ') &&
+        !flightActivationSource.includes('γ') &&
+        !graphLensSource.includes('γ') &&
+        !/competitive-technical-gamma-detail/.test(inverseLensSource),
+      'L-C γ and technical coefficient details are absent from user-facing UI components',
+    );
+
+    // L-D: FLIP_FOUND and NO_FLIP_WITHIN_TESTED_RANGE do not appear in user-facing UI text
+    assert(
+      !/`FLIP_FOUND/.test(inverseLensSource) &&
+        !/'NO_FLIP_WITHIN_TESTED_RANGE'/.test(inverseLensSource),
+      'L-D FLIP_FOUND and NO_FLIP_WITHIN_TESTED_RANGE enum strings do not render in user-facing UI',
+    );
+
+    // L-E: MAXIMUM_NET_CONTRIBUTION does not appear in user-facing UI
+    assert(
+      !/OBJECTIVE:\s*MAXIMUM NET CONTRIBUTION/.test(inverseLensSource) &&
+        inverseLensSource.includes('Objective: Highest expected contribution') &&
+        flightActivationSource.includes('Highest expected contribution'),
+      'L-E User-facing UI presents "Highest expected contribution" instead of MAXIMUM_NET_CONTRIBUTION',
+    );
+
+    // L-F & L-G: Evaluate button state machine (Evaluate -> Analysis updated ✓ -> Update analysis)
+    assert(
+      inverseLensSource.includes('isAssumptionUnchanged') &&
+        inverseLensSource.includes('isAssumptionStale') &&
+        inverseLensSource.includes('Analysis updated ✓') &&
+        inverseLensSource.includes('Update analysis') &&
+        inverseLensSource.includes('disabled={isAssumptionUnchanged}'),
+      'L-F/G Evaluate button implements Input ("Evaluate") -> Evaluated ("Analysis updated ✓" disabled) -> Stale ("Update analysis") state machine',
+    );
+
+    // L-H: Assumption form collapses into compact summary after evaluation with Edit action
+    assert(
+      inverseLensSource.includes('data-testid="competitive-assumption-summary"') &&
+        inverseLensSource.includes('data-testid="btn-edit-competitive-assumptions"') &&
+        inverseLensSource.includes('setIsEditingAssumptions(false)') &&
+        inverseLensSource.includes('setIsEditingAssumptions(true)'),
+      'L-H Assumption form collapses into compact summary after evaluation and restores inputs on Edit',
+    );
+
+    // L-I: Evaluated results follow the three-question hierarchy
+    assert(
+      inverseLensSource.includes('1. What Changed?') &&
+        inverseLensSource.includes('2. Does Our Decision Still Hold?') &&
+        inverseLensSource.includes('3. What Should We Do?'),
+      'L-I Evaluated results are structured around the three commercial questions',
+    );
+
+    // L-J & L-K: Decision boundary and Price-match reference render in business language
+    assert(
+      inverseLensSource.includes('The decision changes when our price disadvantage reaches approximately') &&
+        inverseLensSource.includes('Price-match reference') &&
+        /To match the modelled competitive benchmark,\s*promotional depth would need\s*to be approximately/.test(
+          inverseLensSource,
+        ) &&
+        inverseLensSource.includes('This is a reference point, not automatically the recommended response.'),
+      'L-J/K Decision boundary and Price-match reference render in clear commercial language',
+    );
+
+    // L-L & L-M: Four response option cards with simplified hierarchy, Stage as candidate CTA, View details disclosure, and COGNIX PREFERRED RESPONSE
+    assert(
+      inverseLensSource.includes('Stage as candidate') &&
+        inverseLensSource.includes('View details') &&
+        inverseLensSource.includes('data-testid="competitive-analysis-details"') &&
+        inverseLensSource.includes('COMPETITIVE_PREFERRED_RESPONSE_BADGE'),
+      'L-L/M Response option cards present concise comparison hierarchy, Stage as candidate CTA, View details progressive disclosure, and COGNIX PREFERRED RESPONSE',
     );
   }
 

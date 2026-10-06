@@ -834,7 +834,7 @@ export function buildCompetitiveAssumptionGraphNode(
     label: 'Competitive Assumption',
     category: 'HYPOTHESIS',
     provenance: 'SIMULATED',
-    summary: `Benchmark £${pos.assumed_competitive_price_gbp.toFixed(2)} · γ = ${gamma}pp/pp (${whatIfResult.current_position.relative_position_label})`,
+    summary: `Benchmark £${pos.assumed_competitive_price_gbp.toFixed(2)} · Demand response ${gamma} (${whatIfResult.current_position.relative_position_label})`,
     detail: selectedOpt
       ? `${COMPETITIVE_USER_FACING_PROVENANCE_BADGE} (${COMPETITIVE_USER_FACING_PROVENANCE_LABEL}): ${whatIfResult.intelligence_summary.decision_boundary_headline}. Selected response: ${selectedOpt.label}.`
       : `${COMPETITIVE_USER_FACING_PROVENANCE_BADGE} (${COMPETITIVE_USER_FACING_PROVENANCE_LABEL}): ${whatIfResult.intelligence_summary.decision_boundary_headline}. Preferred response: ${whatIfResult.response_options.preferred_option.label}.`
@@ -1003,14 +1003,14 @@ export function inspectDecisionGraphNode(args: {
           source: 'lib/competitive-price-response (MODELLED ASSUMPTION · entered by you)',
           provenance_tier: 'DERIVED_SCENARIO_CURVE',
           provenance_badge: 'MODELLED ASSUMPTION',
-          what_this_tells_us: `${comp.current_position.headline}. Our £${pos.our_promotional_price_gbp.toFixed(2)} promotional shelf price (${pos.promotion_depth_pct}% off £${pos.list_price_gbp.toFixed(2)} list) is evaluated against a £${pos.assumed_competitive_price_gbp.toFixed(2)} modelled benchmark at γ = ${comp.assumption.competitive_response_pp_per_disadvantage_point}pp per disadvantage point.`,
+          what_this_tells_us: `${comp.current_position.headline}. Our £${pos.our_promotional_price_gbp.toFixed(2)} promotional shelf price (${pos.promotion_depth_pct}% off £${pos.list_price_gbp.toFixed(2)} list) is evaluated against a £${pos.assumed_competitive_price_gbp.toFixed(2)} modelled benchmark with expected demand response ${comp.assumption.competitive_response_pp_per_disadvantage_point}.`,
           why_it_matters: `${comp.intelligence_summary.current_decision_detail} ${comp.response_options.preferred_response_rationale}`,
           threshold_comparison: `${comp.intelligence_summary.decision_boundary_headline} · Preferred response: ${pref.label} (${pref.depth_pct}% · ${pref.scope} · ${pref.duration_days}d)`,
           facts: [
             {
               label: 'Provenance',
               value: `${COMPETITIVE_USER_FACING_PROVENANCE_BADGE} (${COMPETITIVE_USER_FACING_PROVENANCE_LABEL})`,
-              note: 'origin: modelled · method: manual · authority: authoritative (counterfactual only)'
+              note: 'Modelled assumption · entered by you'
             },
             {
               label: 'Our price vs benchmark',
@@ -1018,8 +1018,8 @@ export function inspectDecisionGraphNode(args: {
               note: `Relative gap: ${pos.price_gap_gbp >= 0 ? '+' : ''}£${pos.price_gap_gbp.toFixed(2)} (${pos.disadvantage_pp >= 0 ? '+' : ''}${pos.disadvantage_pp.toFixed(2)}pp of list)`
             },
             {
-              label: 'Demand sensitivity (γ)',
-              value: `${comp.assumption.competitive_response_pp_per_disadvantage_point}pp per disadvantage point`,
+              label: 'Demand response assumption',
+              value: `${comp.assumption.competitive_response_pp_per_disadvantage_point}pp per percentage-point disadvantage`,
               note: `Own-price: +${impact.active_point.own_price_response_pp.toFixed(2)}pp · Competitive: ${impact.active_point.competitive_response_pp >= 0 ? '+' : ''}${impact.active_point.competitive_response_pp.toFixed(2)}pp`
             },
             {

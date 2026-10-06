@@ -2544,7 +2544,11 @@ function scenarioHeadlineParts(
  * to what the curve beside it says the cut buys. A waterfall that disagreed with the chart under
  * it is the three-numbers-for-one-quantity defect this was written against.
  */
-function scenarioWaterfall(archetype: CampaignArchetype, current: ElasticityPoint): WaterfallItem[] {
+function scenarioWaterfall(
+  archetype: CampaignArchetype,
+  current: ElasticityPoint,
+  scenario?: CanonicalScenario
+): WaterfallItem[] {
   /*
    * Lines are identified by the convention every archetype's waterfall already follows —
    * `…base…`, `…elas…`, `…net…` — rather than by the reference archetype's exact ids, which are
@@ -2556,6 +2560,10 @@ function scenarioWaterfall(archetype: CampaignArchetype, current: ElasticityPoin
   const isPrice = (w: WaterfallItem) => w.id.includes('elas');
   const isNet = (w: WaterfallItem) => w.id.includes('net');
   if (!seeded.some(isPrice) || !seeded.some(isNet)) return seeded;
+
+  const isForeignSku = Boolean(scenario && scenario.identity.sku_id !== archetype.default_sku);
+  const categoryLabel = scenario?.identity.category.toLowerCase() ?? 'category';
+  const subcategoryLabel = scenario?.identity.subcategory ?? scenario?.identity.category ?? 'Category';
 
   const depthResponse = current.expected_demand_uplift_pct;
   const otherInterventionPp = seeded
@@ -2591,6 +2599,19 @@ function scenarioWaterfall(archetype: CampaignArchetype, current: ElasticityPoin
         provenance: 'DERIVED' as const
       };
     }
+    if (isForeignSku && item.id === 'wf_drift') {
+      return {
+        ...item,
+        rationale: `Mild upward ambient trend in ${categoryLabel} demand.`
+      };
+    }
+    if (isForeignSku && item.id === 'wf_cann') {
+      return {
+        ...item,
+        label: `Portfolio Cannibalisation (${subcategoryLabel})`,
+        rationale: `Slight substitution away from adjacent ${subcategoryLabel.toLowerCase()} lines.`
+      };
+    }
     return item;
   });
 }
@@ -2614,6 +2635,9 @@ export function scenarioArchetypeProjection(scenario: CanonicalScenario): Campai
 function buildScenarioArchetypeProjection(scenario: CanonicalScenario): CampaignArchetype {
   const declared = getArchetypeById(scenario.taxonomy.archetype_id);
   const archetype = declared ?? CAMPAIGN_ARCHETYPES_MAP['ARCH-CHILLED-ELASTIC'];
+  const isForeignSku = scenario.identity.sku_id !== archetype.default_sku;
+  const subcatLower = (scenario.identity.subcategory || scenario.identity.category).toLowerCase();
+  const sampleCompPrice = (scenario.economics.list_price_gbp * 0.88).toFixed(2);
 
   // The shared engine. The same curve the certification gate evaluates C-6 against.
   const curve = scenarioElasticityCurve(scenario);
@@ -2635,6 +2659,7 @@ function buildScenarioArchetypeProjection(scenario: CanonicalScenario): Campaign
     ...archetype,
 
     // ── Declared scenario configuration. Identity is the record's, never the archetype's. ──
+    name: isForeignSku ? scenario.identity.scenario_name : archetype.name,
     category: scenario.identity.category,
     default_sku: scenario.identity.sku_id,
     sku_name: scenario.identity.sku_name,
@@ -2681,7 +2706,7 @@ function buildScenarioArchetypeProjection(scenario: CanonicalScenario): Campaign
         + 'supply agreement can serve. It is a volume success, a contribution sacrifice, and an availability risk at once.'
     },
 
-    waterfall: scenarioWaterfall(archetype, current),
+    waterfall: scenarioWaterfall(archetype, current, scenario),
 
     curve_summary: {
       current_discount_pct: current.discount_pct,
@@ -2723,8 +2748,48 @@ function buildScenarioArchetypeProjection(scenario: CanonicalScenario): Campaign
     /* Play SHAPES are the archetype's; what each one is worth is this scenario's arithmetic. */
     opportunity_matrix: archetype.opportunity_matrix.map(cell => ({
       ...cell,
-      store_count: scenarioStoreCount(scenario, cell.region)
+      store_count: scenarioStoreCount(scenario, cell.region),
+      factors: isForeignSku
+        ? cell.factors.map(f => ({
+            ...f,
+            rationale: f.rationale.replace(/chilled cheese/gi, subcatLower)
+          }))
+        : cell.factors
     })),
+
+    signal_hypotheses: isForeignSku
+      ? archetype.signal_hypotheses.map(sig =>
+          sig.signal_id === 'SIG-CHILLED-02'
+            ? {
+                ...sig,
+                signal_headline: `Rival supermarket launched 15% discount on competing ${subcatLower} line.`,
+                observed_metric: `Rival price £${sampleCompPrice} (-12%)`
+              }
+            : sig
+        )
+      : archetype.signal_hypotheses,
+
+    decision_graph: isForeignSku
+      ? {
+          ...archetype.decision_graph,
+          nodes: archetype.decision_graph.nodes.map(node => {
+            if (node.id === 'n_sig2') {
+              return {
+                ...node,
+                summary: `Rival discounted competing ${subcatLower} line to £${sampleCompPrice}`,
+                detail: `Seeded competitor price observation from the demonstration world model (SKU ${scenario.identity.sku_id}).`
+              };
+            }
+            if (node.id === 'n_ev1') {
+              return {
+                ...node,
+                summary: `Price elasticity ε = ${scenario.economics.promotional_response_pp_per_depth_point}`
+              };
+            }
+            return node;
+          })
+        }
+      : archetype.decision_graph,
 
     frontier_plays: archetype.frontier_plays.map(play => {
       const stores = Math.max(1, Math.min(play.stores_count, scenarioStoreCount(scenario, scenario.identity.market_scope_label)));

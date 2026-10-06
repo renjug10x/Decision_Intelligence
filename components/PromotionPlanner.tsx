@@ -1170,55 +1170,111 @@ export default function PromotionPlanner({
               boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
             }}
           >
-            {/* Archetype Selector Chips */}
-            <div style={{ marginBottom: 16 }}>
+            {/* Active Certified Scenario Context vs Standalone Demo Archetype Selector */}
+            {Boolean(activeScenario?.identity?.scenario_id) ? (
               <div
+                data-testid="active-scenario-context-bar"
                 style={{
-                  fontSize: '0.75rem',
-                  fontWeight: 600,
-                  color: '#64748B',
-                  textTransform: 'uppercase',
-                  letterSpacing: '0.04em',
-                  marginBottom: 8,
+                  marginBottom: 14,
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 6
+                  justifyContent: 'space-between',
+                  flexWrap: 'wrap',
+                  gap: 12
                 }}
               >
-                <Sparkles size={14} color="#2563EB" />
-                Select Campaign Archetype ({CAMPAIGN_ARCHETYPES.length} simulated scenarios)
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                  <span
+                    style={{
+                      fontSize: '0.68rem',
+                      fontWeight: 700,
+                      color: '#1E40AF',
+                      background: '#EFF6FF',
+                      border: '1px solid #BFDBFE',
+                      padding: '3px 8px',
+                      borderRadius: 4,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em'
+                    }}
+                  >
+                    Scenario Context
+                  </span>
+                  <span style={{ fontSize: '0.92rem', fontWeight: 700, color: '#0F172A' }}>
+                    {activeScenario.identity.scenario_name}
+                  </span>
+                  <span style={{ color: '#CBD5E1' }}>·</span>
+                  <span style={{ fontSize: '0.82rem', color: '#334155', fontWeight: 600 }}>
+                    Product: {activeScenario.identity.sku_name} ({activeScenario.identity.sku_id})
+                  </span>
+                  <span style={{ color: '#CBD5E1' }}>·</span>
+                  <span style={{ fontSize: '0.78rem', color: '#64748B' }}>
+                    {activeScenario.identity.category}
+                  </span>
+                </div>
+                <div
+                  style={{
+                    fontSize: '0.76rem',
+                    color: '#475569',
+                    background: '#F8FAFC',
+                    border: '1px solid #E2E8F0',
+                    padding: '4px 10px',
+                    borderRadius: 6,
+                    fontWeight: 600
+                  }}
+                >
+                  Current configuration: {discountDepth}% discount · {targetRegion} · {durationDays} days
+                </div>
               </div>
+            ) : (
+              <div style={{ marginBottom: 16 }}>
+                <div
+                  style={{
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    color: '#64748B',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.04em',
+                    marginBottom: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6
+                  }}
+                >
+                  <Sparkles size={14} color="#2563EB" />
+                  Select Campaign Archetype ({CAMPAIGN_ARCHETYPES.length} simulated scenarios)
+                </div>
 
-              {/* `overflowX: auto` alone does not stop seven nowrap chips forcing a ~1240px
-                  minimum width on the page, which pushed the whole planning view into horizontal
-                  overflow below that. Wrapping is what actually lets the row shrink. */}
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', overflowX: 'auto', paddingBottom: 4 }}>
-                {CAMPAIGN_ARCHETYPES.map(arch => {
-                  const isSelected = selectedArchetypeId === arch.id;
+                {/* `overflowX: auto` alone does not stop seven nowrap chips forcing a ~1240px
+                    minimum width on the page, which pushed the whole planning view into horizontal
+                    overflow below that. Wrapping is what actually lets the row shrink. */}
+                <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', overflowX: 'auto', paddingBottom: 4 }}>
+                  {CAMPAIGN_ARCHETYPES.map(arch => {
+                    const isSelected = selectedArchetypeId === arch.id;
 
-                  return (
-                    <button
-                      key={arch.id}
-                      onClick={() => handleSelectArchetype(arch.id)}
-                      style={{
-                        padding: '6px 12px',
-                        borderRadius: 6,
-                        border: isSelected ? '1.5px solid #2563EB' : '1px solid #E2E8F0',
-                        background: isSelected ? '#EFF6FF' : '#F8FAFC',
-                        color: isSelected ? '#1E40AF' : '#334155',
-                        fontSize: '0.8rem',
-                        fontWeight: isSelected ? 700 : 500,
-                        cursor: 'pointer',
-                        whiteSpace: 'nowrap',
-                        transition: 'all 0.15s ease'
-                      }}
-                    >
-                      {arch.name}
-                    </button>
-                  );
-                })}
+                    return (
+                      <button
+                        key={arch.id}
+                        onClick={() => handleSelectArchetype(arch.id)}
+                        style={{
+                          padding: '6px 12px',
+                          borderRadius: 6,
+                          border: isSelected ? '1.5px solid #2563EB' : '1px solid #E2E8F0',
+                          background: isSelected ? '#EFF6FF' : '#F8FAFC',
+                          color: isSelected ? '#1E40AF' : '#334155',
+                          fontSize: '0.8rem',
+                          fontWeight: isSelected ? 700 : 500,
+                          cursor: 'pointer',
+                          whiteSpace: 'nowrap',
+                          transition: 'all 0.15s ease'
+                        }}
+                      >
+                        {arch.name}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Live Scenario Configuration Controls */}
             <div
@@ -1242,7 +1298,7 @@ export default function PromotionPlanner({
                   onChange={e => {
                     const nextSku = e.target.value;
                     const owning = CAMPAIGN_ARCHETYPES.find(a => a.default_sku === nextSku);
-                    if (owning && owning.id !== archetype.id) {
+                    if (!activeScenario?.identity?.scenario_id && owning && owning.id !== archetype.id) {
                       handleSelectArchetype(owning.id);
                     } else {
                       setSkuId(nextSku);
@@ -1269,7 +1325,10 @@ export default function PromotionPlanner({
                       {scenarioProjection.sku_name} ({scenarioProjection.default_sku})
                     </option>
                   )}
-                  {CAMPAIGN_ARCHETYPES.map(a => (
+                  {(activeScenario?.identity?.scenario_id
+                    ? CAMPAIGN_ARCHETYPES.filter(a => a.default_sku === scenarioProjection.default_sku)
+                    : CAMPAIGN_ARCHETYPES
+                  ).map(a => (
                     <option key={a.default_sku} value={a.default_sku}>
                       {a.sku_name} ({a.default_sku})
                     </option>

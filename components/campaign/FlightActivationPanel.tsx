@@ -451,8 +451,8 @@ export default function FlightActivationPanel({
               <strong>£{competitiveContext.assumed_competitive_price_gbp.toFixed(2)}</strong>
             </div>
             <div>
-              <span style={{ color: '#B45309' }}>Sensitivity γ: </span>
-              <strong>{competitiveContext.competitive_response_pp_per_disadvantage_point.toFixed(2)} pp/pt</strong>
+              <span style={{ color: '#B45309' }}>Expected demand response: </span>
+              <strong>{competitiveContext.competitive_response_pp_per_disadvantage_point}</strong>
             </div>
             <div>
               <span style={{ color: '#B45309' }}>Selected option: </span>
@@ -460,7 +460,7 @@ export default function FlightActivationPanel({
             </div>
             <div>
               <span style={{ color: '#B45309' }}>Objective: </span>
-              <strong>MAXIMUM_NET_CONTRIBUTION</strong>
+              <strong>Highest expected contribution</strong>
             </div>
           </div>
         </div>

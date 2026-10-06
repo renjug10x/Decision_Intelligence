@@ -189,9 +189,9 @@ export default function InterventionWorkspace({
             </strong>
           </div>
           <div>
-            <span style={{ color: '#64748B' }}>Demand sensitivity (γ):</span>{' '}
+            <span style={{ color: '#64748B' }}>Expected demand response:</span>{' '}
             <strong style={{ color: '#0F172A', fontFamily: 'monospace' }}>
-              {compCtx.competitive_response_pp_per_disadvantage_point}pp/pp
+              {compCtx.competitive_response_pp_per_disadvantage_point}
             </strong>
           </div>
           <div>

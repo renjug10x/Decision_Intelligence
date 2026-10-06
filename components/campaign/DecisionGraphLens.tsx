@@ -901,7 +901,7 @@ export default function DecisionGraphLens({
 
               <div style={{ background: '#FFFBEB', border: '1px solid #FDE68A', borderRadius: 6, padding: '8px 10px', fontSize: '0.72rem' }}>
                 <div style={{ fontSize: '0.62rem', fontWeight: 700, color: '#92400E', textTransform: 'uppercase' }}>
-                  Decision Boundary (γ = {visual.gamma}pp/pp)
+                  Decision Boundary (Demand response {visual.gamma})
                 </div>
                 <div style={{ fontWeight: 800, color: '#92400E', fontSize: '0.82rem', marginTop: 2 }}>
                   {visual.boundary_outcome === 'FLIP_FOUND' &&
